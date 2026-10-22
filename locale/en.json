@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Prompt Inject (dsh-prompt-inject)",
-    "description": "Host-only demo bundle that appends one small bilingual section, carrying the verification token DSH-INJECT-7F3A-2026, to every agent system prompt so the injection route can be verified end to end."
+    "description": "DeepSeek Harness bundle that injects an editable bilingual section into every agent system prompt, with a sidebar panel for editing and saving it live."
   }
 }

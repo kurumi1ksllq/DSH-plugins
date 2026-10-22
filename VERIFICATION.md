@@ -153,3 +153,123 @@ DSH-INJECT-7F3A-2026
 - 开发期红测暴露并修复一处真实缺口：`config` 为 `null` 时 `apply()` 抛 `TypeError`，已改为按默认值处理并有测试覆盖。
 - 一次测试误报：图标测试把 SVG 的 `xmlns` 命名空间当作外部资源，已修正断言。
 - pnpm 的 peer dependency 提示为环境级提示，未影响安装与加载；未做任何 profile 手工修改，未卸载/禁用其他插件。
+
+---
+
+# 追加验证 — task-3：侧边栏按钮与提示词编辑面板
+
+时间：2026-10-23（Asia/Shanghai）。本轮把 Host-only 注入插件扩展为「Host 动态段落 + HTTP 状态路由 + Client 侧边栏编辑面板」。
+
+## 7. 本轮改动文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `index.js` | `inject` 改为 `['systemPrompt','webServer']`；section `text` 改为 getter `() => currentText`；新增 `GET/POST /prompt-inject/state`（Origin/Host 与 `sec-fetch-site` 校验、256 KiB 体积上限、空文本/超长拒绝、原子写盘、写盘失败不改内存、`emit('system-prompt/change')`）；状态文件按 `DSH_PROFILE_DIR` → `DSH_HOME` → `~/.dsh` 顺序定位 |
+| `client.js`（新增） | `window.__ModuleLoader__.load({ id:'@local/dsh-prompt-inject' })`；`slots` 注册 `sidebar.panellist`（id `prompt-inject`）与 `main`（key `prompt-inject`）；`locale` 注册 zh/en 字典；面板含回填、受控 textarea、确定/保存中/成功/错误提示、返回对话；只 require `react`，只用主题 token |
+| `package.json` | 新增 `exports['./client']`、`files` 加入 `client.js`、`dsh.client = { platform:'web', immediately:true, inject:[layout, sidebar, locale] }`；保留 bundle patch |
+| `locale/en.json`、`locale/zh.json` | 描述更新为“可编辑 + 侧边栏面板” |
+| `README.md` | 新增编辑器、HTTP 契约、持久化、安全与生效说明 |
+| `test/plugin.test.mjs` | 24 项纯 Node 契约测试（fake ctx + fake req/res + `node:vm` 执行 client.js） |
+| `VERIFICATION.md` | 本节 |
+
+## 8. 静态检查与测试
+
+```text
+> node --check .\prompt-inject\index.js
+index.js syntax OK
+> node --check .\prompt-inject\client.js
+client.js syntax OK
+
+> node --test .\prompt-inject\test\plugin.test.mjs
+✔ package manifest is a valid DSH bundle and client package
+✔ locale files carry real plugin metadata
+✔ bundle patch is a single insert row for the plugin
+✔ icon is a self-contained 64x64 SVG
+✔ exports the host services and registers one dynamic section
+✔ registers the exact HTTP state route through ctx.effect
+✔ defaults apply when config is omitted, empty or null
+✔ config overrides name, order and text; invalid values fall back
+✔ injected text keeps literal placeholders untouched
+✔ GET returns the default state when nothing is stored
+✔ POST persists the text, updates the live section and emits the change event
+✔ POST rejects empty, non-string and oversized text with 400
+✔ POST rejects cross-origin requests with 403
+✔ POST accepts a same-origin request
+✔ POST rejects malformed JSON with 400
+✔ unsupported methods return 405
+✔ oversized request bodies are rejected without touching memory
+✔ corrupt or invalid state files fall back to the default text
+✔ a state file with a valid text is loaded at startup
+✔ write failures return 500 and leave memory unchanged
+✔ falls back to DSH_HOME when DSH_PROFILE_DIR is absent
+✔ client.js is a ModuleLoader module that only requires react
+✔ client registers sidebar button and main panel with matching ids
+✔ client registers zh/en dictionaries and back button clears the panel
+
+tests 24 / pass 24 / fail 0
+```
+
+红/绿记录：本轮先写 24 项测试，对旧实现运行得到红色（`client.js` 不存在、`inject` 缺 `webServer`、无路由），实现后经两处测试自身修正（`bootHost` 暴露 `route`、跨 vm realm 数组比较）达到 24/24 绿。
+
+## 9. 安装返回（重新安装）
+
+`install_bundle` 对已安装包直接返回 `{"application":"failed","error":{"code":"already-installed"}}`。为取得真实安装结果，先用 `plugin_manager remove_bundle` 移除本插件（**仅本插件**，`application: applied`、`warnings: []`、`exitCode: 0`），再重新 `install_bundle`：
+
+```json
+{
+  "stage": "enable",
+  "target": "@local/dsh-prompt-inject",
+  "enabled": true,
+  "changed": true,
+  "application": "applied",
+  "registries": [null],
+  "packageResult": { "exitCode": 0, "truncated": false },
+  "bundle": "@local/dsh-prompt-inject",
+  "version": "0.1.0",
+  "warnings": []
+}
+```
+
+- 无 `restart-required` 字段，无 error。
+- pnpm 输出仍有一条环境级 `[WARN] Issues with peer dependencies found`，与本包无关。
+- 未手工修改 profile 的 `package.json` / `cordis.patch.yml` / `node_modules`。
+
+## 10. 运行时行状态
+
+安装后 `list_plugins`（offset 200，total 213）：
+
+```json
+{
+  "entryId": "include:prompt-inject",
+  "moduleName": "@local/dsh-prompt-inject",
+  "enabled": true,
+  "fiberPhase": "active",
+  "patchId": "prompt-inject"
+}
+```
+
+## 11. 真实 HTTP 路由验证（Host 已热加载，无需重启）
+
+重新安装后探测 `GET http://127.0.0.1:22327/prompt-inject/state`：安装前为 **404**（旧 Host 模块），重新安装后为 **200**，说明新 Host 半区已被运行时加载，**HOST 无需重启**。
+
+```text
+BEFORE: updatedAt=0 length=925
+POST new: length=62 updatedAt=1792697297844 textMatch=True
+GET after POST: textMatch=True updatedAt=1792697297844
+CROSS-ORIGIN: status=403 body={"error":"forbidden-origin"}
+EMPTY TEXT: status=400 body={"error":"invalid-text"}
+DELETE: status=405 body={"error":"method-not-allowed"}
+RESTORE: textMatch=True updatedAt=1792697297870
+FINAL: textMatch=True updatedAt=1792697297870
+```
+
+- POST 使用同源 `Origin: http://127.0.0.1:22327`，写入临时探测文本后 GET 能读回；随后已用原文本恢复，最终 GET 与原文本逐字一致。
+- `Origin: https://evil.example` 被 403 拒绝；空文本 400；DELETE 405。
+- 持久化文件实际落在 `$DSH_HOME` 回退路径：`C:\Users\admin\.dsh\prompt-inject\state.json`（1122 bytes，`updatedAt=1792697297870`，`textLength=925`，即恢复后的原文）。运行进程未设置 `DSH_PROFILE_DIR`，因此走了第 2 条规则，符合契约。
+
+## 12. 限制与未验证项
+
+- **页面视觉/点击未验证**：本会话没有浏览器控制工具，无法点击侧边栏按钮或观察面板渲染。Client 半区需要用户**刷新页面**（或重启 DSH Web）后才会加载；届时左侧边栏应出现「提示词注入」按钮，点击进入编辑面板。
+- 面板的加载/保存状态、主题 token 表现、返回按钮行为仅由 `node:vm` 契约测试覆盖，未做真实浏览器验收。
+- 未验证 Client 包在 Web 端的实际模块解析；`dsh.client.inject` 三项按任务卡给定值填写。
+
