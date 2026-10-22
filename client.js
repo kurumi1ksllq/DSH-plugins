@@ -27,11 +27,10 @@ window.__ModuleLoader__.load({
       saved: '已保存，新的模型请求将使用更新后的提示词。',
       loading: '正在读取当前注入文本…',
       back: '返回对话',
-      error: {
-        load: '读取当前注入文本失败，请稍后重试。',
-        save: '保存失败，请稍后重试。',
-        empty: '注入文本不能为空，未提交。',
-      },
+      // Flat keys on purpose: ctx.locale looks entries up by exact key.
+      'error.load': '读取当前注入文本失败，请稍后重试。',
+      'error.save': '保存失败，请稍后重试。',
+      'error.empty': '注入文本不能为空，未提交。',
     }
 
     const en = {
@@ -44,11 +43,10 @@ window.__ModuleLoader__.load({
       saved: 'Saved. New model requests will use the updated prompt.',
       loading: 'Loading the current injected text…',
       back: 'Back to chat',
-      error: {
-        load: 'Could not load the current injected text. Please retry.',
-        save: 'Could not save. Please retry.',
-        empty: 'The injected text must not be empty; nothing was submitted.',
-      },
+      // Flat keys on purpose: ctx.locale looks entries up by exact key.
+      'error.load': 'Could not load the current injected text. Please retry.',
+      'error.save': 'Could not save. Please retry.',
+      'error.empty': 'The injected text must not be empty; nothing was submitted.',
     }
 
     const PRIMARY_BUTTON = {
@@ -113,7 +111,7 @@ window.__ModuleLoader__.load({
         border: '1px solid var(--dsw-alias-border-l1)',
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         outline: 'none',
-        fontFamily: 'var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+        fontFamily: 'var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
         fontSize: '12px',
         lineHeight: 1.6,
       },

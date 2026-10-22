@@ -612,9 +612,12 @@ test('client registers zh/en dictionaries and back button clears the panel', () 
       assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
       assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
     }
-    for (const key of ['load', 'save', 'empty']) {
-      assert.equal(typeof dict.error[key], 'string', `${locale}.error.${key} missing`)
-      assert.ok(dict.error[key].trim().length > 0, `${locale}.error.${key} empty`)
+    // Locale entries are looked up by exact key, so error strings must be
+    // flat keys rather than a nested `error` object.
+    assert.equal(dict.error, undefined, `${locale} must not nest error keys`)
+    for (const key of ['error.load', 'error.save', 'error.empty']) {
+      assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
+      assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
     }
   }
 

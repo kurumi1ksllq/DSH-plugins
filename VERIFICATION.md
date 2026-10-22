@@ -286,4 +286,12 @@ DSH-INJECT-7F3A-2026
 
 结果与默认文案一致，说明重构未破坏原有注入语义（默认演示文案与令牌保持不变）。
 
+## 14. Lead 复核修复记录（客户端字典与字体变量）
+
+- **扁平 locale key**：`ctx.locale` 按精确 key 查表（`entries[key]`），原先嵌套的 `error: { load, save, empty }` 会让 `t('error.load')` 回显原始 key。已改为扁平键 `'error.load'` / `'error.save'` / `'error.empty'`（zh/en 各一份），测试同步改为断言扁平键且断言不存在嵌套 `error` 对象。
+- **字体变量**：textarea 的 `--ds-font-family-code` 更正为 Host 主题实际提供的 `--dsh-font-family-code`，保留 `ui-monospace, SFMono-Regular, Menlo, monospace` 回退。
+- 复验：`node --check client.js` OK；`node --test prompt-inject/test/plugin.test.mjs` 24/24 通过。
+- 生效条件：clientModules 在安装时缓存了“该包没有 dsh.client”的负结果，combo bundle 当前仍 404；需**重启 DSH（并刷新页面）**后 Client 半区才会注册，本次未重启。
+
+
 
