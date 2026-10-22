@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "提示词注入 (dsh-prompt-inject)",
+    "description": "仅宿主端的演示插件：向所有 Agent 的系统提示词追加一段中英双语说明与验证令牌 DSH-INJECT-7F3A-2026，用于端到端验证系统提示词注入链路。"
+  }
+}

@@ -1,0 +1,8 @@
+# Bundle patch layer for @local/dsh-prompt-inject.
+# The inserted row loads this package's main entry (index.js) as a plain
+# host-side Cordis plugin. No config override is written here on purpose:
+# the defaults live in index.js, and a profile can override `text`, `order`
+# or `name` later through its own patch layer if needed.
+- insert:
+    - id: prompt-inject
+      name: "@local/dsh-prompt-inject"

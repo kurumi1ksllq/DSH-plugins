@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Prompt inject icon">
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#1f2937"/>
+  <path d="M15 21h13a7 7 0 0 1 7 7v15" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
+  <path d="M29 35l6 6 6-6" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="47" cy="19" r="6" fill="#fbbf24"/>
+  <path d="M47 15.5v4.2l2.8 1.7" fill="none" stroke="#1f2937" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
