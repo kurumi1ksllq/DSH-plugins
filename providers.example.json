@@ -1,0 +1,51 @@
+{
+  "defaults": {
+    "limit": 8,
+    "timeoutMs": 15000,
+    "cooldown": { "quota": 1800, "auth": 86400, "error": 60 }
+  },
+  "providers": [
+    {
+      "id": "tavily",
+      "kind": "tavily",
+      "apiKeyEnv": "TAVILY_API_KEY",
+      "timeoutMs": 12000
+    },
+    {
+      "id": "exa",
+      "kind": "exa",
+      "apiKeyEnv": "EXA_API_KEY",
+      "timeoutMs": 15000
+    },
+    {
+      "id": "firecrawl",
+      "kind": "firecrawl",
+      "apiKeyEnv": "FIRECRAWL_API_KEY",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "parallel",
+      "kind": "parallel",
+      "apiKeyEnv": "PARALLEL_API_KEY",
+      "mode": "fast",
+      "timeoutMs": 20000,
+      "enabled": false
+    },
+    {
+      "id": "example-custom",
+      "kind": "custom",
+      "apiKeyEnv": "EXAMPLE_SEARCH_KEY",
+      "enabled": false,
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.com/v1/search",
+        "headers": { "authorization": "Bearer ${key}" },
+        "body": { "q": "${query}", "size": "${limit}" }
+      },
+      "response": {
+        "sourcesPath": "data.items",
+        "map": { "title": "name", "url": "link", "snippet": "summary" }
+      }
+    }
+  ]
+}
