@@ -28,7 +28,7 @@ DSH 自带的 `ctx.web` 只解析**一个**搜索提供方（`@deepseek-ai/dsh-w
 
 ```bash
 node scripts/build-plugin.mjs            # 生成 plugin/lib/*.mjs（从 lib/ 复制，幂等）
-node scripts/install.mjs --dry-run       # 只看计划，不写任何东西
+node scripts/install.mjs --dry-run       # 只看计划（含将要写入的 diff），不写任何东西
 node scripts/install.mjs                 # 装进 profile
 node scripts/install.mjs --uninstall     # 完全回滚
 ```
@@ -52,7 +52,7 @@ node scripts/install.mjs --uninstall     # 完全回滚
 
 `fetchProvider: http` 是必须一起写的：profile patch 会**整块替换**目标行的 `config`，只写 `searchProvider` 会把原生 http 抓取器一起冲掉。
 
-每次真正修改前，安装器都会在文件旁边写 `*.bak-websearch-failover-<时间戳>` 备份；内容没变化就不写文件、不产生备份。`--uninstall` 是按文本精确摘除的，所以能把这**两个文件还原到安装前的字节**（`test/test-install.mjs` 会逐字节比对）。
+每次真正修改前，安装器都会在文件旁边写 `*.bak-websearch-failover-<时间戳>` 备份；内容没变化就不写文件、不产生备份。`--uninstall` 是按文本精确摘除的，所以能把这**两个文件还原到安装前的字节**（`test/test-install.mjs` 会逐字节比对）。唯一例外：如果中途用 DSH 自带的插件管理器增删过别的 bundle，它会整份重写 `package.json`（2 空格 JSON），此时卸载结果语义等价、但不再与最早的备份逐字节相同 —— 那种情况下用 `package.json.bak-websearch-failover-*` 里的原始快照对照即可。
 
 参数：
 
@@ -60,13 +60,13 @@ node scripts/install.mjs --uninstall     # 完全回滚
 | --- | --- |
 | `--profile <dir>` | 目标 profile，优先级最高 |
 | `--source <dir>` | 从另一个 checkout 安装（默认本仓库） |
-| `--dry-run` | 打印每一步计划，不建目录、不写文件、不跑 build |
+| `--dry-run` | 打印每一步计划（package/manifest/patch 的 diff 预览），不建目录、不写文件、不跑 build |
 | `--uninstall` | 删除包目录 + bundles 条目 + 标记块 |
 | `--no-build` | 信任已有的 `plugin/lib/`，跳过构建 |
 
 Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/desktop` > `~/.dsh/profiles/desktop`；找不到带 `package.json` 的 profile 会直接报错并列出检查过的路径。
 
-**生效方式**：重启 DSH 桌面端（或让 loader 重新加载 profile）。装完的提示行会再次提醒。
+**生效方式**：这个 profile 开着 HMR —— **host 半区**（provider 注册、HTTP API、运行时状态）会热生效，不需要重启 DSH；只有**浏览器半区**（侧边栏入口 + 面板）需要刷新一次页面。装完的提示行会再次提醒。
 
 ## 3. 配置：`providers.json`
 
@@ -101,7 +101,11 @@ Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/de
 - **key 解析**：`apiKey` 字面值 → `apiKeyEnv`（可加 `apiKeyEnvFallbacks`）→ `keyFile` 首行；`keyOptional: true` 允许无 key（如本地 SearXNG）。
 - `enabled: false` 的行不参与搜索，但仍显示在侧栏。
 - 其它可用字段：`label`（面板显示名）、`endpoint`、每行自己的 `timeoutMs`。
-- **余额**：内置 `firecrawl`、`tavily` 的余额接口；其它家若想显示余额，在行里加 `"balance": { "request": {...}, "response": { "remainingPath"|"totalPath"|"usedPath" }, "unit": "credits|usd|percent|requests|tokens" }`。没有余额接口就显示中性提示（`status: unknown`），不影响搜索。
+- **余额**：内置 `firecrawl`、`tavily` 的余额接口（2026-10-24 对真实 API 验证过）：
+  - firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits`（v1 的 snake_case 字段也接受）；
+  - tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`。
+
+  其它家若想显示余额，在行里加 `"balance": { "request": {...}, "response": { "remainingPath"|"totalPath"|"usedPath" }, "unit": "credits|usd|percent|requests|tokens" }`；路径可以是单个点号路径，也可以是**候选路径数组**（取第一个能取到值的，用来兼容 v1/v2 或改名后的响应）。没有余额接口就显示中性提示（`status: unknown`），不影响搜索。
 
 ## 4. 运行时状态文件
 
@@ -112,7 +116,7 @@ Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/de
 | `websearch-failover-state.json` | `$DSH_HOME/websearch-failover-state.json` | 引擎 | 每家的冷却记录：`until`、`reason`（quota/auth/error）、`code`、`message`、`at` |
 | `plugin.log` | `$DSH_HOME/websearch-failover/plugin.log` | 插件 | 注册、每次搜索的命中家与 attempts、顺序/启停变更、余额刷新结果 |
 
-三者都可被环境变量覆盖：`$WEBSEARCH_FAILOVER_CONFIG`、`$WEBSEARCH_FAILOVER_RUNTIME`、`$WEBSEARCH_FAILOVER_STATE`。文件缺失或 JSON 损坏时一律当作“没有覆盖/没有冷却”，不会让搜索失败。写入是「临时文件 + rename」的原子替换。
+前三个文件可被环境变量覆盖：`$WEBSEARCH_FAILOVER_CONFIG`、`$WEBSEARCH_FAILOVER_RUNTIME`、`$WEBSEARCH_FAILOVER_STATE`。文件缺失或 JSON 损坏时一律当作“没有覆盖/没有冷却”，不会让搜索失败。写入是「临时文件 + rename」的原子替换。
 
 `runtime.json` 里的 `order` 只给**已列出**的 id 排序，没列到的保持配置文件里的相对顺序；`disabled` 里的 id 直接从候选队列移除。
 
@@ -175,8 +179,8 @@ lib/api.mjs           侧栏四条路由的 HTTP API
 lib/http.mjs          共享 HTTP 小工具（同源校验、body 上限、JSON 响应、truncate）
 plugin/index.js       host 半区：注册 ctx.web 提供方 + 挂 API
 plugin/client.js      浏览器半区：侧栏入口 + 提供方管理器面板
-plugin/locale/*.json  插件标题/描述（中英）
-plugin/icon.svg       64×64 图标（currentColor）
+plugin/locale/*.json  侧栏/面板文案字典（中英，namespace websearch-failover）
+plugin/icon.svg       图标（24×24 viewBox，currentColor 描边）
 plugin/package.json   bundle 声明（dsh.bundle.patch + dsh.client）
 plugin/cordis.patch.yml  bundle patch：只 insert 自己那一行
 plugin/lib/*.mjs      由 scripts/build-plugin.mjs 从 lib/ 生成的副本（gitignored）
@@ -185,29 +189,37 @@ scripts/install.mjs       安装 / 卸载 / 计划预览
 search.mjs            CLI
 providers.example.json  配置示例
 test/*.mjs            离线测试（见下）
-tools/                DSH app.asar 只读检查小工具（开发期用，不参与运行）
+tools/                DSH app.asar 只读检查小工具 + 余额接口体检脚本（开发期用，不参与运行）
 providers.json / runtime.json / websearch-failover-state.json / plugin.log
                       运行时文件，全部在 $DSH_HOME 下，git 忽略
 ```
 
-`plugin/lib/` 是**生成产物**：改 `lib/`，然后 `node scripts/build-plugin.mjs`；`node scripts/build-plugin.mjs --check` 在生成物过期时退出 1（适合放进 CI）。`HANDOVER.md` 是早期原型交接记录，其中“搜索形态/CLI”仍适用，安装与面板部分以本文为准。
+`plugin/lib/` 是**生成产物**：改 `lib/`，然后 `node scripts/build-plugin.mjs`；`node scripts/build-plugin.mjs --check` 在生成物过期时退出 1（适合放进 CI）。
 
-根 `package.json` 里可加这些脚本别名（可选，便于少敲字）：
+旧原型的单 provider 文件（`plugin/install.mjs`、`plugin/core.mjs`、`test/test-plugin.mjs`）已经删除，现在的目录就是唯一布局：host 半区 `plugin/index.js` + 生成的 `plugin/lib/`，安装/卸载只走 `scripts/install.mjs`。`HANDOVER.md` 是早期原型交接记录，其中“搜索形态/CLI”仍适用，安装与面板部分以本文为准。
 
-```json
-{
-  "scripts": {
-    "build": "node scripts/build-plugin.mjs",
-    "build:check": "node scripts/build-plugin.mjs --check",
-    "plugin:install": "node scripts/install.mjs",
-    "plugin:uninstall": "node scripts/install.mjs --uninstall",
-    "plugin:dry": "node scripts/install.mjs --dry-run",
-    "search": "node search.mjs",
-    "probe": "node search.mjs --probe",
-    "list": "node search.mjs --list"
-  }
-}
-```
+根 `package.json` 里的脚本（与仓库内实际定义一致）：
+
+| 脚本 | 命令 |
+| --- | --- |
+| `npm test` | 依次跑 9 个测试文件（见 §10） |
+| `npm run build` | `node scripts/build-plugin.mjs` |
+| `npm run build:check` | `node scripts/build-plugin.mjs --check` |
+| `npm run plugin:dry` | `node scripts/install.mjs --dry-run` |
+| `npm run plugin:install` | `node scripts/install.mjs` |
+| `npm run plugin:uninstall` | `node scripts/install.mjs --uninstall` |
+| `npm run test:engine` | `node test/mock-failover.mjs` |
+| `npm run test:runtime` | `node test/test-runtime.mjs` |
+| `npm run test:balance` | `node test/test-balance.mjs` |
+| `npm run test:api` | `node test/test-api.mjs` |
+| `npm run test:plugin` | `node test/test-host-plugin.mjs` |
+| `npm run test:integration` | `node test/test-integration.mjs` |
+| `npm run test:client` | `node test/test-client-static.mjs` |
+| `npm run test:render` | `node test/test-client-render.mjs` |
+| `npm run test:install` | `node test/test-install.mjs` |
+| `npm run search` / `probe` / `list` | `node search.mjs …` |
+| `npm run probe:balance` | `node tools/probe-balance-endpoints.mjs` |
+| `npm run asar:get` / `asar:files` | `node tools/asar-get.cjs` / `node tools/asar-files.mjs` |
 
 ## 10. 测试
 
@@ -219,11 +231,13 @@ node test/test-runtime.mjs         # runtime.json 归一化、order/disabled、�
 node test/test-balance.mjs         # 余额归一化（credits/usd/percent/requests/tokens/unknown）+ 内置探测
 node test/test-api.mjs             # 四个路由、错误码、同源校验、body 上限
 node test/test-host-plugin.mjs     # host 半区契约（stub ctx：注册、available、search、API 注册）
+node test/test-integration.mjs     # 真 node:http 回环：起临时服务端跑 host 插件 + API 全链路
 node test/test-client-static.mjs   # client.js 静态检查（语法、slot/key、路由、locale、只 require react）
-node test/test-install.mjs         # 安装/卸载：dry-run 零写入、幂等、备份、逐字节还原、缺 build 拒装
+node test/test-client-render.mjs   # 迷你 hook 运行时执行 client.js：渲染文案、余额条宽度、拖动/排序 POST 体、失败回滚
+node test/test-install.mjs         # 安装/卸载：dry-run 零写入、diff 计划、幂等、备份、逐字节还原、缺 build 拒装
 ```
 
-`test/test-install.mjs` 在系统临时目录里造一个假 profile + 假 checkout 跑完整流程，真实 `~/.dsh/profiles/desktop` 永远不参与。
+`npm test` 会按上面的顺序全跑一遍。`test/test-install.mjs` 在系统临时目录里造一个假 profile + 假 checkout 跑完整流程，真实 `~/.dsh/profiles/desktop` 永远不参与。
 
 ## 11. 安全说明
 
@@ -244,9 +258,9 @@ MIT，见 `LICENSE`。
 
 **dsh-websearch-failover** is a DeepSeek Harness bundle that turns the native `web_search` into an ordered multi-provider failover chain: providers are tried top-to-bottom in the user's priority order, and quota/auth/transport failures put that provider on a quota-aware cooldown instead of failing the search. It registers a single `websearch-failover` provider on `ctx.web`, so the harness never sees an ambiguous provider set, and it serves a small HTTP API behind a left-sidebar provider manager.
 
-- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer copies the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). Restart DSH (or reload the page) afterwards.
-- **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search.
+- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer copies the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). The profile has HMR enabled, so the host half applies live without restarting DSH; only the browser half needs one page reload.
+- **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search. Built-in balance probes (verified against the live APIs on 2026-10-24): firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits` (v1 snake_case also accepted), tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`.
 - **State:** `~/.dsh/websearch-failover/runtime.json` (order, disabled, balances, stats), `~/.dsh/websearch-failover-state.json` (cooldowns), `~/.dsh/websearch-failover/plugin.log`.
 - **API:** `/websearch-failover/api/{state,order,refresh,enable}`; POST bodies `{order:[...]}`, `{ids?:[...]}`, `{id,enabled}`. Same-origin checked, 128 KiB body cap, never returns API keys.
-- **Tests:** `node test/mock-failover.mjs && node test/test-runtime.mjs && node test/test-balance.mjs && node test/test-api.mjs && node test/test-host-plugin.mjs && node test/test-client-static.mjs && node test/test-install.mjs` — all offline, the install test runs against a throwaway temp profile.
+- **Tests:** `npm test` runs nine offline files: `test/mock-failover.mjs`, `test/test-runtime.mjs`, `test/test-balance.mjs`, `test/test-api.mjs`, `test/test-host-plugin.mjs`, `test/test-integration.mjs` (real `node:http` loopback), `test/test-client-static.mjs`, `test/test-client-render.mjs` (mini hook runtime executing `client.js`), `test/test-install.mjs` (throwaway temp profile).
 - **Security:** API keys live only in `~/.dsh` as plaintext, never in this repository; `.gitignore` covers the config/state/log files.

@@ -73,9 +73,7 @@ function parseArgs(argv) {
       process.exit(0);
     } else throw new Error(`unknown argument: ${arg}`);
   }
-  if (options.dryRun && options.mode === MODE_UNINSTALL) {
-    // Allowed: --dry-run --uninstall is the "what would a rollback do" view.
-  }
+  // `--dry-run --uninstall` is allowed: it is the "what would a rollback do" view.
   return options;
 }
 
@@ -137,7 +135,10 @@ function uniqueBackupPath(file) {
  * @returns {{ open: number, close: number }} indexes of `[` and `]`
  */
 function bundlesSpan(text) {
-  const keyAt = text.indexOf('"bundles"');
+  const profileAt = text.indexOf('"profile"');
+  const searchFrom = profileAt === -1 ? 0 : profileAt;
+  let keyAt = text.indexOf('"bundles"', searchFrom);
+  if (keyAt === -1) keyAt = text.indexOf('"bundles"');
   if (keyAt === -1) fail('profile package.json has no dsh.profile.bundles list — add it or install through the DSH plugin manager');
   const open = text.indexOf('[', keyAt);
   if (open === -1) fail('profile package.json: dsh.profile.bundles is not an array');
@@ -383,17 +384,66 @@ function plan({ options, profile, sourceRoot, targetDir, manifestPath, patchPath
       actions.push({ kind: 'copy', text: `copy plugin/ (${files.size} files) -> ${targetDir}${note}`, files });
     }
     const manifest = addBundleEntry(text(manifestPath));
-    if (manifest.changed) actions.push({ kind: 'manifest', text: `add "${BUNDLE}" to dsh.profile.bundles`, next: manifest.text, file: manifestPath });
+    if (manifest.changed)
+      actions.push({
+        kind: 'manifest',
+        text: `add "${BUNDLE}" to dsh.profile.bundles`,
+        before: text(manifestPath),
+        next: manifest.text,
+        file: manifestPath,
+      });
     const patch = upsertPatchBlock(text(patchPath));
-    if (patch.changed) actions.push({ kind: 'patch', text: `write the managed websearch-failover block to ${patchPath}`, next: patch.text, file: patchPath });
+    if (patch.changed)
+      actions.push({
+        kind: 'patch',
+        text: `write the managed websearch-failover block to ${patchPath}`,
+        before: text(patchPath),
+        next: patch.text,
+        file: patchPath,
+      });
   } else {
     if (fs.existsSync(targetDir)) actions.push({ kind: 'copy', text: `remove ${targetDir}` });
     const manifest = removeBundleEntry(text(manifestPath));
-    if (manifest.changed) actions.push({ kind: 'manifest', text: `remove "${BUNDLE}" from dsh.profile.bundles`, next: manifest.text, file: manifestPath });
+    if (manifest.changed)
+      actions.push({
+        kind: 'manifest',
+        text: `remove "${BUNDLE}" from dsh.profile.bundles`,
+        before: text(manifestPath),
+        next: manifest.text,
+        file: manifestPath,
+      });
     const patch = stripPatchBlock(text(patchPath));
-    if (patch.changed) actions.push({ kind: 'patch', text: `remove the managed websearch-failover block from ${patchPath}`, next: patch.text, file: patchPath });
+    if (patch.changed)
+      actions.push({
+        kind: 'patch',
+        text: `remove the managed websearch-failover block from ${patchPath}`,
+        before: text(patchPath),
+        next: patch.text,
+        file: patchPath,
+      });
   }
   return actions;
+}
+
+/** Unified-ish line diff for the plan: shared prefix/suffix trimmed, rest shown. */
+function formatDiff(before, after, limit = 20) {
+  const left = String(before ?? '').split('\n');
+  const right = String(after ?? '').split('\n');
+  let start = 0;
+  while (start < left.length && start < right.length && left[start] === right[start]) start += 1;
+  let endLeft = left.length - 1;
+  let endRight = right.length - 1;
+  while (endLeft >= start && endRight >= start && left[endLeft] === right[endRight]) {
+    endLeft -= 1;
+    endRight -= 1;
+  }
+  const removed = left.slice(start, endLeft + 1);
+  const added = right.slice(start, endRight + 1);
+  const lines = [];
+  for (const line of removed.slice(0, limit)) lines.push(`    - ${line}`);
+  for (const line of added.slice(0, limit)) lines.push(`    + ${line}`);
+  if (removed.length > limit || added.length > limit) lines.push('    …');
+  return lines;
 }
 
 // ---------------------------------------------------------------- main
@@ -437,7 +487,7 @@ function main() {
   const actions = plan({ options, profile, sourceRoot, targetDir, manifestPath, patchPath });
   if (actions.length === 0) {
     say(install ? 'unchanged: profile already up to date' : 'unchanged: nothing installed, nothing to remove');
-    say(install ? 'next: restart the DSH desktop app (or reload the page) if the bundle is not mounted yet.' : '');
+    say(install ? 'next: reload the page only if the sidebar entry is missing (the host half hot-reloads).' : '');
     return;
   }
 
@@ -446,7 +496,10 @@ function main() {
   for (const action of actions) {
     const prefix = options.dryRun ? '  would ' : '  ';
     say(`${prefix}${describe(action)}`);
-    if (action.next !== undefined) backupPlan = true;
+    if (action.next !== undefined) {
+      backupPlan = true;
+      for (const line of formatDiff(action.before, action.next)) say(line);
+    }
   }
   if (backupPlan) say(`  ${options.dryRun ? 'would write' : 'will write'} timestamped .bak-websearch-failover-* backups next to each edited file`);
 
@@ -456,9 +509,6 @@ function main() {
     return;
   }
 
-  if (install && options.build) {
-    // Refresh the file map now that the build produced plugin/lib.
-  }
   for (const action of actions) {
     if (action.kind === 'copy' && action.files !== undefined) {
       copyTree(targetDir, action.files);
@@ -475,20 +525,21 @@ function main() {
   if (install) {
     say('');
     say('next steps:');
-    say('  1. restart the DSH desktop app (or reload the page) so the host row and the client bundle load');
-    say(`  2. confirm the left sidebar shows the web-search provider manager`);
-    say(`  3. config: ${path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'websearch-failover', 'providers.json')}`);
-    say('  4. roll back with: node scripts/install.mjs --uninstall');
+    say('  1. HMR is on in this profile: the host half (provider + API) applies live, no DSH restart needed');
+    say('  2. reload the page once so the sidebar entry and the panel bundle load');
+    say('  3. confirm the left sidebar shows the web-search provider manager');
+    say(`  4. config: ${path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'websearch-failover', 'providers.json')}`);
+    say('  5. roll back with: node scripts/install.mjs --uninstall');
   } else {
     say('');
     say('next steps:');
-    say('  1. restart the DSH desktop app so web.searchProvider falls back to the bundled provider');
-    say('  2. runtime state under ~/.dsh/websearch-failover/ was left untouched');
+    say('  1. HMR is on: the host half unregisters live, so web.searchProvider falls back without a restart');
+    say('  2. reload the page once so the sidebar entry disappears');
+    say('  3. runtime state under ~/.dsh/websearch-failover/ was left untouched');
   }
 }
 
 function describe(action) {
-  if (action.kind === 'build') return `build: ${action.text}`;
   if (action.kind === 'copy') return `package: ${action.text}`;
   if (action.kind === 'manifest') return `manifest: ${action.text}`;
   if (action.kind === 'patch') return `patch: ${action.text}`;

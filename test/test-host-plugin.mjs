@@ -148,6 +148,26 @@ await ok('search() calls the top provider, returns sources, and records stats', 
   assert.equal(runtime.stats.exa, undefined, 'untouched providers record nothing')
 })
 
+await ok('an empty result from the top provider is counted before the next one wins', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).includes('api.tavily.com')) {
+      return new Response(JSON.stringify({ results: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return originalFetch(url, init)
+  }
+  try {
+    const result = await provider.search({ query: 'empty first', maxResults: 3 })
+    assert.equal(result.sources[0].url, 'https://e.example/1', 'falls through to exa')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
+  assert.equal(runtime.stats.tavily.lastOutcome, 'empty', 'the empty attempt is recorded')
+  assert.equal(runtime.stats.tavily.calls, 2, 'first success + this empty attempt')
+  assert.equal(runtime.stats.exa.successes, 1)
+})
+
 await ok('the API reorders providers and the next search honours it', async () => {
   const route = boot.routes[0]
   const res = makeRes()

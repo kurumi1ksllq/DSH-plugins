@@ -1,475 +1,251 @@
-# 交接书：DSH 多搜索提供方 failover 插件
+# 交接书：dsh-websearch-failover（DSH 有序多提供方搜索 + 侧栏余额管理器）
 
-> 交接时间：2026-10-24
-> 交接人：DSH 会话 `session-5de8f2a8`（Lead）
-> 目的：让接手方在新工作区独立开发这个插件，不依赖本会话或旧工作区的上下文。
-> 原工作区路径：`D:\Documents\deepseek-harness\default-workspace\tools\websearch-failover`
+> 最后更新：2026-10-24 20:20（Asia/Shanghai）
+> 仓库：`E:\Project-hub\websearch-dsh-plugin` · GitHub `kurumi1ksllq/websearch-dsh-plugin`
+> 本机 DSH：0.2.1-rc.2（cordis 4.0.5），profile `desktop`，`DSH_HOME=C:\Users\admin\.dsh`
 
 ---
 
 ## 0. 一页摘要
 
-**已确认的事实**：DSH（0.2.1-rc.2）的 `web_search` **只会选中一个搜索提供方**，不重试、无额度概念，多家可用时直接抛 `WEB_PROVIDER_AMBIGUOUS`。所以「一家没额度自动换下一家」必须自带实现。
+**做了什么**：把 DSH 原生 `web_search` 变成「按用户排序的提供方队列 + 配额冷却」，并在**左侧边栏**加一个提供方管理器面板：每个提供方的余额（credits / 美元 / 百分比 / 次数 / tokens 混排）都按比例画条，列表顺序 = 调用优先级（最上方先被调用），可拖动/箭头排序、单独启停、手动刷新余额。
 
-**已完成**（全部通过离线测试，未动运行时）：
+**本机已验证（2026-10-24，活体运行时，不是 mock）**：
 
-| 产物 | 作用 | 状态 |
-|---|---|---|
-| `lib/core.mjs`（561 行） | 有序失败转移引擎：HTTP 适配器、错误分类、配额冷却、状态持久化 | 6 项不变量测试通过 |
-| `search.mjs`（113 行） | CLI：搜索 / `--probe` 体检 / `--list` / `--json` / `--force` | 4 家真 key 实测通过 |
-| `plugin/index.js`（92 行） | cordis 插件：把 failover 注册成 `ctx.web` 的 `failover` provider | 6 项契约测试通过 |
-| `plugin/install.mjs`（142 行） | 装/卸：同步包进 profile + 给 `cordis.patch.yml` 打带标记的 patch 块（含备份） | `--dry-run` 通过 |
-| `test/mock-failover.mjs`（132 行） | 引擎离线不变量测试 | 全绿 |
-| `test/test-plugin.mjs`（92 行） | 插件契约测试（stub ctx + mock HTTP） | 全绿 |
-
-**唯一没做的一步**：在真实 profile 上执行 `node plugin/install.mjs`。原因见 §10 风险 1（会改写用户运行中的 `cordis.patch.yml`，需一次重启或热重载才生效）。
-
-**接手方第一件事**：读 §10、跑 §9 的两条测试命令、按 §11 决定是否装。
-
----
-
-## 1. 背景：为什么必须在 DSH 之外实现
-
-来自本机 `E:\DeepSeekHarness\resources\app.asar` 中 `@deepseek-ai/dsh-web@0.2.1-rc.2`（`lib/index.js`）的实证：
-
-```js
-// WebRuntime.search()
-async search(request, signal) {
-  const configuredId = this.config.searchProvider.get() ?? this.searchProviderEnv;
-  return capSources(await resolveProvider({
-    providers: this.searchProviders,
-    ...(configuredId !== void 0 ? { configuredId } : {})
-  }).search(request, signal), request.maxResults);
-}
-```
-
-选择语义（源码注释原文，逐条可验证）：
-
-| 情形 | 结果 |
+| 证据 | 结果 |
 |---|---|
-| 配了 id，已注册且 `available()` | 用它 |
-| 配了 id，未注册 | `WEB_PROVIDER_CONFIGURED_MISSING` |
-| 配了 id，已注册但不可用 | `WEB_PROVIDER_CONFIGURED_UNAVAILABLE` |
-| 未配 id，恰好一家可用 | 用它 |
-| 未配 id，多家可用 | **`WEB_PROVIDER_AMBIGUOUS`**（"configure one explicitly"） |
-| 未配 id，无可用 | `WEB_PROVIDER_UNAVAILABLE` |
+| 安装后 HMR 热生效（profile 开了 hmr） | `plugin.log` 出现 `registered search provider "websearch-failover"`，无需重启 |
+| `GET /websearch-failover/api/state` | HTTP 200，返回真实 4 家：tavily / exa / firecrawl / parallel |
+| `POST /api/refresh`（真 key 打真上游） | Tavily `1000/1000 credits`、Firecrawl `1017/1000 credits`（比例条自动 clamp 到 100%）、Exa/Parallel `no-balance-api` |
+| 原生 `web_search` 实际走插件 | 日志 `search "…" -> tavily (8 sources) attempts: tavily=ok`，`stats.tavily.calls=1` |
+| 改顺序 → 下一个被消耗的是新榜首 | `order: firecrawl > tavily > exa > parallel` → 下一次搜索 `-> firecrawl (8 sources)`，随后已把顺序还原为 tavily 优先 |
+| 浏览器 bundle 真进了 boot graph | `/plugins/events` 的 graph 含 `dsh-websearch-failover`（`inject` 三项、`immediately: true`），组合 bundle URL 取回 `HTTP 200 / 41712 bytes`，内含 `websearch-failover/api/state` |
+| 离线测试 | 8 个套件全绿（见 §8），含真实 `node:http` 回环集成测试 |
 
-三个关键结论：
-
-1. `resolveProvider()` 拿到一个就 `return`，**没有候选队列**；
-2. 提供方抛错直接冒泡成 `WebError`，`dsh-tool-web` 里 grep 不到 retry / fallback / attempt 任何逻辑；
-3. `$DSH_WEB_SEARCH_PROVIDER` 等价于 `searchProvider`，源码注释明确：**"NOT a hidden priority chain"**。
-
-再加一条与本项目相关的设计约束：搜索与抓取共用一个 seam，但**注册表是分开的**（`searchProviders` / `fetchProviders`）。本插件只覆盖 search；`web_fetch` 的失败转移是另一件事（见 §10 风险 4）。
-
-内置的 provider 只有两家：
-
-- `deepseek-official` —— `@deepseek-ai/dsh-web-search-deepseek`，走 Anthropic 兼容 Messages + 原生 `web_search_20250305` 工具（一次搜索=一个模型轮次）；
-- `deepseek-search-api` / `deepseek-fetch-api` —— `@deepseek-ai/dsh-web-deepseek-api`，专用检索 API。
-
-两者都依赖 DeepSeek 凭据，没有任何第三方搜索 provider，也没有配额感知。
+**唯一需要人手动做的一步**：如果页面还没出现侧栏按钮，**刷新页面**（Host 侧已经热生效；浏览器端 boot graph 由页面消费）。
 
 ---
 
-## 2. 目标与非目标
+## 1. 为什么必须是插件（而不是配置）
 
-**目标**
+来自 `E:\DeepSeekHarness\resources\app.asar` 内 `@deepseek-ai/dsh-web` 的实现：`WebRuntime.search()` 用 `resolveProvider()` 选**一个**提供方，拿到就 `return`，没有候选队列；提供方抛错直接冒泡；`$DSH_WEB_SEARCH_PROVIDER` 的源码注释原文是 **“NOT a hidden priority chain”**。
 
-1. 一个 provider 注册进 `ctx.web`，id 为 `failover`，原生 `web_search` 直接受益；
-2. 严格按配置顺序尝试，**命中即止**（用户 2026-10-24 明确选定，不做轮询均衡）；
-3. 额度类失败（429/402/含 quota 字样）触发**冷却**，冷却期内不发请求，避免持续烧已耗尽的额度；
-4. 配置改动无需重启即可生效；
-5. 全进程共享：主 agent、子智能体、队友都走同一条路。
+| 情形 | 原生结果 |
+|---|---|
+| 配了 id，已注册且可用 | 用它，不重试 |
+| 没配 id，恰好一家可用 | 用它 |
+| 没配 id，多家可用 | `WEB_PROVIDER_AMBIGUOUS` |
+| 无可用 | `WEB_PROVIDER_UNAVAILABLE` |
 
-**非目标**
+所以本插件自己注册**一个** provider（id `websearch-failover`），内部走有序队列 + 冷却状态机。原生 `web_search`、子智能体、队友全部自动继承能力。
 
-- 不 fork / 不改 DSH 本体（只通过 patch 层插入自己的 plugin 行）；
-- 不做 MCP 形态（与原生 `web_search` 争选择，且要多背工具 schema）；
-- 不做轮询/负载均衡式分摊；
-- 不做跨 provider 结果去重融合（命中即止，后续可选）；
-- 不覆盖 `web_fetch`。
+**边界**：只覆盖 search（`searchProviders` 注册表）。`web_fetch` 是独立注册表（`fetchProviders`），本插件不碰；profile patch 里会保留 `fetchProvider: http` 正是为此。
 
 ---
 
-## 3. 目录与职责（新仓库 `E:\Project-hub\websearch-dsh-plugin`）
+## 2. 目录与职责
 
 ```
 websearch-dsh-plugin/
-├─ lib/
-│  └─ core.mjs           引擎（唯一逻辑真源）—— 561 行
-├─ search.mjs            CLI 包装
-├─ plugin/
-│  ├─ index.js           cordis 插件 + provider 对象
-│  ├─ install.mjs        安装/卸载 + patch 管理
-│  ├─ package.json       name: @local/dsh-web-search-failover
-│  └─ core.mjs           ← 生成物：test/install 会从 ../lib/core.mjs 复制，已 gitignore
-├─ test/
-│  ├─ mock-failover.mjs  引擎不变量（HTTP mock，无网络）
-│  └─ test-plugin.mjs    插件契约（stub ctx + HTTP mock）
+├─ lib/                         ← 唯一逻辑真源（.mjs，无依赖）
+│  ├─ core.mjs                  引擎：10 家 HTTP 适配器、错误分类、配额冷却、状态持久化（旧资产，保留）
+│  ├─ runtime.mjs               顺序 / 启停 / 余额 / 统计 的持久化与排序（applyRuntime 是顺序语义的唯一实现）
+│  ├─ balance.mjs               余额探测与归一化（credits|usd|percent|requests|tokens|unknown → 统一记录 + ratio）
+│  ├─ api.mjs                   侧栏 HTTP API（prefix 路由，四个动作，同源校验）
+│  └─ http.mjs                  sendJson / isForbiddenOrigin / readJsonBody / truncate
+├─ plugin/                      ← 可安装的 DSH bundle（name: dsh-websearch-failover）
+│  ├─ package.json              dsh.bundle.patch + dsh.client{platform:web, immediately, inject[layout,sidebar,locale]}
+│  ├─ cordis.patch.yml          bundle 层：只 insert 自己的 host 行
+│  ├─ index.js                  Host 半区：注册 ctx.web 提供方 + 挂 API 路由 + 写 plugin.log
+│  ├─ client.js                 Client 半区：window.__ModuleLoader__ bundle，左侧栏入口 + 双栏面板
+│  ├─ locale/{zh,en}.json       扁平 key→string，与 client.js 内注册的字符串逐字节一致
+│  ├─ icon.svg                  放大镜+列表，currentColor
+│  └─ lib/*.mjs                 **生成物**（scripts/build-plugin.mjs 从 lib/ 复制，gitignore）
+├─ scripts/
+│  ├─ build-plugin.mjs          lib/ → plugin/lib/，幂等，--check 检陈旧
+│  └─ install.mjs               装/卸：复制 bundle、追加 bundles、写带标记的 patch 块，带时间戳备份
+├─ test/                        8 个套件（§8）
 ├─ tools/
-│  └─ asar-get.cjs       不解包读 app.asar 内文件（查 DSH 源码用）
-├─ providers.example.json 配置模板（无 key，可提交）
-├─ package.json          仓库脚本：test / probe / plugin:install / asar:get
-├─ .gitignore
-├─ README.md             面向使用者的说明
-└─ HANDOVER.md           本文件
+│  ├─ asar-get.cjs              不解包读 app.asar 文件
+│  ├─ asar-files.mjs            带 size 的 asar 文件清单
+│  └─ probe-balance-endpoints.mjs  用真 key 探测各家余额端点（不打印 key）
+├─ search.mjs                   引擎 CLI（搜索 / --probe / --list）
+├─ providers.example.json       配置模板（无 key）
+├─ package.json                 仓库脚本（test / build / plugin:install / probe…）
+├─ HANDOVER.md                  本文件
+└─ README.md                    面向使用者的说明
 ```
 
-**不随仓库走的文件**（故意的）：
-
-| 文件 | 原因 |
-|---|---|
-| `providers.json`（真实 key） | 在 `~/.dsh/websearch-failover/providers.json`，含明文 key，绝不进仓库 |
-| `websearch-failover-state.json` / `plugin.log` | 运行期状态，在 `~/.dsh` 下 |
-| `plugin/core.mjs` | 生成物，`node test/test-plugin.mjs` 或 `node plugin/install.mjs` 时会自动生成 |
-
-**真源规则**：`lib/core.mjs` 是唯一实现，`plugin/core.mjs` 是拷贝产物。新项目里请改为构建步骤（esbuild/tsc）或 monorepo 包依赖，别保留两份手写副本。
+**不随仓库走**：真实 `providers.json`（含明文 key，在 `~/.dsh/websearch-failover/`）、`runtime.json`（顺序/余额/统计）、`plugin.log`、`plugin/lib/`（生成物）。
 
 ---
 
-## 4. 契约：`ctx.web` 的 provider 接口
+## 3. 安装 / 回滚
 
-从 `@deepseek-ai/dsh-web` 源码归纳（本机实测可用的最小实现）：
+```bash
+node scripts/build-plugin.mjs --check    # 生成物是否最新
+node scripts/install.mjs --dry-run       # 只看计划，零写入
+node scripts/install.mjs                 # 装进 profile（内容没变会打印 unchanged，不写文件）
+node scripts/install.mjs --uninstall     # 逐字节还原 profile 两个文件
+```
 
-```js
-{
-  id: 'failover',                    // 注册键，必须唯一
-  available(): boolean,              // 同步；插件加载时会被调用
-  async search(request, signal): {
-    sources: [{ url, title?, snippet?, publishedAt? }],
-    truncated: boolean
-  }
-}
+安装器只做四件事：跑 build（失败即中止）→ 复制 `plugin/` 到 `<profile>/node_modules/dsh-websearch-failover/`（自包含，已含 `plugin/lib/`）→ 在 `<profile>/package.json` 的 `dsh.profile.bundles` 追加 `"dsh-websearch-failover"`（**不加 dependencies**，loader 直接从 profile 的 node_modules 解析）→ 在 `<profile>/cordis.patch.yml` 末尾写一个带标记的块：
+
+```yaml
+# >>> websearch-failover (managed by scripts/install.mjs — re-run to update, --uninstall to remove)
+- id: web
+  config:
+    searchProvider: websearch-failover
+    fetchProvider: http
+- insert:
+    - id: websearch-failover
+      name: 'dsh-websearch-failover'
+# <<< websearch-failover
 ```
 
 要点：
-
-- `available()` **必须同步**且不能抛：seam 在解析时直接调用它判断可用性。
-- `request` 至少含 `query`，可能含 `maxResults`（seam 会在返回后再按它截断）。
-- `truncated` 语义是「提供方超额返回、被服务截断」。本实现自己就截到 limit，所以恒为 `false`。
-- 失败请抛 `WebError`（可自定义 code）；seam 会透传给模型侧工具包装层。我们的实现直接复用 `core.mjs` 的 `SearchError`，其 `code` 会以 message 形式呈现。
-- 注册是幂等的反面：**同 id 二次注册会抛 `WEB_DUPLICATE_PROVIDER`**。所以 id 用 `failover`，不要用 `deepseek-official`。
-
-插件侧（cordis 4.0.5）最小形态，参考 `@deepseek-ai/dsh-web-search-deepseek` 的导出：
-
-```js
-export const name = 'web-search-failover';
-export const inject = ['web'];
-export function apply(ctx) { ctx.web.registerSearchProvider(provider); }
-```
-
-不需要 `Config` 导出——本插件自己读 JSON 配置文件，避免依赖 schemastery 解析链。
+- profile patch 会**整块替换**目标行的 `config`，所以必须同时写回 `fetchProvider: http`，否则原生 http 抓取器会被冲掉。
+- 真正修改前写 `*.bak-websearch-failover-<时间戳>`；`--uninstall` 按文本精确摘除，`test/test-install.mjs` 逐字节比对还原结果。
+- 本机 profile 开了 hmr（`dsh-base` 的 `hmr` 行在 `profileContext` 存在时启用），所以 **Host 侧改动热生效**；浏览器端需要刷新页面才会消费新的 boot graph。
 
 ---
 
-## 5. 配置：`providers.json`
+## 4. 配置：`providers.json`
 
-位置解析顺序（`core.mjs` 的 `defaultConfigPath()`）：
-
-1. `$WEBSEARCH_FAILOVER_CONFIG`
-2. `$DSH_HOME/websearch-failover/providers.json`（本机实际用这个）
-3. `<脚本目录>/providers.json`
-
-结构：
+位置：`$WEBSEARCH_FAILOVER_CONFIG` → `$DSH_HOME/websearch-failover/providers.json` → `<脚本目录>/providers.json`。
 
 ```json
 {
-  "defaults": {
-    "limit": 8,
-    "timeoutMs": 15000,
-    "cooldown": { "quota": 1800, "auth": 86400, "error": 60 }
-  },
+  "defaults": { "limit": 8, "timeoutMs": 15000, "cooldown": { "quota": 1800, "auth": 86400, "error": 60 } },
   "providers": [
-    { "id": "tavily", "kind": "tavily", "apiKeyEnv": "TAVILY_API_KEY", "timeoutMs": 12000 },
-    { "id": "exa", "kind": "exa", "apiKeyEnv": "EXA_API_KEY", "timeoutMs": 15000 }
+    { "id": "tavily",   "kind": "tavily",   "apiKey": "…" },
+    { "id": "exa",      "kind": "exa",      "apiKey": "…" },
+    { "id": "firecrawl","kind": "firecrawl","apiKey": "…" },
+    { "id": "parallel", "kind": "parallel", "apiKey": "…", "enabled": false }
   ]
 }
 ```
 
-- **数组顺序即优先级**（也支持显式 `priority`）。
-- `enabled: false` 的 provider 被过滤掉，`--probe` 也不会碰它。
+- **数组顺序 = 出厂优先级**；侧栏拖动后的顺序写在 `runtime.json` 的 `order`，覆盖数组顺序。
+- `enabled: false` 的 provider 引擎不会调用，但**侧栏仍然列出**（灰显），可一键启用——不会去改你的 key 文件。
+- key 解析顺序：`apiKey` 字面值 → `apiKeyEnv`/`apiKeyEnvFallbacks` 环境变量 → `keyFile` 首行 → `keyOptional` 允许空。
+- 内置 `kind`：`tavily / serper / brave / bocha / exa / jina / searxng / parallel / firecrawl / custom`（`custom` 支持 `${query}/${key}/${limit}` 模板 + 点号路径映射）。
 
-内置适配器（`kind`）：
+### 余额接口（`balance` 段，可选）
 
-| kind | 端点 | 鉴权方式 |
-|---|---|---|
-| `tavily` | `POST https://api.tavily.com/search` | body `api_key` |
-| `serper` | `POST https://google.serper.dev/search` | 头 `X-API-KEY` |
-| `brave` | `GET https://api.brave.com/res/v1/web/search`（实为 `api.search.brave.com`） | 头 `X-Subscription-Token` |
-| `bocha` | `POST https://api.bochaai.com/v1/web-search` | `Authorization: Bearer` |
-| `exa` | `POST https://api.exa.ai/search` | 头 `x-api-key` |
-| `jina` | `GET https://s.jina.ai/<urlencoded query>` | 可选 `Bearer` |
-| `searxng` | `GET <endpoint>/search?format=json` | 可选 |
-| `parallel` | `POST https://api.parallel.ai/v1/search` | 头 `x-api-key` |
-| `firecrawl` | `POST https://api.firecrawl.dev/v1/search` | `Authorization: Bearer` |
-| `custom` | 任意 HTTP | `request` 模板 + `response` 点号路径映射 |
+内置两家已对**真实 API** 核实（2026-10-24）：
 
-key 解析顺序（`resolveKey()`）：`apiKey` 字面值 → `apiKeyEnv` / `apiKeyEnvFallbacks` 环境变量 → `keyFile` 首行 → 都没有则抛 `KEY_MISSING`。
-
-`custom` 示例（新 provider 接入路径，占位符 `${query}` `${key}` `${limit}`）：
-
-```json
-{
-  "id": "my-search",
-  "kind": "custom",
-  "apiKeyEnv": "MY_SEARCH_KEY",
-  "request": {
-    "method": "POST",
-    "url": "https://api.example.com/v1/search",
-    "headers": { "authorization": "Bearer ${key}" },
-    "body": { "q": "${query}", "size": "${limit}" }
-  },
-  "response": {
-    "sourcesPath": "data.items",
-    "map": { "title": "name", "url": "link", "snippet": "summary" }
-  }
-}
-```
-
----
-
-## 6. 失败分类与冷却状态机
-
-分类入口 `classifyFailure({status, bodyText, error})`：
-
-| 分类 | 触发条件 | 冷却 |
-|---|---|---|
-| `quota` | 429 / 402；或响应体匹配 `/quota\|credit\|insufficient\|balance\|exceeded\|rate.?limit\|额度\|余额\|配额\|用尽\|上限/i` | `defaults.cooldown.quota`（1800s），若响应含 `retry_after` 优先用它 |
-| `auth` | 401；403 且不含额度关键词；或 `KEY_MISSING` | 86400s |
-| `error` | 5xx、网络错误、响应不可解析 | 60s |
-| `bad_request` | 400 / 422 | **不冷却**（请求本身的问题） |
-
-行为规则：
-
-1. 冷却中的 provider：记 `skipped`，**不发请求**；
-2. 返回空结果：记 `empty`，换下一家，但**不冷却**；
-3. 成功：清掉该 provider 的冷却记录，立即返回，不再尝试后面的家；
-4. 全部失败/跳过：抛 `SearchError('ALL_FAILED')`，`attempts` 带逐家原因。
-
-状态文件：`$DSH_HOME/websearch-failover-state.json`（`$WEBSEARCH_FAILOVER_STATE` 可覆盖），结构：
-
-```json
-{ "providers": { "parallel": { "until": 1792842964168, "reason": "quota", "code": "HTTP_ERROR", "message": "…", "at": "2026-10-24T11:26:04.168Z" } } }
-```
-
-写入用「临时文件 + rename」，失败静默忽略（状态是尽力而为，绝不能因此让搜索失败）。
-
----
-
-## 7. 插件实现要点（容易踩的细节）
-
-1. **配置热读**：按 `fs.statSync(configPath).mtimeMs` 缓存，变了才重新 `loadConfig()`。改 `providers.json` 不用重启。
-2. **`available()` 不能抛**：配置缺失/解析失败时返回 `false`（loader 会问它，抛出去会污染装配）。
-3. **`truncated` 恒 false**：自己已经截断了，再报 truncated 语义错。
-4. **日志**：`$DSH_HOME/websearch-failover/plugin.log`，注册时一行、每次搜索一行（provider + attempts）。排查「到底走了哪家」只看这个文件。
-5. **install 的 patch 块**（追加到 `cordis.patch.yml` 末尾，带标记，可幂等重入 / `--uninstall` 干净移除）：
-
-```yaml
-# >>> web-search-failover (managed by plugin/install.mjs)
-- id: web
-  config:
-    searchProvider: failover
-- insert:
-    - id: web-search-failover
-      name: '@local/dsh-web-search-failover'
-# <<< web-search-failover
-```
-
-   `- id: web` 这一行是覆盖 base bundle（`@deepseek-ai/dsh-base/cordis.patch.yml` 里 `- id: web / name: '@deepseek-ai/dsh-web' / config.searchProvider: deepseek-official`）。
-6. install 每次写 patch 前落一份 `cordis.patch.yml.bak-websearch-failover-<时间戳>`；`--dry-run` 只打印计划。
-7. 包名用 `@local/…` 且 `private: true`，直接拷进 `<profile>/node_modules/@local/dsh-web-search-failover`（参考本机已有的 `@local/dsh-prompt-inject` 的做法；走 `link:` 依赖需要 `pnpm install`，拷贝更省事）。
-
----
-
-## 8. 当前实测状态（2026-10-24，本机）
-
-| provider | 结果 | 耗时 | 备注 |
+| kind | 端点 | 取值 | 单位 |
 |---|---|---|---|
-| Tavily | ✅ 可用 | 1.5–3.2s | 优先级 #1，中文结果最好 |
-| Exa | ✅ 可用 | 1.9–3.3s | #2 |
-| Firecrawl | ✅ 可用 | 1.5–1.7s | #3，最快 |
-| Parallel | ❌ HTTP 402 `Insufficient credit in account` | — | key 有效但账户无余额；配置里 `enabled: false` |
+| `tavily` | `GET https://api.tavily.com/usage`（`Authorization: Bearer`） | `account.plan_limit - account.plan_usage` | credits |
+| `firecrawl` | `GET https://api.firecrawl.dev/v2/team/credit-usage`（`Authorization: Bearer`） | `data.remainingCredits` / `data.planCredits`（兼容 v1 蛇形） | credits |
 
-真实降级链路验过：把 402 的 parallel 放首位 → 自动落到 tavily，attempts 记 `quota cooldown=1800s`，第二次运行直接跳过它、零请求。
-
-API key 存放：`C:\Users\admin\.dsh\websearch-failover\providers.json`（字面值），并在 `~/.dsh/api-keys.md` 索引里登记。**key 不进工作区、不进 git、不回显。**
-
----
-
-## 9. 验证与安装
-
-```bash
-# 1) 离线测试（不碰网络、不碰运行时）
-npm test                        # = 下面三条，全绿才算通过
-node test/mock-failover.mjs     # 期望: 6 个 PASS + "all failover invariants hold"
-node test/test-plugin.mjs       # 期望: 6 个 PASS + "plugin contract holds"
-node test/test-install.mjs      # 期望: 5 个 PASS + "install contract holds"（patch 幂等/卸载/干跑）
-
-# 2) CLI 真连（需要 providers.json 里有可用 key）
-node search.mjs --probe
-node search.mjs "查询词" --limit 5
-node search.mjs --list
-
-# 3) 安装插件（改运行时，先 dry-run）
-cd plugin
-node install.mjs --dry-run
-node install.mjs
-cat ~/.dsh/websearch-failover/plugin.log   # 期望: registered search provider "failover"
-node install.mjs --uninstall               # 出问题时回滚
-```
-
-**验收标准**（装好后）
-
-1. `plugin.log` 出现 `registered search provider "failover"`；
-2. 一次原生 `web_search` 之后，`plugin.log` 出现 `search "…" -> tavily (N sources) attempts: …`；
-3. 把 `providers.json` 里 tavily 的 `apiKey` 改错 → 下一次搜索自动落到 exa，`plugin.log` 里能看到 `tavily=failed(auth)`；
-4. `--uninstall` 后 `web.searchProvider` 回到 `deepseek-official`，DSH 正常。
-
----
-
-## 10. 已知风险与待决问题
-
-1. **同 id 覆盖是否被加载器接受（未验证，最高风险）**：patch 文件里追加 `- id: web` 与 base bundle 的同 id 行重复。若这一版 loader 拒绝同 id 二次出现，装配会报错。**处置**：先在测试 profile 验证；失败则改用 package.json `dsh.profile.bundles` 方式（把插件做成 bundle 包，参考 `node_modules/@local/dsh-prompt-inject` 的 `dsh.bundle.patch` 字段），或改用配置层 `insert` 一个新 `web` 行并 disable base 的那个。
-2. **热重载 vs 重启**：patch 改完是否即时生效未验证。不生效就重启 DSH 一次（会中断当前会话）。
-3. **`available()` 与异步凭据**：seam 的可用性检查是同步的，它只能确认「配置存在」，不能确认远程额度；真实额度问题只能在第一次搜索时暴露（退回冷却）。
-4. **`web_fetch` 未覆盖**：fetch 是独立注册表（`fetchProviders`），要同样处理需再实现一个 fetch provider；`dsh-web-fetch-http` 是内置的本地抓取实现。
-5. **Parallel 402**：需要充值后在 providers.json 里 `enabled` 改回 `true` 并调前优先级；适配器按官方 OpenAPI（`POST /v1/search`，`objective` + `search_queries` + `mode`，响应 `results[].{url,title,publish_date,excerpts[]}`）写的，**成功路径尚未实测**。
-6. **Firecrawl 版本**：用的是 `/v1/search`（实测可用）；官方文档已出 v2，迁移时确认响应字段（`data[].{title,description,url}`）。
-7. **未做结果融合**：命中即止，不跨家合并/去重排序。若以后要质量优先，可在引擎里加「并行取前两家 + 按 url 去重 + 去重后不足才补第三家」模式。
-8. **额度查询**：没有实现「主动查询剩余额度」；目前纯被动（靠 429/402 触发冷却）。若各家有 balance API，可以在 `--list` 里加展示。
-9. **错误可见性**：插件路径下，`attempts` 只在 `plugin.log`，模型侧只看到最终错误。若需要模型感知降级，可在 `ALL_FAILED` 的 message 里附带 attempts（现在是带了的），成功路径则刻意保持安静。
-
----
-
-## 11. 新工作区
-
-**已迁移完成**：`E:\Project-hub\websearch-dsh-plugin`（2026-10-24）。仓库自带 `package.json` 脚本：
-
-```bash
-cd /e/Project-hub/websearch-dsh-plugin
-npm test              # 引擎 + 插件两套离线测试
-npm run probe         # 真 key 体检（读 ~/.dsh/websearch-failover/providers.json）
-npm run plugin:dry    # 安装预演
-npm run plugin:install
-npm run asar:get -- /dsh/package.json
-```
-
-若要从旧工作区再同步一次（覆盖式，注意会带上本文件的旧版本）：
-
-```bash
-SRC=/d/Documents/deepseek-harness/default-workspace/tools/websearch-failover
-DST=/e/Project-hub/websearch-dsh-plugin
-cp -r "$SRC"/{lib,plugin,test,search.mjs,providers.example.json,README.md,HANDOVER.md} "$DST"/
-cp -r /d/Documents/deepseek-harness/default-workspace/tools/asar-get.cjs "$DST"/tools/
-```
-
-建议的后续结构（TypeScript + 构建产物，便于发布和类型声明）：
-
-```
-dsh-web-search-failover/
-├─ src/
-│  ├─ core.ts          引擎（从 lib/core.mjs 迁移，补类型）
-│  ├─ adapters/        每家一个文件：tavily.ts / exa.ts / firecrawl.ts / parallel.ts / custom.ts
-│  ├─ classify.ts      失败分类 + 冷却策略
-│  ├─ config.ts        配置解析与热读
-│  ├─ plugin.ts        cordis 插件入口（name / inject / apply）
-│  └─ cli.ts           CLI（bin）
-├─ test/               node:test 或 vitest；保留现有两个 mock 测试作为回归基线
-├─ package.json        name 建议 `dsh-web-search-failover`（去掉 @local，可发布）
-└─ README.md
-```
-
-`package.json` 关键字段参考本机已有插件（`@local/dsh-prompt-inject`）：
+其余（exa / parallel / brave / serper / bocha / jina / searxng）目前**没有公开余额接口**，面板显示「未提供余额接口」而不是报错。想接自己的计费口，用 `custom`：
 
 ```json
 {
-  "name": "dsh-web-search-failover",
-  "type": "module",
-  "main": "lib/index.js",
-  "engines": { "node": "^22.19.0 || >=24.0.0" },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-web": "0.2.1-rc.2"
+  "id": "my-search", "kind": "custom", "apiKey": "…",
+  "request": { "method": "GET", "url": "https://api.example.com/quota", "headers": { "x-api-key": "${key}" } },
+  "balance": {
+    "kind": "custom",
+    "request": { "method": "GET", "url": "https://api.example.com/quota", "headers": { "x-api-key": "${key}" } },
+    "response": { "remainingPath": "data.left", "totalPath": "data.all", "usedPath": "data.used" },
+    "unit": "usd"
   }
 }
 ```
 
-> 说明：运行时并不 `import` 这些包（provider 是纯对象），peer 声明只为类型与版本对齐。**不要把 `@deepseek-ai/*` 打进 bundle**——它们由宿主提供。
-
-迁移时**保留的资产**（不要重写）：错误分类正则与冷却时长、`resolveKey` 的解析顺序、`custom` 适配器的模板/点号路径机制、两个 mock 测试的全部断言。
-
-**建议优先补的**：类型化（`SearchProvider` 接口、`WebSource` 结构）、`attempts` 的结构化返回（现在只有 CLI 用）、单测覆盖 `custom` 的 `${query}/${key}/${limit}` 替换与数组下标路径。
+`response` 的路径可以是字符串或**候选数组**（取第一个能解析到的）；`remainingPath` 缺失时用 `total - used` 推算。`unit` ∈ `credits | usd | percent | requests | tokens | unknown`；`percent` 且无 `total` 时 ratio = `remaining/100`。比例的最终计算只发生在 `lib/balance.mjs` 的 `normalizeBalance()`，恒 clamp 到 `0..1`。
 
 ---
 
-## 12. 环境事实（新工作区仍需知道）
+## 5. HTTP API（侧栏面板的唯一数据面）
+
+Base：`/websearch-failover/api`（`prefix` 路由，`kind: 'prefix'`）。
+
+| 方法 | 路径 | body | 语义 |
+|---|---|---|---|
+| GET | `/state` | — | 顺序 + 每家余额/冷却/统计 |
+| POST | `/order` | `{"order":["id1","id2"]}` | 写 `runtime.json.order`，返回新快照 |
+| POST | `/refresh` | `{"ids":["id1"]}` 或 `{}` | 打真上游取余额（省略 ids = 全部），写 `runtime.json.balances` |
+| POST | `/enable` | `{"id":"x","enabled":false}` | 写 `runtime.json.disabled` |
+
+- 所有 POST 都做同源校验（`sec-fetch-site: cross-site` → 403；`Origin.host !== Host` → 403），因为路由绕过 `/api` 授权层。
+- body 上限 128 KiB（413）；坏 JSON 400；非数组 order 400；未知路径 404；方法不符 405 带 `Allow`；服务内部异常 500 带 message。
+- 快照字段：`{ok, generatedAt, order:[id], providers:[{id, kind, label, enabled, rank, keyPresent, balance|null, cooldown:{active,until,reason,message}, stats:{calls,successes,failures,lastUsedAt,lastOutcome,lastError}}]}`。
+
+排序语义唯一实现：`lib/runtime.mjs` 的 `applyRuntime(providers, runtime)` —— 先按 `disabled` 过滤，再按 `order` 里的下标稳定排序，`order` 里不存在的 id 保持配置顺序；过期/未知 id 自动忽略。
+
+---
+
+## 6. 冷却与失败分类（`lib/core.mjs`，旧资产，未改语义）
+
+| 分类 | 触发 | 默认冷却 |
+|---|---|---|
+| `quota` | 429 / 402；或响应含 quota/credit/insufficient/balance/exceeded/额度/余额/配额… | 1800s（响应带 `retry_after` 优先） |
+| `auth` | 401；403 且不含额度词；或 `KEY_MISSING` | 86400s |
+| `error` | 5xx / 网络 / 不可解析 | 60s |
+| `bad_request` | 400 / 422 | 不冷却 |
+
+行为：冷却中记 `skipped` 且**不发请求**；空结果记 `empty` 换下一家但不冷却；成功立刻清冷却并返回；全失败抛 `ALL_FAILED`（message 带逐家 attempts）。冷却状态在 `$DSH_HOME/websearch-failover-state.json`，统计在 `runtime.json`。
+
+---
+
+## 7. 已知限制 / 待决
+
+1. **Exa / Parallel 无余额接口**：面板只能显示「未提供余额接口」+ 冷却状态；Parallel 402 时靠冷却体现（本机已实测）。
+2. **Firecrawl 网络抖动**：本机 2026-10-24 用 node fetch 打 `api.firecrawl.dev` 出现过 `ECONNRESET`，同一时刻 curl 正常。余额探测失败只会显示错误状态，不影响搜索。
+3. **浏览器端要刷新页面**：Host 热生效，但 boot graph 由页面消费；HMR 一般会在下一次图更新时加载，不保证无刷新。
+4. **余额是快照**：只有点「刷新余额」才更新（刻意不自动轮询，避免打上游计费接口）。`fetchedAt` 在面板上可见。
+5. **`tavily` 的额度口径**：用 `account.plan_limit - account.plan_usage`（月度计划）；`key.limit` 可能为 `null`，不作为依据。paya-as-you-go 用量暂不纳入。
+6. **`web_fetch` 不覆盖**：fetch 是独立注册表；需要的话再写一个 fetch provider。
+7. **不做结果融合**：命中即止，不跨家合并/去重排序。
+8. **同一 provider id 只能注册一次**：本插件固定 `websearch-failover`，profile 里 `web.searchProvider` 必须指向它。
+9. **`plugin/lib/` 是生成物**：改逻辑只能改 `lib/`，然后 `node scripts/build-plugin.mjs` + 重装；`--check` 会在陈旧时报错。
+
+---
+
+## 8. 测试矩阵（全绿才算通过）
+
+```bash
+npm test     # 依次跑下面 8 个套件
+```
+
+| 套件 | 覆盖 |
+|---|---|
+| `test/mock-failover.mjs` | 引擎不变量：顺序、命中即止、冷却跳过、空结果转移、全失败 |
+| `test/test-runtime.mjs` | 顺序/启停/统计/余额持久化，坏文件容错，原子写，env 路径优先级 |
+| `test/test-balance.mjs` | 单位归一化（credits/usd/percent/requests/tokens/unknown）、ratio clamp、字符串数字、Firecrawl v2/v1、Tavily 真实形状、custom 路径映射、错误与无接口 |
+| `test/test-api.mjs` | 四路由、405/404/403/400/413/500、同源校验、body 上限 |
+| `test/test-host-plugin.mjs` | 真实 `plugin/index.js` + stub ctx：注册、available() 不抛、搜索统计、API 改序/停用、冷却透出、余额刷新、日志 |
+| `test/test-integration.mjs` | 真 `node:http` 回环：GET/POST 走真 fetch、真 header、真持久化 |
+| `test/test-client-static.mjs` | 浏览器 bundle 契约：可解析、module id、两槽位、四条路由、只 require('react')、locale 键集一致、ratio clamp |
+| `test/test-client-render.mjs` | 迷你 hook runtime 执行真实 `client.js`：渲染文本、条宽百分比、拖放/箭头 POST body、失败回滚、启停、返回 |
+| `test/test-install.mjs` | 假 profile：dry-run 零写入、幂等、逐字节还原、bundles 不重复、build 失败拒装 |
+
+CLI 真连（需要真 key）：`node search.mjs --probe` / `node search.mjs "查询词" --limit 5`；余额端点体检：`npm run probe:balance`。
+
+---
+
+## 9. 环境事实（踩过的坑）
 
 | 项 | 值 |
 |---|---|
-| OS / shell | Windows 11；**命令一律经 Git Bash**：`& 'C:\Program Files\Git\bin\bash.exe' -c '…'; exit $LASTEXITCODE`（裸 `bash` 会命中 WSL 桩，静默失败） |
-| Node | v24.15.0（`C:\Program Files\nodejs\node.exe`） |
-| DSH 版本 | 0.2.1-rc.2；cordis 4.0.5；`@deepseek-ai/dsh-web` 0.2.1-rc.2 |
-| DSH 安装 | `E:\DeepSeekHarness\resources\app.asar`（单文件，非目录）；`DSH_HOME=C:\Users\admin\.dsh`；当前 profile `desktop` |
-| 工作区 | 新仓库 `E:\Project-hub\websearch-dsh-plugin`；旧位置 `D:\Documents\deepseek-harness\default-workspace\tools\websearch-failover`（保留不删） |
-
-bash 纪律（踩过的坑）：命令体用单引号包、**bash 命令里不要出现单引号**（PowerShell 单引号不能嵌套，会被截断）；多行脚本先落盘再执行；`/tmp` 在 bash 里映射到 `%TEMP%`，但 node 里 `"/tmp"` 会被解析成 `D:\tmp`，跨工具传路径请用 `cygpath -w`。
-
----
-
-## 13. 从 `app.asar` 读 DSH 源码（新工作区同样会用到）
-
-asar 是单文件，无法直接 `cd` 进去。本仓库自带工具：`tools/asar-get.cjs`。
-
-```bash
-# 列目录
-MSYS2_ARG_CONV_EXCL='*' node tools/asar-get.cjs --list /dsh/node_modules/@deepseek-ai/dsh-web/
-# 取单个文件
-MSYS2_ARG_CONV_EXCL='*' node tools/asar-get.cjs /dsh/node_modules/@deepseek-ai/dsh-web/lib/index.js
-# 换别的安装位置
-ASAR=E:/other/app.asar node tools/asar-get.cjs /dsh/package.json
-```
-
-⚠️ **必须加 `MSYS2_ARG_CONV_EXCL='*'`**：Git Bash 会把 `/dsh/...` 改写成 `C:/Program Files/Git/dsh/...`，不加就报 `not found in asar`。这是实测踩到的坑（2026-10-24）。
-
-脚本原理（要自己重写就照这个）：文件头 16 字节 —— 偏移 12 处是 header 长度，header 是 JSON 树，每个文件节点有 `size` 与 `offset`（相对数据区起点 `16 + headerSize`），按此 `fs.readSync` 取原始字节。
-
-关键包与用途：
-
-- `@deepseek-ai/dsh-web` —— seam 与选择规则（`resolveProvider`，本文件 §1 的引用出处）
-- `@deepseek-ai/dsh-tool-web` —— 面向模型的 `web_search` / `web_fetch`（无重试、无降级）
-- `@deepseek-ai/dsh-web-search-deepseek`、`@deepseek-ai/dsh-web-deepseek-api` —— 内置两家 provider（`deepseek-official` / `deepseek-search-api`）
-- `@deepseek-ai/dsh-base/cordis.patch.yml` —— base bundle，含 `- id: web` 默认 `searchProvider: deepseek-official`
-- `@deepseek-ai/cordis-plugin-loader` —— patch/insert 语义（§10 风险 1 的判据来源）
+| OS / shell | Windows 11；命令一律经 Git Bash：`& 'C:\Program Files\Git\bin\bash.exe' -c '…'; exit $LASTEXITCODE`（裸 `bash` 命中的是 WSL 桩，静默失败） |
+| Node | v24.15.0 |
+| DSH | 0.2.1-rc.2，cordis 4.0.5，`E:\DeepSeekHarness\resources\app.asar`（单文件，用 `tools/asar-get.cjs` 读） |
+| profile | `C:\Users\admin\.dsh\profiles\desktop`（`dsh.profile.bundles` + `cordis.patch.yml` 两层） |
+| Git push | 本机 `schannel` 会握手失败，仓库已设 `git config http.sslBackend openssl`；push 用 `git -c http.version=HTTP/1.1 push` |
+| asar 路径 | 必须 `MSYS2_ARG_CONV_EXCL='*'`，否则 `/dsh/...` 被改写成 `C:/Program Files/Git/dsh/...` |
+| node 里的 `/tmp` | 会解析成 `D:\tmp`；跨工具传路径先用 `cygpath -w` |
+| `node --test test/` | Node 24 下目录形式会 `MODULE_NOT_FOUND`，用 `"test/*.mjs"` 或直接 `npm test` |
 
 ---
 
-## 14. 命令速查
+## 10. 后续可做
 
-```bash
-# 引擎/插件/安装测试
-npm test                        # 三条一起跑
-node test/mock-failover.mjs
-node test/test-plugin.mjs
-node test/test-install.mjs
-
-# 真实搜索 / 体检 / 状态
-node search.mjs "查询词" --limit 8 [--json] [--force]
-node search.mjs --probe [--query "…"]
-node search.mjs --list
-
-# 安装 / 回滚
-cd plugin && node install.mjs --dry-run
-node install.mjs && node install.mjs --uninstall
-
-# 看插件轨迹
-type C:\Users\admin\.dsh\websearch-failover\plugin.log
-```
-
----
-
-## 15. 术语
-
-- **seam**：DSH 的可替换能力接口，`ctx.web` 是 web 访问的 seam，内部按 search/fetch 分两个注册表。
-- **provider**：seam 的具体实现，插件通过 `registerSearchProvider()` 注册，`id` 即唯一键。
-- **bundle / patch 层**：profile 配置由多个 bundle 的 `cordis.patch.yml` 叠加而成，用户层是 `<profile>/cordis.patch.yml`，最后应用，可覆盖前面的行、也可 `insert` 新行。
-- **cooldown**：某家失败后的一段时间内不再向它发请求，状态持久化在 `websearch-failover-state.json`。
+1. 给 Exa / Parallel 之类补「按调用次数估算」的本地余额（`source: 'estimate'`），面板已预留 `source/detail` 字段。
+2. `custom` 余额支持 `scale`（把上游毫单位换成美元）与多候选 URL 重试。
+3. 面板加「按冷却自动下沉」开关（把 `quota` 冷却中的 provider 临时排到最后）。
+4. 结果融合模式：前两家并行 + URL 去重 + 不足再补。
+5. 打包发 npm（去掉 `private`，`files` 已就绪），并给 `dsh-plugin-market` 写 index。

@@ -8,7 +8,7 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "test": "node test/mock-failover.mjs && node test/test-runtime.mjs && node test/test-balance.mjs && node test/test-api.mjs && node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-client-static.mjs && node test/test-install.mjs",
+    "test": "node test/mock-failover.mjs && node test/test-runtime.mjs && node test/test-balance.mjs && node test/test-api.mjs && node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-client-static.mjs && node test/test-client-render.mjs && node test/test-install.mjs",
     "test:engine": "node test/mock-failover.mjs",
     "test:runtime": "node test/test-runtime.mjs",
     "test:balance": "node test/test-balance.mjs",
@@ -16,6 +16,7 @@
     "test:plugin": "node test/test-host-plugin.mjs",
     "test:integration": "node test/test-integration.mjs",
     "test:client": "node test/test-client-static.mjs",
+    "test:render": "node test/test-client-render.mjs",
     "test:install": "node test/test-install.mjs",
     "build": "node scripts/build-plugin.mjs",
     "build:check": "node scripts/build-plugin.mjs --check",

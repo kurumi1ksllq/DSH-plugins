@@ -182,6 +182,7 @@ const ORIGINAL = snapshot(profile);
   const result = run(INSTALL, ['--dry-run', '--profile', profile, '--source', sourceRoot]);
   assert.equal(result.status, 0, out(result));
   assert.match(out(result), /would/i, 'dry-run must print planned actions');
+  assert.match(out(result), /^ {4}\+ {5}searchProvider: websearch-failover$/m, 'dry-run must show a diff of the patch block');
   assert.match(out(result), /dry-run: nothing written/);
   assert.deepEqual(snapshot(profile), ORIGINAL, 'dry-run must not touch the profile');
   assert.equal(fs.existsSync(targetDir), false, 'dry-run must not copy the package');
@@ -312,6 +313,33 @@ let manifestAfterFirst;
   assert.equal(fs.existsSync(path.join(p2, 'node_modules', BUNDLE)), false);
   write(api, saved);
   console.log('PASS  install refuses without a successful build');
+}
+
+// 10) --no-build refuses when plugin/lib was never generated ---------------
+{
+  const p3 = makeProfile(path.join(TMP, 'profile-nobuild'));
+  const generated = path.join(sourceRoot, 'plugin', 'lib');
+  const stash = path.join(TMP, 'lib-stash');
+  fs.renameSync(generated, stash);
+  const result = run(INSTALL, ['--profile', p3, '--source', sourceRoot, '--no-build']);
+  assert.notEqual(result.status, 0, '--no-build must fail when plugin/lib is absent');
+  assert.match(out(result), /build-plugin/, 'failure must point at the build command');
+  assert.equal(fs.existsSync(path.join(p3, 'node_modules', BUNDLE)), false);
+  fs.renameSync(stash, generated);
+  console.log('PASS  --no-build refuses without plugin/lib');
+}
+
+// 11) dry-run uninstall plans the rollback and writes nothing ---------------
+{
+  const p4 = makeProfile(path.join(TMP, 'profile-uninstall-dry'));
+  assert.equal(run(INSTALL, ['--profile', p4, '--source', sourceRoot]).status, 0);
+  const installedSnapshot = snapshot(p4);
+  const result = run(INSTALL, ['--profile', p4, '--source', sourceRoot, '--dry-run', '--uninstall']);
+  assert.equal(result.status, 0, out(result));
+  assert.match(out(result), /would package: remove/i);
+  assert.match(out(result), /dry-run: nothing written/);
+  assert.deepEqual(snapshot(p4), installedSnapshot, 'dry-run uninstall must not touch the profile');
+  console.log('PASS  --dry-run --uninstall plans without writing');
 }
 
 fs.rmSync(TMP, { recursive: true, force: true });

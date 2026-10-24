@@ -287,6 +287,8 @@ export function apply(ctx, config = {}) {
           if (attempt.outcome === 'ok') runtime = recordResult(runtime, attempt.provider, 'ok', { at: Date.now() })
           else if (attempt.outcome === 'failed') {
             runtime = recordResult(runtime, attempt.provider, 'failed', { at: Date.now(), message: attempt.message })
+          } else if (attempt.outcome === 'empty') {
+            runtime = recordResult(runtime, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
           }
         }
         writeRuntime(runtime, runtimePath)
