@@ -1,0 +1,7 @@
+# Bundle patch layer for dsh-inventory.
+# Inserts one host-side row: the read-only inventory aggregator plus its
+# GET /inventory/snapshot route. No config override is written here; the
+# defaults live in index.js and a profile may override them later.
+- insert:
+    - id: inventory
+      name: "dsh-inventory"

@@ -1,0 +1,65 @@
+{
+  "name": "dsh-inventory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only inventory for DeepSeek Harness: installed plugin packages, loader rows, MCP servers, skills (including shadowed ones) and the tools each skill reaches for. Adds a 'Inventory' tab under Settings > Plugins.",
+  "type": "module",
+  "icon": "icon.svg",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "preview": "node scripts/preview.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "plugin",
+    "inventory",
+    "skills",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurumi1ksllq/dsh-inventory.git"
+  },
+  "homepage": "https://github.com/kurumi1ksllq/dsh-inventory#readme",
+  "bugs": {
+    "url": "https://github.com/kurumi1ksllq/dsh-inventory/issues"
+  }
+}

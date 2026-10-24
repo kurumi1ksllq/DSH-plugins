@@ -1,0 +1,5 @@
+# Store LF in the repo regardless of the Windows checkout.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
