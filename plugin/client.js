@@ -70,6 +70,15 @@ window.__ModuleLoader__.load({
       kind: '类型',
       neverUsed: '从未调用',
       refreshOne: '只刷新这一家',
+      reset: '重置',
+      resetMonthlyFirst: '每月 1 日重置',
+      resetMonthlyAllowance: '每月免费额度恢复（付费额度不重置）',
+      resetNone: '不按月重置',
+      resetNext: '下次',
+      resetUnknown: '未知，先刷新余额',
+      resetInDays: '天',
+      resetInHours: '小时',
+      resetInMinutes: '分钟',
       // Flat dotted keys on purpose: ctx.locale looks entries up by exact key.
       'unit.credits': '额度',
       'unit.usd': '美元',
@@ -116,6 +125,15 @@ window.__ModuleLoader__.load({
       kind: 'Kind',
       neverUsed: 'Never called',
       refreshOne: 'Refresh this provider only',
+      reset: 'Reset',
+      resetMonthlyFirst: 'Resets on the 1st of each month',
+      resetMonthlyAllowance: 'Monthly free allowance renews (paid credits do not)',
+      resetNone: 'Does not reset monthly',
+      resetNext: 'next',
+      resetUnknown: 'Unknown — refresh the balance first',
+      resetInDays: 'd',
+      resetInHours: 'h',
+      resetInMinutes: 'm',
       // Flat dotted keys on purpose: ctx.locale looks entries up by exact key.
       'unit.credits': 'credits',
       'unit.usd': 'USD',
@@ -134,6 +152,17 @@ window.__ModuleLoader__.load({
       requests: 'unit.requests',
       tokens: 'unit.tokens',
       percent: 'unit.percent',
+    }
+
+    /**
+     * Documented reset rules per provider kind. Only used when the host bundle
+     * is older than this one and sends no `resetKind`; an explicit host value
+     * always wins, so policy lives in lib/balance.mjs, not here.
+     */
+    const FALLBACK_RESET = {
+      tavily: 'monthly-first',
+      parallel: 'monthly-allowance',
+      firecrawl: 'period-end',
     }
 
     const TONE_COLOR = {
@@ -564,9 +593,63 @@ window.__ModuleLoader__.load({
       return 'unknown'
     }
 
+    /** `YYYY-MM-DD HH:mm` in the browser's local zone. */
+    function formatStamp(ms) {
+      const date = new Date(ms)
+      function pad2(value) {
+        return value < 10 ? '0' + value : String(value)
+      }
+      return (
+        date.getFullYear() +
+        '-' +
+        pad2(date.getMonth() + 1) +
+        '-' +
+        pad2(date.getDate()) +
+        ' ' +
+        pad2(date.getHours()) +
+        ':' +
+        pad2(date.getMinutes())
+      )
+    }
+
+    /** Coarse remaining duration for a reset: `24天 3小时` to `12分钟`. */
+    function resetCountdown(t, remainingMs) {
+      const minutes = Math.floor(Math.max(0, remainingMs) / 60000)
+      const days = Math.floor(minutes / 1440)
+      const hours = Math.floor((minutes % 1440) / 60)
+      const rest = minutes % 60
+      if (days > 0) return days + t('resetInDays') + ' ' + hours + t('resetInHours')
+      if (hours > 0) return hours + t('resetInHours') + ' ' + rest + t('resetInMinutes')
+      return rest + t('resetInMinutes')
+    }
+
+    /**
+     * Reset line for any provider: exact timestamp + countdown when the upstream
+     * reports a billing period, a documented monthly rule otherwise.
+     */
+    function resetText(t, balance, provider, nowMs) {
+      const explicit = balance && typeof balance.resetKind === 'string' ? balance.resetKind : undefined
+      const kind = explicit !== undefined ? explicit : FALLBACK_RESET[provider && provider.kind]
+      const resetsAt = balance ? toFiniteNumber(balance.resetsAt) : null
+      if (kind === 'monthly-first') {
+        return resetsAt === null
+          ? t('resetMonthlyFirst')
+          : t('resetMonthlyFirst') + ' · ' + t('resetNext') + ' ' + formatStamp(resetsAt)
+      }
+      if (kind === 'monthly-allowance') {
+        return resetsAt === null
+          ? t('resetMonthlyAllowance')
+          : t('resetMonthlyAllowance') + ' · ' + t('resetNext') + ' ' + formatStamp(resetsAt)
+      }
+      if (kind === 'period-end') {
+        if (resetsAt === null) return t('resetUnknown')
+        return formatStamp(resetsAt) + ' · ' + resetCountdown(t, resetsAt - nowMs)
+      }
+      return t('resetNone')
+    }
+
     /** Remaining cooldown as `12s · reason`; empty when not cooling down. */
-    function cooldownText(cooldown, nowMs) {
-      if (!cooldown || cooldown.active !== true) return ''
+    function cooldownText(cooldown, nowMs) {      if (!cooldown || cooldown.active !== true) return ''
       const until = toFiniteNumber(cooldown.until)
       const remainingMs = until === null ? 0 : Math.max(0, until - nowMs)
       const seconds = Math.ceil(remainingMs / 1000)
@@ -1090,6 +1173,7 @@ window.__ModuleLoader__.load({
             React.createElement('span', { style: STYLE.fieldValue }, ratioText ? balanceLabel + ' · ' + ratioText : balanceLabel),
           ),
           React.createElement(Bar, { ratio: ratio, tone: tone, tall: true }),
+          field('reset', t('reset'), resetText(t, selected.balance, selected, now)),
           field('cooldown', t('cooldown'), cooldown.active === true ? cooldownLabel : '—'),
           field('key', t('key'), keyLabel),
           React.createElement('span', { style: STYLE.caption }, t('stats')),

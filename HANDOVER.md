@@ -157,6 +157,19 @@ node scripts/install.mjs --uninstall     # 逐字节还原 profile 两个文件
 
 `response` 的路径可以是字符串或**候选数组**（取第一个能解析到的）；`remainingPath` 缺失时用 `total - used` 推算。`unit` ∈ `credits | usd | percent | requests | tokens | unknown`；`percent` 且无 `total` 时 ratio = `remaining/100`。比例的最终计算只发生在 `lib/balance.mjs` 的 `normalizeBalance()`，恒 clamp 到 `0..1`。
 
+### 额度重置（`resetKind` / `resetsAt`）
+
+每条 balance 记录还带两个字段：`resetKind` ∈ `period-end | monthly-first | monthly-allowance | none`，`resetsAt` 是 epoch ms（未知为 `null`）。面板右列「重置」一行就是这两字段：
+
+| 来源 | resetKind | 计算方式 | 实测（2026-10-24） |
+|---|---|---|---|
+| firecrawl | `period-end` | 取响应 `data.billingPeriodEnd`（兼容蛇形） | `2026-11-17T03:43:17.842Z` → 每月 17 日 11:43（北京时间） |
+| tavily | `monthly-first` | `nextMonthFirst()`：下月 1 日 00:00 UTC | 官方 FAQ：每月 1 日重置，与账单日无关 |
+| parallel | `monthly-allowance` | `nextMonthFirst()` | 官方 pricing：每月 5,000 请求 + $5 免费额度；预付费 credits 不重置 |
+| exa / 其余 | `none` | 不计算 | 预付/按量计费，不按月回血 |
+
+规则解析顺序：`provider.balance.reset`（自定义规格，`{ kind, path }` 可选点号路径/候选数组）→ 内置 `RESET_POLICY` → 默认 `none`。上游没给时间时 `resetsAt = null`，`resetKind` 仍保留真实语义（例如 period-end 尚未探测时，面板显示「未知，先刷新余额」）。`nextMonthFirst()` 是纯函数，测试里用固定 `now` 断言月份跳变，不依赖本机时钟。
+
 ---
 
 ## 5. HTTP API（侧栏面板的唯一数据面）
@@ -172,7 +185,7 @@ Base：`/websearch-failover/api`（`prefix` 路由，`kind: 'prefix'`）。
 
 - 所有 POST 都做同源校验（`sec-fetch-site: cross-site` → 403；`Origin.host !== Host` → 403），因为路由绕过 `/api` 授权层。
 - body 上限 128 KiB（413）；坏 JSON 400；非数组 order 400；未知路径 404；方法不符 405 带 `Allow`；服务内部异常 500 带 message。
-- 快照字段：`{ok, generatedAt, order:[id], providers:[{id, kind, label, enabled, rank, keyPresent, balance|null, cooldown:{active,until,reason,message}, stats:{calls,successes,failures,lastUsedAt,lastOutcome,lastError}}]}`。
+- 快照字段：`{ok, generatedAt, order:[id], providers:[{id, kind, label, enabled, rank, keyPresent, balance|null, cooldown:{active,until,reason,message}, stats:{calls,successes,failures,lastUsedAt,lastOutcome,lastError}}]}`；`balance` 内的 `resetKind` / `resetsAt` 见 §4。
 
 排序语义唯一实现：`lib/runtime.mjs` 的 `applyRuntime(providers, runtime)` —— 先按 `disabled` 过滤，再按 `order` 里的下标稳定排序，`order` 里不存在的 id 保持配置顺序；过期/未知 id 自动忽略。
 

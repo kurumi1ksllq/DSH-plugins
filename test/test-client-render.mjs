@@ -17,25 +17,36 @@ function buildState() {
     providers: [
       {
         id: 'tavily', kind: 'tavily', label: 'Tavily', enabled: true, rank: 1, keyPresent: true,
-        balance: { status: 'ok', remaining: 800, total: 1000, unit: 'credits', ratio: 0.8, fetchedAt: now, source: 'api', detail: '' },
+        balance: {
+          status: 'ok', remaining: 800, total: 1000, unit: 'credits', ratio: 0.8, fetchedAt: now, source: 'api', detail: '',
+          resetKind: 'period-end', resetsAt: Date.parse('2026-11-17T03:43:17.842Z'),
+        },
         cooldown: { active: false, until: 0, reason: '', message: '' },
         stats: { calls: 12, successes: 11, failures: 1, lastUsedAt: '2026-10-24T10:00:00.000Z' },
       },
       {
         id: 'exa', kind: 'exa', label: 'Exa', enabled: true, rank: 2, keyPresent: true,
-        balance: { status: 'ok', remaining: 200, total: 500, unit: 'usd', ratio: null, fetchedAt: now, source: 'api', detail: '' },
+        balance: {
+          status: 'ok', remaining: 200, total: 500, unit: 'usd', ratio: null, fetchedAt: now, source: 'api', detail: '',
+          resetKind: 'monthly-first', resetsAt: Date.parse('2026-11-01T00:00:00.000Z'),
+        },
         cooldown: { active: true, until: now + 65000, reason: 'quota', message: 'quota exhausted' },
         stats: { calls: 3, successes: 2, failures: 1, lastUsedAt: null },
       },
       {
         id: 'brave', kind: 'brave', label: 'Brave', enabled: false, rank: 3, keyPresent: false,
-        balance: { status: 'unknown', remaining: null, total: null, unit: 'unknown', ratio: null, fetchedAt: 0, source: '', detail: '' },
+        balance: {
+          status: 'unknown', remaining: null, total: null, unit: 'unknown', ratio: null, fetchedAt: 0, source: '', detail: '',
+          resetKind: 'none', resetsAt: null,
+        },
         cooldown: { active: false, until: 0, reason: '', message: '' },
         stats: { calls: 0, successes: 0, failures: 0, lastUsedAt: null },
       },
       {
-        id: 'parallel', kind: 'openai', label: 'Parallel', enabled: true, rank: 4, keyPresent: true,
-        balance: { status: 'ok', remaining: 300, total: null, unit: 'tokens', ratio: null, fetchedAt: now, source: 'api', detail: '' },
+        id: 'parallel', kind: 'parallel', label: 'Parallel', enabled: true, rank: 4, keyPresent: true,
+        balance: {
+          status: 'ok', remaining: 300, total: null, unit: 'tokens', ratio: null, fetchedAt: now, source: 'api', detail: '',
+        },
         cooldown: { active: false, until: 0, reason: '', message: '' },
         stats: { calls: 1, successes: 1, failures: 0, lastUsedAt: null },
       },
@@ -244,6 +255,8 @@ check('rendered tokens amount + unit', text.includes('300 tokens'), text.match(/
 check('rendered key state for selected provider', text.includes('已配置密钥'))
 check('rendered stats for selected provider', text.includes('调用次数') && text.includes('12') && text.includes('成功') && text.includes('失败'))
 check('rendered local lastUsedAt', text.includes('2026-10-24T10:00:00.000Z'))
+check('rendered reset label for selected provider', text.includes('重置'), text.slice(0, 400))
+check('rendered period-end reset date', text.includes('2026-11-17') || text.includes('2026-11-16'), text.slice(0, 600))
 check('state GET called once', CALLS.filter((c) => c.method === 'GET' && c.url.endsWith('/state')).length === 1)
 
 // bar widths: Tavily 80% (ratio), Exa 25% (200 / max 800), Brave unknown -> no fill
@@ -305,6 +318,7 @@ check('cooldown reason in detail', text.includes('quota exhausted'))
 check('never-called detail', text.includes('从未调用'))
 check('usd detail amount', text.includes('200 美元'))
 check('known key detail', text.includes('已配置密钥'))
+check('rendered monthly-first reset for exa', text.includes('每月 1 日重置'), text.slice(0, 600))
 
 // arrow reorder: the first row's up button must be disabled
 const ups = ariaButtons('上移，提高优先级')
@@ -355,6 +369,12 @@ buttonByText('只刷新这一家').props.onClick(fakeEvent)
 await runtime.pump()
 const refreshPosts2 = CALLS.filter((c) => c.method === 'POST' && c.url.endsWith('/refresh'))
 check('refresh-one posts ids array', refreshPosts2.length === 2 && Array.isArray(refreshPosts2[1].body.ids) && refreshPosts2[1].body.ids.length === 1, JSON.stringify(refreshPosts2.map((p) => p.body)))
+
+// a host bundle that predates resetKind: the panel still knows the rule from the kind
+byAria(rows(), 'Parallel').props.onClick(fakeEvent)
+await runtime.pump()
+text = textOf(runtime.tree())
+check('kind-based reset fallback when the host sends no resetKind', text.includes('每月免费额度恢复'), text.slice(0, 600))
 
 // back
 buttonByText('返回对话').props.onClick(fakeEvent)

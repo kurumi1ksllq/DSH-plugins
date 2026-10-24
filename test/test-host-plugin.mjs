@@ -274,10 +274,18 @@ await ok('POST /refresh records a balance for a provider with a balance API', as
   globalThis.fetch = async (url) => {
     const target = String(url)
     if (target.includes('api.firecrawl.dev') && target.includes('credit-usage')) {
-      return new Response(JSON.stringify({ success: true, data: { remainingCredits: 900, planCredits: 1000 } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            remainingCredits: 900,
+            planCredits: 1000,
+            billingPeriodStart: '2026-10-17T03:43:17.842Z',
+            billingPeriodEnd: '2026-11-17T03:43:17.842Z',
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
     }
     if (target.includes('api.exa.ai')) {
       return new Response(JSON.stringify({ results: [] }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -297,6 +305,8 @@ await ok('POST /refresh records a balance for a provider with a balance API', as
     assert.equal(firecrawl.balance.status, 'ok')
     assert.equal(firecrawl.balance.remaining, 900)
     assert.equal(firecrawl.balance.ratio, 0.9)
+    assert.equal(firecrawl.balance.resetKind, 'period-end')
+    assert.equal(firecrawl.balance.resetsAt, Date.parse('2026-11-17T03:43:17.842Z'))
     const exa = payload.providers.find((p) => p.id === 'exa')
     assert.equal(exa.balance, null, 'ids limit the refresh')
   } finally {

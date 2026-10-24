@@ -1,8 +1,8 @@
 {
   "name": "dsh-websearch-failover",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Ordered multi-provider web_search with quota-aware cooldown failover, plus a left-sidebar provider manager showing each provider's balance.",
+  "description": "Ordered multi-provider web_search with quota-aware cooldown failover, plus a left-sidebar provider manager showing each provider's balance and quota reset.",
   "type": "module",
   "icon": "icon.svg",
   "main": "./index.js",

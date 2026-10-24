@@ -56,6 +56,10 @@ const REQUIRED_LOCALE_KEYS = [
   'keyPresent',
   'rank',
   'back',
+  'reset',
+  'resetMonthlyFirst',
+  'resetMonthlyAllowance',
+  'resetNone',
 ];
 
 /** Minimal React stand-in: enough for registration, never for rendering. */

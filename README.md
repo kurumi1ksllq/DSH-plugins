@@ -107,6 +107,17 @@ Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/de
 
   其它家若想显示余额，在行里加 `"balance": { "request": {...}, "response": { "remainingPath"|"totalPath"|"usedPath" }, "unit": "credits|usd|percent|requests|tokens" }`；路径可以是单个点号路径，也可以是**候选路径数组**（取第一个能取到值的，用来兼容 v1/v2 或改名后的响应）。没有余额接口就显示中性提示（`status: unknown`），不影响搜索。
 
+- **重置时间**：面板右列会显示「重置」一行，字段是 `balance.resetKind` + `balance.resetsAt`（epoch ms）。内置规则（2026-10-24 核实）：
+
+  | 提供方 | `resetKind` | 语义 |
+  | --- | --- | --- |
+  | firecrawl | `period-end` | 取上游 `data.billingPeriodEnd`，面板显示具体时间 + 倒计时（你这个账户是每月 17 日 11:43） |
+  | tavily | `monthly-first` | 官方规则：每月 1 日重置（显示「每月 1 日重置 · 下次 …」） |
+  | parallel | `monthly-allowance` | 每月免费额度恢复，**预付费额度不重置** |
+  | exa / 其余 | `none` | 预付或按量计费，不按月回血 |
+
+  自定义提供方也可以声明：`"balance": { ..., "reset": { "kind": "period-end", "path": "data.billingPeriodEnd" } }` 或 `{ "kind": "monthly-first" }` / `{ "kind": "monthly-allowance" }` / `{ "kind": "none" }`。上游没给时间时 `resetsAt` 为 `null`，面板显示「未知，先刷新余额」或对应规则文案，不会出现 NaN。
+
 ## 4. 运行时状态文件
 
 | 文件 | 默认位置 | 写者 | 内容 |
@@ -126,7 +137,7 @@ Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/de
 
 - 左列：按优先级排的提供方列表，每行有序号徽标、名称、余额条、金额+单位、状态点（正常 / 冷却 / 未知，冷却时显示倒计时）。
 - 余额条：host 给了 `ratio`（有 total 或 percent 时算得出）就按 `ratio` 画；只有绝对值时按「本面板内最大 remaining」做归一化；完全未知就画空轨道 + 中性提示，绝不出现 NaN 宽度。
-- 右列：选中提供方的详情 —— 余额、单位、占比、冷却、key 是否已配置、本地调用统计（次数/成功/失败/最近调用）、启用/停用开关。
+- 右列：选中提供方的详情 —— 余额、单位、占比、**重置时间**（`period-end` 显示具体时间+倒计时，`monthly-first` 显示每月 1 日，`monthly-allowance` 说明付费额度不重置，`none` 表示不按月）、冷却、key 是否已配置、本地调用统计（次数/成功/失败/最近调用）、启用/停用开关。
 - 排序：拖动行，或用上/下移按钮；两者都乐观更新 UI，失败回滚并提示。顺序即调用优先级，面板顶部有「自上而下依次调用，最上方优先」提示。
 - 「刷新余额」只在你点击时请求，避免按次计费接口被轮询烧额度；只有存在冷却项时才有 1 秒计时器刷新倒计时文案。
 - 「返回对话」调用 `ctx.layout.selectPanel(null)`。
