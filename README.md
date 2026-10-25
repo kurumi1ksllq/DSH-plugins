@@ -2,7 +2,7 @@
 
 DeepSeek Harness（DSH）插件开发工作区，同时归档独立复核报告。
 
-> 仓库与本地目录已从 `dsh-reverse-plugin` 重命名为 `dsh-prompt-inject`。DSH profile 的插件 `link:` 已更新为新路径；旧路径 `E:\Project-hub\dsh-reverse-plugin` 目前是一个隐藏 junction，仅供正在运行的会话和已登记的 GUI workspace 兼容，重启并重新登记 workspace 后可删除。
+> 仓库与本地目录已从 `dsh-reverse-plugin` 重命名为 `dsh-prompt-inject`。DSH profile 的插件 `link:` 已更新为新路径；旧路径 `E:\Project-hub\dsh-reverse-plugin` 现在是一个指向新目录的**目录符号链接**（不是 junction，`git rev-parse --show-toplevel` 经它解析到新路径），仅用于兼容改名之前创建的会话与 workspace 记录。重启 DSH、用新路径重新登记 workspace 后可删除：`cmd /c rmdir E:\Project-hub\dsh-reverse-plugin`。
 
 ## 目录结构
 

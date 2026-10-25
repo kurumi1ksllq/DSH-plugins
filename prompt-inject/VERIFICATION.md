@@ -6,6 +6,8 @@
 - Profile：`desktop`（`C:\Users\admin\.dsh\profiles\desktop`，由 `plugin_manager` 写入，未手工修改）
 - 时间：2026-10-23（Asia/Shanghai）
 
+> 勘误（2026-10-25）：项目已从 `dsh-reverse-plugin` 改名为 `dsh-prompt-inject`，本地目录与 GitHub 仓库同步改名。本文以下路径均为当时的原始快照，未做改写；当前实际路径为 `E:\Project-hub\dsh-prompt-inject`（插件包 `...\dsh-prompt-inject\prompt-inject`）。
+
 ## 1. 文件清单
 
 | 文件 | 用途 |
