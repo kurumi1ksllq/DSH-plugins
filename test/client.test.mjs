@@ -384,3 +384,213 @@ test('client renders an error box and a retry button when the snapshot fails', a
   assert.match(textOf(tree), /boom/)
   assert.match(textOf(tree), /重试|retry/)
 })
+
+/**
+ * The per-workspace view must stay short: a workspace card is folded by
+ * default, and each skill-source group inside it is folded too. Otherwise one
+ * workspace with a few dozen skills pushes every other workspace off screen.
+ */
+test('workspace view folds cards and skill groups, then expands on click', async () => {
+  const { React, render } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL('../client.js?v=fold-case', import.meta.url).href)
+  const module = loaded.factory(() => React)
+  const dictionary = {}
+  const injections = []
+  const registrations = []
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: {
+      inject: (name, factory) => injections.push({ name, factory }),
+      register: (spec, component) => registrations.push({ spec, component }),
+    },
+  })
+  for (const injection of injections) injection.factory()
+  const main = registrations.find((entry) => entry.spec.name === 'main')
+  assert.ok(main, 'main panel not registered')
+
+  const withWorkspaces = {
+    ...SNAPSHOT,
+    workspaceRegistryAvailable: true,
+    globalMcp: ['officecli'],
+    gateServerNameSuffix: '-ws',
+    workspaces: [
+      {
+        id: 'ws-1',
+        title: 'Demo Workspace',
+        path: 'D:/demo',
+        available: true,
+        mcp: {
+          status: 'ok',
+          file: 'D:/demo/.dsh/mcp.json',
+          servers: [{ name: 'officecli', mountedAs: 'officecli-ws', transport: 'stdio', detail: 'officecli.exe' }],
+        },
+        skills: [
+          {
+            source: 'project-dsh',
+            dir: 'D:/demo/.dsh/skills',
+            rank: 100,
+            exists: true,
+            skills: [{ name: 'proj-skill', description: 'project skill', shadowed: false }],
+            diagnostics: [],
+          },
+        ],
+        counts: { declared: 1, projectSkills: 1, sharedSkills: 0 },
+      },
+    ],
+  }
+  globalThis.fetch = async () => ({ ok: true, json: async () => withWorkspaces })
+  const injected = main.spec.inject()
+  // First render runs the effect that starts the fetch; the data lands on the
+  // next tick, so the tree helpers render again afterwards.
+  render(main.component, injected)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const tree = () => resolveTree(render(main.component, injected))
+
+  const toWorkspace = findNode(tree(), (node) => node.type === 'button' && textOf(node).includes('按工作区'))
+  assert.ok(toWorkspace, 'workspace toggle missing')
+  toWorkspace.props.onClick()
+
+  let current = tree()
+  assert.ok(findNode(current, (node) => node.type === 'span' && textOf(node).includes('Demo Workspace')), 'workspace card missing')
+  assert.equal(
+    findNode(current, (node) => textOf(node).includes('proj-skill')),
+    null,
+    'skill rows must be folded while the card is folded',
+  )
+
+  const cardHead = findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace'))
+  assert.ok(cardHead, 'card header is not clickable')
+  cardHead.props.onClick()
+
+  current = tree()
+  assert.ok(
+    findNode(current, (node) => node.type === 'span' && textOf(node).includes('project .dsh/skills')),
+    'skill group heading missing after expanding the card',
+  )
+  assert.equal(
+    findNode(current, (node) => textOf(node).includes('proj-skill')),
+    null,
+    'skill rows must stay folded inside a collapsed group',
+  )
+
+  const groupHead = findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('project .dsh/skills'))
+  assert.ok(groupHead, 'group header is not clickable')
+  groupHead.props.onClick()
+
+  current = tree()
+  assert.ok(findNode(current, (node) => textOf(node).includes('proj-skill')), 'skill row missing after expanding the group')
+})
+
+/**
+ * Visual hierarchy contract for the per-workspace view: nesting is expressed by
+ * an indent rule and background layers, not by boxing every level. Nested
+ * bordered boxes on a single grey scale is what made the panel unreadable.
+ */
+test('workspace view expresses nesting with a left rule, not nested boxes', async () => {
+  const { React, render } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL('../client.js?v=hierarchy-case', import.meta.url).href)
+  const module = loaded.factory(() => React)
+  const dictionary = {}
+  const injections = []
+  const registrations = []
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: {
+      inject: (name, factory) => injections.push({ name, factory }),
+      register: (spec, component) => registrations.push({ spec, component }),
+    },
+  })
+  for (const injection of injections) injection.factory()
+  const main = registrations.find((entry) => entry.spec.name === 'main')
+
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      ...SNAPSHOT,
+      workspaceRegistryAvailable: true,
+      globalMcp: ['officecli'],
+      gateServerNameSuffix: '-ws',
+      workspaces: [
+        {
+          id: 'ws-1',
+          title: 'Demo Workspace',
+          path: 'D:/demo',
+          available: true,
+          mcp: {
+            status: 'ok',
+            file: 'D:/demo/.dsh/mcp.json',
+            servers: [{ name: 'officecli', mountedAs: 'officecli-ws', transport: 'stdio', detail: 'officecli.exe' }],
+          },
+          skills: [
+            {
+              source: 'project-dsh',
+              dir: 'D:/demo/.dsh/skills',
+              rank: 100,
+              exists: true,
+              skills: [{ name: 'proj-skill', description: 'project skill', shadowed: false }],
+              diagnostics: [],
+            },
+          ],
+          counts: { declared: 1, projectSkills: 1, sharedSkills: 0 },
+        },
+      ],
+    }),
+  })
+  const injected = main.spec.inject()
+  render(main.component, injected)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const tree = () => resolveTree(render(main.component, injected))
+
+  const toWorkspace = findNode(tree(), (node) => node.type === 'button' && textOf(node).includes('按工作区'))
+  toWorkspace.props.onClick()
+  const cardHead = findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace'))
+  cardHead.props.onClick()
+  const groupHead = findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('project .dsh/skills'))
+  groupHead.props.onClick()
+
+  const current = tree()
+  let leftRule = null
+  eachNode(current, (node) => {
+    const style = node.props?.style
+    if (style === undefined || style === null) return
+    if (typeof style.borderLeft === 'string' && leftRule === null) leftRule = style.borderLeft
+  })
+  assert.ok(leftRule, 'skill groups must be marked with a left rule instead of another bordered box')
+
+  // Inside the card body, nesting is expressed by the indent rule only: no
+  // bordered container may sit there. Pills and fixed-height badges are
+  // controls, not containers.
+  const cardBody = findNode(current, (node) => node.props?.style?.padding === '2px 14px 12px')
+  assert.ok(cardBody, 'card body missing')
+  let nestedBoxes = 0
+  eachNode(cardBody, (node) => {
+    const style = node.props?.style
+    if (style === undefined || style === null) return
+    if (
+      typeof style.border === 'string' &&
+      style.borderRadius !== '999px' &&
+      style.height !== '18px'
+    ) {
+      nestedBoxes += 1
+    }
+  })
+  assert.equal(nestedBoxes, 0, `no bordered container may nest inside the card body, found ${nestedBoxes}`)
+
+  // Rows must separate with a hairline, never a full box.
+  let boxedRows = 0
+  eachNode(current, (node) => {
+    const style = node.props?.style
+    if (style?.borderBottom === undefined && typeof style?.border === 'string' && style?.padding === '6px 8px') {
+      boxedRows += 1
+    }
+  })
+  assert.equal(boxedRows, 0, 'list rows must not be drawn as boxes')
+})

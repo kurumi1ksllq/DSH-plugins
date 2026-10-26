@@ -24,6 +24,7 @@ import { collectSkillToolEvidence } from './lib/collect-sessions.js'
 import { buildSnapshot } from './lib/inventory.js'
 import { collectPackages } from './lib/profile-packages.js'
 import { buildPluginToolIndex } from './lib/plugin-tool-index.js'
+import { collectWorkspaces } from './lib/workspaces.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 
 export const name = 'dsh-inventory'
@@ -361,6 +362,24 @@ async function loadSnapshot(ctx) {
   // Which registry planes contributed, and how many live agents were read.
   snapshot.toolPlanes = collected.planes
   snapshot.agentPlaneAgents = collected.agentCount
+
+  // Per-workspace view: the MCP each workspace declares, and the skills its
+  // project roots contribute. The gate row's suffix is read from the loader so
+  // the page can show the name the tools will actually carry.
+  const gateRow = rows.find((row) => row.name === 'dsh-inventory/gate' || row.name === 'dsh-mcp-workspace-gate')
+  const serverNameSuffix = typeof gateRow?.config?.serverNameSuffix === 'string' ? gateRow.config.serverNameSuffix : ''
+  const workspaceView = collectWorkspaces({
+    registry: ctx.get('workspaceRegistry'),
+    globalMcp: mcpServers,
+    serverNameSuffix,
+    warnings,
+  })
+  snapshot.workspaces = workspaceView.workspaces
+  snapshot.globalMcp = workspaceView.globalMcp
+  snapshot.sharedSkills = workspaceView.sharedSkills
+  snapshot.sharedSkillCount = workspaceView.sharedSkillCount
+  snapshot.workspaceRegistryAvailable = workspaceView.registryAvailable
+  snapshot.gateServerNameSuffix = serverNameSuffix
 
   const payload = JSON.stringify(snapshot)
   if (payload.length > 6 * 1024 * 1024) {

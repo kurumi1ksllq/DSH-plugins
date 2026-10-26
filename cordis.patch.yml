@@ -1,7 +1,15 @@
 # Bundle patch layer for dsh-inventory.
-# Inserts one host-side row: the read-only inventory aggregator plus its
-# GET /inventory/snapshot route. No config override is written here; the
-# defaults live in index.js and a profile may override them later.
+# Two host-side rows:
+#   inventory       — the read-only aggregator plus GET /inventory/snapshot
+#   inventory-gate  — mounts MCP servers only for sessions whose workspace
+#                     declares them in <workspace>/.dsh/mcp.json
+# The gate row's serverNameSuffix is read back by the inventory snapshot so the
+# page can show the tool name the gate will actually mount. No config override
+# is written here; defaults live in each entry.
 - insert:
     - id: inventory
       name: "dsh-inventory"
+    - id: inventory-gate
+      name: "dsh-inventory/gate"
+      config:
+        serverNameSuffix: "-ws"

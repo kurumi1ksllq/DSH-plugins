@@ -86,6 +86,29 @@ window.__ModuleLoader__.load({
       noTools: '工具注册表为空（可能尚未就绪）。',
       noMcp: '没有配置 MCP 服务器。',
       noPackages: 'profile 没有声明插件。',
+      viewGlobal: '全局',
+      viewWorkspace: '按工作区',
+      workspaceSubtitle: '按工作区：每个工作区声明的 MCP（.dsh/mcp.json）与全局注册的 MCP，以及它可用的技能（按来源分组）。',
+      wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
+      wsUnavailable: 'workspaceRegistry 不可用，无法列出工作区。',
+      wsUnavailableDir: '目录不可用',
+      wsDeclared: '工作区声明',
+      wsGlobal: '全局注册',
+      wsNoDeclaration: '未声明 .dsh/mcp.json',
+      wsInvalidDeclaration: '声明无法解析',
+      wsMountedAs: '挂载为',
+      wsNoSkills: '该来源没有技能',
+      wsSourceCustom: '自定义目录',
+      wsSourceUserDsh: '用户 ~/.dsh/skills',
+      wsSourceUserAgents: '用户 ~/.agents/skills',
+      wsSourceBundled: '随包提供',
+      wsExpandAll: '全部展开',
+      wsCollapseAll: '全部收起',
+      wsCount: '个工作区',
+      wsSharedSkills: '共享技能（所有工作区）',
+      wsSharedHint: '来自 ~/.dsh/skills 与 ~/.agents/skills，不随工作区变化',
+      wsNoProjectSkills: '该项目没有自己的技能目录',
+      wsShared: '共享',
     }
 
     const en = {
@@ -158,6 +181,29 @@ window.__ModuleLoader__.load({
       noTools: 'The tool registry is empty (not ready yet).',
       noMcp: 'No MCP server configured.',
       noPackages: 'The profile declares no plugins.',
+      viewGlobal: 'Global',
+      viewWorkspace: 'By workspace',
+      workspaceSubtitle: 'By workspace: the MCP each workspace declares (.dsh/mcp.json) next to the globally registered ones, plus the skills it can reach, grouped by source.',
+      wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
+      wsUnavailable: 'The workspaceRegistry service is unavailable, so workspaces cannot be listed.',
+      wsUnavailableDir: 'directory unavailable',
+      wsDeclared: 'declared',
+      wsGlobal: 'global',
+      wsNoDeclaration: 'no .dsh/mcp.json',
+      wsInvalidDeclaration: 'declaration unreadable',
+      wsMountedAs: 'mounted as',
+      wsNoSkills: 'No skills from this source.',
+      wsSourceCustom: 'custom dirs',
+      wsSourceUserDsh: 'user ~/.dsh/skills',
+      wsSourceUserAgents: 'user ~/.agents/skills',
+      wsSourceBundled: 'bundled',
+      wsExpandAll: 'Expand all',
+      wsCollapseAll: 'Collapse all',
+      wsCount: 'workspaces',
+      wsSharedSkills: 'Shared skills (all workspaces)',
+      wsSharedHint: 'From ~/.dsh/skills and ~/.agents/skills; identical in every workspace',
+      wsNoProjectSkills: 'This project has no skill directories of its own.',
+      wsShared: 'shared',
     }
 
     const color = {
@@ -220,6 +266,77 @@ window.__ModuleLoader__.load({
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',
       },
+      viewSwitch: { display: 'flex', gap: '4px', flexShrink: 0 },
+      wsRoot: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
+      // Per-workspace hierarchy: one bordered card per workspace (a real block
+      // of colour), groups marked by an indent rule instead of another box, and
+      // rows separated by hairlines. Nesting boxes inside boxes is what made the
+      // panel read as one grey wall.
+      card: {
+        border: `1px solid ${color.border}`,
+        borderRadius: '12px',
+        background: color.surface,
+        overflow: 'hidden',
+        flexShrink: 0,
+      },
+      cardHead: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '10px 14px',
+        cursor: 'pointer',
+        userSelect: 'none',
+        background: 'transparent',
+      },
+      cardBody: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '2px 14px 12px' },
+      group: {
+        borderLeft: `2px solid ${color.border}`,
+        paddingLeft: '10px',
+        marginTop: '6px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0px',
+      },
+      groupHead: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '4px 0',
+        cursor: 'pointer',
+        userSelect: 'none',
+      },
+      groupTitle: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted },
+      groupLabel: {
+        fontSize: '10.5px',
+        fontWeight: 700,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        color: color.muted,
+        marginTop: '10px',
+        marginBottom: '2px',
+      },
+      groupDir: { fontSize: '10.5px', color: color.muted, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-all' },
+      plainRow: {
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        padding: '5px 0',
+        fontSize: '12.5px',
+        borderBottom: `1px solid ${color.border}`,
+      },
+      mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '11.5px' },
+      countPill: { fontSize: '11px', color: color.muted, whiteSpace: 'nowrap' },
+      viewActive: {
+        padding: '6px 12px',
+        fontSize: '12.5px',
+        fontWeight: 600,
+        color: color.text,
+        background: 'transparent',
+        border: `1px solid ${color.text}`,
+        borderRadius: 'var(--dsw-radius-sm, 6px)',
+        cursor: 'pointer',
+      },
       primary: {
         padding: '6px 14px',
         fontSize: '12.5px',
@@ -244,19 +361,19 @@ window.__ModuleLoader__.load({
       // The panel owns the scrollbar (root has overflowY:auto), so its children
       // must never shrink: a shrinking section clips its own rows away and the
       // scrollbar never appears.
-      section: { border: `1px solid ${color.border}`, borderRadius: '10px', overflow: 'hidden', flexShrink: 0 },
+      section: { border: `1px solid ${color.border}`, borderRadius: '12px', overflow: 'hidden', flexShrink: 0 },
       sectionHead: {
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        padding: '9px 12px',
+        padding: '10px 14px',
         background: color.surface,
         cursor: 'pointer',
         userSelect: 'none',
       },
       sectionTitle: { fontSize: '13px', fontWeight: 600 },
       sectionHint: { fontSize: '11.5px', color: color.muted },
-      sectionBody: { display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 12px' },
+      sectionBody: { display: 'flex', flexDirection: 'column', gap: '0px', padding: '2px 14px 8px' },
       row: {
         display: 'flex',
         gap: '8px',
@@ -264,10 +381,11 @@ window.__ModuleLoader__.load({
         // is taller than a text line), so every row is centred instead.
         alignItems: 'center',
         flexWrap: 'wrap',
-        padding: '6px 8px',
+        padding: '5px 0',
         fontSize: '12.5px',
-        borderRadius: '8px',
-        border: `1px solid ${color.border}`,
+        // A hairline instead of a box: a full border on every row turned the
+        // panel into a grid of identical rectangles with no hierarchy.
+        borderBottom: `1px solid ${color.border}`,
       },
       rowMain: { fontWeight: 500, wordBreak: 'break-all' },
       rowSub: { fontSize: '11.5px', color: color.muted },
@@ -360,6 +478,212 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function sourceLabel(t, source) {
+      if (source === 'project-dsh') return 'project .dsh/skills'
+      if (source === 'project-agents') return 'project .agents/skills'
+      if (source === 'user-dsh') return t('wsSourceUserDsh')
+      if (source === 'user-agents') return t('wsSourceUserAgents')
+      if (source === 'custom') return t('wsSourceCustom')
+      if (source === 'bundled') return t('wsSourceBundled')
+      return source
+    }
+
+    /**
+     * Per-workspace view. Each workspace is one section: the MCP it declares
+     * next to the globally registered servers, then its skills grouped by the
+     * root they came from. Every direct child of the panel root stays
+     * `flexShrink: 0` (S.section already is), so the panel's single scrollbar
+     * keeps working.
+     */
+    function WorkspaceView({ t, data, openWorkspaces, openGroups, onToggleWorkspace, onToggleGroup, onSetAll, allOpen, sharedOpen, onToggleShared }) {
+      const workspaces = Array.isArray(data?.workspaces) ? data.workspaces : []
+      const globalMcp = Array.isArray(data?.globalMcp) ? data.globalMcp : []
+      // Two levels of folding: a workspace card collapses as a whole (the
+      // "dozens of rows per workspace" complaint), and each skill-source group
+      // collapses inside it. Both start closed so a long workspace list stays a
+      // list of titles. The state lives in InventoryPanel: the offline test
+      // runtime shares one hook cursor across nested components, so a child
+      // component with its own useState would desync the panel's hooks.
+      const allOpenLocal = allOpen === true
+
+      const groupBlock = (group, key, groupOpen, onToggle) =>
+        h(
+          'div',
+          { key, style: S.group },
+          h(
+            'div',
+            {
+              style: S.groupHead,
+              onClick: onToggle,
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': groupOpen ? 'true' : 'false',
+            },
+            h('span', { style: S.groupTitle }, `${groupOpen ? '▾' : '▸'} ${sourceLabel(t, group.source)}`),
+            h('span', { style: S.countPill }, String(group.skills.length)),
+            h('span', { style: S.groupDir }, group.dir),
+          ),
+          groupOpen
+            ? h(
+                'div',
+                null,
+                ...group.skills.map((skill) =>
+                  h(
+                    'div',
+                    { key: `${key}-${skill.name}`, style: S.plainRow },
+                    h('span', { style: S.rowMain }, skill.name),
+                    skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning' }) : null,
+                    skill.description ? h('span', { style: S.rowSub }, skill.description) : null,
+                  ),
+                ),
+              )
+            : null,
+        )
+
+      // Shared roots are identical for every workspace, so they get one card of
+      // their own instead of being repeated inside all of them.
+      const sharedGroups = (data?.sharedSkills ?? []).filter((group) => (group.skills ?? []).length > 0)
+
+      if (data?.workspaceRegistryAvailable === false) {
+        return h('div', { style: S.empty }, t('wsUnavailable'))
+      }
+      if (workspaces.length === 0) {
+        return h('div', { style: S.empty }, t('wsNoWorkspaces'))
+      }
+
+      const cards = workspaces.map((workspace) => {
+        const isOpen = openWorkspaces[workspace.id] === true
+        const declared = Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []
+        const mcpRows = declared.map((server) =>
+          h(
+            'div',
+            { key: `ws-d-${workspace.id}-${server.name}`, style: S.plainRow },
+            h('span', { style: { ...S.rowMain, ...S.mono } }, server.name),
+            server.transport ? h('span', { style: S.countPill }, server.transport) : null,
+            server.mountedAs && server.mountedAs !== server.name
+              ? h(Badge, { label: `${t('wsMountedAs')} ${server.mountedAs}`, tone: 'success' })
+              : null,
+            server.detail ? h('span', { style: S.rowSub }, server.detail) : null,
+            h('span', { style: S.countPill }, t('wsDeclared')),
+          ),
+        )
+        for (const server of globalMcp) {
+          mcpRows.push(
+            h(
+              'div',
+              { key: `ws-g-${workspace.id}-${server}`, style: S.plainRow },
+              h('span', { style: { ...S.rowMain, ...S.mono } }, server),
+              h('span', { style: S.countPill }, t('wsGlobal')),
+            ),
+          )
+        }
+        if (mcpRows.length === 0) {
+          mcpRows.push(
+            h(
+              'div',
+              { key: `ws-empty-${workspace.id}`, style: S.empty },
+              workspace.mcp?.status === 'invalid'
+                ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
+                : t('wsNoDeclaration'),
+            ),
+          )
+        }
+
+        const skillGroups = (workspace.skills ?? []).filter((group) => (group.skills ?? []).length > 0)
+        const skillBlocks = skillGroups.map((group) => {
+          const key = `ws-sk-${workspace.id}-${group.source}`
+          return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key))
+        })
+        if (skillBlocks.length === 0) {
+          skillBlocks.push(h('div', { key: `ws-sk-none-${workspace.id}`, style: S.empty }, t('wsNoProjectSkills')))
+        }
+
+        return h(
+          'div',
+          { key: `ws-${workspace.id}`, style: S.card },
+          h(
+            'div',
+            {
+              style: S.cardHead,
+              onClick: () => onToggleWorkspace(workspace.id),
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': isOpen ? 'true' : 'false',
+            },
+            h('span', { style: S.sectionTitle }, `${isOpen ? '▾' : '▸'} ${workspace.title}`),
+            h('span', { style: S.countPill }, `MCP ${workspace.counts?.declared ?? 0}`),
+            h(
+              'span',
+              { style: S.countPill },
+              workspace.counts?.sharedSkills > 0
+                ? `${t('skills')} ${workspace.counts?.projectSkills ?? 0} (+${workspace.counts.sharedSkills} ${t('wsShared')})`
+                : `${t('skills')} ${workspace.counts?.projectSkills ?? 0}`,
+            ),
+            workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
+            h('span', { style: S.groupDir }, workspace.path),
+          ),
+          isOpen
+            ? h(
+                'div',
+                { style: S.cardBody },
+                h('div', { style: S.groupLabel }, 'MCP'),
+                ...mcpRows,
+                h('div', { style: S.groupLabel }, t('skills')),
+                ...skillBlocks,
+              )
+            : null,
+        )
+      })
+
+      const sharedCard =
+        sharedGroups.length > 0
+          ? h(
+              'div',
+              { key: 'ws-shared', style: S.card },
+              h(
+                'div',
+                {
+                  style: S.cardHead,
+                  onClick: onToggleShared,
+                  role: 'button',
+                  tabIndex: 0,
+                  'aria-expanded': sharedOpen === true ? 'true' : 'false',
+                },
+                h('span', { style: S.sectionTitle }, `${sharedOpen === true ? '▾' : '▸'} ${t('wsSharedSkills')}`),
+                h('span', { style: S.countPill }, String(data?.sharedSkillCount ?? 0)),
+                h('span', { style: S.groupDir }, t('wsSharedHint')),
+              ),
+              sharedOpen === true
+                ? h(
+                    'div',
+                    { style: S.cardBody },
+                    ...sharedGroups.map((group) => {
+                      const key = `ws-shared-${group.source}`
+                      return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key))
+                    }),
+                  )
+                : null,
+            )
+          : null
+
+      return h(
+        'div',
+        { style: S.wsRoot },
+        h(
+          'div',
+          { style: S.viewSwitch },
+          h(
+            'button',
+            { type: 'button', style: S.button, onClick: () => onSetAll(!allOpenLocal) },
+            allOpenLocal ? t('wsCollapseAll') : t('wsExpandAll'),
+          ),
+          h('span', { style: S.chip }, `${workspaces.length} ${t('wsCount')}`),
+        ),
+        sharedCard,
+        ...cards,
+      )
+    }
+
     function fiberLabel(t, phase) {
       if (phase === 'pending') return t('fiberPending')
       if (phase === 'loading') return t('fiberLoading')
@@ -412,6 +736,12 @@ window.__ModuleLoader__.load({
         tools: false,
       })
       const [expanded, setExpanded] = React.useState({})
+      const [view, setView] = React.useState('global')
+      // Folding state for the per-workspace view lives here (not inside
+      // WorkspaceView) so the panel's hook order never depends on a child.
+      const [wsOpen, setWsOpen] = React.useState({})
+      const [wsGroups, setWsGroups] = React.useState({})
+      const [wsSharedOpen, setWsSharedOpen] = React.useState(false)
 
       const load = React.useCallback(async (force) => {
         setStatus('loading')
@@ -473,6 +803,16 @@ window.__ModuleLoader__.load({
       const tools = (data?.tools ?? []).filter((item) => matches(q, item, FILTERS[4][1]))
       const warnings = data?.warnings ?? []
 
+      const workspaceList = Array.isArray(data?.workspaces) ? data.workspaces : []
+      const allWsOpen = workspaceList.length > 0 && workspaceList.every((workspace) => wsOpen[workspace.id] === true)
+      const setAllWs = (value) => {
+        const next = {}
+        for (const workspace of workspaceList) next[workspace.id] = value
+        setWsOpen(next)
+      }
+      const toggleWs = (id) => setWsOpen((prev) => ({ ...prev, [id]: !prev[id] }))
+      const toggleWsGroup = (key) => setWsGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+
       return h(
         'div',
         { style: S.root },
@@ -485,6 +825,20 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { style: S.toolbar },
+          h(
+            'div',
+            { style: S.viewSwitch },
+            h(
+              'button',
+              { type: 'button', style: view === 'global' ? S.viewActive : S.button, onClick: () => setView('global') },
+              t('viewGlobal'),
+            ),
+            h(
+              'button',
+              { type: 'button', style: view === 'workspace' ? S.viewActive : S.button, onClick: () => setView('workspace') },
+              t('viewWorkspace'),
+            ),
+          ),
           h('input', {
             style: S.search,
             value: query,
@@ -515,6 +869,8 @@ window.__ModuleLoader__.load({
               ...warnings.slice(0, 8).map((warning, index) => h('div', { key: `w-${index}` }, warning.message ?? warning.code)),
             )
           : null,
+        ...(view === 'global'
+          ? [
         h(
           Section,
           { title: t('packages'), hint: t('packagesHint'), count: packages.length, open: open.packages, onToggle: () => toggle('packages') },
@@ -659,6 +1015,21 @@ window.__ModuleLoader__.load({
                 )
               }),
         ),
+            ]
+          : [
+              h(WorkspaceView, {
+                t,
+                data,
+                openWorkspaces: wsOpen,
+                openGroups: wsGroups,
+                onToggleWorkspace: toggleWs,
+                onToggleGroup: toggleWsGroup,
+                onSetAll: setAllWs,
+                allOpen: allWsOpen,
+                sharedOpen: wsSharedOpen,
+                onToggleShared: () => setWsSharedOpen((prev) => !prev),
+              }),
+            ]),
       )
     }
 

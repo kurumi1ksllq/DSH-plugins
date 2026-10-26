@@ -1,6 +1,15 @@
 # dsh-inventory
 
-DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里显示这台机器上实际装了什么。
+DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里显示这台机器上实际装了什么；面板顶部可切到 **「按工作区」**，看每个工作区自己声明了什么。
+
+本包有**两个插件入口**：
+
+| 入口 | 行 id | 作用 |
+|---|---|---|
+| `dsh-inventory` | `inventory` | 只读快照聚合 + `GET /inventory/snapshot` + 面板 |
+| `dsh-inventory/gate` | `inventory-gate` | 按工作区门控 MCP：只有会话 cwd 命中 `<workspace>/.dsh/mcp.json` 才挂载对应服务器 |
+
+两者分开成两行是有意的：清单是只读 HTTP 面，门控挂在每个 agent 生命周期上；分开后任一半失败都不会拖垮另一半。
 
 ## 显示什么
 
@@ -12,6 +21,7 @@ DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里�
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 含 `disable-model-invocation` 的屏蔽桩、来源 rank |
 | 工具 | `ctx.tools.schemas()` | 全量工具，含被 tool-search 折叠的（`deferred`） |
 | 技能 → 工具 | SKILL.md 正文匹配 + 会话日志 | 四层：精确工具名 / MCP 服务名 / 外部命令 / 脚本路径；会话实证附命中次数 |
+| **按工作区** | `ctx.workspaceRegistry.list()` + 每个工作区的 `.dsh/mcp.json` + 项目 skill 根 | 每个工作区声明的 MCP（含门控后的挂载名）、全局注册的 MCP、以及它可用的技能（按来源分组） |
 
 ## 只读保证
 
@@ -25,7 +35,9 @@ DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里�
 GET /inventory/snapshot[?refresh=1]
 ```
 
-返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
+返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及按工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
+
+`workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
 
 ## 安装
 
@@ -97,7 +109,7 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 ## 已知限制
 
 - 工具归属是推断：`mcp__<server>__*` 确定；`BUILTIN_TOOLS` 只收 DSH 本体注册的工具（把它写成插件工具会导致归属错判，且扫描会跳过内置名）；其余通过扫描插件包 JS 里的工具名字面量判定，找不到就标「未识别」。
-- 技能只扫固定根目录（项目 `.dsh/skills`、项目 `.agents/skills`、`$DSH_CUSTOM_SKILL_DIRS`、`~/.dsh/skills`、`~/.agents/skills`、`$DSH_BUNDLED_SKILL_DIR`），其中「项目」取 host 进程的 `cwd`，不是每个会话自己的工作区。
+- 全局视图的技能只扫固定根目录（项目 `.dsh/skills`、项目 `.agents/skills`、`$DSH_CUSTOM_SKILL_DIRS`、`~/.dsh/skills`、`~/.agents/skills`、`$DSH_BUNDLED_SKILL_DIR`），其中「项目」取 host 进程的 `cwd`；「按工作区」视图改为按每个工作区自己的目录扫项目根，共享根只扫一次。
 - 会话实证只读最近 12 个会话文件，窗口 8 次工具调用。
 - 快照缓存 15 秒；`?refresh=1` 强制重算。
 - 被屏蔽的 skill（`disable-model-invocation: true`）在运行时注册表里看不见，只能靠磁盘扫描，因此显示为「已屏蔽」。
