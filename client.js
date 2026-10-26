@@ -1341,7 +1341,6 @@ window.__ModuleLoader__.load({
       // Counts come from the rows on screen: the header's "N 项" and the "X/Y"
       // hint must always describe the same list, hidden rows included.
       const skillsOn = skillRows.filter((row) => row.enabled).length
-      const globalSkills = skillRows.filter((row) => row.assigned !== true && row.enabled).length
       const hiddenHere = allSkills.filter((skill) => hiddenSkills.includes(skill.name)).length
       const mcpStatus =
         workspace.mcp?.status === 'invalid'
@@ -1352,11 +1351,7 @@ window.__ModuleLoader__.load({
       const mcpHint = [`${t('wsSwitchOn')} ${declaredOn}`, globalCount > 0 ? `${t('wsGlobalShort')} ${globalCount}` : null, mcpStatus]
         .filter(Boolean)
         .join(' · ')
-      const skillsHint = [
-        `${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`,
-        globalSkills > 0 ? `${t('wsGlobalShort')} ${globalSkills}` : null,
-        hiddenHere > 0 ? `${t('wsHiddenShort')} ${hiddenHere}` : null,
-      ]
+      const skillsHint = [`${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`, hiddenHere > 0 ? `${t('wsHiddenShort')} ${hiddenHere}` : null]
         .filter(Boolean)
         .join(' · ')
 

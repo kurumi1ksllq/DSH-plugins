@@ -1346,8 +1346,14 @@ test('workspace detail locks globally reachable skills and only switches vault s
   assert.ok(vaultSwitch, 'a vaulted skill must keep its workspace switch')
   assert.equal(vaultSwitch.props['aria-checked'], 'false')
 
-  // The header counts a globally available skill as on and reports the global share.
-  assert.match(textOf(current), /已开启 3\/6 · 全局 1/)
+  // The header counts a globally available skill as on; the hint carries on/total only.
+  const skillsHeader = findNode(
+    current,
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).trim().startsWith('技能'),
+  )
+  assert.ok(skillsHeader, 'skills section header missing')
+  assert.match(textOf(skillsHeader), /已开启 3\/6/)
+  assert.doesNotMatch(textOf(skillsHeader), /全局/, 'the hint must not repeat the global count')
 
   vaultSwitch.props.onClick()
   await tick()
