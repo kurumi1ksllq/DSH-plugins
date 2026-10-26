@@ -541,8 +541,13 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 test('workspace tab lists workspaces, opens a detail page, and goes back', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'nav-case' })
 
-  // 总览 is the default tab: no workspace card and no switch yet.
-  assert.equal(findNode(tree(), (node) => node.props?.role === 'switch'), null, 'overview must not render switches')
+  // 总览 is the default tab: its MCP rows carry the global switch now. The
+  // workspace list below must still render no switches.
+  const overviewSwitches = switchesIn(tree())
+  assert.ok(overviewSwitches.length > 0, 'overview must render switches')
+  for (const node of overviewSwitches) {
+    assert.equal(typeof node.props['aria-label'], 'string', 'every overview switch must be named after its row')
+  }
 
   findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
 
@@ -813,4 +818,229 @@ test('the workspace list counts shared skills instead of hiding them', async () 
   const filtered = textOf(tree())
   assert.match(filtered, /Second Workspace/)
   assert.doesNotMatch(filtered, /Demo Workspace/, 'the list filter must narrow the rows')
+})
+
+// ---- global MCP / skill switches on the overview -------------------------
+
+function mcpRow(server, overrides = {}) {
+  return {
+    entryId: `mcp-${server}`,
+    server,
+    transport: 'stdio',
+    status: 'connected',
+    toolCount: 1,
+    toolNames: [],
+    enabled: true,
+    toggleable: true,
+    disabledReason: null,
+    ...overrides,
+  }
+}
+
+function skillRow(name, overrides = {}) {
+  return {
+    name,
+    description: `${name} fixture`,
+    source: 'user-dsh',
+    disabled: false,
+    global: true,
+    toggleable: true,
+    disabledReason: null,
+    edges: [],
+    ...overrides,
+  }
+}
+
+/** Overview fixture: unsorted, half enabled, with the global toggle capability on. */
+function toggleSnapshot({ mcp, skills, globalToggle } = {}) {
+  return {
+    ...SNAPSHOT,
+    globalToggle: globalToggle ?? { mcp: true, skill: true },
+    mcp: mcp ?? [
+      mcpRow('zeta', { enabled: false }),
+      mcpRow('alpha', { enabled: true }),
+      mcpRow('beta', { enabled: false }),
+      mcpRow('gamma', { enabled: true }),
+    ],
+    skills: skills ?? [
+      skillRow('s-zulu', { disabled: false }),
+      skillRow('s-alpha', { disabled: true }),
+      skillRow('s-bravo', { disabled: false }),
+      skillRow('s-yankee', { disabled: true }),
+    ],
+  }
+}
+
+/** The switch named after `label`, anywhere in the tree. */
+function switchNamed(tree, label) {
+  return findNode(tree, (node) => node.props?.role === 'switch' && node.props['aria-label'] === label)
+}
+
+/** Open the 技能 section on the overview and return the re-rendered tree. */
+function openSkillSection(panel) {
+  const header = findNode(
+    panel.tree(),
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('技能'),
+  )
+  assert.ok(header, 'skills section header missing')
+  header.props.onClick()
+  return panel.tree()
+}
+
+test('overview sorts enabled MCP servers and skills above disabled ones', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-sort-case' })
+  const current = openSkillSection(panel)
+
+  const labels = switchesIn(current).map((node) => node.props['aria-label'])
+  assert.deepEqual(labels, [
+    // enabled first (alpha, gamma), then disabled (beta, zeta); name ascending inside each group
+    'alpha',
+    'gamma',
+    'beta',
+    'zeta',
+    // skills: model-invocable first (s-bravo, s-zulu), then shadowed (s-alpha, s-yankee)
+    's-bravo',
+    's-zulu',
+    's-alpha',
+    's-yankee',
+  ])
+})
+
+test('overview MCP switch posts the inverted state to /inventory/global', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-mcp-post-case' })
+
+  switchNamed(panel.tree(), 'alpha').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+  switchNamed(panel.tree(), 'zeta').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+
+  const posts = panel.calls.filter((call) => call.method === 'POST')
+  assert.equal(posts.length, 2, 'one POST per switch click')
+  for (const post of posts) assert.equal(post.url, '/inventory/global')
+  assert.deepEqual(JSON.parse(posts[0].body), { kind: 'mcp', name: 'alpha', enabled: false })
+  assert.deepEqual(JSON.parse(posts[1].body), { kind: 'mcp', name: 'zeta', enabled: true })
+})
+
+test('overview skill switch posts enabled:true for a shadowed skill', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-skill-post-case' })
+  const current = openSkillSection(panel)
+
+  switchNamed(current, 's-alpha').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+
+  const post = panel.calls.find((call) => call.method === 'POST')
+  assert.ok(post, 'no POST issued')
+  assert.equal(post.url, '/inventory/global')
+  assert.deepEqual(JSON.parse(post.body), { kind: 'skill', name: 's-alpha', enabled: true })
+})
+
+test('rows the host cannot toggle render a disabled switch and the reason', async () => {
+  const panel = await bootPanel(
+    toggleSnapshot({
+      mcp: [mcpRow('locked-mcp', { toggleable: false, disabledReason: 'no-writable-profile' })],
+      skills: [
+        skillRow('runtime-only', { disabled: true, global: false, toggleable: false, disabledReason: 'runtime' }),
+        skillRow('project-only', { disabled: false, global: false, toggleable: false, disabledReason: 'project-scope' }),
+      ],
+    }),
+    { version: 'global-locked-case' },
+  )
+
+  let current = panel.tree()
+  const mcpSwitch = switchNamed(current, 'locked-mcp')
+  assert.ok(mcpSwitch, 'locked MCP row has no switch')
+  assert.equal(mcpSwitch.props.disabled, true, 'a non-toggleable MCP row must not be switchable')
+  assert.match(textOf(rowOf(current, 'locked-mcp')), /该条目无法持久化开关/)
+
+  current = openSkillSection(panel)
+  const runtimeSwitch = switchNamed(current, 'runtime-only')
+  assert.ok(runtimeSwitch, 'runtime skill row has no switch')
+  assert.equal(runtimeSwitch.props.disabled, true)
+  assert.match(textOf(rowOf(current, 'runtime-only')), /运行时注册，无磁盘文件/)
+  const projectSwitch = switchNamed(current, 'project-only')
+  assert.ok(projectSwitch, 'project skill row has no switch')
+  assert.equal(projectSwitch.props.disabled, true)
+  assert.match(textOf(rowOf(current, 'project-only')), /项目级技能/)
+
+  // A disabled switch must not issue a request.
+  runtimeSwitch.props.onClick({ stopPropagation() {} })
+  await tick()
+  assert.equal(panel.calls.filter((call) => call.method === 'POST').length, 0)
+})
+
+test('a false globalToggle capability disables that whole section', async () => {
+  const mcpLocked = await bootPanel(toggleSnapshot({ globalToggle: { mcp: false, skill: true } }), {
+    version: 'global-lock-mcp-case',
+  })
+  let current = mcpLocked.tree()
+  assert.ok(switchesIn(current).length > 0, 'no MCP switches rendered')
+  for (const node of switchesIn(current)) {
+    assert.equal(node.props.disabled, true, `MCP switch ${node.props['aria-label']} must be disabled`)
+  }
+  current = openSkillSection(mcpLocked)
+  assert.equal(switchNamed(current, 's-bravo').props.disabled, false, 'skills stay switchable when only MCP is locked')
+
+  const skillLocked = await bootPanel(toggleSnapshot({ globalToggle: { mcp: true, skill: false } }), {
+    version: 'global-lock-skill-case',
+  })
+  const lockedTree = openSkillSection(skillLocked)
+  const skillSwitches = switchesIn(lockedTree).filter((node) => String(node.props['aria-label']).startsWith('s-'))
+  assert.ok(skillSwitches.length > 0, 'no skill switches rendered')
+  for (const node of skillSwitches) {
+    assert.equal(node.props.disabled, true, `skill switch ${node.props['aria-label']} must be disabled`)
+  }
+  assert.equal(switchNamed(lockedTree, 'alpha').props.disabled, false, 'MCP stays switchable when only skills are locked')
+})
+
+test('clicking a switch does not expand the row underneath it', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-no-expand-case' })
+
+  const stopped = []
+  const control = switchNamed(panel.tree(), 'alpha')
+  control.props.onClick({ stopPropagation: () => stopped.push(true) })
+  assert.equal(stopped.length, 1, 'a switch click must stop propagation to the row')
+
+  await tick()
+  await tick()
+  const current = panel.tree()
+  const header = findParent(current, switchNamed(current, 'alpha'))
+  assert.ok(header, 'row header missing')
+  assert.equal(header.props['aria-expanded'], 'false', 'clicking the switch must not expand the row')
+  assert.equal(panel.calls.filter((call) => call.method === 'POST').length, 1)
+})
+
+test('a rejected global toggle shows the host message in a toast', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-error-case' })
+  panel.setPost(async () => ({ ok: false, status: 500, json: async () => ({ ok: false, error: '写不进去' }) }))
+
+  switchNamed(panel.tree(), 'alpha').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+
+  const current = panel.tree()
+  assert.match(textOf(current), /全局开关失败: 写不进去/)
+  const dismiss = findNode(current, (node) => node.type === 'button' && textOf(node) === '关闭')
+  assert.ok(dismiss, 'toast is not dismissible')
+  dismiss.props.onClick()
+  assert.doesNotMatch(textOf(panel.tree()), /全局开关失败/)
+})
+
+test('a patch-only toggle says it applies on the next start', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'global-notice-case' })
+  panel.setPost(async () => ({ ok: true, status: 200, json: async () => ({ ok: true, live: false }) }))
+
+  switchNamed(panel.tree(), 'alpha').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+  assert.match(textOf(panel.tree()), /下次启动生效/)
+
+  // A live write shows no such notice.
+  const livePanel = await bootPanel(toggleSnapshot(), { version: 'global-live-case' })
+  switchNamed(livePanel.tree(), 'alpha').props.onClick({ stopPropagation() {} })
+  await tick()
+  await tick()
+  assert.doesNotMatch(textOf(livePanel.tree()), /下次启动生效/)
 })

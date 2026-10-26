@@ -21,6 +21,7 @@ window.__ModuleLoader__.load({
     const NS = 'inventory'
     const ROUTE = '/inventory/snapshot'
     const WORKSPACE_ROUTE = '/inventory/workspace'
+    const GLOBAL_ROUTE = '/inventory/global'
 
     const zh = {
       tab: '安装总览',
@@ -133,6 +134,18 @@ window.__ModuleLoader__.load({
       wsSearchList: '搜索工作区',
       wsActionFailed: '操作失败',
       wsDismiss: '关闭',
+      globalScope: '全局',
+      projectScope: '项目',
+      toggleOn: '启用',
+      toggleOff: '停用',
+      globalToggleFailed: '全局开关失败',
+      globalToggling: '处理中…',
+      toggleUnavailableRuntime: '运行时注册，无磁盘文件',
+      toggleUnavailableProject: '项目级技能',
+      toggleUnavailableMcp: '该条目无法持久化开关',
+      restartNeeded: '下次启动生效',
+      globalHint: '已启用的排在前面',
+      toggleSuccess: '已更新',
     }
 
     const en = {
@@ -246,6 +259,18 @@ window.__ModuleLoader__.load({
       wsSearchList: 'Search workspaces',
       wsActionFailed: 'Action failed',
       wsDismiss: 'Dismiss',
+      globalScope: 'Global',
+      projectScope: 'Project',
+      toggleOn: 'On',
+      toggleOff: 'Off',
+      globalToggleFailed: 'Global toggle failed',
+      globalToggling: 'Working…',
+      toggleUnavailableRuntime: 'Runtime-only, no file',
+      toggleUnavailableProject: 'Project skill',
+      toggleUnavailableMcp: 'Not switchable',
+      restartNeeded: 'Takes effect next start',
+      globalHint: 'Enabled first',
+      toggleSuccess: 'Updated',
     }
 
     // Tokens the theme actually defines. Fills that must read on both themes are
@@ -596,6 +621,20 @@ window.__ModuleLoader__.load({
         flexShrink: 0,
       },
       skeleton: { height: '14px', borderRadius: '6px', background: C.fill, flexShrink: 0 },
+      // Quiet one-line note for "written to cordis.patch.yml, applies next start".
+      notice: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        alignSelf: 'center',
+        margin: '10px auto 0',
+        padding: '6px 12px',
+        borderRadius: '999px',
+        background: C.fill,
+        color: C.secondary,
+        ...T.caption,
+        flexShrink: 0,
+      },
       empty: { ...T.caption, color: C.secondary, padding: '14px 16px' },
       spinner: {
         width: '16px',
@@ -672,6 +711,17 @@ window.__ModuleLoader__.load({
     function matches(query, item, pick) {
       if (query.length === 0) return true
       return pick(item).toLowerCase().includes(query)
+    }
+
+    /**
+     * Enabled rows first, then by label. `sort` is stable, so rows that tie on
+     * both keys keep the order the host sent.
+     */
+    function sortByEnabled(list, isOn, label) {
+      return [...list].sort((left, right) => {
+        const delta = (isOn(right) ? 1 : 0) - (isOn(left) ? 1 : 0)
+        return delta !== 0 ? delta : label(left).localeCompare(label(right))
+      })
     }
 
     /** Enter/Space activation for rows that are buttons in spirit. */
@@ -787,9 +837,15 @@ window.__ModuleLoader__.load({
           disabled: isDisabled,
           className: 'inv-switch',
           style: { ...S.switchTrack, ...(isOn ? S.switchTrackOn : {}), ...(isDisabled ? S.switchDisabled : {}) },
-          onClick: () => {
+          onClick: (event) => {
+            // Rows are expand buttons themselves: a switch click must not toggle
+            // the row underneath it.
+            if (event !== undefined && event !== null) event.stopPropagation()
             if (isDisabled) return
             onToggle()
+          },
+          onKeyDown: (event) => {
+            if (event !== undefined && event !== null) event.stopPropagation()
           },
         },
         h('span', {
@@ -891,31 +947,35 @@ window.__ModuleLoader__.load({
       }
       mcpNames.sort((left, right) => left.localeCompare(right))
 
-      const mcpRows = mcpNames
-        .map((name) => {
-          const declaredEntry = declared.find((server) => server?.name === name)
-          const installedEntry = installedMcp.find((item) => item?.server === name)
-          const transport = declaredEntry?.transport ?? installedEntry?.transport
-          const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
-          const isGlobal = globalMcp.includes(name)
-          const isDeclared = declaredEntry !== undefined
-          // A globally registered server already reaches every workspace: there
-          // is nothing to switch off, so the row states the fact instead of
-          // offering a disabled control.
-          const locked = !isDeclared && isGlobal
-          const isOn = isDeclared || isGlobal
-          const sub = [transport, detail].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
-          return {
-            name,
-            isOn,
-            locked,
-            isDeclared,
-            declaredEntry,
-            sub,
-            search: `${name} ${sub} ${locked ? t('wsGlobalNote') : ''}`.toLowerCase(),
-          }
-        })
-        .filter((row) => q.length === 0 || row.search.includes(q))
+      const mcpRows = sortByEnabled(
+        mcpNames
+          .map((name) => {
+            const declaredEntry = declared.find((server) => server?.name === name)
+            const installedEntry = installedMcp.find((item) => item?.server === name)
+            const transport = declaredEntry?.transport ?? installedEntry?.transport
+            const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
+            const isGlobal = globalMcp.includes(name)
+            const isDeclared = declaredEntry !== undefined
+            // A globally registered server already reaches every workspace: there
+            // is nothing to switch off, so the row states the fact instead of
+            // offering a disabled control.
+            const locked = !isDeclared && isGlobal
+            const isOn = isDeclared || isGlobal
+            const sub = [transport, detail].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
+            return {
+              name,
+              isOn,
+              locked,
+              isDeclared,
+              declaredEntry,
+              sub,
+              search: `${name} ${sub} ${locked ? t('wsGlobalNote') : ''}`.toLowerCase(),
+            }
+          })
+          .filter((row) => q.length === 0 || row.search.includes(q)),
+        (row) => row.isOn,
+        (row) => row.name,
+      )
 
       const mcpNodes = mcpRows.map((row, index) =>
         h(
@@ -962,27 +1022,30 @@ window.__ModuleLoader__.load({
         }
       }
       const allSkills = [...skillsByName.values()]
-      const skillRows = allSkills
-        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
-        .map((skill) => {
-          const assigned = skill.assigned === true
-          const linked = skill.linked === true
-          // A runtime-registered skill has no directory to link into, and a
-          // hand-copied directory is not ours to unlink: both stay read-only.
-          const runtimeOnly = skill.source === 'runtime'
-          const locked = (assigned && !linked) || (!assigned && runtimeOnly)
-          const reason = assigned && !linked ? t('wsNotLinked') : !assigned && runtimeOnly ? t('wsRuntimeOnly') : null
-          const note = assigned && !linked ? t('wsNotLinkedNote') : !assigned && runtimeOnly ? t('wsRuntimeNote') : null
-          return {
-            skill,
-            assigned,
-            locked,
-            reason,
-            note,
-            search: `${skill.name} ${skill.description ?? ''} ${skill.source ?? ''}`.toLowerCase(),
-          }
-        })
-        .filter((row) => q.length === 0 || row.search.includes(q))
+      const skillRows = sortByEnabled(
+        allSkills
+          .map((skill) => {
+            const assigned = skill.assigned === true
+            const linked = skill.linked === true
+            // A runtime-registered skill has no directory to link into, and a
+            // hand-copied directory is not ours to unlink: both stay read-only.
+            const runtimeOnly = skill.source === 'runtime'
+            const locked = (assigned && !linked) || (!assigned && runtimeOnly)
+            const reason = assigned && !linked ? t('wsNotLinked') : !assigned && runtimeOnly ? t('wsRuntimeOnly') : null
+            const note = assigned && !linked ? t('wsNotLinkedNote') : !assigned && runtimeOnly ? t('wsRuntimeNote') : null
+            return {
+              skill,
+              assigned,
+              locked,
+              reason,
+              note,
+              search: `${skill.name} ${skill.description ?? ''} ${skill.source ?? ''}`.toLowerCase(),
+            }
+          })
+          .filter((row) => q.length === 0 || row.search.includes(q)),
+        (row) => row.assigned,
+        (row) => String(row.skill.name),
+      )
 
       const skillNodes = skillRows.map((row, index) => {
         const skill = row.skill
@@ -1117,6 +1180,12 @@ window.__ModuleLoader__.load({
       const [currentWorkspace, setCurrentWorkspace] = React.useState('')
       const [wsBusy, setWsBusy] = React.useState('')
       const [wsError, setWsError] = React.useState('')
+      // Global (whole-installation) switch state: `globalBusy` is `kind|name`
+      // for the row in flight, so only that row shows a spinner while every
+      // switch stays disabled.
+      const [globalBusy, setGlobalBusy] = React.useState('')
+      const [globalError, setGlobalError] = React.useState('')
+      const [globalNotice, setGlobalNotice] = React.useState('')
       const [detailOpen, setDetailOpen] = React.useState({ mcp: true, skills: true })
       // Apple's large-title pattern: the toolbar title only appears once the
       // large title has scrolled away. Threshold crossing only, so scrolling
@@ -1178,8 +1247,54 @@ window.__ModuleLoader__.load({
         [load],
       )
 
-      React.useEffect(() => installStyles(), [])
+      /**
+       * Switch one MCP server or skill for the whole installation. The host
+       * answers `{ ok, changed, live }`: `live: false` means the change landed in
+       * cordis.patch.yml and only applies on the next start, so the panel says so
+       * instead of pretending the running process already changed.
+       */
+      const runGlobalAction = React.useCallback(
+        async ({ kind, name, enabled }) => {
+          setGlobalBusy(`${kind}|${name}`)
+          setGlobalError('')
+          setGlobalNotice('')
+          try {
+            const response = await fetch(GLOBAL_ROUTE, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ kind, name, enabled }),
+            })
+            if (!response.ok) {
+              let detail = ''
+              try {
+                const payload = await response.json()
+                if (payload && typeof payload.error === 'string' && payload.error.length > 0) detail = payload.error
+              } catch {
+                // A non-JSON error body still has a status worth showing.
+                detail = ''
+              }
+              throw new Error(detail.length > 0 ? detail : `HTTP ${response.status}`)
+            }
+            let live = true
+            try {
+              const payload = await response.json()
+              if (payload && payload.live === false) live = false
+            } catch {
+              // No body: the write itself succeeded, treat it as live.
+              live = true
+            }
+            await load(true)
+            if (!live) setGlobalNotice(t('restartNeeded'))
+          } catch (error) {
+            setGlobalError(error && error.message ? error.message : String(error))
+          } finally {
+            setGlobalBusy('')
+          }
+        },
+        [load, t],
+      )
 
+      React.useEffect(() => installStyles(), [])
       React.useEffect(() => {
         load(false)
       }, [load])
@@ -1240,10 +1355,23 @@ window.__ModuleLoader__.load({
       const counts = data?.counts ?? {}
       const packages = (data?.packages ?? []).filter((item) => matches(q, item, FILTERS[0][1]))
       const rows = (data?.rows ?? []).filter((item) => matches(q, item, FILTERS[1][1]))
-      const mcp = (data?.mcp ?? []).filter((item) => matches(q, item, FILTERS[2][1]))
-      const skills = (data?.skills ?? []).filter((item) => matches(q, item, FILTERS[3][1]))
+      const mcp = sortByEnabled(
+        (data?.mcp ?? []).filter((item) => matches(q, item, FILTERS[2][1])),
+        (item) => item.enabled === true,
+        (item) => String(item.server ?? ''),
+      )
+      const skills = sortByEnabled(
+        (data?.skills ?? []).filter((item) => matches(q, item, FILTERS[3][1])),
+        (item) => item.disabled !== true,
+        (item) => String(item.name ?? ''),
+      )
       const tools = (data?.tools ?? []).filter((item) => matches(q, item, FILTERS[4][1]))
       const warnings = data?.warnings ?? []
+      // Capability bits: a false means the host cannot persist that kind at all,
+      // so the whole section renders its switches disabled.
+      const globalMcpLocked = data?.globalToggle?.mcp === false
+      const globalSkillLocked = data?.globalToggle?.skill === false
+      const globalBlocked = globalBusy.length > 0
 
       const workspaceList = Array.isArray(data?.workspaces) ? data.workspaces : []
       const activeWorkspace = workspaceList.find((workspace) => workspace.id === currentWorkspace) ?? null
@@ -1398,16 +1526,26 @@ window.__ModuleLoader__.load({
         ),
         h(
           Section,
-          { key: 'mcp', t, title: t('mcp'), hint: t('mcpHint'), count: mcp.length, open: open.mcp, onToggle: () => toggle('mcp') },
+          { key: 'mcp', t, title: t('mcp'), hint: `${t('mcpHint')} · ${t('globalHint')}`, count: mcp.length, open: open.mcp, onToggle: () => toggle('mcp') },
           mcp.length === 0
             ? [h('div', { key: 'mcp-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noMcp'))]
             : mcp.map((item, index) => {
                 const key = `mcp-${item.entryId}`
                 const isOpen = expanded[key] === true
-                const tone = item.status === 'connected' ? 'success' : item.status === 'failed' ? 'danger' : 'warning'
+                const tone =
+                  item.status === 'connected' ? 'success' : item.status === 'failed' ? 'danger' : item.status === 'disabled' ? undefined : 'warning'
                 const statusLabel =
-                  item.status === 'connected' ? t('statusConnected') : item.status === 'failed' ? t('statusFailed') : t('statusNoTools')
+                  item.status === 'connected'
+                    ? t('statusConnected')
+                    : item.status === 'failed'
+                      ? t('statusFailed')
+                      : item.status === 'disabled'
+                        ? t('disabled')
+                        : t('statusNoTools')
                 const toggleRow = () => toggleItem(key)
+                const isOn = item.enabled === true
+                const rowLocked = item.toggleable === false
+                const switchable = !rowLocked && !globalMcpLocked
                 return h(
                   'div',
                   { key, style: { ...S.row, ...(index === mcp.length - 1 ? S.rowLast : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
@@ -1428,6 +1566,15 @@ window.__ModuleLoader__.load({
                     h(Badge, { label: statusLabel, tone, dot: true }),
                     h(Badge, { label: `${item.toolCount} ${t('toolsCount')}` }),
                     item.transport ? h(Badge, { label: item.transport }) : null,
+                    rowLocked ? h(Badge, { label: t('toggleUnavailableMcp'), tone: 'warning' }) : null,
+                    h(Switch, {
+                      checked: isOn,
+                      disabled: !switchable || globalBlocked,
+                      label: item.server,
+                      stateLabel: isOn ? t('toggleOn') : t('toggleOff'),
+                      onToggle: () => runGlobalAction({ kind: 'mcp', name: item.server, enabled: !isOn }),
+                    }),
+                    globalBusy === `mcp|${item.server}` ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
                   ),
                   isOpen
                     ? (item.toolNames ?? []).length === 0
@@ -1443,7 +1590,7 @@ window.__ModuleLoader__.load({
         ),
         h(
           Section,
-          { key: 'skills', t, title: t('skills'), hint: t('skillsHint'), count: skills.length, open: open.skills, onToggle: () => toggle('skills') },
+          { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills') },
           skills.length === 0
             ? [h('div', { key: 'skills-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noSkills'))]
             : skills.map((item, index) => {
@@ -1451,6 +1598,12 @@ window.__ModuleLoader__.load({
                 const isOpen = expanded[key] === true
                 const edges = item.edges ?? []
                 const toggleRow = () => toggleItem(key)
+                const isOn = item.disabled !== true
+                const rowLocked = item.toggleable === false
+                const switchable = !rowLocked && !globalSkillLocked
+                // A runtime registration has no file to rewrite; anything else
+                // that cannot be switched is a project-scoped skill.
+                const blockedLabel = item.disabledReason === 'runtime' ? t('toggleUnavailableRuntime') : t('toggleUnavailableProject')
                 return h(
                   'div',
                   { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
@@ -1475,6 +1628,7 @@ window.__ModuleLoader__.load({
                         { style: S.subRow },
                         h('span', { style: S.rowTitle }, item.name),
                         h(Badge, { label: item.source ?? 'disk' }),
+                        h(Badge, { label: item.global === true ? t('globalScope') : t('projectScope') }),
                         item.disabled ? h(Badge, { label: t('shadowed'), tone: 'warning', dot: true }) : null,
                       ),
                       item.description ? h('span', { style: S.note }, item.description) : null,
@@ -1487,6 +1641,15 @@ window.__ModuleLoader__.load({
                         })
                       : null,
                     h(Badge, { label: `${edges.length} ${t('edges')}`, tone: edges.length > 0 ? 'success' : undefined, dot: edges.length > 0 }),
+                    rowLocked ? h(Badge, { label: blockedLabel, tone: 'warning' }) : null,
+                    h(Switch, {
+                      checked: isOn,
+                      disabled: !switchable || globalBlocked,
+                      label: item.name,
+                      stateLabel: isOn ? t('toggleOn') : t('toggleOff'),
+                      onToggle: () => runGlobalAction({ kind: 'skill', name: item.name, enabled: !isOn }),
+                    }),
+                    globalBusy === `skill|${item.name}` ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
                   ),
                   isOpen
                     ? h(
@@ -1630,6 +1793,16 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
               )
             : null,
+          globalError.length > 0
+            ? h(
+                'div',
+                { style: S.toast, role: 'alert' },
+                h(Icon, { name: 'alert', size: 18 }),
+                h('span', { style: { flex: '1 1 auto' } }, `${t('globalToggleFailed')}: ${globalError}`),
+                h('button', { type: 'button', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
+              )
+            : null,
+          globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
         ),
       )
     }

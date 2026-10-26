@@ -8,16 +8,20 @@
  *   - the full tool registry, with inferred ownership
  *   - skill -> tool edges: static text matching plus session-log evidence
  *
- * Surface: two plain HTTP routes.
+ * Surface: three HTTP routes.
  *   `GET  /inventory/snapshot`  — the read-only snapshot.
  *   `POST /inventory/workspace` — assign or remove one MCP server / skill for a
- *                                 registered workspace. The only write path; it
- *                                 touches nothing but `<workspace>/.dsh/`.
+ *                                 registered workspace. It touches nothing but
+ *                                 `<workspace>/.dsh/`.
+ *   `POST /inventory/global`    — enable or disable one GLOBAL capability: an MCP
+ *                                 server row (through `pluginManager`, or the
+ *                                 profile patch as a fallback) or a skill on a
+ *                                 global skill root (its SKILL.md flag).
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { accessSync, constants as FS, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { readSessionEvents } from './lib/decode-session.js'
@@ -31,6 +35,8 @@ import { buildPluginToolIndex } from './lib/plugin-tool-index.js'
 import { collectWorkspaces, sharedSkillRoots } from './lib/workspaces.js'
 import { assignMcp, assignSkill, mcpFileOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
 import { normalizeDir, pathKey } from './lib/workspace-gate.js'
+import { setSkillEnabled } from './lib/skill-toggle.js'
+import { writePatchEnabled } from './lib/global-patch.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 
 export const name = 'dsh-inventory'
@@ -40,6 +46,16 @@ export const inject = ['webServer']
 
 export const SNAPSHOT_ROUTE = '/inventory/snapshot'
 export const ASSIGN_ROUTE = '/inventory/workspace'
+export const GLOBAL_ROUTE = '/inventory/global'
+
+const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
+
+/**
+ * Skill roots that are machine-wide rather than per-project. A skill on one of
+ * these is what "global skill" means in the panel, and the only ones whose own
+ * SKILL.md the global switch is allowed to edit.
+ */
+const GLOBAL_SKILL_SOURCES = new Set(['custom', 'user-dsh', 'user-agents', 'bundled'])
 
 /**
  * Prompt section that makes the workspace-scoped MCP capability discoverable.
@@ -120,13 +136,19 @@ function resolveProfileDir(ctx) {
 }
 
 function skillRootsFor(cwd) {
+  return [
+    { dir: join(cwd, '.dsh', 'skills'), source: 'project-dsh', rank: 100 },
+    { dir: join(cwd, '.agents', 'skills'), source: 'project-agents', rank: 200 },
+    ...globalSkillRoots(),
+  ]
+}
+
+/** Machine-wide skill roots: user homes, custom dirs, the bundled tree. */
+function globalSkillRoots() {
   const home = homedir()
   const dshHome = process.env.DSH_HOME ?? join(home, '.dsh')
   const agentsHome = process.env.DSH_AGENTS_HOME ?? join(home, '.agents')
-  const roots = [
-    { dir: join(cwd, '.dsh', 'skills'), source: 'project-dsh', rank: 100 },
-    { dir: join(cwd, '.agents', 'skills'), source: 'project-agents', rank: 200 },
-  ]
+  const roots = []
   const custom = (process.env.DSH_CUSTOM_SKILL_DIRS ?? '').split(delimiter).filter(Boolean)
   custom.forEach((dir, index) => roots.push({ dir, source: 'custom', rank: 300 + index }))
   roots.push({ dir: join(dshHome, 'skills'), source: 'user-dsh', rank: 400 })
@@ -434,6 +456,32 @@ async function loadSnapshot(ctx) {
   snapshot.workspaceRegistryAvailable = workspaceView.registryAvailable
   snapshot.gateServerNameSuffix = serverNameSuffix
 
+  // ---- global enablement -------------------------------------------------
+  // A global switch needs a write target: the plugin manager (persists into the
+  // profile patch and reloads live) or that patch file itself (persists, applies
+  // on the next start). A skill is switchable when it sits on a machine-wide root
+  // and its own SKILL.md can be written — the flag lives in that file.
+  const manager = pluginManager(ctx)
+  const patchPath = profilePatchPath(ctx)
+  const mcpSwitchable = manager !== undefined || (patchPath !== null && isWritableFile(patchPath))
+  const skillSwitchable = globalSkillRoots().some((root) => isWritableFile(root.dir))
+  snapshot.globalToggle = {
+    mcp: mcpSwitchable,
+    skill: skillSwitchable,
+    via: manager !== undefined ? 'pluginManager' : mcpSwitchable ? 'patch' : null,
+  }
+  for (const entry of snapshot.mcp) {
+    entry.toggleable = mcpSwitchable
+    entry.disabledReason = mcpSwitchable ? null : 'no-writable-profile'
+  }
+  for (const skill of snapshot.skills) {
+    const global = GLOBAL_SKILL_SOURCES.has(skill.source)
+    const file = typeof skill.path === 'string' && skill.path.length > 0 ? skill.path : null
+    skill.global = global
+    skill.toggleable = global && file !== null && isWritableFile(file)
+    skill.disabledReason = skill.toggleable ? null : file === null ? 'runtime' : global ? 'unreadable' : 'project-scope'
+  }
+
   const payload = JSON.stringify(snapshot)
   if (payload.length > 6 * 1024 * 1024) {
     snapshot.warnings.push({ code: 'payload-large', message: `快照 ${(payload.length / 1024 / 1024).toFixed(1)} MB，客户端可能渲染缓慢` })
@@ -557,6 +605,190 @@ function installedMcp(ctx, name) {
 function installedSkillPath(name) {
   const { skills } = scanSkillRoots(sharedSkillRoots())
   return skills.find((skill) => skill.name === name)?.path
+}
+
+// ---- global enablement ----------------------------------------------------
+
+/** The profile patch file a global switch persists into, when there is one. */
+function profilePatchPath(ctx) {
+  const profileContext = ctx.get('profileContext')
+  if (profileContext !== undefined && typeof profileContext?.patchPath === 'string' && profileContext.patchPath.length > 0) {
+    return profileContext.patchPath
+  }
+  const dir = resolveProfileDir(ctx)
+  return typeof dir === 'string' && dir.length > 0 ? join(dir, 'cordis.patch.yml') : null
+}
+
+/** Writable file, or a writable directory when the file itself is not there yet. */
+function isWritableFile(file) {
+  try {
+    accessSync(existsSync(file) ? file : dirname(file), FS.W_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The host's plugin manager, when this installation exposes one. */
+function pluginManager(ctx) {
+  const manager = ctx.get('pluginManager')
+  return manager !== undefined && manager !== null && typeof manager.setPluginEnabled === 'function' ? manager : undefined
+}
+
+/** The live loader entry of one globally configured MCP server. */
+function findMcpEntry(ctx, name) {
+  const loader = ctx.get('loader')
+  if (loader === undefined || typeof loader.entries !== 'function') return undefined
+  for (const entry of loader.entries()) {
+    const options = entry.options ?? {}
+    if (options.name !== MCP_CLIENT_MODULE) continue
+    if (options.config?.serverName === name) return entry
+  }
+  return undefined
+}
+
+/** The id a profile patch addresses: `include:` is a tree prefix, not part of the id. */
+function patchIdOf(entry) {
+  const id = typeof entry.options?.id === 'string' ? entry.options.id : entry.id
+  return typeof id === 'string' ? id.replace(/^include:/, '') : String(id)
+}
+
+/**
+ * Enable or disable one global MCP server.
+ *
+ * The loader row is the authority for "is it running now". It only agrees with
+ * the request when the plugin manager can apply the change live; the patch
+ * fallback is a pending write (it lands on the next start), so it never
+ * short-circuits on the loader's current state — otherwise a re-enable after a
+ * fallback disable would be dropped and the row would come back disabled.
+ * @returns {Promise<{status: number, payload: object}>}
+ */
+async function toggleGlobalMcp(ctx, name, enabled) {
+  const entry = findMcpEntry(ctx, name)
+  if (entry === undefined) {
+    return { status: 404, payload: { ok: false, error: `没有全局 MCP 服务器 ${name}` } }
+  }
+
+  const manager = pluginManager(ctx)
+  if (manager !== undefined) {
+    if ((entry.disabled !== true) === enabled) {
+      return { status: 200, payload: { ok: true, kind: 'mcp', name, enabled, changed: false, live: true } }
+    }
+    try {
+      await manager.setPluginEnabled(entry.id, enabled)
+    } catch (error) {
+      return { status: 400, payload: { ok: false, error: `pluginManager 拒绝：${error?.message ?? error}` } }
+    }
+    invalidateSnapshot()
+    const after = findMcpEntry(ctx, name)
+    return {
+      status: 200,
+      payload: {
+        ok: true,
+        kind: 'mcp',
+        name,
+        enabled,
+        changed: true,
+        live: after !== undefined && (after.disabled !== true) === enabled,
+        via: 'pluginManager',
+      },
+    }
+  }
+
+  const patchPath = profilePatchPath(ctx)
+  if (patchPath === null) {
+    return { status: 400, payload: { ok: false, error: '没有可写的 profile patch 文件，无法持久化全局开关' } }
+  }
+  let result
+  try {
+    result = writePatchEnabled(patchPath, { id: patchIdOf(entry), enabled })
+  } catch (error) {
+    return { status: 500, payload: { ok: false, error: `写入失败：${error?.message ?? error}` } }
+  }
+  invalidateSnapshot()
+  return {
+    status: 200,
+    payload: { ok: true, kind: 'mcp', name, enabled, changed: result.changed, live: false, via: 'patch', path: patchPath },
+  }
+}
+
+/** Names the runtime skill registry reports; these have no disk file to edit. */
+async function runtimeSkillNames(ctx) {
+  const registry = ctx.get('skills')
+  if (registry === undefined || typeof registry.list !== 'function') return []
+  try {
+    const list = await registry.list({ cwd: process.cwd() })
+    return (list ?? []).map((summary) => summary?.name).filter((item) => typeof item === 'string')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Enable or disable one global skill by rewriting its own frontmatter flag.
+ *
+ * Only machine-wide roots are switchable. A skill that exists but is
+ * project-scoped, or is registered at runtime without a file, is a 400 with the
+ * reason — not a 404, because the caller did name a real skill.
+ * @returns {Promise<{status: number, payload: object}>}
+ */
+async function toggleGlobalSkill(ctx, name, enabled) {
+  const { skills } = scanSkillRoots(globalSkillRoots())
+  const skill = skills.find((item) => item.name === name)
+
+  if (skill === undefined) {
+    const local = scanSkillRoots(skillRootsFor(process.cwd())).skills.find((item) => item.name === name)
+    if (local !== undefined) {
+      return {
+        status: 400,
+        payload: { ok: false, error: `技能 ${name} 是项目级技能（${local.source}），只能在工作区详情页处理` },
+      }
+    }
+    if ((await runtimeSkillNames(ctx)).includes(name)) {
+      return { status: 400, payload: { ok: false, error: `技能 ${name} 是运行时注册的，没有可写的 SKILL.md` } }
+    }
+    return { status: 404, payload: { ok: false, error: `没有全局技能 ${name}` } }
+  }
+
+  if (typeof skill.path !== 'string' || skill.path.length === 0) {
+    return { status: 400, payload: { ok: false, error: `技能 ${name} 是运行时注册的，没有可写的 SKILL.md` } }
+  }
+  try {
+    const result = setSkillEnabled({ path: skill.path, enabled })
+    invalidateSnapshot()
+    return { status: 200, payload: { ok: true, kind: 'skill', name, enabled, changed: result.changed, live: true, path: result.path } }
+  } catch (error) {
+    return { status: 400, payload: { ok: false, error: `技能开关失败：${error?.message ?? error}` } }
+  }
+}
+
+/**
+ * Enable or disable one global capability.
+ * @returns {Promise<{status: number, payload: object}>}
+ */
+async function toggleGlobal(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  let body
+  try {
+    body = JSON.parse(await readBody(req))
+  } catch (error) {
+    return { status: 400, payload: { ok: false, error: `请求体无法解析：${error?.message ?? error}` } }
+  }
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { status: 400, payload: { ok: false, error: '请求体必须是对象' } }
+  }
+  const kind = body.kind
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  if (kind !== 'mcp' && kind !== 'skill') {
+    return { status: 400, payload: { ok: false, error: 'kind 必须是 mcp 或 skill' } }
+  }
+  if (typeof body.enabled !== 'boolean') {
+    return { status: 400, payload: { ok: false, error: 'enabled 必须是布尔值' } }
+  }
+  if (name === '') return { status: 400, payload: { ok: false, error: 'name 不能为空' } }
+  return kind === 'mcp' ? toggleGlobalMcp(ctx, name, body.enabled) : toggleGlobalSkill(ctx, name, body.enabled)
 }
 
 /**
@@ -686,6 +918,21 @@ export function apply(ctx) {
           sendJson(res, status, payload)
         } catch (error) {
           sendJson(res, 500, { ok: false, error: `分配失败：${error?.message ?? error}` })
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: GLOBAL_ROUTE,
+      handler: async (req, res) => {
+        try {
+          const { status, payload } = await toggleGlobal(ctx, req)
+          sendJson(res, status, payload)
+        } catch (error) {
+          sendJson(res, 500, { ok: false, error: `开关失败：${error?.message ?? error}` })
         }
       },
     }),

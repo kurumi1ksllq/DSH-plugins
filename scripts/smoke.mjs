@@ -223,8 +223,11 @@ checks.push([
 ])
 checks.push(['tool_search attributed', inventoryOwner === 'dsh-tool-search', `owner=${inventoryOwner}`])
 checks.push(['mcp servers all live', snapshot.mcp.every((entry) => entry.status === 'connected'), JSON.stringify(snapshot.mcp.map((m) => `${m.server}:${m.status}`))])
-checks.push(['skills scanned', snapshot.skills.length >= 28, `skills=${snapshot.skills.length}`])
-checks.push(['shadowed stubs detected', snapshot.skills.filter((s) => s.disabled).length === 7, `shadowed=${snapshot.skills.filter((s) => s.disabled).length}`])
+// Skill counts drift with the machine (skills get added, disabled and removed),
+// so the check is "the scan found something" plus the observed number, not a
+// frozen total from the audit date.
+checks.push(['skills scanned', snapshot.skills.length >= 1, `skills=${snapshot.skills.length}`])
+checks.push(['shadowed stubs detected', snapshot.skills.some((s) => s.disabled), `shadowed=${snapshot.skills.filter((s) => s.disabled).length}`])
 checks.push(['session evidence present', snapshot.edges.some((edge) => edge.evidence.sources.includes('session')), `sessionEdges=${snapshot.edges.filter((e) => e.evidence.sources.includes('session')).length}`])
 checks.push(['cold build under 3s', elapsed < 3000, `elapsed=${elapsed}ms`])
 checks.push(['agent-plane tools included', ['read', 'pwsh', 'skill'].every((name) => snapshot.tools.some((tool) => tool.name === name)), `tools=${snapshot.tools.length}`])

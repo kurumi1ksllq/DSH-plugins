@@ -119,11 +119,24 @@ ui-design (user-dsh) · 4 assets · 3 refs
 1. **技能是链接不是拷贝**：安装只有一份，链接跟着它走；关掉只删链接。若目标是一个真实目录（比如 skills-manager 拷进去的），host 会拒绝并说明原因，开关也直接锁定，不会删别人的内容。
 2. **MCP 声明原样拷贝**：从全局行的运行配置（含 `env`/`headers`）或另一个工作区的 `.dsh/mcp.json` 复制一份写入；`env` 不进快照，只在写盘时用。
 
+## 全局开关（概览页的开关做什么）
+
+概览页的 **MCP 服务器** 与 **技能** 两个分区，每行右侧也有一个开关，含义是「这个能力在整台机器上开不开」。两个分区都按「已启用在上、已关闭在下」排序（再按名字），所以关掉的不会混在中间。
+
+| 行 | 开 | 关 | 落点 |
+|---|---|---|---|
+| MCP（全局注册行） | 条目启用，工具正常挂载 | 条目停用，不再 spawn / 不再注入工具 | profile 的 `cordis.patch.yml`：`- id: mcp-xxx` + `disabled: true` |
+| 技能（`~/.dsh/skills`、`~/.agents/skills`、`$DSH_CUSTOM_SKILL_DIRS`、随包目录） | 出现在模型目录里 | 不进目录、不加载 | 该技能自己的 `SKILL.md` frontmatter：`disable-model-invocation: true` |
+| 技能（运行时注册，无磁盘目录） | — | — | 锁定，徽章写「运行时注册，无磁盘文件」 |
+| 技能（项目级 `.dsh/skills` / `.agents/skills`） | — | — | 锁定，徽章写「项目级技能」——按工作区管，用工作区详情页 |
+
+MCP 的开关走宿主自己的 `pluginManager.setPluginEnabled(entryId, enabled)`：它写 profile patch 并**热重载**那一行，返回 `live: true`。安装里没有 `pluginManager` 时退化为直接写 patch（`lib/global-patch.js`），只追加/改写「只有 `id` + `disabled` 的尾部覆盖块」，带 `config` 或注释的块一律不碰，此时返回 `live: false`，下次启动 DSH 生效。技能没有配置级黑名单可写，只能改它自己的 frontmatter，因此 `lib/skill-toggle.js` 只动那一行：BOM、CRLF、其它键、正文一字不改，且幂等（已经是目标状态时 `changed: false`）。
+
 ## 写入边界
 
-- 只有两个端点：`GET /inventory/snapshot`、`POST /inventory/workspace`
-- 写入只发生在**已登记工作区**的 `<workspace>/.dsh/` 里；请求里的路径不在 `workspaceRegistry.list()` 中直接 404，不会拿任意路径写盘
-- 不写 state 文件，不改 profile 配置，不改 SKILL.md，不注册模型可见的工具 / skill / prompt 段落
+- 三个端点：`GET /inventory/snapshot`、`POST /inventory/workspace`、`POST /inventory/global`
+- 工作区分配只写**已登记工作区**的 `<workspace>/.dsh/` 里；请求里的路径不在 `workspaceRegistry.list()` 中直接 404，不会拿任意路径写盘
+- 全局开关只写两处：profile 的 `cordis.patch.yml`（MCP 行），或**全局技能根上某个技能的 `SKILL.md` frontmatter 里那一行**（技能）。不写 state 文件，不改其它配置，不注册模型可见的工具 / prompt 段落
 - 每次写入后立刻作废快照缓存，下一次 `GET` 读到的就是新状态
 
 ## 快照接口
@@ -131,6 +144,7 @@ ui-design (user-dsh) · 4 assets · 3 refs
 ```
 GET  /inventory/snapshot[?refresh=1]
 POST /inventory/workspace
+POST /inventory/global
 ```
 
 `POST /inventory/workspace` 请求体：
@@ -141,7 +155,17 @@ POST /inventory/workspace
 
 成功 `200 { ok: true, workspace, kind, action, name, path }`（`path` 是实际写入的声明文件或链接）；失败 `400/404/500 { ok: false, error }`，`error` 是可直接展示给用户的中文说明。方法不对 `405`。请求体上限 64 KB。
 
-返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
+`POST /inventory/global` 请求体：
+
+```json
+{ "kind": "mcp" | "skill", "name": "<serverName | skillName>", "enabled": true }
+```
+
+成功 `200 { ok: true, kind, name, enabled, changed, live, via?, path? }`：`live: false` 表示写进了 patch 但需要重启才生效（只在没有 `pluginManager` 的兜底路径出现），`via` 为 `pluginManager | patch`，技能回 `path`。失败 `400/404/500 { ok: false, error }`（未知目标 404、不可开关 400、写盘异常 500），方法不对 `405`。
+
+返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable` 和全局开关能力位 `globalToggle: { mcp, skill, via }`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
+
+`mcp[]` 每项：`{ entryId, server, transport, command?, url?, enabled, fiberPhase, status, toolCount, toolNames, toggleable, disabledReason }`；`status` 为 `connected | failed | no-tools | disabled`（`disabled` 是被关掉的行，不算故障、不产出 warning）。`skills[]` 每项：`{ name, description, source, rank, path, modelInvocable, userInvocable, disabled, bodyBytes, deps, edges, global, toggleable, disabledReason }`——`global` 表示它来自机器级技能根，`toggleable` 表示这一行现在真的能点，`disabledReason` 为 `runtime | project-scope | unreadable | no-writable-profile`（能点时为 `null`）。
 
 `workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`skills[].skills[].linked` 是 host 的 `lstat` 结论：`true` 表示这是本页建的链接（可以移除），手工拷贝进来的真实目录为 `false`（详情页把开关锁死，不给删）。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
 
@@ -212,9 +236,10 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 
 ## 生效方式
 
-- **host 侧代码**：DSH 启动时加载，改完要重启 DSH（当前 profile 没开源码 HMR，`touch cordis.patch.yml` 不会重载插件代码）。
+- **host 侧代码**：DSH 启动时加载，改完要重启 DSH（当前 profile 没开源码 HMR，`touch cordis.patch.yml` 不会重载插件代码；实测改了 `index.js` 后旧进程里 `/inventory/global` 仍是 405）。
 - **client 侧代码**：浏览器里刷新页面即可；如果面板没变，说明这个 profile 缓存了客户端 bundle，重启 DSH 再刷新。
-- 加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚（回滚不会撤销已经分配出去的 `.dsh/mcp.json` 与技能链接，需要的话手动删）。
+- **全局开关本身**：MCP 走 `pluginManager` 时立刻生效（它自己热重载那一行）；没有 `pluginManager` 时写进 patch，重启后生效。技能开关改的是磁盘 frontmatter，`dsh-skill-filesystem` 的 watcher 会自己失效缓存，所以当前进程内也立刻生效。
+- 加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚（回滚不会撤销已经分配出去的 `.dsh/mcp.json`、技能链接，或全局开关写下的 `disabled: true` / `disable-model-invocation: true`，需要的话手动删）。
 
 ## 已知限制
 
@@ -227,6 +252,9 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 - 技能目标根按 DSH 的规则取「最近的 `.git` 祖先」：几个工作区共享同一个 git 根时，给其中一个分配技能，整棵仓库都会看到它（DSH 本身就这么发现技能，不是本插件的选择）。
 - Windows 上目录用 junction（不需要管理员）；单文件技能 `<name>.md` 只能建文件符号链接，普通权限下可能失败并报错。
 - 全局注册的 MCP 本来就对所有工作区可用：未声明时详情页把开关锁成「开」（无可关）；若某工作区确实声明过它（历史上手写过 `.dsh/mcp.json`），那行可关，关掉就是删掉这份带 `-ws` 后缀的重复挂载。
+- 全局开关只覆盖「全局注册」的 MCP 行与「机器级技能根」的技能；项目级技能与运行时注册的技能锁定并写明原因，不做隐式写入。
+- 技能开关是改 `SKILL.md` 的 frontmatter，所以对「屏蔽桩」（正文本身就是 DISABLED 说明的 office-* 那类）打开只是去掉 `disable-model-invocation: true`，不会把真实内容变回来。
+- MCP 开关依赖 `pluginManager`（DSH 自带，profile 里有 `@deepseek-ai/dsh-plugin-manager` 行时存在）。它拒绝的行（`readOnlyReason` 非空、`unaddressable`）会原样报错，不会绕过它自己写 patch。
 - 技能链接指向工作区之外（`~/.dsh/skills` 等）；文件沙箱只允许读工作区外路径的策略下，链接目标可能读不到，此时技能不会生效。
 
 ## 面板布局约定（改 UI 前先读）
