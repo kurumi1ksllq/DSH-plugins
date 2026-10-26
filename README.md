@@ -49,8 +49,47 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 含 `disable-model-invocation` 的屏蔽桩、来源 rank |
 | 工具 | `ctx.tools.schemas()` | 全量工具，含被 tool-search 折叠的（`deferred`） |
 | 技能 → 工具 | SKILL.md 正文匹配 + 会话日志 | 四层：精确工具名 / MCP 服务名 / 外部命令 / 脚本路径；会话实证附命中次数 |
+| **技能 → 资产** | 每个 SKILL.md 与 `refs/**/*.md` 的正文引用 | 谁引用谁、目标文件是否还在；缺失的进「注意事项」 |
 | **工作区 → 列表** | `ctx.workspaceRegistry.list()` | 一卡一个工作区：title、path、已声明的 MCP 数、已开启的技能数；整卡可点进详情 |
 | **工作区 → 详情** | 该工作区的 `.dsh/mcp.json` + 项目 skill 根 + 全局 MCP / 技能清单 | MCP 与技能各一行一条，右侧开关控制开/关（语义见下节） |
+
+## 技能 → 资产依赖图
+
+技能发现是 **depth 1**（`<root>/<name>/SKILL.md`），和 DSH 的发现规则一致。所以「路由 skill + `refs/` 附属资源」这种结构里，`refs/` 下的文件对扫描器是**不存在的**——面板上看不到谁依赖谁，也看不到引用有没有断。
+
+`lib/skill-deps.js` 补上这一层：对每个已发现的 skill，读它的 `SKILL.md` 和 `refs/**/*.md`，抽出正文里提到的本地路径，解析成绝对路径，`existsSync` 判定存在性。
+
+**只认这些显式形态**（宁可少一条，不可错一条）：
+
+| 认 | 例 |
+|---|---|
+| 盘符绝对路径 | `C:\Users\me\.dsh\skills\office\refs\officecli-xlsx.md` |
+| 已知资产前缀 | `refs/` `reference/` `references/` `scripts/` `assets/` `templates/` |
+| `../` 相对 | `../morph-ppt/reference/styles/INDEX.md` |
+| 旧式 skill 引用 | `skills/officecli-pptx/SKILL.md` |
+| markdown 链接 | `[x](refs/a.md)` |
+| 裸文件名 | 仅当它在同目录 / `refs/` / `references/` 下**真的存在** |
+
+**明确忽略**：命令片段（`officecli create a.pptx`）、URL（`http://HOST:8188/prompt`）、XML 路径（`/body/p[1]`、`/Sheet1/A1`）、占位符（`refs/<name>.md`）、裸目录（`reference/`）。
+
+三条实现细节，改之前先看：
+
+1. **相对路径以文件所在目录为基准**，不是 skill 根。`refs/morph/guide.md` 里的 `reference/rules.md` 指向 `refs/morph/reference/rules.md`。
+2. **重复目录前缀去一次**：`reference/styles` 写在 `reference/` 里，落点是 `reference/styles`，不是 `reference/reference/styles`。
+3. **自环与越界丢弃**：`office/SKILL.md` 提到自己不算边；解析结果不在技能根内的一律不认。
+
+产出挂在快照两处：每个 skill 行的 `deps: { assets, refs, missing, edges }`，以及顶层 `skillDeps: { skills, assets, edges, missing }` 总计。缺失的边同时写进 `warnings`（`code: skill-ref-missing`），所以不展开技能行也能在页面顶部看到。
+
+面板表现：技能行多一个「N 资产」徽章（有缺失时变红点），展开后先列文件引用（`from → to`，缺失的带「引用缺失」徽章），再列原来的工具引用。
+
+`node scripts/preview.mjs` 会把这些直接打出来，不用起 DSH：
+
+```
+office (user-dsh) · 66 assets · 53 refs · 1 MISSING
+ui-design (user-dsh) · 4 assets · 3 refs
+```
+
+
 
 ## 分配（详情页的开关做什么）
 

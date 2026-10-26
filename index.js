@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 
 import { readSessionEvents } from './lib/decode-session.js'
 import { scanSkillRoots } from './lib/scan-skills.js'
+import { attachDeps, buildSkillDeps } from './lib/skill-deps.js'
 import { matchSkillTools } from './lib/match-tools.js'
 import { collectSkillToolEvidence } from './lib/collect-sessions.js'
 import { buildSnapshot } from './lib/inventory.js'
@@ -359,6 +360,17 @@ async function loadSnapshot(ctx) {
   const tools = collected.tools.map((tool) => ({ ...tool, deferred: tool.deferred || deferred.has(tool.name) }))
   const skillList = await collectSkills(ctx, cwd, warnings)
 
+  // Skill → asset graph: what each skill's own body and its `refs/` tree point
+  // at, and which of those targets no longer exist. Depth-1 discovery never
+  // sees `refs/`, so this is the only way the panel can show it.
+  const skillDeps = buildSkillDeps({
+    skills: skillList,
+    roots: skillRootsFor(cwd).map((root) => root.dir),
+  })
+  for (const miss of skillDeps.missing) {
+    warnings.push({ code: 'skill-ref-missing', message: `技能引用缺失：${miss.from} → ${miss.to}` })
+  }
+
   const mcpServers = rows
     .filter((row) => row.name === '@deepseek-ai/dsh-mcp-client')
     .map((row) => row.config?.serverName)
@@ -390,7 +402,7 @@ async function loadSnapshot(ctx) {
     profile: profileDir === null ? null : { dir: profileDir, bundles: packages.filter((pkg) => pkg.declaredBy.includes('bundles')).map((pkg) => pkg.name) },
     packages,
     rows,
-    skills: skillList.map(({ body, ...rest }) => rest),
+    skills: attachDeps(skillList, skillDeps).map(({ body, ...rest }) => rest),
     tools,
     builtinTools,
     pluginTools,
@@ -401,6 +413,8 @@ async function loadSnapshot(ctx) {
   // Which registry planes contributed, and how many live agents were read.
   snapshot.toolPlanes = collected.planes
   snapshot.agentPlaneAgents = collected.agentCount
+  // Totals only: the per-skill detail already rides on each skill row.
+  snapshot.skillDeps = skillDeps.totals
 
   // Per-workspace view: the MCP each workspace declares, and the skills its
   // project roots contribute. The gate row's suffix is read from the loader so

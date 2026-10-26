@@ -14,6 +14,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { scanSkillRoots } from '../lib/scan-skills.js'
+import { attachDeps, buildSkillDeps } from '../lib/skill-deps.js'
 import { matchSkillTools } from '../lib/match-tools.js'
 import { collectSkillToolEvidence } from '../lib/collect-sessions.js'
 import { readSessionEvents } from '../lib/decode-session.js'
@@ -108,25 +109,36 @@ for (const [key, count] of merged) {
   sessionEdges.push({ skill, tool, count })
 }
 
+const skillDeps = buildSkillDeps({ skills, roots: [join(process.cwd(), '.dsh', 'skills'), join(homedir(), '.agents', 'skills'), join(homedir(), '.dsh', 'skills')] })
+
 const snapshot = buildSnapshot({
   now: Date.now(),
   profile: { dir: profileDir, bundles },
   packages,
   rows,
-  skills: skills.map(({ body, ...rest }) => rest),
+  skills: attachDeps(skills, skillDeps).map(({ body, ...rest }) => rest),
   tools: [],
   builtinTools: [],
   pluginTools: {},
   skillEdges,
   sessionEdges,
-  warnings: diagnostics.map((d) => ({ code: `skill-${d.kind}`, message: d.message ?? `${d.path}: ${d.reason}` })),
+  warnings: [
+    ...diagnostics.map((d) => ({ code: `skill-${d.kind}`, message: d.message ?? `${d.path}: ${d.reason}` })),
+    ...skillDeps.missing.map((miss) => ({ code: 'skill-ref-missing', message: `技能引用缺失：${miss.from} → ${miss.to}` })),
+  ],
 })
+snapshot.skillDeps = skillDeps.totals
 
 console.log(JSON.stringify({
   counts: snapshot.counts,
   mcp: snapshot.mcp,
   packages: snapshot.packages.map((pkg) => `${pkg.orphan ? 'ORPHAN ' : ''}${pkg.name}@${pkg.version ?? '?'}`),
-  skills: snapshot.skills.map((skill) => `${skill.disabled ? '[shadowed] ' : ''}${skill.name} (${skill.source})`),
+  skills: snapshot.skills.map((skill) => {
+    const deps = skill.deps
+    const suffix = deps === undefined ? '' : ` · ${deps.assets} assets · ${deps.refs} refs${deps.missing > 0 ? ` · ${deps.missing} MISSING` : ''}`
+    return `${skill.disabled ? '[shadowed] ' : ''}${skill.name} (${skill.source})${suffix}`
+  }),
+  skillDeps: snapshot.skillDeps,
   edgesSample: snapshot.edges.slice(0, 40),
   warnings: snapshot.warnings,
 }, null, 2))

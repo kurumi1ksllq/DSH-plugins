@@ -71,6 +71,11 @@ window.__ModuleLoader__.load({
       noConfig: '无配置字段',
       edges: '指向的工具',
       noEdges: '未识别到工具引用',
+      skillAssets: '资产',
+      skillAssetRefs: '文件引用',
+      skillRefMissing: '引用缺失',
+      noSkillRefs: '没有文件引用。',
+      skillAssetsHint: '含 refs/ 下的附属资源',
       edgeKindTool: '注册工具',
       edgeKindMcp: 'MCP 服务',
       edgeKindCli: '外部命令',
@@ -179,6 +184,11 @@ window.__ModuleLoader__.load({
       noConfig: 'no config fields',
       edges: 'Tools it points at',
       noEdges: 'No tool reference detected',
+      skillAssets: 'assets',
+      skillAssetRefs: 'file refs',
+      skillRefMissing: 'missing ref',
+      noSkillRefs: 'No file reference detected.',
+      skillAssetsHint: 'includes files under refs/',
       edgeKindTool: 'registered tool',
       edgeKindMcp: 'MCP server',
       edgeKindCli: 'external command',
@@ -1469,26 +1479,56 @@ window.__ModuleLoader__.load({
                       ),
                       item.description ? h('span', { style: S.note }, item.description) : null,
                     ),
+                    item.deps && item.deps.assets > 1
+                      ? h(Badge, {
+                          label: `${item.deps.assets} ${t('skillAssets')}`,
+                          tone: item.deps.missing > 0 ? 'danger' : undefined,
+                          dot: item.deps.missing > 0,
+                        })
+                      : null,
                     h(Badge, { label: `${edges.length} ${t('edges')}`, tone: edges.length > 0 ? 'success' : undefined, dot: edges.length > 0 }),
                   ),
                   isOpen
-                    ? edges.length === 0
-                      ? h('div', { style: { ...S.empty, padding: '4px 0 2px 26px' } }, t('noEdges'))
-                      : h(
-                          'ul',
-                          { style: S.edgeList },
-                          ...edges.map((edge, index2) =>
-                            h(
-                              'li',
-                              { key: `e-${index2}`, style: S.edge },
-                              h('code', { style: { fontSize: '12.5px' } }, edge.id),
-                              h(Badge, { label: edgeKindLabel(t, edge.kind) }),
-                              h(Badge, { label: confidenceLabel(t, edge.confidence) }),
-                              edge.evidence?.count > 0 ? h(Badge, { label: t('edgeCount').replace('{count}', String(edge.evidence.count)), tone: 'success', dot: true }) : null,
-                              edge.evidence?.sample ? h('span', { style: S.evidence }, edge.evidence.sample) : null,
+                    ? h(
+                        'div',
+                        { style: { display: 'flex', flexDirection: 'column', gap: '6px', padding: '2px 0 2px 26px' } },
+                        item.deps && (item.deps.edges ?? []).length > 0
+                          ? h(
+                              'div',
+                              { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+                              h('span', { style: S.note }, `${t('skillAssetRefs')} · ${t('skillAssetsHint')}`),
+                              h(
+                                'ul',
+                                { style: S.edgeList },
+                                ...item.deps.edges.map((dep, index3) =>
+                                  h(
+                                    'li',
+                                    { key: `d-${index3}`, style: S.edge },
+                                    h('code', { style: { fontSize: '12.5px' } }, `${dep.from} → ${dep.to}`),
+                                    dep.exists ? null : h(Badge, { label: t('skillRefMissing'), tone: 'danger', dot: true }),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : null,
+                        edges.length === 0
+                          ? h('div', { style: S.empty }, t('noEdges'))
+                          : h(
+                              'ul',
+                              { style: S.edgeList },
+                              ...edges.map((edge, index2) =>
+                                h(
+                                  'li',
+                                  { key: `e-${index2}`, style: S.edge },
+                                  h('code', { style: { fontSize: '12.5px' } }, edge.id),
+                                  h(Badge, { label: edgeKindLabel(t, edge.kind) }),
+                                  h(Badge, { label: confidenceLabel(t, edge.confidence) }),
+                                  edge.evidence?.count > 0 ? h(Badge, { label: t('edgeCount').replace('{count}', String(edge.evidence.count)), tone: 'success', dot: true }) : null,
+                                  edge.evidence?.sample ? h('span', { style: S.evidence }, edge.evidence.sample) : null,
+                                ),
+                              ),
                             ),
-                          ),
-                        )
+                      )
                     : null,
                 )
               }),
