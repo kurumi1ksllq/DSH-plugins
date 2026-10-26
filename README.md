@@ -1,6 +1,6 @@
 # dsh-inventory
 
-DSH 的安装清单插件。左侧栏 **「安装总览」** 面板分两层：**总览** 看这台机器上实际装了什么，**工作区** 先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，右侧一个开关，开关即「这个工作区要不要它」。
+DSH 的安装清单插件。左侧栏 **「工具管理」** 面板分两层：**总览** 看这台机器上实际装了什么，**工作区** 先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，右侧一个开关，开关即「这个工作区要不要它」。
 
 本包有**两个插件入口**：
 
@@ -36,7 +36,7 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 - MCP 注册形态：profile patch 里一条**停用**的 `@deepseek-ai/dsh-mcp-client` 行（`disabled: true`），定义留在 `config` 里
 - MCP 启用形态：把该 `config` 拷进 `<workspace>/.dsh/mcp.json` 的 `servers[name]`，挂载名带 gate 后缀
 - 技能注册形态：`$DSH_HOME/inventory/skills/<name>/SKILL.md`（仓库）；启用形态：`<projectRoot>/.dsh/skills/<name>` 目录链接
-- 怎么查当前状态：`GET /inventory/snapshot` 的 `vault` / `workspaces[].mcp` / `workspaces[].skills`，或侧边栏「安装总览 → 工作区 → 某个工作区」
+- 怎么查当前状态：`GET /inventory/snapshot` 的 `vault` / `workspaces[].mcp` / `workspaces[].skills`，或侧边栏「工具管理 → 工作区 → 某个工作区」
 
 这段进每个请求，约 150 token。它注册在 `webServer` 守卫之前，所以没有 Web 服务器的 profile（headless / ACP）里模型同样能看到。
 
@@ -103,7 +103,7 @@ ui-design (user-dsh) · 4 assets · 3 refs
 
 ## 启用（工作区详情页的开关做什么）
 
-工作区详情页有两个分区：**MCP 服务器** 和 **技能**。每条一行，右侧一个开关。默认工作区（`default-workspace`）也是登记工作区，照常出现、照常开关。
+工作区详情页有两个分区：**MCP 服务器** 和 **技能**。每条一行，右侧一个开关。工作区列表把 DSH 的**默认工作区**排在最前并标「默认工作区」——它读自 `$DSH_HOME/storages/workspace.json` 的 `global.defaultWorkspaceId`（`workspaceRegistry` 没列出它时也会从 storage 补一行），所以默认工作区和别的仓库一样可以开关 MCP / 技能。
 
 | 行 | 开 | 关 |
 |---|---|---|
@@ -212,7 +212,7 @@ pnpm add "link:<仓库克隆到的绝对路径>/dsh-inventory"
       name: "dsh-inventory/gate"
 ```
 
-重启 DSH 后，左侧栏会出现「安装总览」入口；点进去是整页面板，左上角「‹ 返回对话」回到聊天。
+重启 DSH 后，左侧栏会出现「工具管理」入口；点进去是整页面板，左上角「‹ 返回对话」回到聊天。
 
 `inventory-gate` 是可选的：只插 `inventory` 就只有清单页，没有按工作区门控；需要门控就一起插上，再给各工作区放 `.dsh/mcp.json`（格式见上文「模型怎么知道这个能力」）。
 

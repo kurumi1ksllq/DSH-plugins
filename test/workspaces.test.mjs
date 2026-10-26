@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { apply } from '../index.js'
-import { collectWorkspaces, projectSkillRoots, readWorkspaceMcp } from '../lib/workspaces.js'
+import { collectWorkspaces, projectSkillRoots, readDefaultWorkspace, readWorkspaceMcp } from '../lib/workspaces.js'
 import { assignSkill } from '../lib/assign.js'
 
 /**
@@ -167,46 +167,55 @@ test('a workspace whose directory vanished is still listed, marked unavailable',
 test('the snapshot route exposes the per-workspace view', async () => {
   const routes = []
   const dir = workspaceWith(VALID)
-  const ctx = {
-    baseUrl: 'file:///C:/nope/',
-    logger: { warn() {}, info() {}, error() {} },
-    get(name) {
-      if (name === 'loader') return { entries: () => [] }
-      if (name === 'tools') return { schemas: () => [] }
-      if (name === 'workspaceRegistry') {
-        return { list: () => [{ id: 'ws-route', title: 'Route Workspace', path: dir }] }
-      }
-      return undefined
-    },
-    effect(fn) {
-      return fn()
-    },
-    webServer: {
-      register(route) {
-        routes.push(route)
-        return () => {}
+  // Isolate DSH_HOME: the route also reads the default workspace from
+  // `$DSH_HOME/storages/workspace.json`, and the real one must not leak in here.
+  const previousHome = process.env.DSH_HOME
+  process.env.DSH_HOME = scratch()
+  try {
+    const ctx = {
+      baseUrl: 'file:///C:/nope/',
+      logger: { warn() {}, info() {}, error() {} },
+      get(name) {
+        if (name === 'loader') return { entries: () => [] }
+        if (name === 'tools') return { schemas: () => [] }
+        if (name === 'workspaceRegistry') {
+          return { list: () => [{ id: 'ws-route', title: 'Route Workspace', path: dir }] }
+        }
+        return undefined
       },
-    },
+      effect(fn) {
+        return fn()
+      },
+      webServer: {
+        register(route) {
+          routes.push(route)
+          return () => {}
+        },
+      },
+    }
+    apply(ctx)
+    let body = ''
+    await routes[0].handler({ method: 'GET', url: '/inventory/snapshot?refresh=1' }, {
+      writeHead() {},
+      end(chunk) {
+        body = chunk ?? ''
+      },
+    })
+    const snapshot = JSON.parse(body)
+    assert.ok(Array.isArray(snapshot.workspaces), 'snapshot.workspaces must be an array')
+    assert.equal(snapshot.workspaces.length, 1)
+    assert.equal(snapshot.workspaces[0].title, 'Route Workspace')
+    assert.equal(snapshot.workspaces[0].mcp.status, 'ok')
+    assert.equal(snapshot.workspaces[0].mcp.servers[0].name, 'officecli')
+    assert.ok(snapshot.workspaces[0].skills.length > 0, 'skill groups must be present')
+    // The page shows "declared" and "globally registered" side by side, so the
+    // snapshot must carry the global list too — not just the per-workspace rows.
+    assert.ok(Array.isArray(snapshot.globalMcp), 'snapshot.globalMcp must be an array')
+    assert.deepEqual(snapshot.globalMcp, [])
+  } finally {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
   }
-  apply(ctx)
-  let body = ''
-  await routes[0].handler({ method: 'GET', url: '/inventory/snapshot?refresh=1' }, {
-    writeHead() {},
-    end(chunk) {
-      body = chunk ?? ''
-    },
-  })
-  const snapshot = JSON.parse(body)
-  assert.ok(Array.isArray(snapshot.workspaces), 'snapshot.workspaces must be an array')
-  assert.equal(snapshot.workspaces.length, 1)
-  assert.equal(snapshot.workspaces[0].title, 'Route Workspace')
-  assert.equal(snapshot.workspaces[0].mcp.status, 'ok')
-  assert.equal(snapshot.workspaces[0].mcp.servers[0].name, 'officecli')
-  assert.ok(snapshot.workspaces[0].skills.length > 0, 'skill groups must be present')
-  // The page shows "declared" and "globally registered" side by side, so the
-  // snapshot must carry the global list too — not just the per-workspace rows.
-  assert.ok(Array.isArray(snapshot.globalMcp), 'snapshot.globalMcp must be an array')
-  assert.deepEqual(snapshot.globalMcp, [])
 })
 
 test('the snapshot lists globally registered MCP servers next to workspace ones', async () => {
@@ -325,4 +334,98 @@ test('a linked skill is flagged linked, a copied one is not', () => {
   const byName = new Map(projectDsh.skills.map((skill) => [skill.name, skill]))
   assert.equal(byName.get('demo-skill').linked, true)
   assert.equal(byName.get('copied').linked, false)
+})
+
+/**
+ * Default workspace: DSH keeps its identity in `$DSH_HOME/storages/workspace.json`
+ * (`global.defaultWorkspaceId` + `tables.workspaces[id]`), which the registry
+ * service does not necessarily list. The panel must still show it, first.
+ */
+
+function storageHome(defaultId, records) {
+  const home = scratch()
+  mkdirSync(join(home, 'storages'), { recursive: true })
+  writeFileSync(
+    join(home, 'storages', 'workspace.json'),
+    JSON.stringify({ global: { defaultWorkspaceId: defaultId }, tables: { workspaces: records } }),
+    'utf8',
+  )
+  return home
+}
+
+test('readDefaultWorkspace reads the default id and its record from storage', () => {
+  const home = storageHome('ws-default', { 'ws-default': { path: 'D:/demo', title: 'Demo' } })
+
+  const result = readDefaultWorkspace({ dshHome: home })
+
+  assert.deepEqual(result, { id: 'ws-default', path: 'D:/demo', title: 'Demo' })
+})
+
+test('readDefaultWorkspace returns undefined for a missing, broken or empty storage file', () => {
+  assert.equal(readDefaultWorkspace({ dshHome: scratch() }), undefined, 'a missing file must read as no default')
+
+  const broken = scratch()
+  mkdirSync(join(broken, 'storages'), { recursive: true })
+  writeFileSync(join(broken, 'storages', 'workspace.json'), '{ not json', 'utf8')
+  assert.equal(readDefaultWorkspace({ dshHome: broken }), undefined, 'bad JSON must read as no default')
+
+  const noId = storageHome(undefined, { 'ws-1': { path: 'D:/demo' } })
+  assert.equal(readDefaultWorkspace({ dshHome: noId }), undefined, 'a missing defaultWorkspaceId must read as no default')
+})
+
+test('the default workspace is flagged and pinned to the top of the list', () => {
+  const other = workspaceWith(VALID)
+  const defaultDir = workspaceWith(VALID)
+
+  const result = collectWorkspaces({
+    registry: {
+      list: () => [
+        { id: 'ws-other', title: 'Other', path: other },
+        { id: 'ws-default', title: 'Default', path: defaultDir },
+      ],
+    },
+    defaultWorkspace: { id: 'ws-default', path: defaultDir, title: 'Default' },
+    scan: fakeScan,
+  })
+
+  assert.equal(result.defaultWorkspaceId, 'ws-default')
+  assert.equal(result.workspaces[0].id, 'ws-default', 'the default workspace must be first')
+  assert.equal(result.workspaces[0].default, true)
+  assert.equal(result.workspaces[1].id, 'ws-other')
+  assert.equal(result.workspaces[1].default, false)
+})
+
+test('a default workspace missing from the registry is synthesized from storage', () => {
+  const dir = workspaceWith(VALID)
+
+  const synthesized = collectWorkspaces({
+    registry: { list: () => [] },
+    defaultWorkspace: { id: 'ws-default', path: dir, title: 'Default' },
+    scan: fakeScan,
+  })
+
+  assert.equal(synthesized.workspaces.length, 1, 'the default must be listed even when the registry omits it')
+  assert.equal(synthesized.workspaces[0].id, 'ws-default')
+  assert.equal(synthesized.workspaces[0].title, 'Default')
+  assert.equal(synthesized.workspaces[0].default, true)
+  assert.equal(synthesized.workspaces[0].available, true, 'available follows the directory')
+
+  const gone = join(scratch(), 'never-created')
+  const missing = collectWorkspaces({
+    registry: { list: () => [] },
+    defaultWorkspace: { id: 'ws-gone', path: gone, title: 'Gone' },
+    scan: fakeScan,
+  })
+  assert.equal(missing.workspaces.length, 1)
+  assert.equal(missing.workspaces[0].available, false, 'a vanished default directory must read as unavailable')
+})
+
+test('without a default workspace nothing is flagged and the id is null', () => {
+  const result = collectWorkspaces({
+    registry: { list: () => [{ id: 'ws-1', title: 'One', path: workspaceWith(VALID) }] },
+    scan: fakeScan,
+  })
+
+  assert.equal(result.defaultWorkspaceId, null)
+  assert.equal(result.workspaces[0].default, false)
 })

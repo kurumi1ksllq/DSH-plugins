@@ -32,7 +32,7 @@ import { collectSkillToolEvidence } from './lib/collect-sessions.js'
 import { buildSnapshot } from './lib/inventory.js'
 import { collectPackages } from './lib/profile-packages.js'
 import { buildPluginToolIndex } from './lib/plugin-tool-index.js'
-import { collectWorkspaces, sharedSkillRoots } from './lib/workspaces.js'
+import { collectWorkspaces, readDefaultWorkspace, sharedSkillRoots } from './lib/workspaces.js'
 import { assignMcp, assignSkill, mcpFileOf, projectRootOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
 import { normalizeDir, pathKey } from './lib/workspace-gate.js'
 import { setSkillEnabled } from './lib/skill-toggle.js'
@@ -468,10 +468,14 @@ async function loadSnapshot(ctx) {
     registry: ctx.get('workspaceRegistry'),
     globalMcp: mcpServers,
     serverNameSuffix,
+    // The default workspace is not a registry entry on every install: DSH keeps
+    // its identity in its own storage, so read it from there and keep it listed.
+    defaultWorkspace: readDefaultWorkspace(),
     warnings,
   })
   snapshot.workspaces = workspaceView.workspaces
   snapshot.globalMcp = workspaceView.globalMcp
+  snapshot.defaultWorkspaceId = workspaceView.defaultWorkspaceId
   snapshot.sharedSkills = workspaceView.sharedSkills
   snapshot.sharedSkillCount = workspaceView.sharedSkillCount
   snapshot.workspaceRegistryAvailable = workspaceView.registryAvailable

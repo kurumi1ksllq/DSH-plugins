@@ -237,7 +237,7 @@ test('client registers a sidebar entry plus a main panel and renders both states
   assert.ok(sidebar, 'sidebar entry not registered')
   assert.ok(main, 'main panel not registered')
   assert.equal(sidebar.spec.id, 'inventory')
-  assert.equal(sidebar.spec.label(), '安装总览')
+  assert.equal(sidebar.spec.label(), '工具管理')
   assert.equal(main.spec.key, 'inventory')
 
   const injected = main.spec.inject()
@@ -429,12 +429,14 @@ function workspaceSnapshot() {
     workspaceRegistryAvailable: true,
     globalMcp: ['officecli', 'context7'],
     gateServerNameSuffix: '-ws',
+    defaultWorkspaceId: 'ws-1',
     workspaces: [
       {
         id: 'ws-1',
         title: 'Demo Workspace',
         path: 'D:/demo',
         available: true,
+        default: true,
         mcp: {
           status: 'ok',
           file: 'D:/demo/.dsh/mcp.json',
@@ -1151,4 +1153,25 @@ test('a registered-only MCP row says so instead of reading as mounted', async ()
   assert.ok(control, 'the registered-only row must still offer a switch to turn it on')
   assert.equal(control.props['aria-checked'], 'false')
   assert.equal(control.props.disabled, false)
+})
+
+test('the default workspace is badged in the list and on its detail page', async () => {
+  const { tree } = await bootPanel(workspaceSnapshot(), { version: 'default-workspace-case' })
+  findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+
+  let current = tree()
+  const defaultCard = findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace'))
+  assert.ok(defaultCard, 'default workspace card missing')
+  assert.match(textOf(defaultCard), /默认工作区/, 'the default card must carry the badge')
+  const otherCard = findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('Second Workspace'))
+  assert.ok(otherCard, 'second workspace card missing')
+  assert.doesNotMatch(textOf(otherCard), /默认工作区/, 'a non-default card must not carry the badge')
+
+  defaultCard.props.onClick()
+  current = tree()
+  const title = findNode(current, (node) => node.type === 'h3' && textOf(node) === 'Demo Workspace')
+  assert.ok(title, 'detail title missing')
+  const hero = findParent(current, title)
+  assert.ok(hero, 'detail hero missing')
+  assert.match(textOf(hero), /默认工作区/, 'the detail title must carry the default badge')
 })

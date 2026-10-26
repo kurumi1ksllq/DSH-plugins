@@ -25,10 +25,10 @@ window.__ModuleLoader__.load({
     const VAULT_ROUTE = '/inventory/vault'
 
     const zh = {
-      tab: '安装总览',
-      panel: '安装总览',
+      tab: '工具管理',
+      panel: '工具管理',
       back: '返回对话',
-      title: '安装总览',
+      title: '工具管理',
       subtitle: '插件包、加载行、MCP 服务器、技能与工具，以及每个工作区开了哪些 MCP 与技能。',
       refresh: '刷新',
       loading: '正在汇总安装信息…',
@@ -104,6 +104,7 @@ window.__ModuleLoader__.load({
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
       wsUnavailable: 'workspaceRegistry 不可用，无法列出工作区。',
       wsUnavailableDir: '目录不可用',
+      wsDefault: '默认工作区',
       wsNoDeclaration: '未声明 .dsh/mcp.json',
       wsInvalidDeclaration: '声明无法解析',
       wsMountedAs: '挂载为',
@@ -159,10 +160,10 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      tab: 'Inventory',
-      panel: 'Inventory',
+      tab: 'Tools',
+      panel: 'Tools',
       back: 'Back to chat',
-      title: 'Inventory',
+      title: 'Tools',
       subtitle: 'Plugin packages, loader rows, MCP servers, skills and tools — plus what each workspace has switched on.',
       refresh: 'Refresh',
       loading: 'Collecting installation data…',
@@ -238,6 +239,7 @@ window.__ModuleLoader__.load({
       wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
       wsUnavailable: 'The workspaceRegistry service is unavailable, so workspaces cannot be listed.',
       wsUnavailableDir: 'directory unavailable',
+      wsDefault: 'Default',
       wsNoDeclaration: 'no .dsh/mcp.json',
       wsInvalidDeclaration: 'declaration unreadable',
       wsMountedAs: 'mounted as',
@@ -967,6 +969,7 @@ window.__ModuleLoader__.load({
                   'div',
                   { style: { display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 } },
                   h('span', { style: { ...T.listTitle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, workspace.title),
+                  workspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
                   workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
                 ),
                 h('span', { style: S.rowMono }, workspace.path),
@@ -1898,6 +1901,7 @@ window.__ModuleLoader__.load({
                   'div',
                   { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
                   h('span', { style: S.groupDir }, activeWorkspace.path),
+                  activeWorkspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
                   activeWorkspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
                 )
               : h('p', { style: S.subtitle }, t('subtitle')),

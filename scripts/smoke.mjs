@@ -163,11 +163,14 @@ async function assignRoundTrip() {
   const added = await post('add')
   const afterAdd = capture()
   await snapshotRoute.handler({ method: 'GET', url: SNAPSHOT_ROUTE }, afterAdd.res)
-  const declared = JSON.parse(afterAdd.body).workspaces?.[0]?.mcp?.servers?.map((entry) => entry.name) ?? []
+  // Look the fixture up by id: the default workspace is synthesized first now,
+  // so index 0 is not necessarily the throwaway workspace.
+  const rowOf = (payload) => (payload.workspaces ?? []).find((entry) => entry.id === 'smoke-ws') ?? (payload.workspaces ?? [])[0]
+  const declared = rowOf(JSON.parse(afterAdd.body)).mcp?.servers?.map((entry) => entry.name) ?? []
   const removed = await post('remove')
   const afterRemove = capture()
   await snapshotRoute.handler({ method: 'GET', url: SNAPSHOT_ROUTE }, afterRemove.res)
-  const left = JSON.parse(afterRemove.body).workspaces?.[0]?.mcp?.servers?.length ?? -1
+  const left = rowOf(JSON.parse(afterRemove.body)).mcp?.servers?.length ?? -1
   return {
     ok: added.status === 200 && declared.includes(server) && removed.status === 200 && left === 0,
     detail: `add=${added.status} declared=${JSON.stringify(declared)} remove=${removed.status} left=${left}`,

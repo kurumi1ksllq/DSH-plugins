@@ -950,3 +950,108 @@ test('a vaulted skill can be assigned to a workspace', async () => {
     fixture.restore()
   }
 })
+
+// ---- default workspace ---------------------------------------------------
+
+/**
+ * The default workspace lives in DSH's own storage, not necessarily in the
+ * workspace registry: the snapshot must still pin it first and name it.
+ */
+function makeDefaultWorkspaceContext() {
+  const home = mkdtempSync(join(tmpdir(), 'inv-default-home-'))
+  const defaultDir = mkdtempSync(join(tmpdir(), 'inv-default-ws-'))
+  const otherDir = mkdtempSync(join(tmpdir(), 'inv-default-other-'))
+  mkdirSync(join(home, 'storages'), { recursive: true })
+  writeFileSync(
+    join(home, 'storages', 'workspace.json'),
+    JSON.stringify({
+      global: { defaultWorkspaceId: 'ws-default' },
+      tables: {
+        workspaces: {
+          'ws-default': { path: defaultDir, title: 'Default Workspace' },
+          'ws-other': { path: otherDir, title: 'Other Workspace' },
+        },
+      },
+    }),
+    'utf8',
+  )
+
+  const profileDir = mkdtempSync(join(tmpdir(), 'inv-default-profile-'))
+  writeFileSync(
+    join(profileDir, 'package.json'),
+    JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
+  )
+
+  const previous = {
+    DSH_HOME: process.env.DSH_HOME,
+    DSH_AGENTS_HOME: process.env.DSH_AGENTS_HOME,
+    DSH_CUSTOM_SKILL_DIRS: process.env.DSH_CUSTOM_SKILL_DIRS,
+    DSH_BUNDLED_SKILL_DIR: process.env.DSH_BUNDLED_SKILL_DIR,
+  }
+  process.env.DSH_HOME = home
+  process.env.DSH_AGENTS_HOME = join(home, 'agents')
+  process.env.DSH_CUSTOM_SKILL_DIRS = ''
+  delete process.env.DSH_BUNDLED_SKILL_DIR
+
+  const routes = []
+  const ctx = {
+    routes,
+    baseUrl: pathToFileURL(profileDir).href,
+    logger: { warn() {}, info() {}, error() {} },
+    get(name) {
+      if (name === 'loader') return { entries: () => [] }
+      if (name === 'tools') return { schemas: () => [] }
+      if (name === 'workspaceRegistry') {
+        // The registry deliberately lists the default second.
+        return {
+          list: () => [
+            { id: 'ws-other', title: 'Other Workspace', path: otherDir },
+            { id: 'ws-default', title: 'Default Workspace', path: defaultDir },
+          ],
+        }
+      }
+      return undefined
+    },
+    effect(fn) {
+      return fn()
+    },
+    webServer: {
+      register(route) {
+        routes.push(route)
+        return () => {}
+      },
+    },
+  }
+  apply(ctx)
+  return {
+    routes,
+    defaultDir,
+    otherDir,
+    snapshotRoute: routes.find((item) => item.path === SNAPSHOT_ROUTE),
+    restore() {
+      for (const key of ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_CUSTOM_SKILL_DIRS', 'DSH_BUNDLED_SKILL_DIR']) {
+        const value = previous[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    },
+  }
+}
+
+test('the snapshot pins the default workspace first and names it', async () => {
+  const fixture = makeDefaultWorkspaceContext()
+  try {
+    const snapshot = await snapshotOf(fixture)
+
+    assert.equal(snapshot.defaultWorkspaceId, 'ws-default')
+    assert.equal(snapshot.workspaces[0].id, 'ws-default', 'the default workspace must be first')
+    assert.equal(snapshot.workspaces[0].default, true)
+    assert.equal(snapshot.workspaces[0].title, 'Default Workspace')
+
+    const other = snapshot.workspaces.find((workspace) => workspace.id === 'ws-other')
+    assert.ok(other, 'the other workspace row is missing')
+    assert.equal(other.default, false)
+  } finally {
+    fixture.restore()
+  }
+})
