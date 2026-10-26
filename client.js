@@ -22,6 +22,7 @@ window.__ModuleLoader__.load({
     const ROUTE = '/inventory/snapshot'
     const WORKSPACE_ROUTE = '/inventory/workspace'
     const GLOBAL_ROUTE = '/inventory/global'
+    const VAULT_ROUTE = '/inventory/vault'
 
     const zh = {
       tab: '安装总览',
@@ -146,6 +147,15 @@ window.__ModuleLoader__.load({
       restartNeeded: '下次启动生效',
       globalHint: '已启用的排在前面',
       toggleSuccess: '已更新',
+      registryOnly: '仅注册',
+      registryOnlyNote: '停用全局挂载后，在工作区页按工作区启用',
+      vaultScope: '仓库',
+      vaultIn: '收进仓库',
+      vaultOut: '移回全局根',
+      vaultInAll: '全部收进仓库',
+      vaultedNote: '仓库内技能只在启用的工作区里加载',
+      vaultFailed: '仓库操作失败',
+      vaultDone: '已移动 {count} 个',
     }
 
     const en = {
@@ -271,6 +281,15 @@ window.__ModuleLoader__.load({
       restartNeeded: 'Takes effect next start',
       globalHint: 'Enabled first',
       toggleSuccess: 'Updated',
+      registryOnly: 'Registry only',
+      registryOnlyNote: 'Not mounted; enable per workspace',
+      vaultScope: 'Vault',
+      vaultIn: 'Move to vault',
+      vaultOut: 'Move out of vault',
+      vaultInAll: 'Move all to vault',
+      vaultedNote: 'Vaulted skills load only where enabled',
+      vaultFailed: 'Vault action failed',
+      vaultDone: 'Moved {count}',
     }
 
     // Tokens the theme actually defines. Fills that must read on both themes are
@@ -636,6 +655,22 @@ window.__ModuleLoader__.load({
         flexShrink: 0,
       },
       empty: { ...T.caption, color: C.secondary, padding: '14px 16px' },
+      // Small text button for row-level actions (vault moves); no fill, so it
+      // reads as a link next to the row title instead of a second control.
+      linkBtn: {
+        border: 'none',
+        background: 'transparent',
+        color: C.accent,
+        fontSize: '13px',
+        fontWeight: 600,
+        padding: '4px 6px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+      },
+      linkBtnDisabled: { opacity: 0.4, cursor: 'default' },
+      rowActions: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '6px 16px 2px', flexShrink: 0 },
       spinner: {
         width: '16px',
         height: '16px',
@@ -814,6 +849,7 @@ window.__ModuleLoader__.load({
       if (source === 'user-agents') return t('wsSourceUserAgents')
       if (source === 'custom') return t('wsSourceCustom')
       if (source === 'bundled') return t('wsSourceBundled')
+      if (source === 'vault') return t('vaultScope')
       if (source === 'runtime') return t('wsRuntimeOnly')
       return source
     }
@@ -851,6 +887,32 @@ window.__ModuleLoader__.load({
         h('span', {
           style: { ...S.switchKnob, transform: isOn ? 'translateX(20px)' : 'translateX(0px)', transition: `transform 260ms ${EASE}` },
         }),
+      )
+    }
+
+    /**
+     * Text button that lives inside an expandable row. It must swallow click and
+     * key events, or the row toggles underneath it.
+     */
+    function RowButton({ label, disabled, onClick }) {
+      const isDisabled = disabled === true
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: 'inv-btn',
+          style: { ...S.linkBtn, ...(isDisabled ? S.linkBtnDisabled : {}) },
+          disabled: isDisabled,
+          onClick: (event) => {
+            if (event !== undefined && event !== null) event.stopPropagation()
+            if (isDisabled) return
+            onClick()
+          },
+          onKeyDown: (event) => {
+            if (event !== undefined && event !== null) event.stopPropagation()
+          },
+        },
+        label,
       )
     }
 
@@ -1186,6 +1248,9 @@ window.__ModuleLoader__.load({
       const [globalBusy, setGlobalBusy] = React.useState('')
       const [globalError, setGlobalError] = React.useState('')
       const [globalNotice, setGlobalNotice] = React.useState('')
+      // Vault moves: `vaultBusy` is `action|name` (or just `action` for in-all).
+      const [vaultBusy, setVaultBusy] = React.useState('')
+      const [vaultError, setVaultError] = React.useState('')
       const [detailOpen, setDetailOpen] = React.useState({ mcp: true, skills: true })
       // Apple's large-title pattern: the toolbar title only appears once the
       // large title has scrolled away. Threshold crossing only, so scrolling
@@ -1294,6 +1359,51 @@ window.__ModuleLoader__.load({
         [load, t],
       )
 
+      /**
+       * Move skills between the global root and the vault. The host answers
+       * `{ ok, moved, skipped }`; `moved` is what the notice counts, and the
+       * snapshot is reloaded because the skill list changed on disk.
+       */
+      const runVaultAction = React.useCallback(
+        async ({ action, name }) => {
+          setVaultBusy(typeof name === 'string' && name.length > 0 ? `${action}|${name}` : action)
+          setVaultError('')
+          setGlobalNotice('')
+          try {
+            const response = await fetch(VAULT_ROUTE, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify(typeof name === 'string' && name.length > 0 ? { action, name } : { action }),
+            })
+            if (!response.ok) {
+              let detail = ''
+              try {
+                const payload = await response.json()
+                if (payload && typeof payload.error === 'string' && payload.error.length > 0) detail = payload.error
+              } catch {
+                // A non-JSON error body still has a status worth showing.
+                detail = ''
+              }
+              throw new Error(detail.length > 0 ? detail : `HTTP ${response.status}`)
+            }
+            let moved = 0
+            try {
+              const payload = await response.json()
+              if (payload && Array.isArray(payload.moved)) moved = payload.moved.length
+            } catch {
+              moved = 0
+            }
+            await load(true)
+            if (moved > 0) setGlobalNotice(t('vaultDone').replace('{count}', String(moved)))
+          } catch (error) {
+            setVaultError(error && error.message ? error.message : String(error))
+          } finally {
+            setVaultBusy('')
+          }
+        },
+        [load, t],
+      )
+
       React.useEffect(() => installStyles(), [])
       React.useEffect(() => {
         load(false)
@@ -1372,6 +1482,10 @@ window.__ModuleLoader__.load({
       const globalMcpLocked = data?.globalToggle?.mcp === false
       const globalSkillLocked = data?.globalToggle?.skill === false
       const globalBlocked = globalBusy.length > 0
+      // "Move all" only makes sense while a globally registered skill is still
+      // outside the vault.
+      const vaultCandidates = (data?.skills ?? []).filter((item) => item.global === true && item.vaulted !== true)
+      const vaultBlocked = vaultBusy.length > 0
 
       const workspaceList = Array.isArray(data?.workspaces) ? data.workspaces : []
       const activeWorkspace = workspaceList.find((workspace) => workspace.id === currentWorkspace) ?? null
@@ -1562,10 +1676,17 @@ window.__ModuleLoader__.load({
                       onKeyDown: activate(toggleRow),
                     },
                     h('span', { style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
-                    h('div', { style: S.rowMain }, h('span', { style: S.rowTitle }, item.server), item.command || item.url ? h('span', { style: S.rowMono }, item.command ?? item.url) : null),
+                    h(
+                      'div',
+                      { style: S.rowMain },
+                      h('span', { style: S.rowTitle }, item.server),
+                      item.command || item.url ? h('span', { style: S.rowMono }, item.command ?? item.url) : null,
+                      isOn ? null : h('span', { style: S.rowSub }, t('registryOnlyNote')),
+                    ),
                     h(Badge, { label: statusLabel, tone, dot: true }),
                     h(Badge, { label: `${item.toolCount} ${t('toolsCount')}` }),
                     item.transport ? h(Badge, { label: item.transport }) : null,
+                    !isOn ? h(Badge, { label: t('registryOnly') }) : null,
                     rowLocked ? h(Badge, { label: t('toggleUnavailableMcp'), tone: 'warning' }) : null,
                     h(Switch, {
                       checked: isOn,
@@ -1593,7 +1714,19 @@ window.__ModuleLoader__.load({
           { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills') },
           skills.length === 0
             ? [h('div', { key: 'skills-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noSkills'))]
-            : skills.map((item, index) => {
+            : [
+                vaultCandidates.length === 0
+                  ? null
+                  : h(
+                      'div',
+                      { key: 'vault-in-all', style: S.rowActions },
+                      h(RowButton, {
+                        label: t('vaultInAll'),
+                        disabled: vaultBlocked,
+                        onClick: () => runVaultAction({ action: 'in-all' }),
+                      }),
+                    ),
+                ...skills.map((item, index) => {
                 const key = `skill-${item.name}`
                 const isOpen = expanded[key] === true
                 const edges = item.edges ?? []
@@ -1601,6 +1734,12 @@ window.__ModuleLoader__.load({
                 const isOn = item.disabled !== true
                 const rowLocked = item.toggleable === false
                 const switchable = !rowLocked && !globalSkillLocked
+                const vaulted = item.vaulted === true
+                const globalSkill = item.global === true
+                // Vault moves only apply to skills that are globally registered
+                // and still live in the global root.
+                const showVaultIn = !vaulted && globalSkill && item.toggleable !== false
+                const vaultRowBusy = vaultBusy === `in|${item.name}` || vaultBusy === `out|${item.name}`
                 // A runtime registration has no file to rewrite; anything else
                 // that cannot be switched is a project-scoped skill.
                 const blockedLabel = item.disabledReason === 'runtime' ? t('toggleUnavailableRuntime') : t('toggleUnavailableProject')
@@ -1628,9 +1767,10 @@ window.__ModuleLoader__.load({
                         { style: S.subRow },
                         h('span', { style: S.rowTitle }, item.name),
                         h(Badge, { label: item.source ?? 'disk' }),
-                        h(Badge, { label: item.global === true ? t('globalScope') : t('projectScope') }),
+                        h(Badge, { label: vaulted ? t('vaultScope') : globalSkill ? t('globalScope') : t('projectScope') }),
                         item.disabled ? h(Badge, { label: t('shadowed'), tone: 'warning', dot: true }) : null,
                       ),
+                      vaulted ? h('span', { style: S.rowSub }, t('vaultedNote')) : null,
                       item.description ? h('span', { style: S.note }, item.description) : null,
                     ),
                     item.deps && item.deps.assets > 1
@@ -1641,14 +1781,28 @@ window.__ModuleLoader__.load({
                         })
                       : null,
                     h(Badge, { label: `${edges.length} ${t('edges')}`, tone: edges.length > 0 ? 'success' : undefined, dot: edges.length > 0 }),
-                    rowLocked ? h(Badge, { label: blockedLabel, tone: 'warning' }) : null,
-                    h(Switch, {
-                      checked: isOn,
-                      disabled: !switchable || globalBlocked,
-                      label: item.name,
-                      stateLabel: isOn ? t('toggleOn') : t('toggleOff'),
-                      onToggle: () => runGlobalAction({ kind: 'skill', name: item.name, enabled: !isOn }),
-                    }),
+                    vaulted ? null : rowLocked ? h(Badge, { label: blockedLabel, tone: 'warning' }) : null,
+                    vaulted
+                      ? h(RowButton, {
+                          label: t('vaultOut'),
+                          disabled: vaultBlocked,
+                          onClick: () => runVaultAction({ action: 'out', name: item.name }),
+                        })
+                      : h(Switch, {
+                          checked: isOn,
+                          disabled: !switchable || globalBlocked,
+                          label: item.name,
+                          stateLabel: isOn ? t('toggleOn') : t('toggleOff'),
+                          onToggle: () => runGlobalAction({ kind: 'skill', name: item.name, enabled: !isOn }),
+                        }),
+                    showVaultIn
+                      ? h(RowButton, {
+                          label: t('vaultIn'),
+                          disabled: vaultBlocked,
+                          onClick: () => runVaultAction({ action: 'in', name: item.name }),
+                        })
+                      : null,
+                    vaultRowBusy ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
                     globalBusy === `skill|${item.name}` ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
                   ),
                   isOpen
@@ -1694,7 +1848,8 @@ window.__ModuleLoader__.load({
                       )
                     : null,
                 )
-              }),
+                }),
+              ],
         ),
         h(
           Section,
@@ -1803,6 +1958,15 @@ window.__ModuleLoader__.load({
               )
             : null,
           globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
+          vaultError.length > 0
+            ? h(
+                'div',
+                { style: S.toast, role: 'alert' },
+                h(Icon, { name: 'alert', size: 18 }),
+                h('span', { style: { flex: '1 1 auto' } }, `${t('vaultFailed')}: ${vaultError}`),
+                h('button', { type: 'button', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
+              )
+            : null,
         ),
       )
     }

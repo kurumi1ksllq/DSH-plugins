@@ -222,7 +222,13 @@ checks.push([
   bskTools.length === 0 ? 'no bsk_* tool in this snapshot' : `owner=${bskOwner}`,
 ])
 checks.push(['tool_search attributed', inventoryOwner === 'dsh-tool-search', `owner=${inventoryOwner}`])
-checks.push(['mcp servers all live', snapshot.mcp.every((entry) => entry.status === 'connected'), JSON.stringify(snapshot.mcp.map((m) => `${m.server}:${m.status}`))])
+// Which MCP rows are enabled is a per-machine choice now (a row can be
+// registered but switched off), so the check is about enabled rows only.
+checks.push([
+  'enabled mcp servers all live',
+  snapshot.mcp.every((entry) => entry.enabled === false || entry.status === 'connected'),
+  JSON.stringify(snapshot.mcp.map((m) => `${m.server}:${m.enabled === false ? 'registered' : m.status}`)),
+])
 // Skill counts drift with the machine (skills get added, disabled and removed),
 // so the check is "the scan found something" plus the observed number, not a
 // frozen total from the audit date.
@@ -231,7 +237,11 @@ checks.push(['shadowed stubs detected', snapshot.skills.some((s) => s.disabled),
 checks.push(['session evidence present', snapshot.edges.some((edge) => edge.evidence.sources.includes('session')), `sessionEdges=${snapshot.edges.filter((e) => e.evidence.sources.includes('session')).length}`])
 checks.push(['cold build under 3s', elapsed < 3000, `elapsed=${elapsed}ms`])
 checks.push(['agent-plane tools included', ['read', 'pwsh', 'skill'].every((name) => snapshot.tools.some((tool) => tool.name === name)), `tools=${snapshot.tools.length}`])
-checks.push(['global-plane tools still included', snapshot.tools.some((tool) => tool.name === 'mcp__officecli__officecli'), ''])
+checks.push([
+  'global-plane mcp tools included',
+  !snapshot.mcp.some((entry) => entry.enabled !== false && entry.status === 'connected') || snapshot.tools.some((tool) => tool.name.startsWith('mcp__')),
+  `mcpTools=${snapshot.tools.filter((tool) => tool.name.startsWith('mcp__')).length}`,
+])
 checks.push(['tool planes reported', Array.isArray(snapshot.toolPlanes) && snapshot.toolPlanes.length >= 2, JSON.stringify(snapshot.toolPlanes)])
 checks.push(['no secret in payload', !/ctx7sk-|sk-live-/.test(body), ''])
 checks.push(['assign round-trip writes then removes', roundTrip.ok, roundTrip.detail])

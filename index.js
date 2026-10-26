@@ -19,7 +19,7 @@
  *                                 global skill root (its SKILL.md flag).
  */
 
-import { accessSync, constants as FS, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { accessSync, constants as FS, existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, rmdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,10 +33,11 @@ import { buildSnapshot } from './lib/inventory.js'
 import { collectPackages } from './lib/profile-packages.js'
 import { buildPluginToolIndex } from './lib/plugin-tool-index.js'
 import { collectWorkspaces, sharedSkillRoots } from './lib/workspaces.js'
-import { assignMcp, assignSkill, mcpFileOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
+import { assignMcp, assignSkill, mcpFileOf, projectRootOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
 import { normalizeDir, pathKey } from './lib/workspace-gate.js'
 import { setSkillEnabled } from './lib/skill-toggle.js'
 import { writePatchEnabled } from './lib/global-patch.js'
+import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 
 export const name = 'dsh-inventory'
@@ -47,6 +48,7 @@ export const inject = ['webServer']
 export const SNAPSHOT_ROUTE = '/inventory/snapshot'
 export const ASSIGN_ROUTE = '/inventory/workspace'
 export const GLOBAL_ROUTE = '/inventory/global'
+export const VAULT_ROUTE = '/inventory/vault'
 
 const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 
@@ -58,25 +60,34 @@ const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 const GLOBAL_SKILL_SOURCES = new Set(['custom', 'user-dsh', 'user-agents', 'bundled'])
 
 /**
- * Prompt section that makes the workspace-scoped MCP capability discoverable.
+ * Prompt section that teaches the model how capabilities are registered and
+ * enabled in this installation.
  *
- * The gate decides what to mount, but a model in an unrelated workspace sees
- * only its own tool list: it cannot tell that a declaration file exists, that
- * other workspaces have MCP servers, or that writing one would change the next
- * session. Without this section the capability is invisible from the inside.
+ * Registration is inert on purpose: a globally registered MCP row is disabled,
+ * a registered skill sits in a vault no skill root scans. A session therefore
+ * sees only what its own workspace enables — and an agent asked to "install an
+ * MCP/skill" has to follow this contract, or it will create a second, silently
+ * global copy. The panel writes the same files; this section is what makes the
+ * convention visible from inside a session.
  */
 const WORKSPACE_MCP_SECTION = {
-  name: 'dsh-inventory:workspace-mcp',
+  name: 'dsh-inventory:workspace-capabilities',
   order: 150,
   text: [
-    'Workspace-scoped MCP: a workspace can declare MCP servers in `<workspace>/.dsh/mcp.json` as',
-    '{"servers": {"<name>": {"transport": "stdio", "command": "...", "args": ["..."]}}},',
-    'or with {"transport": "streamable-http", "url": "..."} for a remote server.',
-    'A session whose cwd is inside that workspace mounts those servers when its agent is created,',
-    'exposing tools named `mcp__<name>__<tool>`; every other workspace spawns nothing.',
-    'The file is read once at agent creation, so a new or edited declaration applies to the next',
-    'session, not the current one. Inspect the current state with `GET /inventory/snapshot`',
-    '(workspaces[].mcp) or the sidebar Inventory -> By workspace page.',
+    'Workspace-scoped capabilities (dsh-inventory): nothing here is mounted globally by default.',
+    'An MCP server or skill is REGISTERED once and ENABLED per workspace; the enablement is read at agent creation,',
+    'so a change applies to the next session, not the current one.',
+    'MCP registry: a `@deepseek-ai/dsh-mcp-client` loader row with `disabled: true` in the profile patch',
+    '(`~/.dsh/profiles/<profile>/cordis.patch.yml`) is a registration only — it mounts nowhere and costs no context.',
+    'Enable it for one workspace by copying its `config` (serverName, transport, command/args/env or url/headers)',
+    'into `<workspace>/.dsh/mcp.json` as {"servers": {"<name>": {...}}}; the dsh-inventory gate then mounts it for',
+    'that workspace only, as `<name><gateSuffix>` (tools `mcp__<name><gateSuffix>__*`).',
+    'Skill registry: registered skills live in `$DSH_HOME/inventory/skills/<name>/SKILL.md` (the vault),',
+    'which no skill root scans. Enable one for a workspace with a directory link',
+    '`<projectRoot>/.dsh/skills/<name>` -> that vault directory (projectRoot is the nearest `.git` ancestor);',
+    'disable by removing the link. `disable-model-invocation: true` still hides a skill from the model catalog.',
+    'The panel does all of this: sidebar Inventory -> 工作区 -> open a workspace, one switch per capability.',
+    'Inspect state with `GET /inventory/snapshot` (vault, workspaces[].mcp, workspaces[].skills).',
   ].join(' '),
 }
 
@@ -381,20 +392,30 @@ async function loadSnapshot(ctx) {
   })
   const tools = collected.tools.map((tool) => ({ ...tool, deferred: tool.deferred || deferred.has(tool.name) }))
   const skillList = await collectSkills(ctx, cwd, warnings)
+  // Registered-but-inactive skills live in the vault, which is deliberately not
+  // a skill root, so the scan above never sees them. A name that also exists on
+  // a real root keeps the real-root row: that is the copy DSH would load.
+  const knownNames = new Set(skillList.map((skill) => skill.name))
+  const vaultedSkills = scanVault()
+    .skills.filter((skill) => !knownNames.has(skill.name))
+    .map((skill) => ({ ...skill, source: 'vault', vaulted: true }))
+  const allSkills = [...skillList, ...vaultedSkills].sort((a, b) => a.name.localeCompare(b.name))
 
   // Skill → asset graph: what each skill's own body and its `refs/` tree point
   // at, and which of those targets no longer exist. Depth-1 discovery never
   // sees `refs/`, so this is the only way the panel can show it.
   const skillDeps = buildSkillDeps({
-    skills: skillList,
-    roots: skillRootsFor(cwd).map((root) => root.dir),
+    skills: allSkills,
+    roots: [...skillRootsFor(cwd).map((root) => root.dir), vaultDir()],
   })
   for (const miss of skillDeps.missing) {
     warnings.push({ code: 'skill-ref-missing', message: `技能引用缺失：${miss.from} → ${miss.to}` })
   }
 
+  // Only an ENABLED mcp-client row mounts everywhere. A disabled row is a
+  // registration (the panel's "仅注册" state) and must not read as mounted.
   const mcpServers = rows
-    .filter((row) => row.name === '@deepseek-ai/dsh-mcp-client')
+    .filter((row) => row.name === MCP_CLIENT_MODULE && row.enabled !== false)
     .map((row) => row.config?.serverName)
     .filter((server) => typeof server === 'string')
 
@@ -409,7 +430,7 @@ async function loadSnapshot(ctx) {
   const cliNames = CLI_NAMES.filter((cli) => !mcpServers.includes(cli))
 
   const skillEdges = []
-  for (const skill of skillList) {
+  for (const skill of allSkills) {
     const body = typeof skill.body === 'string' ? skill.body : ''
     for (const edge of matchSkillTools({ body, toolNames, mcpServers, cliNames })) {
       skillEdges.push({ skill: skill.name, ...edge })
@@ -424,7 +445,7 @@ async function loadSnapshot(ctx) {
     profile: profileDir === null ? null : { dir: profileDir, bundles: packages.filter((pkg) => pkg.declaredBy.includes('bundles')).map((pkg) => pkg.name) },
     packages,
     rows,
-    skills: attachDeps(skillList, skillDeps).map(({ body, ...rest }) => rest),
+    skills: attachDeps(allSkills, skillDeps).map(({ body, ...rest }) => rest),
     tools,
     builtinTools,
     pluginTools,
@@ -478,9 +499,22 @@ async function loadSnapshot(ctx) {
     const global = GLOBAL_SKILL_SOURCES.has(skill.source)
     const file = typeof skill.path === 'string' && skill.path.length > 0 ? skill.path : null
     skill.global = global
+    // Every row carries the flag, so the client never has to guess.
+    skill.vaulted = skill.vaulted === true
+    // A vaulted skill is registered, not active: no global switch (the file it
+    // would edit is already inert) and no per-project reason either.
     skill.toggleable = global && file !== null && isWritableFile(file)
-    skill.disabledReason = skill.toggleable ? null : file === null ? 'runtime' : global ? 'unreadable' : 'project-scope'
+    skill.disabledReason = skill.vaulted
+      ? 'vaulted'
+      : skill.toggleable
+        ? null
+        : file === null
+          ? 'runtime'
+          : global
+            ? 'unreadable'
+            : 'project-scope'
   }
+  snapshot.vault = { dir: vaultDir(), count: vaultedSkills.length }
 
   const payload = JSON.stringify(snapshot)
   if (payload.length > 6 * 1024 * 1024) {
@@ -601,8 +635,10 @@ function installedMcp(ctx, name) {
   return undefined
 }
 
-/** Disk path of an installed skill, or undefined for a runtime-only registration. */
+/** Disk path of an installed skill: the vault first, then a live global root. */
 function installedSkillPath(name) {
+  const vaulted = scanVault().skills.find((skill) => skill.name === name)
+  if (vaulted !== undefined) return vaulted.path
   const { skills } = scanSkillRoots(sharedSkillRoots())
   return skills.find((skill) => skill.name === name)?.path
 }
@@ -791,6 +827,135 @@ async function toggleGlobal(ctx, req) {
   return kind === 'mcp' ? toggleGlobalMcp(ctx, name, body.enabled) : toggleGlobalSkill(ctx, name, body.enabled)
 }
 
+// ---- vault (registered but inactive skills) -------------------------------
+
+/**
+ * Re-point a workspace's skill link after its target moved.
+ *
+ * A link written before the move still names the old directory; left alone it
+ * dangles and the skill silently disappears from that workspace. Only links this
+ * plugin would have written are touched — a real directory is never replaced.
+ * @returns {boolean} whether a link was repaired
+ */
+function relinkWorkspaceSkill(workspaceDir, { name, from, to }) {
+  const root = join(projectRootOf(workspaceDir), '.dsh', 'skills')
+  for (const target of [join(root, name), join(root, `${name}.md`)]) {
+    let stat
+    try {
+      stat = lstatSync(target)
+    } catch {
+      continue
+    }
+    if (!stat.isSymbolicLink()) continue
+    let link
+    try {
+      link = readlinkSync(target)
+    } catch {
+      continue
+    }
+    if (pathKey(link) !== pathKey(from)) continue
+    try {
+      unlinkSync(target)
+    } catch {
+      try {
+        rmdirSync(target)
+      } catch {
+        continue
+      }
+    }
+    try {
+      symlinkSync(to, target, /\.md$/i.test(target) ? 'file' : process.platform === 'win32' ? 'junction' : 'dir')
+    } catch {
+      // Best effort: the workspace view reports a dangling link as unassigned.
+    }
+    return true
+  }
+  return false
+}
+
+/** Repair every registered workspace that linked one of the moved skills. */
+function relinkWorkspaces(ctx, moved) {
+  const registry = ctx.get('workspaceRegistry')
+  if (registry === undefined || registry === null || typeof registry.list !== 'function') return
+  let entries = []
+  try {
+    entries = registry.list() ?? []
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    const dir = typeof entry?.path === 'string' && entry.path.length > 0 ? entry.path : null
+    if (dir === null || !existsSync(dir)) continue
+    for (const item of moved) relinkWorkspaceSkill(dir, item)
+  }
+}
+
+/**
+ * Move skills between the vault and the live user skill root.
+ * @returns {Promise<{status: number, payload: object}>}
+ */
+async function changeVault(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  let body
+  try {
+    body = JSON.parse(await readBody(req))
+  } catch (error) {
+    return { status: 400, payload: { ok: false, error: `请求体无法解析：${error?.message ?? error}` } }
+  }
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { status: 400, payload: { ok: false, error: '请求体必须是对象' } }
+  }
+  const action = body.action
+  if (action !== 'in' && action !== 'out' && action !== 'in-all') {
+    return { status: 400, payload: { ok: false, error: 'action 必须是 in、out 或 in-all' } }
+  }
+
+  const moved = []
+  const skipped = []
+  if (action === 'in-all') {
+    for (const skill of scanSkillRoots(sharedSkillRoots()).skills) {
+      if (skill.source === 'bundled') {
+        skipped.push({ name: skill.name, reason: 'bundled' })
+        continue
+      }
+      const result = moveIntoVault(skill)
+      if (!result.ok) {
+        skipped.push({ name: skill.name, reason: result.error })
+        continue
+      }
+      moved.push(result)
+    }
+  } else {
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (name === '') return { status: 400, payload: { ok: false, error: 'name 不能为空' } }
+    if (action === 'in') {
+      const skill = scanSkillRoots(sharedSkillRoots()).skills.find((item) => item.name === name)
+      if (skill === undefined) return { status: 404, payload: { ok: false, error: `没有全局技能 ${name}` } }
+      if (skill.source === 'bundled') {
+        return { status: 400, payload: { ok: false, error: `随包技能 ${name} 不能移动（只读）` } }
+      }
+      const result = moveIntoVault(skill)
+      if (!result.ok) {
+        return { status: result.code === 'exists' ? 400 : 500, payload: { ok: false, error: result.error } }
+      }
+      moved.push(result)
+    } else {
+      const result = moveOutOfVault(name)
+      if (!result.ok) {
+        const status = result.code === 'missing' ? 404 : result.code === 'exists' ? 400 : 500
+        return { status, payload: { ok: false, error: result.error } }
+      }
+      moved.push(result)
+    }
+  }
+
+  if (moved.length > 0) relinkWorkspaces(ctx, moved)
+  invalidateSnapshot()
+  return { status: 200, payload: { ok: true, moved: moved.map((item) => item.name), skipped } }
+}
+
 /**
  * Assign or remove one capability for one workspace.
  * @returns {Promise<{status: number, payload: object}>}
@@ -933,6 +1098,21 @@ export function apply(ctx) {
           sendJson(res, status, payload)
         } catch (error) {
           sendJson(res, 500, { ok: false, error: `开关失败：${error?.message ?? error}` })
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: VAULT_ROUTE,
+      handler: async (req, res) => {
+        try {
+          const { status, payload } = await changeVault(ctx, req)
+          sendJson(res, status, payload)
+        } catch (error) {
+          sendJson(res, 500, { ok: false, error: `仓库操作失败：${error?.message ?? error}` })
         }
       },
     }),

@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { apply, ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE } from '../index.js'
+import { apply, ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE, VAULT_ROUTE } from '../index.js'
 
 /**
  * Host-half route contract, with an empty loader/tool registry: the routes must
@@ -53,11 +53,15 @@ async function call(handler, request) {
 test('registers one exact route per surface', () => {
   const ctx = makeContext()
   apply(ctx)
-  assert.deepEqual(ctx.routes.map((route) => route.path).sort(), [ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE].sort())
+  assert.deepEqual(
+    ctx.routes.map((route) => route.path).sort(),
+    [ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE, VAULT_ROUTE].sort(),
+  )
   for (const route of ctx.routes) assert.equal(route.kind, 'exact')
   assert.equal(SNAPSHOT_ROUTE, '/inventory/snapshot')
   assert.equal(ASSIGN_ROUTE, '/inventory/workspace')
   assert.equal(GLOBAL_ROUTE, '/inventory/global')
+  assert.equal(VAULT_ROUTE, '/inventory/vault')
 })
 
 test('rejects non-GET methods with 405', async () => {
@@ -636,6 +640,312 @@ test('the snapshot carries global toggle metadata on MCP and skill rows', async 
     assert.equal(runtime.global, false)
     assert.equal(runtime.toggleable, false)
     assert.equal(runtime.disabledReason, 'runtime')
+  } finally {
+    fixture.restore()
+  }
+})
+
+// ---- POST /inventory/vault (registered-but-inactive skills) --------------
+
+/**
+ * A profile-shaped context with one global MCP row, one disabled ("registered
+ * only") MCP row, skills on every root the vault can see (user-dsh, user-agents,
+ * bundled), one project skill, and one registered workspace.
+ */
+function makeVaultContext() {
+  const home = mkdtempSync(join(tmpdir(), 'inv-vault-route-home-'))
+  const userSkills = join(home, 'skills')
+  writeSkillFixture(userSkills, 'alpha-skill', 'user alpha')
+  writeSkillFixture(userSkills, 'beta-skill', 'user beta')
+  const agentsSkills = join(home, 'agents', 'skills')
+  writeSkillFixture(agentsSkills, 'agents-skill', 'agents root')
+
+  const bundledDir = join(home, 'bundled-skills')
+  writeSkillFixture(bundledDir, 'bundled-skill', 'bundled fixture')
+
+  const projectDir = mkdtempSync(join(tmpdir(), 'inv-vault-route-project-'))
+  writeSkillFixture(join(projectDir, '.dsh', 'skills'), 'project-skill', 'project fixture')
+
+  const workspace = mkdtempSync(join(tmpdir(), 'inv-vault-route-ws-'))
+  // Pin the workspace's project root to itself (DSH walks up to the nearest .git).
+  mkdirSync(join(workspace, '.git'), { recursive: true })
+
+  const profileDir = mkdtempSync(join(tmpdir(), 'inv-vault-route-profile-'))
+  writeFileSync(
+    join(profileDir, 'package.json'),
+    JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
+  )
+  const patchPath = join(profileDir, 'cordis.patch.yml')
+  writeFileSync(patchPath, '# profile patch (fixture)\n', 'utf8')
+
+  const previous = {
+    DSH_HOME: process.env.DSH_HOME,
+    DSH_AGENTS_HOME: process.env.DSH_AGENTS_HOME,
+    DSH_CUSTOM_SKILL_DIRS: process.env.DSH_CUSTOM_SKILL_DIRS,
+    DSH_BUNDLED_SKILL_DIR: process.env.DSH_BUNDLED_SKILL_DIR,
+    cwd: process.cwd(),
+  }
+  process.env.DSH_HOME = home
+  process.env.DSH_AGENTS_HOME = join(home, 'agents')
+  process.env.DSH_CUSTOM_SKILL_DIRS = ''
+  process.env.DSH_BUNDLED_SKILL_DIR = bundledDir
+  process.chdir(projectDir)
+
+  // `enabled` mirrors `disabled` so a fixture row reads correctly whichever
+  // field the host trusts for "is this registration active".
+  const entries = [
+    {
+      id: 'mcp-officecli',
+      enabled: true,
+      disabled: false,
+      options: { name: MCP_CLIENT, config: { serverName: 'officecli', transport: 'stdio', command: 'fixture-mcp' } },
+    },
+    {
+      id: 'mcp-legacy',
+      enabled: false,
+      disabled: true,
+      options: { name: MCP_CLIENT, config: { serverName: 'legacy', transport: 'stdio', command: 'legacy-mcp' } },
+    },
+  ]
+  const routes = []
+  const ctx = {
+    routes,
+    baseUrl: pathToFileURL(profileDir).href,
+    logger: { warn() {}, info() {}, error() {} },
+    get(name) {
+      if (name === 'loader') return { entries: () => entries }
+      if (name === 'tools') return { schemas: () => [] }
+      if (name === 'workspaceRegistry') return { list: () => [{ id: 'ws-1', title: 'fixture', path: workspace }] }
+      if (name === 'profileContext') return { patchPath }
+      if (name === 'skills') {
+        return {
+          list: async () => [],
+          get: async (skillName) => ({ name: skillName, body: '' }),
+        }
+      }
+      return undefined
+    },
+    effect(fn) {
+      return fn()
+    },
+    webServer: {
+      register(route) {
+        routes.push(route)
+        return () => {}
+      },
+    },
+  }
+  apply(ctx)
+  return {
+    ctx,
+    routes,
+    home,
+    userSkills,
+    agentsSkills,
+    bundledDir,
+    projectDir,
+    workspace,
+    patchPath,
+    vaultSkills: join(home, 'inventory', 'skills'),
+    route: routes.find((item) => item.path === VAULT_ROUTE),
+    assignRoute: routes.find((item) => item.path === ASSIGN_ROUTE),
+    snapshotRoute: routes.find((item) => item.path === SNAPSHOT_ROUTE),
+    restore() {
+      process.chdir(previous.cwd)
+      for (const key of ['DSH_HOME', 'DSH_AGENTS_HOME', 'DSH_CUSTOM_SKILL_DIRS', 'DSH_BUNDLED_SKILL_DIR']) {
+        const value = previous[key]
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    },
+  }
+}
+
+async function snapshotOf(fixture) {
+  const { status, body } = await call(fixture.snapshotRoute.handler, {
+    method: 'GET',
+    url: `${SNAPSHOT_ROUTE}?refresh=1`,
+  })
+  assert.equal(status, 200)
+  return body
+}
+
+test('vault route rejects the wrong method and malformed bodies', async () => {
+  const fixture = makeVaultContext()
+  try {
+    assert.equal((await post(fixture.route.handler, null, { method: 'GET' })).status, 405)
+    const invalid = [
+      { action: 'nope' },
+      {},
+      { action: 'in' },
+      { action: 'in', name: '' },
+      { action: 'in', name: '   ' },
+      { action: 'out' },
+      { action: 'out', name: '' },
+    ]
+    for (const body of invalid) {
+      const { status } = await post(fixture.route.handler, body)
+      assert.equal(status, 400, `expected 400 for ${JSON.stringify(body)}`)
+    }
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('vault route 404s skills that are not on a movable root', async () => {
+  const fixture = makeVaultContext()
+  try {
+    assert.equal((await post(fixture.route.handler, { action: 'in', name: 'ghost-skill' })).status, 404)
+    assert.equal((await post(fixture.route.handler, { action: 'out', name: 'ghost-skill' })).status, 404)
+    // A project-scoped skill is not a global root: it cannot be parked.
+    assert.equal((await post(fixture.route.handler, { action: 'in', name: 'project-skill' })).status, 404)
+    assert.equal(existsSync(join(fixture.projectDir, '.dsh', 'skills', 'project-skill', 'SKILL.md')), true)
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('vault route 400s a read-only bundled skill and refuses overwrites', async () => {
+  const fixture = makeVaultContext()
+  try {
+    // A bundled skill exists but is read-only: 400, not "not found".
+    const bundled = await post(fixture.route.handler, { action: 'in', name: 'bundled-skill' })
+    assert.equal(bundled.status, 400)
+    assert.match(bundled.body.error, /只读|不能移动/)
+    assert.equal(existsSync(join(fixture.bundledDir, 'bundled-skill', 'SKILL.md')), true)
+
+    // `in` onto an occupied vault slot: 400, and the source stays put.
+    mkdirSync(join(fixture.vaultSkills, 'alpha-skill'), { recursive: true })
+    writeFileSync(join(fixture.vaultSkills, 'alpha-skill', 'SKILL.md'), '---\nname: alpha-skill\ndescription: vault copy\n---\n')
+    const exists = await post(fixture.route.handler, { action: 'in', name: 'alpha-skill' })
+    assert.equal(exists.status, 400)
+    assert.equal(typeof exists.body.error, 'string')
+    assert.equal(existsSync(join(fixture.userSkills, 'alpha-skill', 'SKILL.md')), true, 'the global copy must stay')
+
+    // `out` onto an occupied global slot: 400, and the vault copy stays put.
+    const into = await post(fixture.route.handler, { action: 'in', name: 'beta-skill' })
+    assert.equal(into.status, 200)
+    writeSkillFixture(fixture.userSkills, 'beta-skill', 'user beta again')
+    const outExists = await post(fixture.route.handler, { action: 'out', name: 'beta-skill' })
+    assert.equal(outExists.status, 400)
+    assert.equal(existsSync(join(fixture.vaultSkills, 'beta-skill', 'SKILL.md')), true, 'the vault copy must stay')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('moving a global skill into the vault flips the snapshot and back', async () => {
+  const fixture = makeVaultContext()
+  try {
+    const before = await snapshotOf(fixture)
+    assert.equal(before.vault.dir, fixture.vaultSkills)
+    assert.equal(before.vault.count, 0)
+    const beforeRow = before.skills.find((skill) => skill.name === 'alpha-skill')
+    assert.ok(beforeRow, 'global skill row missing')
+    assert.equal(beforeRow.source, 'user-dsh')
+    assert.equal(beforeRow.vaulted, false, 'every skill row must carry a boolean vaulted flag')
+
+    const into = await post(fixture.route.handler, { action: 'in', name: 'alpha-skill' })
+    assert.equal(into.status, 200)
+    assert.equal(into.body.ok, true)
+    assert.deepEqual(into.body.moved, ['alpha-skill'])
+    assert.deepEqual(into.body.skipped, [])
+    assert.equal(existsSync(join(fixture.vaultSkills, 'alpha-skill', 'SKILL.md')), true)
+    assert.equal(existsSync(join(fixture.userSkills, 'alpha-skill')), false)
+
+    const afterIn = await snapshotOf(fixture)
+    assert.equal(afterIn.vault.count, 1)
+    const vaultedRow = afterIn.skills.find((skill) => skill.name === 'alpha-skill')
+    assert.ok(vaultedRow, 'vaulted skill row missing')
+    assert.equal(vaultedRow.source, 'vault')
+    assert.equal(vaultedRow.vaulted, true)
+    assert.equal(vaultedRow.global, false)
+    assert.equal(vaultedRow.toggleable, false)
+    assert.equal(vaultedRow.disabledReason, 'vaulted')
+
+    const out = await post(fixture.route.handler, { action: 'out', name: 'alpha-skill' })
+    assert.equal(out.status, 200)
+    assert.deepEqual(out.body.moved, ['alpha-skill'])
+    assert.equal(existsSync(join(fixture.userSkills, 'alpha-skill', 'SKILL.md')), true)
+
+    const afterOut = await snapshotOf(fixture)
+    assert.equal(afterOut.vault.count, 0)
+    const restored = afterOut.skills.find((skill) => skill.name === 'alpha-skill')
+    assert.equal(restored.source, 'user-dsh')
+    assert.equal(restored.vaulted, false)
+    assert.equal(restored.toggleable, true)
+    assert.equal(restored.disabledReason, null)
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('in-all moves every movable global skill and skips bundled ones', async () => {
+  const fixture = makeVaultContext()
+  try {
+    const all = await post(fixture.route.handler, { action: 'in-all' })
+    assert.equal(all.status, 200)
+    assert.equal(all.body.ok, true)
+    assert.deepEqual([...all.body.moved].sort(), ['agents-skill', 'alpha-skill', 'beta-skill'])
+    const skippedBundled = all.body.skipped.find((item) => item.name === 'bundled-skill')
+    assert.ok(skippedBundled, `bundled skill not reported as skipped: ${JSON.stringify(all.body.skipped)}`)
+    assert.equal(skippedBundled.reason, 'bundled')
+
+    for (const name of ['agents-skill', 'alpha-skill', 'beta-skill']) {
+      assert.equal(existsSync(join(fixture.vaultSkills, name, 'SKILL.md')), true, `${name} was not moved`)
+      assert.equal(existsSync(join(fixture.userSkills, name)), false, `${name} left a copy behind`)
+    }
+    assert.equal(existsSync(join(fixture.bundledDir, 'bundled-skill', 'SKILL.md')), true, 'a bundled skill must stay put')
+    assert.equal(existsSync(join(fixture.projectDir, '.dsh', 'skills', 'project-skill', 'SKILL.md')), true, 'a project skill must stay put')
+
+    const snapshot = await snapshotOf(fixture)
+    assert.equal(snapshot.vault.count, 3)
+
+    // Already vaulted skills are not moved twice.
+    const again = await post(fixture.route.handler, { action: 'in-all' })
+    assert.equal(again.status, 200)
+    assert.deepEqual(again.body.moved, [])
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a disabled mcp-client row is registered but not globally mounted', async () => {
+  const fixture = makeVaultContext()
+  try {
+    const snapshot = await snapshotOf(fixture)
+    assert.deepEqual([...snapshot.globalMcp].sort(), ['officecli'], 'a disabled row must not count as globally mounted')
+
+    const legacy = snapshot.mcp.find((row) => row.server === 'legacy')
+    assert.ok(legacy, 'disabled MCP row missing from mcp[]')
+    assert.equal(legacy.enabled, false)
+    const officecli = snapshot.mcp.find((row) => row.server === 'officecli')
+    assert.equal(officecli.enabled, true)
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a vaulted skill can be assigned to a workspace', async () => {
+  const fixture = makeVaultContext()
+  try {
+    const into = await post(fixture.route.handler, { action: 'in', name: 'alpha-skill' })
+    assert.equal(into.status, 200)
+
+    const added = await post(fixture.assignRoute.handler, {
+      kind: 'skill',
+      action: 'add',
+      name: 'alpha-skill',
+      workspace: fixture.workspace,
+    })
+    assert.equal(added.status, 200, JSON.stringify(added.body))
+    assert.equal(added.body.ok, true)
+    assert.equal(added.body.path, join(fixture.workspace, '.dsh', 'skills', 'alpha-skill'))
+    assert.equal(lstatSync(added.body.path).isSymbolicLink(), true, 'assignment must be a link to the vault copy')
+
+    const snapshot = await snapshotOf(fixture)
+    const projectDsh = snapshot.workspaces[0].skills.find((group) => group.source === 'project-dsh')
+    assert.deepEqual(projectDsh.skills.map((skill) => skill.name), ['alpha-skill'])
   } finally {
     fixture.restore()
   }

@@ -1044,3 +1044,111 @@ test('a patch-only toggle says it applies on the next start', async () => {
   await tick()
   assert.doesNotMatch(textOf(livePanel.tree()), /下次启动生效/)
 })
+
+// ---- skill vault on the overview -----------------------------------------
+
+/** Overview fixture: one global skill, one vaulted skill, one project skill, and a registered-only MCP. */
+function vaultSnapshot() {
+  return {
+    ...SNAPSHOT,
+    globalToggle: { mcp: true, skill: true },
+    mcp: [mcpRow('officecli', { enabled: true }), mcpRow('legacy', { enabled: false, status: 'disabled', toolCount: 0 })],
+    skills: [
+      skillRow('global-skill', { global: true, vaulted: false, toggleable: true }),
+      skillRow('vault-skill', {
+        source: 'vault',
+        global: false,
+        vaulted: true,
+        toggleable: false,
+        disabledReason: 'vaulted',
+      }),
+      skillRow('project-skill', { global: false, vaulted: false, toggleable: false, disabledReason: 'project-scope' }),
+    ],
+    vault: { dir: 'C:/home/.dsh/inventory/skills', count: 1 },
+  }
+}
+
+/** The button whose whole text is `label`. */
+function buttonNamed(tree, label) {
+  return findNode(tree, (node) => node.type === 'button' && textOf(node) === label)
+}
+
+test('a vaulted skill offers move-out instead of a global switch', async () => {
+  const panel = await bootPanel(vaultSnapshot(), { version: 'vault-row-case' })
+  const current = openSkillSection(panel)
+
+  const row = rowOf(current, 'vault-skill')
+  assert.ok(row, 'vaulted skill row missing')
+  assert.equal(switchNamed(current, 'vault-skill'), null, 'a vaulted skill must not render a global switch')
+  assert.equal(switchesIn(row).length, 0, 'no switch may leak into the vaulted row')
+  const moveOut = buttonNamed(row, '移回全局根')
+  assert.ok(moveOut, 'vaulted row has no move-out button')
+  assert.equal(moveOut.props.disabled, false)
+  assert.match(textOf(row), /仓库内技能只在启用的工作区里加载/, 'vaulted row must explain where it loads')
+
+  moveOut.props.onClick()
+  await tick()
+  await tick()
+  const post = panel.calls.find((call) => call.method === 'POST')
+  assert.ok(post, 'no POST issued')
+  assert.equal(post.url, '/inventory/vault')
+  assert.deepEqual(JSON.parse(post.body), { action: 'out', name: 'vault-skill' })
+})
+
+test('a global skill keeps its switch and gains a move-in button', async () => {
+  const panel = await bootPanel(vaultSnapshot(), { version: 'vault-in-case' })
+  const current = openSkillSection(panel)
+
+  const row = rowOf(current, 'global-skill')
+  assert.ok(row, 'global skill row missing')
+  const control = switchNamed(current, 'global-skill')
+  assert.ok(control, 'a global skill must keep its global switch')
+  assert.equal(control.props.disabled, false)
+  const moveIn = buttonNamed(row, '收进仓库')
+  assert.ok(moveIn, 'global skill row has no move-in button')
+
+  moveIn.props.onClick()
+  await tick()
+  await tick()
+  const post = panel.calls.find((call) => call.method === 'POST')
+  assert.equal(post.url, '/inventory/vault')
+  assert.deepEqual(JSON.parse(post.body), { action: 'in', name: 'global-skill' })
+
+  // A project skill is neither globally switchable nor movable.
+  const projectRow = rowOf(current, 'project-skill')
+  assert.ok(projectRow, 'project skill row missing')
+  assert.equal(buttonNamed(projectRow, '收进仓库'), null, 'a project skill must not offer move-in')
+})
+
+test('move-all posts in-all once and reports the moved count', async () => {
+  const panel = await bootPanel(vaultSnapshot(), { version: 'vault-all-case' })
+  panel.setPost(async () => ({ ok: true, status: 200, json: async () => ({ ok: true, moved: ['global-skill'], skipped: [] }) }))
+  const current = openSkillSection(panel)
+
+  const moveAll = buttonNamed(current, '全部收进仓库')
+  assert.ok(moveAll, 'move-all button missing')
+  moveAll.props.onClick()
+  await tick()
+  await tick()
+
+  const posts = panel.calls.filter((call) => call.method === 'POST')
+  assert.equal(posts.length, 1, 'one POST per move-all click')
+  assert.equal(posts[0].url, '/inventory/vault')
+  assert.deepEqual(JSON.parse(posts[0].body), { action: 'in-all' })
+  assert.match(textOf(panel.tree()), /已移动 1 个/)
+})
+
+test('a registered-only MCP row says so instead of reading as mounted', async () => {
+  const panel = await bootPanel(vaultSnapshot(), { version: 'registry-only-case' })
+  const current = panel.tree()
+
+  const row = rowOf(current, 'legacy')
+  assert.ok(row, 'disabled MCP row missing')
+  assert.match(textOf(row), /仅注册/)
+  assert.match(textOf(row), /停用全局挂载后，在工作区页按工作区启用/)
+
+  const control = switchNamed(current, 'legacy')
+  assert.ok(control, 'the registered-only row must still offer a switch to turn it on')
+  assert.equal(control.props['aria-checked'], 'false')
+  assert.equal(control.props.disabled, false)
+})
