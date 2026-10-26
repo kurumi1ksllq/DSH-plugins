@@ -164,50 +164,58 @@ export function apply(ctx, rawConfig) {
   const mounted = new Map()
 
   ctx.effect(() => {
-    const off = ctx.on('agent/created', async ({ agent }) => {
+    // `agent/created` is a serial dispatch: the runtime awaits every listener's
+    // returned promise before it publishes the Agent, so an async listener here
+    // makes Session creation wait for the whole MCP mount (spawn + initialize +
+    // tool sync — measured ~0.8s for officecli, ~3.4s for davinci, up to
+    // mountTimeoutMs when a server hangs). The mount is a background capability:
+    // start it, return undefined immediately, and let the dispatch continue.
+    const off = ctx.on('agent/created', ({ agent }) => {
       const agentId = agent?.id ?? '<unknown>'
-      try {
-        const cwd = readCwd(agent)
-        emit('info', `${LOG} created agent=${agentId} cwd=${cwd || '<none>'}`)
-        const plan = planMount(cwd, {
-          enabled: config.enabled,
-          declarationFile: config.declarationFile,
-          searchParents: config.searchParents,
-          allowServerNames: config.allowServerNames,
-          serverNameSuffix: config.serverNameSuffix,
-        })
-        if (!plan.mount) {
-          emit('info', `${LOG} skip agent=${agentId} cwd=${cwd} reason=${plan.reason}`)
-          return
-        }
-
-        const mod = await loadMcpClient(emit, config)
-        if (mod === null || mod === undefined) {
-          emit('warn', `${LOG} skip agent=${agentId} root=${plan.root} reason=mcp-client-unavailable`)
-          return
-        }
-
-        const fibers = []
-        for (const [declaredName, serverConfig] of Object.entries(plan.servers)) {
-          try {
-            const fiber = await withTimeout(
-              Promise.resolve(agent.ctx.plugin(mod, serverConfig)),
-              config.mountTimeoutMs,
-              () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
-            )
-            if (fiber !== undefined) fibers.push(fiber)
-            emit(
-              'info',
-              `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
-            )
-          } catch (error) {
-            emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
+      void (async () => {
+        try {
+          const cwd = readCwd(agent)
+          emit('info', `${LOG} created agent=${agentId} cwd=${cwd || '<none>'}`)
+          const plan = planMount(cwd, {
+            enabled: config.enabled,
+            declarationFile: config.declarationFile,
+            searchParents: config.searchParents,
+            allowServerNames: config.allowServerNames,
+            serverNameSuffix: config.serverNameSuffix,
+          })
+          if (!plan.mount) {
+            emit('info', `${LOG} skip agent=${agentId} cwd=${cwd} reason=${plan.reason}`)
+            return
           }
+
+          const mod = await loadMcpClient(emit, config)
+          if (mod === null || mod === undefined) {
+            emit('warn', `${LOG} skip agent=${agentId} root=${plan.root} reason=mcp-client-unavailable`)
+            return
+          }
+
+          const fibers = []
+          await Promise.all(Object.entries(plan.servers).map(async ([declaredName, serverConfig]) => {
+            try {
+              const fiber = await withTimeout(
+                Promise.resolve(agent.ctx.plugin(mod, serverConfig)),
+                config.mountTimeoutMs,
+                () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
+              )
+              if (fiber !== undefined) fibers.push(fiber)
+              emit(
+                'info',
+                `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
+              )
+            } catch (error) {
+              emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
+            }
+          }))
+          if (fibers.length > 0) mounted.set(agentId, fibers)
+        } catch (error) {
+          emit('warn', `${LOG} gate error agent=${agentId}: ${String(error)}`)
         }
-        if (fibers.length > 0) mounted.set(agentId, fibers)
-      } catch (error) {
-        emit('warn', `${LOG} gate error agent=${agentId}: ${String(error)}`)
-      }
+      })()
     })
 
     return () => {
