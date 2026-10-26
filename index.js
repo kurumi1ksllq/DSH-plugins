@@ -639,12 +639,21 @@ function installedMcp(ctx, name) {
   return undefined
 }
 
-/** Disk path of an installed skill: the vault first, then a live global root. */
+/**
+ * Disk path of an installed skill, with the scope it came from.
+ *
+ * `vault` means no skill root scans it, so a project link is the only way to
+ * enable it there. `global` means a machine-wide root already serves it to
+ * every workspace: linking it would duplicate the skill (rank 100 shadows rank
+ * 400) and a globally shadowed skill would stay shadowed, because the link
+ * points at the same SKILL.md.
+ */
 function installedSkillPath(name) {
   const vaulted = scanVault().skills.find((skill) => skill.name === name)
-  if (vaulted !== undefined) return vaulted.path
+  if (vaulted !== undefined) return { path: vaulted.path, scope: 'vault' }
   const { skills } = scanSkillRoots(sharedSkillRoots())
-  return skills.find((skill) => skill.name === name)?.path
+  const global = skills.find((skill) => skill.name === name)
+  return global === undefined ? undefined : { path: global.path, scope: 'global' }
 }
 
 // ---- global enablement ----------------------------------------------------
@@ -1012,14 +1021,27 @@ async function assignForWorkspace(ctx, req) {
     } else if (action === 'remove') {
       result = removeSkill({ workspaceDir: dir, name })
     } else {
-      const sourcePath = installedSkillPath(name)
-      if (sourcePath === undefined) {
+      const installed = installedSkillPath(name)
+      if (installed === undefined) {
         return {
           status: 404,
           payload: { ok: false, error: `没有可链接的已安装技能 ${name}（运行时注册的技能没有磁盘目录）` },
         }
       }
-      result = assignSkill({ workspaceDir: dir, name, sourcePath })
+      // A skill on a machine-wide root already reaches every workspace. Linking
+      // it here is not "enable for this workspace": it duplicates the skill and
+      // cannot override a global `disable-model-invocation` flag. Refuse instead
+      // of writing a link that lies.
+      if (installed.scope === 'global') {
+        return {
+          status: 400,
+          payload: {
+            ok: false,
+            error: `技能 ${name} 在全局根上，所有工作区已经可用；按工作区开关只对仓库技能有意义`,
+          },
+        }
+      }
+      result = assignSkill({ workspaceDir: dir, name, sourcePath: installed.path })
     }
   } catch (error) {
     return { status: 500, payload: { ok: false, error: `写入失败：${error?.message ?? error}` } }

@@ -24,6 +24,28 @@ window.__ModuleLoader__.load({
     const GLOBAL_ROUTE = '/inventory/global'
     const VAULT_ROUTE = '/inventory/vault'
 
+    // Sections hidden by the eye button on their header, keyed by section id and
+    // remembered across panel opens.
+    const HIDDEN_KEY = 'dsh-inventory:hidden-sections'
+
+    function readHiddenSections() {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) ?? '{}')
+        return stored !== null && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}
+      } catch {
+        // No localStorage (test harness, private mode) or garbage stored: hide nothing.
+        return {}
+      }
+    }
+
+    function writeHiddenSections(value) {
+      try {
+        window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(value))
+      } catch {
+        // Hiding still works for this panel even when it cannot be remembered.
+      }
+    }
+
     const zh = {
       tab: '工具管理',
       panel: '工具管理',
@@ -99,6 +121,12 @@ window.__ModuleLoader__.load({
       noTools: '工具注册表为空（可能尚未就绪）。',
       noMcp: '没有配置 MCP 服务器。',
       noPackages: 'profile 没有声明插件。',
+      showOfficial: '显示官方',
+      hideOfficial: '隐藏官方',
+      officialHidden: '官方条目已隐藏。',
+      officialHint: '官方 = @deepseek-ai/* 插件与内置工具',
+      hideSection: '隐藏此栏目',
+      showHiddenSkills: '显示技能栏目',
       wsOverview: '总览',
       wsWorkspaces: '工作区',
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
@@ -130,6 +158,11 @@ window.__ModuleLoader__.load({
       wsNotLinkedNote: '手工复制，未由本页创建',
       wsRuntimeOnly: '运行时注册',
       wsRuntimeNote: '没有可链接的目录',
+      wsGlobalSkillOn: '全局可用',
+      wsGlobalSkillOnNote: '已对所有工作区生效，在总览里关闭',
+      wsGlobalSkillOff: '全局已禁用',
+      wsGlobalSkillOffNote: '在总览里开启后所有工作区可用',
+      wsDuplicateNote: '与全局根上的同名技能重复，可移除链接',
       wsShareCount: '共享',
       wsItemCount: '项',
       wsSearch: '搜索 MCP 与技能',
@@ -234,6 +267,12 @@ window.__ModuleLoader__.load({
       noTools: 'The tool registry is empty (not ready yet).',
       noMcp: 'No MCP server configured.',
       noPackages: 'The profile declares no plugins.',
+      showOfficial: 'Show official',
+      hideOfficial: 'Hide official',
+      officialHidden: 'Official entries are hidden.',
+      officialHint: 'official = @deepseek-ai/* plugins and builtin tools',
+      hideSection: 'Hide this section',
+      showHiddenSkills: 'Show skills section',
       wsOverview: 'Overview',
       wsWorkspaces: 'Workspaces',
       wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
@@ -265,6 +304,11 @@ window.__ModuleLoader__.load({
       wsNotLinkedNote: 'hand-copied, not created here',
       wsRuntimeOnly: 'runtime only',
       wsRuntimeNote: 'no directory to link',
+      wsGlobalSkillOn: 'global',
+      wsGlobalSkillOnNote: 'on for every workspace; turn it off in the overview',
+      wsGlobalSkillOff: 'disabled globally',
+      wsGlobalSkillOffNote: 'enable it in the overview; it then applies to every workspace',
+      wsDuplicateNote: 'duplicates the global copy; remove the link',
       wsShareCount: 'shared',
       wsItemCount: 'items',
       wsSearch: 'Search MCP servers and skills',
@@ -436,6 +480,22 @@ window.__ModuleLoader__.load({
         fontWeight: 600,
         boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
       },
+      chip: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: '32px',
+        padding: '0 12px',
+        border: 'none',
+        borderRadius: '9px',
+        background: C.fill,
+        color: C.secondary,
+        fontSize: '13px',
+        fontWeight: 500,
+        cursor: 'pointer',
+        flexShrink: 0,
+        transition: `background-color 200ms ${EASE}, color 200ms ${EASE}`,
+      },
+      chipOn: { background: C.invertedFill, color: C.invertedText, fontWeight: 600 },
       stamp: { ...T.caption, color: C.secondary, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' },
       searchWrap: {
         display: 'flex',
@@ -494,6 +554,25 @@ window.__ModuleLoader__.load({
       sectionTitle: { ...T.captionStrong, color: C.secondary },
       sectionCount: { ...T.caption, color: C.secondary, opacity: 0.75, fontVariantNumeric: 'tabular-nums' },
       sectionHint: { ...T.caption, color: C.secondary, opacity: 0.75, marginLeft: 'auto', paddingRight: '4px', whiteSpace: 'nowrap' },
+      // Sits on the section header's right edge, level with the caption line.
+      hideBtn: {
+        position: 'absolute',
+        top: '18px',
+        right: '0px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '24px',
+        height: '24px',
+        padding: 0,
+        border: 'none',
+        borderRadius: '7px',
+        background: 'transparent',
+        color: C.secondary,
+        opacity: 0.7,
+        cursor: 'pointer',
+        flexShrink: 0,
+      },
       chev: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: C.secondary, transition: `transform 200ms ${EASE}`, flexShrink: 0 },
       row: {
         display: 'flex',
@@ -696,6 +775,9 @@ window.__ModuleLoader__.load({
 }
 .inv-row[data-interactive="true"]:active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
 .inv-switch:active > span { transform: scale(0.94); }
+@media (hover: hover) {
+  .inv-hide:hover { color: var(--dsw-alias-label-primary, #111827); opacity: 1; }
+}
 .inv-switch, .inv-btn, .inv-seg-btn, .inv-row { outline: none; }
 .inv-switch:focus-visible, .inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-row[data-interactive="true"]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 45%, transparent);
@@ -751,6 +833,28 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * First-party entries shipped inside the DSH app: bundles from the
+     * `@deepseek-ai/` scope, loader rows for those modules, and the builtin
+     * tools registered by the app itself. The panel exists to answer "what did
+     * I install", so these are hidden by default and the toolbar has one
+     * switch to bring them back.
+     */
+    const FIRST_PARTY_SCOPE = '@deepseek-ai/'
+
+    const isOfficialEntry = (item) => String(item?.name ?? '').startsWith(FIRST_PARTY_SCOPE)
+
+    const isOfficialTool = (item) => {
+      const owner = item?.owner ?? {}
+      if (owner.kind === 'builtin') return true
+      return owner.kind === 'plugin' && String(owner.ref ?? '').startsWith(FIRST_PARTY_SCOPE)
+    }
+
+    /** True when the item should be listed given the "show official" switch. */
+    function listed(item, isOfficial, showOfficial) {
+      return showOfficial === true || isOfficial(item) !== true
+    }
+
+    /**
      * Enabled rows first, then by label. `sort` is stable, so rows that tie on
      * both keys keep the order the host sent.
      */
@@ -793,6 +897,10 @@ window.__ModuleLoader__.load({
           h('rect', { key: 'b', x: 5.5, y: 10.5, width: 13, height: 9.5, rx: 2.5, ...stroke }),
           h('path', { key: 's', d: 'M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5', ...stroke }),
         ],
+        eyeOff: [
+          h('path', { key: 'e', d: 'M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z', ...stroke }),
+          h('path', { key: 's', d: 'M4.5 4.5l15 15', ...stroke }),
+        ],
       }
       return h(
         'svg',
@@ -821,11 +929,11 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function Section({ t, title, hint, count, open, onToggle, children }) {
+    function Section({ t, title, hint, count, open, onToggle, onHide, children }) {
       const body = children === undefined || children === null ? [] : Array.isArray(children) ? children : [children]
       return h(
         'div',
-        { style: { display: 'flex', flexDirection: 'column', flexShrink: 0 } },
+        { style: { display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'relative' } },
         h(
           'button',
           {
@@ -838,8 +946,27 @@ window.__ModuleLoader__.load({
           h('span', { style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
           h('span', { style: S.sectionTitle }, title),
           h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
-          hint ? h('span', { style: S.sectionHint }, hint) : null,
+          hint ? h('span', { style: { ...S.sectionHint, ...(onHide ? { paddingRight: '28px' } : {}) } }, hint) : null,
         ),
+        // A sibling, not a child: the header is a button, and a button inside a
+        // button is invalid markup.
+        onHide
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'inv-btn inv-hide',
+                'aria-label': t('hideSection'),
+                title: t('hideSection'),
+                style: S.hideBtn,
+                onClick: (event) => {
+                  if (event !== undefined && event !== null) event.stopPropagation()
+                  onHide()
+                },
+              },
+              h(Icon, { name: 'eyeOff', size: 15 }),
+            )
+          : null,
         open ? h('div', { style: S.card, className: 'inv-section-body' }, ...body) : null,
       )
     }
@@ -1092,15 +1219,48 @@ window.__ModuleLoader__.load({
           .map((skill) => {
             const assigned = skill.assigned === true
             const linked = skill.linked === true
+            const shadowed = skill.shadowed === true || skill.disabled === true
             // A runtime-registered skill has no directory to link into, and a
             // hand-copied directory is not ours to unlink: both stay read-only.
             const runtimeOnly = skill.source === 'runtime'
-            const locked = (assigned && !linked) || (!assigned && runtimeOnly)
-            const reason = assigned && !linked ? t('wsNotLinked') : !assigned && runtimeOnly ? t('wsRuntimeOnly') : null
-            const note = assigned && !linked ? t('wsNotLinkedNote') : !assigned && runtimeOnly ? t('wsRuntimeNote') : null
+            // A skill on a machine-wide root already reaches every workspace, and
+            // linking it into the project root would only duplicate it (rank 100
+            // shadows rank 400). A globally shadowed skill stays shadowed too: the
+            // link points at the same SKILL.md. So only a vaulted skill — which no
+            // root scans — needs a workspace switch. The host enforces the same
+            // rule on POST /inventory/workspace.
+            const globalReachable = skill.global === true && skill.vaulted !== true && !runtimeOnly
+            const enabled = assigned || (globalReachable && !shadowed)
+            const locked = assigned ? !linked : globalReachable || runtimeOnly
+            const reason = assigned
+              ? linked
+                ? null
+                : t('wsNotLinked')
+              : globalReachable
+                ? shadowed
+                  ? t('wsGlobalSkillOff')
+                  : t('wsGlobalSkillOn')
+                : runtimeOnly
+                  ? t('wsRuntimeOnly')
+                  : null
+            const note = assigned
+              ? linked
+                ? globalReachable
+                  ? t('wsDuplicateNote')
+                  : null
+                : t('wsNotLinkedNote')
+              : globalReachable
+                ? shadowed
+                  ? t('wsGlobalSkillOffNote')
+                  : t('wsGlobalSkillOnNote')
+                : runtimeOnly
+                  ? t('wsRuntimeNote')
+                  : null
             return {
               skill,
               assigned,
+              enabled,
+              shadowed,
               locked,
               reason,
               note,
@@ -1108,7 +1268,7 @@ window.__ModuleLoader__.load({
             }
           })
           .filter((row) => q.length === 0 || row.search.includes(q)),
-        (row) => row.assigned,
+        (row) => row.enabled,
         (row) => String(row.skill.name),
       )
 
@@ -1125,7 +1285,7 @@ window.__ModuleLoader__.load({
               { style: S.subRow },
               h('span', { style: S.rowTitle }, skill.name),
               h(Badge, { label: skill.source ? sourceLabel(t, skill.source) : 'disk' }),
-              skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning', dot: true }) : null,
+              row.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning', dot: true }) : null,
             ),
             row.note ? h('span', { style: S.rowSub }, row.note) : null,
             skill.description ? h('span', { style: S.note }, skill.description) : null,
@@ -1144,7 +1304,18 @@ window.__ModuleLoader__.load({
 
       const declaredOn = mcpNames.filter((name) => declared.some((server) => server?.name === name)).length
       const globalCount = mcpNames.filter((name) => globalMcp.includes(name) && !declared.some((server) => server?.name === name)).length
-      const skillsOn = allSkills.filter((skill) => skill.assigned === true).length
+      // "On" for a workspace means the model can reach it: a project link, or a
+      // machine-wide root that is not shadowed. Locked rows count too, or the
+      // header would read 0/N on a workspace with every global skill available.
+      const reachable = (skill) =>
+        skill.assigned === true ||
+        (skill.global === true &&
+          skill.vaulted !== true &&
+          skill.source !== 'runtime' &&
+          skill.shadowed !== true &&
+          skill.disabled !== true)
+      const skillsOn = allSkills.filter(reachable).length
+      const globalSkills = allSkills.filter((skill) => skill.assigned !== true && reachable(skill)).length
       const mcpStatus =
         workspace.mcp?.status === 'invalid'
           ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
@@ -1154,7 +1325,9 @@ window.__ModuleLoader__.load({
       const mcpHint = [`${t('wsSwitchOn')} ${declaredOn}`, globalCount > 0 ? `${t('wsGlobalShort')} ${globalCount}` : null, mcpStatus]
         .filter(Boolean)
         .join(' · ')
-      const skillsHint = `${t('wsSwitchOn')} ${skillsOn}/${allSkills.length}`
+      const skillsHint = [`${t('wsSwitchOn')} ${skillsOn}/${allSkills.length}`, globalSkills > 0 ? `${t('wsGlobalShort')} ${globalSkills}` : null]
+        .filter(Boolean)
+        .join(' · ')
 
       return h(
         'div',
@@ -1231,6 +1404,9 @@ window.__ModuleLoader__.load({
       const [message, setMessage] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [wsQuery, setWsQuery] = React.useState('')
+      // Official DSH bundles, loader rows and builtin tools are noise for
+      // "what did I install"; hidden until this switch is on.
+      const [showOfficial, setShowOfficial] = React.useState(false)
       const [open, setOpen] = React.useState({
         packages: true,
         rows: false,
@@ -1255,6 +1431,9 @@ window.__ModuleLoader__.load({
       const [vaultBusy, setVaultBusy] = React.useState('')
       const [vaultError, setVaultError] = React.useState('')
       const [detailOpen, setDetailOpen] = React.useState({ mcp: true, skills: true })
+      // The eye button on a section header hides that section; the chip in the
+      // controls brings it back, so hiding is never a dead end.
+      const [hiddenSections, setHiddenSections] = React.useState(readHiddenSections())
       // Apple's large-title pattern: the toolbar title only appears once the
       // large title has scrolled away. Threshold crossing only, so scrolling
       // does not re-render the panel.
@@ -1416,6 +1595,13 @@ window.__ModuleLoader__.load({
       const toggle = (key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
       const toggleDetail = (key) => setDetailOpen((prev) => ({ ...prev, [key]: !prev[key] }))
       const toggleItem = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
+      const setSectionHidden = (key, hidden) => {
+        const next = { ...hiddenSections }
+        if (hidden === true) next[key] = true
+        else delete next[key]
+        setHiddenSections(next)
+        writeHiddenSections(next)
+      }
 
       const backToChat =
         typeof back === 'function'
@@ -1466,8 +1652,11 @@ window.__ModuleLoader__.load({
       }
 
       const counts = data?.counts ?? {}
-      const packages = (data?.packages ?? []).filter((item) => matches(q, item, FILTERS[0][1]))
-      const rows = (data?.rows ?? []).filter((item) => matches(q, item, FILTERS[1][1]))
+      const allPackages = data?.packages ?? []
+      const allRows = data?.rows ?? []
+      const allTools = data?.tools ?? []
+      const packages = allPackages.filter((item) => listed(item, isOfficialEntry, showOfficial) && matches(q, item, FILTERS[0][1]))
+      const rows = allRows.filter((item) => listed(item, isOfficialEntry, showOfficial) && matches(q, item, FILTERS[1][1]))
       const mcp = sortByEnabled(
         (data?.mcp ?? []).filter((item) => matches(q, item, FILTERS[2][1])),
         (item) => item.enabled === true,
@@ -1478,7 +1667,12 @@ window.__ModuleLoader__.load({
         (item) => item.disabled !== true,
         (item) => String(item.name ?? ''),
       )
-      const tools = (data?.tools ?? []).filter((item) => matches(q, item, FILTERS[4][1]))
+      const tools = allTools.filter((item) => listed(item, isOfficialTool, showOfficial) && matches(q, item, FILTERS[4][1]))
+      // An empty section that is empty *because everything in it is official*
+      // needs its own message; "nothing installed" would be a lie.
+      const hiddenPackages = showOfficial ? 0 : allPackages.filter(isOfficialEntry).length
+      const hiddenRows = showOfficial ? 0 : allRows.filter(isOfficialEntry).length
+      const hiddenTools = showOfficial ? 0 : allTools.filter(isOfficialTool).length
       const warnings = data?.warnings ?? []
       // Capability bits: a false means the host cannot persist that kind at all,
       // so the whole section renders its switches disabled.
@@ -1563,14 +1757,42 @@ window.__ModuleLoader__.load({
         `${t('generatedAt')} ${data?.generatedAt ? new Date(data.generatedAt).toLocaleTimeString() : '-'}`,
       )
 
+      const officialToggle = h(
+        'button',
+        {
+          type: 'button',
+          className: 'inv-seg-btn',
+          'aria-pressed': showOfficial ? 'true' : 'false',
+          style: { ...S.chip, ...(showOfficial ? S.chipOn : {}) },
+          title: t('officialHint'),
+          onClick: () => setShowOfficial((prev) => !prev),
+        },
+        showOfficial ? t('hideOfficial') : t('showOfficial'),
+      )
+
+      const hiddenSkillsChip =
+        hiddenSections.skills === true
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'inv-seg-btn',
+                style: S.chip,
+                title: t('showHiddenSkills'),
+                onClick: () => setSectionHidden('skills', false),
+              },
+              t('showHiddenSkills'),
+            )
+          : null
+
       const stats = h(
         'div',
         { style: { ...S.card, ...S.stats } },
         ...[
-          [t('packages'), counts.packages ?? 0],
-          [t('mcp'), counts.mcp ?? 0],
-          [t('skills'), counts.skills ?? 0],
-          [t('tools'), counts.tools ?? 0],
+          [t('packages'), packages.length],
+          [t('mcp'), mcp.length],
+          [t('skills'), skills.length],
+          [t('tools'), tools.length],
           [t('edges'), counts.edges ?? 0],
         ].map(([label, value]) =>
           h(
@@ -1602,7 +1824,7 @@ window.__ModuleLoader__.load({
           Section,
           { key: 'packages', t, title: t('packages'), hint: t('packagesHint'), count: packages.length, open: open.packages, onToggle: () => toggle('packages') },
           packages.length === 0
-            ? [h('div', { key: 'pkg-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noPackages'))]
+            ? [h('div', { key: 'pkg-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenPackages > 0 ? t('officialHidden') : t('noPackages'))]
             : packages.map((item, index) =>
                 h(
                   'div',
@@ -1627,7 +1849,7 @@ window.__ModuleLoader__.load({
           Section,
           { key: 'rows', t, title: t('rows'), hint: t('rowsHint'), count: rows.length, open: open.rows, onToggle: () => toggle('rows') },
           rows.length === 0
-            ? [h('div', { key: 'rows-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : '-')]
+            ? [h('div', { key: 'rows-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenRows > 0 ? t('officialHidden') : '-')]
             : rows.map((item, index) =>
                 h(
                   'div',
@@ -1712,9 +1934,11 @@ window.__ModuleLoader__.load({
                 )
               }),
         ),
-        h(
-          Section,
-          { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills') },
+        hiddenSections.skills === true
+          ? null
+          : h(
+              Section,
+              { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills'), onHide: () => setSectionHidden('skills', true) },
           skills.length === 0
             ? [h('div', { key: 'skills-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noSkills'))]
             : [
@@ -1853,12 +2077,12 @@ window.__ModuleLoader__.load({
                 )
                 }),
               ],
-        ),
+            ),
         h(
           Section,
           { key: 'tools', t, title: t('tools'), hint: t('toolsHint'), count: tools.length, open: open.tools, onToggle: () => toggle('tools') },
           tools.length === 0
-            ? [h('div', { key: 'tools-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noTools'))]
+            ? [h('div', { key: 'tools-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenTools > 0 ? t('officialHidden') : t('noTools'))]
             : tools.map((item, index) => {
                 const ownerLabel =
                   item.owner.kind === 'builtin'
@@ -1906,7 +2130,7 @@ window.__ModuleLoader__.load({
                 )
               : h('p', { style: S.subtitle }, t('subtitle')),
           ),
-          h('div', { style: S.controls }, segmented, stamp),
+          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, view === 'global' ? hiddenSkillsChip : null, stamp),
           view === 'global'
             ? searchField(query, setQuery, t('search'), t('search'))
             : showList

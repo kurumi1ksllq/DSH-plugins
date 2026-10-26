@@ -908,6 +908,24 @@ test('overview sorts enabled MCP servers and skills above disabled ones', async 
   ])
 })
 
+test('the skills section hides from its header and comes back from the controls', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'hide-skills-case' })
+  const skillsHeader = (tree) =>
+    findNode(tree, (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('技能'))
+  assert.ok(skillsHeader(panel.tree()), 'skills section header missing')
+
+  const hideButton = findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '隐藏此栏目')
+  assert.ok(hideButton, 'the skills header has no hide button')
+  hideButton.props.onClick({ stopPropagation() {} })
+  assert.equal(skillsHeader(panel.tree()), null, 'the hidden section is still rendered')
+
+  // Hiding is not a dead end: the chip in the controls restores it.
+  const restore = findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示技能栏目')
+  assert.ok(restore, 'a hidden section has no way back')
+  restore.props.onClick()
+  assert.ok(skillsHeader(panel.tree()), 'the section did not come back')
+})
+
 test('overview MCP switch posts the inverted state to /inventory/global', async () => {
   const panel = await bootPanel(toggleSnapshot(), { version: 'global-mcp-post-case' })
 
@@ -1174,4 +1192,103 @@ test('the default workspace is badged in the list and on its detail page', async
   const hero = findParent(current, title)
   assert.ok(hero, 'detail hero missing')
   assert.match(textOf(hero), /默认工作区/, 'the detail title must carry the default badge')
+})
+
+/**
+ * The panel answers "what did I install". First-party entries — `@deepseek-ai/*`
+ * bundles, their loader rows, and the app's builtin tools — are noise there, so
+ * they stay hidden until the toolbar switch is on. The switch must bring them
+ * back and hide them again within the same session.
+ */
+test('official DSH entries are hidden until the toolbar switch is turned on', async () => {
+  const snapshot = {
+    ...SNAPSHOT,
+    packages: [
+      { name: '@deepseek-ai/dsh-base', declaredBy: ['bundles'], installed: true, loaded: true, orphan: false },
+      { name: 'dsh-tool-search', version: '0.1.8', declaredBy: ['dependencies', 'bundles'], installed: true, loaded: true, orphan: false },
+    ],
+    rows: [
+      { id: 'base', name: '@deepseek-ai/dsh-base', enabled: true, fiberPhase: 'active', group: false },
+      { id: 'tool-search', name: 'dsh-tool-search', enabled: true, fiberPhase: 'active', group: false },
+    ],
+    tools: [
+      { name: 'pwsh', descLen: 10, deferred: false, owner: { kind: 'builtin', ref: 'deepseek-harness' } },
+      { name: 'tool_search', descLen: 10, deferred: false, owner: { kind: 'plugin', ref: 'dsh-tool-search' } },
+    ],
+  }
+  const { tree } = await bootPanel(snapshot, { version: 'official-case' })
+
+  let current = tree()
+  assert.doesNotMatch(textOf(current), /@deepseek-ai\/dsh-base/, 'official package must be hidden by default')
+  assert.match(textOf(current), /dsh-tool-search/, 'third-party package must stay visible')
+
+  // The tools section starts collapsed; open it so its rows render at all.
+  const toolsHead = findNode(
+    current,
+    (node) =>
+      node.type === 'button' &&
+      (node.children ?? []).some((child) => child.type === 'span' && textOf(child) === '工具'),
+  )
+  assert.ok(toolsHead, 'tools section header missing')
+  toolsHead.props.onClick()
+
+  current = tree()
+  assert.match(textOf(current), /tool_search/, 'third-party tool must stay visible')
+  assert.doesNotMatch(textOf(current), /\bpwsh\b/, 'builtin tool must be hidden by default')
+
+  findNode(current, (node) => node.type === 'button' && textOf(node) === '显示官方').props.onClick()
+  current = tree()
+  assert.match(textOf(current), /@deepseek-ai\/dsh-base/, 'the switch must bring official packages back')
+  assert.match(textOf(current), /\bpwsh\b/, 'the switch must bring builtin tools back')
+
+  findNode(current, (node) => node.type === 'button' && textOf(node) === '隐藏官方').props.onClick()
+  assert.doesNotMatch(textOf(tree()), /@deepseek-ai\/dsh-base/, 'the switch must hide them again')
+})
+
+/**
+ * A skill on a machine-wide root already reaches every workspace. The detail
+ * page must say so and lock the row: linking it into the project root only
+ * duplicated the skill, and for a globally shadowed skill the switch read "on"
+ * while the model still could not see it. Only vaulted skills — which no root
+ * scans — keep a workspace switch.
+ */
+test('workspace detail locks globally reachable skills and only switches vault skills', async () => {
+  const snapshot = workspaceSnapshot()
+  snapshot.skills = [
+    ...snapshot.skills,
+    { name: 'office', description: 'office router', source: 'user-dsh', global: true, vaulted: false, disabled: false, edges: [] },
+    { name: 'office-docx', description: 'stub', source: 'user-dsh', global: true, vaulted: false, disabled: true, edges: [] },
+    { name: 'vault-skill', description: 'parked', source: 'vault', global: false, vaulted: true, disabled: false, edges: [] },
+  ]
+  const panel = await bootPanel(snapshot, { version: 'global-skill-case' })
+  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+  findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+  const current = panel.tree()
+
+  const officeRow = rowOf(current, 'office')
+  assert.ok(officeRow, 'global skill row missing')
+  assert.equal(switchIn(officeRow), null, 'a globally available skill must not offer a workspace switch')
+  assert.match(textOf(officeRow), /全局可用/)
+  assert.match(textOf(officeRow), /总览/)
+
+  const stubRow = rowOf(current, 'office-docx')
+  assert.ok(stubRow, 'globally shadowed skill row missing')
+  assert.equal(switchIn(stubRow), null, 'a globally shadowed skill must not offer a switch that cannot work')
+  assert.match(textOf(stubRow), /全局已禁用/)
+  assert.match(textOf(stubRow), /已屏蔽/)
+
+  const vaultRow = rowOf(current, 'vault-skill')
+  assert.ok(vaultRow, 'vault skill row missing')
+  const vaultSwitch = switchIn(vaultRow)
+  assert.ok(vaultSwitch, 'a vaulted skill must keep its workspace switch')
+  assert.equal(vaultSwitch.props['aria-checked'], 'false')
+
+  // The header counts a globally available skill as on and reports the global share.
+  assert.match(textOf(current), /已开启 3\/7 · 全局 1/)
+
+  vaultSwitch.props.onClick()
+  await tick()
+  const post = panel.calls.find((call) => call.method === 'POST')
+  assert.ok(post, 'switching a vault skill must POST')
+  assert.deepEqual(JSON.parse(post.body), { workspace: 'D:/demo', kind: 'skill', action: 'add', name: 'vault-skill' })
 })

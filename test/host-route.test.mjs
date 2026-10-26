@@ -166,9 +166,11 @@ test('a throwing collector surfaces as a 500 with an error payload', async () =>
 
 // ---- POST /inventory/workspace ------------------------------------------
 
-function makeAssignContext({ skillName = 'demo-skill' } = {}) {
+function makeAssignContext({ skillName = 'demo-skill', scope = 'vault' } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'inv-route-home-'))
-  const skillDir = join(home, 'skills', skillName)
+  // `vault` is the only scope a workspace link may target; `global` is a
+  // machine-wide root that every workspace already sees.
+  const skillDir = scope === 'global' ? join(home, 'skills', skillName) : join(home, 'inventory', 'skills', skillName)
   mkdirSync(skillDir, { recursive: true })
   writeFileSync(join(skillDir, 'SKILL.md'), `---\nname: ${skillName}\ndescription: route fixture\n---\nbody\n`, 'utf8')
   const workspace = mkdtempSync(join(tmpdir(), 'inv-route-ws-'))
@@ -304,6 +306,25 @@ test('assigning a skill links it into the workspace project root', async () => {
 
     const unknown = await post(fixture.route.handler, { kind: 'skill', action: 'add', name: 'nope', workspace: fixture.workspace })
     assert.equal(unknown.status, 404)
+  } finally {
+    fixture.restore()
+  }
+})
+
+/**
+ * A skill on `$DSH_HOME/skills` is served to every workspace by the skill
+ * filesystem provider. Linking it into a project root is not "enable it here":
+ * it duplicates the skill (rank 100 shadows rank 400), and for a globally
+ * shadowed skill the link points at the same `disable-model-invocation: true`
+ * file, so the switch would read "on" while the model still cannot see it.
+ */
+test('assign route refuses to link a skill that a global root already serves', async () => {
+  const fixture = makeAssignContext({ skillName: 'global-skill', scope: 'global' })
+  try {
+    const added = await post(fixture.route.handler, { kind: 'skill', action: 'add', name: 'global-skill', workspace: fixture.workspace })
+    assert.equal(added.status, 400)
+    assert.match(added.body.error, /全局根/)
+    assert.equal(existsSync(join(fixture.workspace, '.dsh', 'skills', 'global-skill')), false, 'no link may be written')
   } finally {
     fixture.restore()
   }
