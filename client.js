@@ -213,15 +213,21 @@ window.__ModuleLoader__.load({
       wsDismiss: 'Dismiss',
     }
 
+    // Only tokens the theme actually defines: a missing one silently falls back
+    // and looks right in one theme only. `brand-primary` is a *contrast* colour
+    // (#f9fafb dark / #1f2328 light), so it is never a fill.
     const color = {
       text: 'var(--dsw-alias-label-primary, #1f2328)',
       muted: 'var(--dsw-alias-label-secondary, #6b7280)',
-      border: 'var(--dsw-alias-border, rgba(0,0,0,0.12))',
-      surface: 'var(--dsw-alias-bg-secondary, rgba(0,0,0,0.03))',
-      brand: 'var(--dsw-alias-brand-primary, #4d6bfe)',
-      danger: 'var(--dsw-alias-label-danger, #d14343)',
-      success: 'var(--dsw-alias-label-success, #1f9d55)',
-      warning: 'var(--dsw-alias-label-warning, #b7791f)',
+      border: 'var(--dsw-alias-border-l2, rgba(0,0,0,0.12))',
+      surface: 'var(--dsw-alias-bg-layer-2, rgba(0,0,0,0.03))',
+      base: 'var(--dsw-alias-bg-base, #fff)',
+      accent: 'var(--dsw-alias-button-info-fill, #4176e6)',
+      activeFill: 'var(--dsw-alias-button-ghost-active-fill, rgba(127,127,127,0.16))',
+      activeBorder: 'var(--dsw-alias-button-ghost-active-border, rgba(127,127,127,0.5))',
+      danger: 'var(--dsw-alias-state-error-primary, #d14343)',
+      success: 'var(--dsw-alias-state-success-primary, #1f9d55)',
+      warning: 'var(--dsw-static-amber-500, #b7791f)',
     }
 
     const S = {
@@ -288,25 +294,25 @@ window.__ModuleLoader__.load({
         marginLeft: 'auto',
         borderRadius: '999px',
         border: 'none',
-        background: 'rgba(0,0,0,0.22)',
+        background: 'var(--dsw-alias-state-idle-primary, rgba(127,127,127,0.45))',
         cursor: 'pointer',
         transition: 'background 120ms ease',
       },
-      switchTrackOn: { justifyContent: 'flex-end', background: color.brand },
+      switchTrackOn: { justifyContent: 'flex-end', background: color.accent },
       switchDisabled: { opacity: 0.45, cursor: 'default' },
       switchKnob: {
         display: 'block',
         width: '16px',
         height: '16px',
         borderRadius: '999px',
-        background: '#fff',
+        background: color.base,
         boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
       },
       viewSwitch: { display: 'flex', gap: '4px', flexShrink: 0 },
       wsRoot: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
       detailHead: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flexShrink: 0 },
       cardMeta: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-      enterHint: { marginLeft: 'auto', fontSize: '12px', fontWeight: 600, color: color.brand, whiteSpace: 'nowrap' },
+      enterHint: { marginLeft: 'auto', fontSize: '12px', fontWeight: 600, color: color.accent, whiteSpace: 'nowrap' },
       // Workspace list: one bordered card per workspace (a real block of colour)
       // holding a title row and two counter lines. Rows inside a detail section
       // are separated by hairlines instead: nesting boxes inside boxes is what
@@ -351,9 +357,11 @@ window.__ModuleLoader__.load({
         padding: '6px 12px',
         fontSize: '12.5px',
         fontWeight: 700,
-        color: '#fff',
-        background: color.brand,
-        border: '1px solid transparent',
+        // Accent text on the ghost fill: the fill alone is too quiet in the
+        // light theme, where it is a pale grey on white.
+        color: color.accent,
+        background: color.activeFill,
+        border: `1px solid ${color.activeBorder}`,
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',
       },
@@ -361,8 +369,10 @@ window.__ModuleLoader__.load({
         padding: '6px 14px',
         fontSize: '12.5px',
         fontWeight: 600,
-        color: '#fff',
-        background: color.brand,
+        // Text in the page colour: it inverts with the theme, so the label keeps
+        // its contrast against an accent fill that also inverts.
+        color: color.base,
+        background: color.accent,
         border: 'none',
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',

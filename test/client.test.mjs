@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
 
 /**
@@ -383,6 +384,23 @@ test('client renders an error box and a retry button when the snapshot fails', a
   const tree = render(main.component, injected)
   assert.match(textOf(tree), /boom/)
   assert.match(textOf(tree), /重试|retry/)
+})
+
+/**
+ * Theme-token guard.
+ *
+ * --dsw-alias-brand-primary is a *contrast* colour in this design system:
+ * #f9fafb in the dark theme, #1f2328 in the light one. Painting a control with
+ * it and writing white on top produced a white pill with white text, which
+ * showed up as "the selected tab turns all white". Fills use fill tokens.
+ */
+test('the panel never paints with the contrast token', () => {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8')
+  assert.equal(
+    source.includes('--dsw-alias-brand-primary'),
+    false,
+    'brand-primary is a contrast colour, not a fill: use button-info-fill / ghost-active-fill',
+  )
 })
 
 /**
