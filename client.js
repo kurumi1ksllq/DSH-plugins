@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
       panel: '安装总览',
       back: '返回对话',
       title: '安装总览',
-      subtitle: '只读快照：插件包、加载行、MCP 服务器、技能与工具，以及技能指向的工具。',
+      subtitle: '总览：插件包、加载行、MCP 服务器、技能与工具；工作区：点进去，用开关决定它开哪些 MCP 与技能。',
       refresh: '刷新',
       loading: '正在汇总安装信息…',
       error: '读取安装清单失败。',
@@ -87,34 +87,29 @@ window.__ModuleLoader__.load({
       noTools: '工具注册表为空（可能尚未就绪）。',
       noMcp: '没有配置 MCP 服务器。',
       noPackages: 'profile 没有声明插件。',
-      viewGlobal: '全局',
-      viewWorkspace: '按工作区',
-      workspaceSubtitle: '按工作区：每个工作区声明的 MCP（.dsh/mcp.json）与全局注册的 MCP，以及它可用的技能（按来源分组）。',
+      wsOverview: '总览',
+      wsWorkspaces: '工作区',
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
       wsUnavailable: 'workspaceRegistry 不可用，无法列出工作区。',
       wsUnavailableDir: '目录不可用',
       wsNoDeclaration: '未声明 .dsh/mcp.json',
       wsInvalidDeclaration: '声明无法解析',
       wsMountedAs: '挂载为',
-      wsNoSkills: '该来源没有技能',
       wsSourceCustom: '自定义目录',
       wsSourceUserDsh: '用户 ~/.dsh/skills',
       wsSourceUserAgents: '用户 ~/.agents/skills',
       wsSourceBundled: '随包提供',
-      wsExpandAll: '全部展开',
-      wsCollapseAll: '全部收起',
       wsCount: '个工作区',
-      wsSharedSkills: '共享技能（所有工作区）',
-      wsSharedHint: '来自 ~/.dsh/skills 与 ~/.agents/skills，不随工作区变化',
-      wsNoProjectSkills: '该项目没有自己的技能目录',
-      wsShared: '共享',
-      wsAssign: '分配',
-      wsRemove: '移除',
-      wsAssignBusy: '…',
-      wsAllSkills: '全部已安装技能（可分配）',
-      wsAllSkillsHint: '分配会在项目根的 .dsh/skills 下建一条目录链接；移除只删这条链接',
+      wsEnter: '进入 ›',
+      wsBackToList: '工作区列表',
+      wsMcpSection: 'MCP 服务器',
+      wsSkillsSection: '技能',
+      wsSwitchOn: '已开启',
+      wsSwitchOff: '已关闭',
+      wsDeclaredCount: '已声明',
+      wsEnabledCount: '已开',
       wsGlobalMounted: '全局已挂载',
-      wsAssigned: '已分配',
+      wsNotLinked: '非本页链接',
       wsRuntimeOnly: '运行时注册（无磁盘目录）',
       wsActionFailed: '操作失败',
       wsDismiss: '关闭',
@@ -125,7 +120,7 @@ window.__ModuleLoader__.load({
       panel: 'Inventory',
       back: 'Back to chat',
       title: 'Inventory',
-      subtitle: 'Read-only snapshot: plugin packages, loader rows, MCP servers, skills, tools — and the tools each skill reaches for.',
+      subtitle: 'Overview: plugin packages, loader rows, MCP servers, skills and tools. Workspaces: open one and flip a switch per MCP server or skill.',
       refresh: 'Refresh',
       loading: 'Collecting installation data…',
       error: 'Could not read the inventory.',
@@ -190,34 +185,29 @@ window.__ModuleLoader__.load({
       noTools: 'The tool registry is empty (not ready yet).',
       noMcp: 'No MCP server configured.',
       noPackages: 'The profile declares no plugins.',
-      viewGlobal: 'Global',
-      viewWorkspace: 'By workspace',
-      workspaceSubtitle: 'By workspace: the MCP each workspace declares (.dsh/mcp.json) next to the globally registered ones, plus the skills it can reach, grouped by source.',
+      wsOverview: 'Overview',
+      wsWorkspaces: 'Workspaces',
       wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
       wsUnavailable: 'The workspaceRegistry service is unavailable, so workspaces cannot be listed.',
       wsUnavailableDir: 'directory unavailable',
       wsNoDeclaration: 'no .dsh/mcp.json',
       wsInvalidDeclaration: 'declaration unreadable',
       wsMountedAs: 'mounted as',
-      wsNoSkills: 'No skills from this source.',
       wsSourceCustom: 'custom dirs',
       wsSourceUserDsh: 'user ~/.dsh/skills',
       wsSourceUserAgents: 'user ~/.agents/skills',
       wsSourceBundled: 'bundled',
-      wsExpandAll: 'Expand all',
-      wsCollapseAll: 'Collapse all',
       wsCount: 'workspaces',
-      wsSharedSkills: 'Shared skills (all workspaces)',
-      wsSharedHint: 'From ~/.dsh/skills and ~/.agents/skills; identical in every workspace',
-      wsNoProjectSkills: 'This project has no skill directories of its own.',
-      wsShared: 'shared',
-      wsAssign: 'Assign',
-      wsRemove: 'Remove',
-      wsAssignBusy: '…',
-      wsAllSkills: 'All installed skills (assignable)',
-      wsAllSkillsHint: 'Assign links it into the project root’s .dsh/skills; remove deletes that link',
+      wsEnter: 'Open ›',
+      wsBackToList: 'Workspace list',
+      wsMcpSection: 'MCP servers',
+      wsSkillsSection: 'Skills',
+      wsSwitchOn: 'on',
+      wsSwitchOff: 'off',
+      wsDeclaredCount: 'declared',
+      wsEnabledCount: 'on',
       wsGlobalMounted: 'mounted globally',
-      wsAssigned: 'assigned',
+      wsNotLinked: 'not linked by this page',
       wsRuntimeOnly: 'runtime only (no directory)',
       wsActionFailed: 'Action failed',
       wsDismiss: 'Dismiss',
@@ -283,33 +273,44 @@ window.__ModuleLoader__.load({
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',
       },
-      // Row-level action: the S.button recipe shrunk into a pill. A pill is a
-      // control, not a container, so it does not nest a second box inside a row
-      // (see the nesting contract in test/client.test.mjs).
-      wsAction: {
+      // A switch is a control, not a container: the 34×18 track is a pill, so it
+      // may sit inside a row without nesting a second box (see the nesting
+      // contract in test/client.test.mjs). `marginLeft: auto` pins it right.
+      switchTrack: {
         display: 'inline-flex',
         alignItems: 'center',
+        justifyContent: 'flex-start',
         boxSizing: 'border-box',
-        height: '20px',
-        padding: '0 8px',
-        fontSize: '11px',
-        fontWeight: 500,
-        lineHeight: '18px',
-        color: color.text,
-        background: 'transparent',
-        border: `1px solid ${color.border}`,
+        width: '34px',
+        height: '18px',
+        padding: '0 1px',
+        flexShrink: 0,
+        marginLeft: 'auto',
         borderRadius: '999px',
+        border: 'none',
+        background: 'rgba(0,0,0,0.22)',
         cursor: 'pointer',
-        whiteSpace: 'nowrap',
+        transition: 'background 120ms ease',
       },
-      wsActionDanger: { color: color.danger, borderColor: color.danger },
-      wsActionDisabled: { opacity: 0.5, cursor: 'default' },
+      switchTrackOn: { justifyContent: 'flex-end', background: color.brand },
+      switchDisabled: { opacity: 0.45, cursor: 'default' },
+      switchKnob: {
+        display: 'block',
+        width: '16px',
+        height: '16px',
+        borderRadius: '999px',
+        background: '#fff',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+      },
       viewSwitch: { display: 'flex', gap: '4px', flexShrink: 0 },
       wsRoot: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
-      // Per-workspace hierarchy: one bordered card per workspace (a real block
-      // of colour), groups marked by an indent rule instead of another box, and
-      // rows separated by hairlines. Nesting boxes inside boxes is what made the
-      // panel read as one grey wall.
+      detailHead: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flexShrink: 0 },
+      cardMeta: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
+      enterHint: { marginLeft: 'auto', fontSize: '11.5px', color: color.muted, whiteSpace: 'nowrap' },
+      // Workspace list: one bordered card per workspace (a real block of colour)
+      // holding a title row and two counter lines. Rows inside a detail section
+      // are separated by hairlines instead: nesting boxes inside boxes is what
+      // made the panel read as one grey wall.
       card: {
         border: `1px solid ${color.border}`,
         borderRadius: '12px',
@@ -326,37 +327,8 @@ window.__ModuleLoader__.load({
         userSelect: 'none',
         background: 'transparent',
       },
-      cardBody: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '2px 14px 12px' },
-      group: {
-        borderLeft: `2px solid ${color.border}`,
-        paddingLeft: '10px',
-        marginTop: '6px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0px',
-      },
-      groupHead: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '4px 0',
-        cursor: 'pointer',
-        userSelect: 'none',
-      },
-      groupTitle: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: color.muted },
-      groupLabel: {
-        fontSize: '10.5px',
-        fontWeight: 700,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        color: color.muted,
-        marginTop: '10px',
-        marginBottom: '2px',
-      },
+      cardBody: { display: 'flex', flexDirection: 'column', gap: '4px', padding: '2px 14px 12px' },
       groupDir: { fontSize: '10.5px', color: color.muted, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-all' },
-      // Free-flowing hint next to a group title: wraps instead of forcing the
-      // row wider than the card.
-      groupHint: { fontSize: '10.5px', color: color.muted, wordBreak: 'break-word' },
       plainRow: {
         display: 'flex',
         gap: '8px',
@@ -532,331 +504,231 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Per-workspace view. Each workspace is one section: the MCP it declares
-     * next to the globally registered servers, then its skills grouped by the
-     * root they came from. Every direct child of the panel root stays
-     * `flexShrink: 0` (S.section already is), so the panel's single scrollbar
-     * keeps working.
-     *
-     * Assignment is button-driven: every row that can be mounted into (or
-     * removed from) a workspace carries one action button. The in-flight key and
-     * the error bar live in InventoryPanel — the offline test runtime shares one
-     * hook cursor across nested components, so no child may call a hook.
+     * One switch per row: a `role="switch"` button drawn as a 34×18 track with a
+     * 16px knob, so a row toggles a capability in place instead of carrying a
+     * separate action button. Pure function — no hooks, for the same reason as
+     * WorkspaceDetail.
      */
-    function WorkspaceView(props) {
-      const {
-        t,
-        data,
-        openWorkspaces,
-        openGroups,
-        onToggleWorkspace,
-        onToggleGroup,
-        onSetAll,
-        allOpen,
-        sharedOpen,
-        onToggleShared,
-        busy,
-        onAssign,
-      } = props
+    function Switch({ checked, disabled, label, stateLabel, onToggle }) {
+      const isOn = checked === true
+      const isDisabled = disabled === true
+      return h(
+        'button',
+        {
+          type: 'button',
+          role: 'switch',
+          'aria-checked': isOn ? 'true' : 'false',
+          'aria-label': label,
+          title: stateLabel ? `${label} · ${stateLabel}` : label,
+          disabled: isDisabled,
+          style: { ...S.switchTrack, ...(isOn ? S.switchTrackOn : {}), ...(isDisabled ? S.switchDisabled : {}) },
+          onClick: () => {
+            if (isDisabled) return
+            onToggle()
+          },
+        },
+        h('span', { style: S.switchKnob }),
+      )
+    }
+
+    /** A section that never folds: header + hairline rows. */
+    function Block({ title, hint, count, children }) {
+      const body = Array.isArray(children) ? children : children === undefined || children === null ? [] : [children]
+      return h(
+        'div',
+        { style: S.section },
+        h(
+          'div',
+          { style: S.sectionHead },
+          h('span', { style: S.sectionTitle }, title),
+          h('span', { style: S.chip }, String(count ?? 0)),
+          hint ? h('span', { style: S.sectionHint }, hint) : null,
+        ),
+        h('div', { style: S.sectionBody }, ...body),
+      )
+    }
+
+    /**
+     * Workspace list: one card per workspace, the whole card clickable. No rows
+     * and no folding here — the detail page owns the switches.
+     */
+    function WorkspaceList({ t, data, onEnter }) {
       const workspaces = Array.isArray(data?.workspaces) ? data.workspaces : []
+      if (data?.workspaceRegistryAvailable === false) return h('div', { style: S.empty }, t('wsUnavailable'))
+      if (workspaces.length === 0) return h('div', { style: S.empty }, t('wsNoWorkspaces'))
+      return h(
+        'div',
+        { style: S.wsRoot },
+        h('span', { style: S.chip }, `${workspaces.length} ${t('wsCount')}`),
+        ...workspaces.map((workspace) =>
+          h(
+            'div',
+            {
+              key: `ws-${workspace.id}`,
+              style: S.card,
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': `${t('wsEnter')} ${workspace.title}`,
+              onClick: () => onEnter(workspace.id),
+            },
+            h(
+              'div',
+              { style: S.cardHead },
+              h('span', { style: S.sectionTitle }, workspace.title),
+              workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
+              h('span', { style: S.enterHint }, t('wsEnter')),
+            ),
+            h(
+              'div',
+              { style: S.cardBody },
+              // One meta line: path plus the two counters, so a 14-workspace
+              // list stays scannable instead of four lines per card.
+              h(
+                'div',
+                { style: S.cardMeta },
+                h('span', { style: S.groupDir }, workspace.path),
+                h('span', { style: S.chip }, `MCP ${workspace.counts?.declared ?? 0} ${t('wsDeclaredCount')}`),
+                h('span', { style: S.chip }, `${t('skills')} ${workspace.counts?.projectSkills ?? 0} ${t('wsEnabledCount')}`),
+              ),
+            ),
+          ),
+        ),
+      )
+    }
+
+    /**
+     * Workspace detail: the MCP and skill sets of one workspace, one row each
+     * with a switch on the right. Pure function, zero hooks: InventoryPanel owns
+     * the in-flight key, the error bar and the request itself, because the
+     * offline test runtime shares one hook cursor across nested components.
+     */
+    function WorkspaceDetail(props) {
+      const { t, data, workspace, busy, onAssign, onBack } = props
       const globalMcp = Array.isArray(data?.globalMcp) ? data.globalMcp : []
-      // Two levels of folding: a workspace card collapses as a whole (the
-      // "dozens of rows per workspace" complaint), and each skill-source group
-      // collapses inside it. Both start closed so a long workspace list stays a
-      // list of titles.
-      const allOpenLocal = allOpen === true
+      const workspaces = Array.isArray(data?.workspaces) ? data.workspaces : []
       const installedMcp = Array.isArray(data?.mcp) ? data.mcp : []
       const installedSkills = Array.isArray(data?.skills) ? data.skills : []
+      const blocked = typeof busy === 'string' && busy.length > 0
 
-      // MCP row set = every installed server ∪ every server any workspace
-      // declares, so a server another workspace already mounted can still be
-      // assigned here.
+      // MCP set = every installed server ∪ every server any workspace declares,
+      // so a server another workspace already mounted can still be switched on.
+      const declared = Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []
       const mcpNames = []
       for (const item of installedMcp) {
         const name = item?.server
         if (typeof name === 'string' && name.length > 0 && !mcpNames.includes(name)) mcpNames.push(name)
       }
-      for (const workspace of workspaces) {
-        for (const server of Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []) {
+      for (const other of workspaces) {
+        for (const server of Array.isArray(other.mcp?.servers) ? other.mcp.servers : []) {
           const name = server?.name
           if (typeof name === 'string' && name.length > 0 && !mcpNames.includes(name)) mcpNames.push(name)
         }
       }
       mcpNames.sort((left, right) => left.localeCompare(right))
 
-      /**
-       * One action per row: "assign" when the name is not declared in this
-       * workspace yet, "remove" when it is. Only one request may be in flight,
-       * so every other button is disabled meanwhile and the running one shows
-       * the busy label.
-       */
-      const actionButton = (workspace, kind, name, isAssigned) => {
-        const busyKey = typeof busy === 'string' ? busy : ''
-        const key = `${workspace.path}|${kind}|${isAssigned ? 'remove' : 'add'}|${name}`
-        const isBusy = busyKey === key
-        const blocked = busyKey.length > 0
-        return h(
-          'button',
-          {
-            key: `act-${key}`,
-            type: 'button',
-            style: { ...S.wsAction, ...(isAssigned ? S.wsActionDanger : {}), ...(blocked ? S.wsActionDisabled : {}) },
-            disabled: blocked,
-            'aria-busy': isBusy ? 'true' : 'false',
-            onClick: () => {
-              if (blocked) return
-              onAssign({ workspace, kind, action: isAssigned ? 'remove' : 'add', name })
-            },
-          },
-          isBusy ? t('wsAssignBusy') : isAssigned ? t('wsRemove') : t('wsAssign'),
-        )
-      }
-
-      const groupBlock = (group, key, groupOpen, onToggle, actionFor) =>
-        h(
-          'div',
-          { key, style: S.group },
-          h(
-            'div',
-            {
-              style: S.groupHead,
-              onClick: onToggle,
-              role: 'button',
-              tabIndex: 0,
-              'aria-expanded': groupOpen ? 'true' : 'false',
-            },
-            h('span', { style: S.groupTitle }, `${groupOpen ? '▾' : '▸'} ${sourceLabel(t, group.source)}`),
-            h('span', { style: S.countPill }, String(group.skills.length)),
-            h('span', { style: S.groupDir }, group.dir),
-          ),
-          groupOpen
-            ? h(
-                'div',
-                null,
-                ...group.skills.map((skill) =>
-                  h(
-                    'div',
-                    { key: `${key}-${skill.name}`, style: S.plainRow },
-                    h('span', { style: S.rowMain }, skill.name),
-                    skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning' }) : null,
-                    ...(typeof actionFor === 'function' ? actionFor(skill) : []),
-                    // Last and full-width: a description wraps under the row it
-                    // belongs to instead of pushing the button onto a new line.
-                    skill.description ? h('span', { style: S.rowNote }, skill.description) : null,
-                  ),
-                ),
-              )
-            : null,
-        )
-
-      // Shared roots are identical for every workspace, so they get one card of
-      // their own instead of being repeated inside all of them.
-      const sharedGroups = (data?.sharedSkills ?? []).filter((group) => (group.skills ?? []).length > 0)
-
-      if (data?.workspaceRegistryAvailable === false) {
-        return h('div', { style: S.empty }, t('wsUnavailable'))
-      }
-      if (workspaces.length === 0) {
-        return h('div', { style: S.empty }, t('wsNoWorkspaces'))
-      }
-
-      const cards = workspaces.map((workspace) => {
-        const isOpen = openWorkspaces[workspace.id] === true
-        const declared = Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []
-        const mcpRows = mcpNames.map((name) => {
-          const declaredEntry = declared.find((server) => server?.name === name)
-          const installedEntry = installedMcp.find((item) => item?.server === name)
-          // Declared rows keep their mounted-as/transport/detail facts; an
-          // installed-but-not-declared server borrows what the global list knows.
-          const transport = declaredEntry?.transport ?? installedEntry?.transport
-          const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
-          return h(
-            'div',
-            { key: `ws-mcp-${workspace.id}-${name}`, style: S.plainRow },
-            h('span', { style: { ...S.rowMain, ...S.mono } }, name),
-            transport ? h('span', { style: S.countPill }, transport) : null,
-            declaredEntry?.mountedAs && declaredEntry.mountedAs !== name
-              ? h(Badge, { label: `${t('wsMountedAs')} ${declaredEntry.mountedAs}`, tone: 'success' })
-              : null,
-            detail ? h('span', { style: S.rowSub }, detail) : null,
-            // A globally registered server already reaches every workspace;
-            // assigning it only adds an explicit mount under <name><suffix>.
-            globalMcp.includes(name) ? h(Badge, { label: t('wsGlobalMounted'), tone: 'warning' }) : null,
-            actionButton(workspace, 'mcp', name, declaredEntry !== undefined),
-          )
-        })
-        if (mcpRows.length === 0) {
-          mcpRows.push(
-            h(
-              'div',
-              { key: `ws-empty-${workspace.id}`, style: S.empty },
-              workspace.mcp?.status === 'invalid'
-                ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
-                : t('wsNoDeclaration'),
-            ),
-          )
-        }
-
-        const skillGroups = (workspace.skills ?? []).filter((group) => (group.skills ?? []).length > 0)
-        // name → linked. `linked` is the host's lstat verdict: true only for the
-        // links this panel created. A directory someone copied in is not ours to
-        // delete, so its row must not grow a button that can only fail.
-        const assignedSkills = new Map()
-        for (const group of workspace.skills ?? []) {
-          for (const skill of group.skills ?? []) {
-            if (typeof skill?.name === 'string' && skill.name.length > 0) assignedSkills.set(skill.name, skill.linked === true)
-          }
-        }
-        const skillBlocks = skillGroups.map((group) => {
-          const key = `ws-sk-${workspace.id}-${group.source}`
-          // Only the .dsh/skills links are ours to delete: the .agents tree and
-          // hand-copied directories belong to the user's own setup.
-          const actionFor =
-            group.source === 'project-dsh'
-              ? (skill) => (skill.linked === true ? [actionButton(workspace, 'skill', skill.name, true)] : [])
-              : undefined
-          return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key), actionFor)
-        })
-        if (skillBlocks.length === 0) {
-          skillBlocks.push(h('div', { key: `ws-sk-none-${workspace.id}`, style: S.empty }, t('wsNoProjectSkills')))
-        }
-
-        // Everything installed, assignable into this workspace. Folded by
-        // default like every other group; the key is namespaced so it cannot
-        // collide with a source group.
-        const allSkillsKey = `ws-all-skills-${workspace.id}`
-        const allSkillsOpen = openGroups[allSkillsKey] === true
-        const allSkillsBlock = h(
-          'div',
-          { key: allSkillsKey, style: S.group },
-          h(
-            'div',
-            {
-              style: S.groupHead,
-              onClick: () => onToggleGroup(allSkillsKey),
-              role: 'button',
-              tabIndex: 0,
-              'aria-expanded': allSkillsOpen ? 'true' : 'false',
-            },
-            h('span', { style: S.groupTitle }, `${allSkillsOpen ? '▾' : '▸'} ${t('wsAllSkills')}`),
-            h('span', { style: S.countPill }, String(installedSkills.length)),
-            h('span', { style: S.groupHint }, t('wsAllSkillsHint')),
-          ),
-          allSkillsOpen
-            ? installedSkills.length === 0
-              ? h('div', { style: S.empty }, t('noSkills'))
-              : h(
-                  'div',
-                  null,
-                  ...installedSkills.map((skill) => {
-                    const assigned = assignedSkills.has(skill.name)
-                    const linked = assignedSkills.get(skill.name) === true
-                    // A runtime-registered skill has no directory to link to.
-                    const assignable = skill.source !== 'runtime'
-                    return h(
-                      'div',
-                      { key: `${allSkillsKey}-${skill.name}`, style: S.plainRow },
-                      h('span', { style: S.rowMain }, skill.name),
-                      h(Badge, { label: skill.source ? sourceLabel(t, skill.source) : 'disk' }),
-                      assigned ? h(Badge, { label: t('wsAssigned'), tone: 'success' }) : null,
-                      !assignable ? h(Badge, { label: t('wsRuntimeOnly'), tone: 'warning' }) : null,
-                      // Assigned but not a link: show the state, offer no button.
-                      linked
-                        ? actionButton(workspace, 'skill', skill.name, true)
-                        : assigned || !assignable
-                          ? null
-                          : actionButton(workspace, 'skill', skill.name, false),
-                      skill.description ? h('span', { style: S.rowNote }, skill.description) : null,
-                    )
-                  }),
-                )
-            : null,
-        )
-
+      const mcpRows = mcpNames.map((name) => {
+        const declaredEntry = declared.find((server) => server?.name === name)
+        const installedEntry = installedMcp.find((item) => item?.server === name)
+        // Declared rows keep their mounted-as/transport/detail facts; an
+        // installed-but-not-declared server borrows what the global list knows.
+        const transport = declaredEntry?.transport ?? installedEntry?.transport
+        const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
+        const isGlobal = globalMcp.includes(name)
+        const isDeclared = declaredEntry !== undefined
+        // A globally registered server already reaches every workspace: there is
+        // nothing to switch off, so its row states the fact and cannot be toggled.
+        const locked = !isDeclared && isGlobal
+        const isOn = isDeclared || isGlobal
         return h(
           'div',
-          { key: `ws-${workspace.id}`, style: S.card },
-          h(
-            'div',
-            {
-              style: S.cardHead,
-              onClick: () => onToggleWorkspace(workspace.id),
-              role: 'button',
-              tabIndex: 0,
-              'aria-expanded': isOpen ? 'true' : 'false',
-            },
-            h('span', { style: S.sectionTitle }, `${isOpen ? '▾' : '▸'} ${workspace.title}`),
-            h('span', { style: S.countPill }, `MCP ${workspace.counts?.declared ?? 0}`),
-            h(
-              'span',
-              { style: S.countPill },
-              workspace.counts?.sharedSkills > 0
-                ? `${t('skills')} ${workspace.counts?.projectSkills ?? 0} (+${workspace.counts.sharedSkills} ${t('wsShared')})`
-                : `${t('skills')} ${workspace.counts?.projectSkills ?? 0}`,
-            ),
-            workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
-            h('span', { style: S.groupDir }, workspace.path),
-          ),
-          isOpen
-            ? h(
-                'div',
-                { style: S.cardBody },
-                h('div', { style: S.groupLabel }, 'MCP'),
-                ...mcpRows,
-                h('div', { style: S.groupLabel }, t('skills')),
-                ...skillBlocks,
-                allSkillsBlock,
-              )
+          { key: `ws-mcp-${workspace.id}-${name}`, style: S.plainRow },
+          h('span', { style: { ...S.rowMain, ...S.mono } }, name),
+          transport ? h('span', { style: S.countPill }, transport) : null,
+          detail ? h('span', { style: S.rowSub }, detail) : null,
+          declaredEntry?.mountedAs && declaredEntry.mountedAs !== name
+            ? h(Badge, { label: `${t('wsMountedAs')} ${declaredEntry.mountedAs}`, tone: 'success' })
             : null,
+          isGlobal ? h(Badge, { label: t('wsGlobalMounted'), tone: 'warning' }) : null,
+          h(Switch, {
+            checked: isOn,
+            disabled: locked || blocked,
+            label: name,
+            stateLabel: isOn ? t('wsSwitchOn') : t('wsSwitchOff'),
+            onToggle: () => onAssign({ workspace, kind: 'mcp', action: isDeclared ? 'remove' : 'add', name }),
+          }),
         )
       })
 
-      const sharedCard =
-        sharedGroups.length > 0
-          ? h(
-              'div',
-              { key: 'ws-shared', style: S.card },
-              h(
-                'div',
-                {
-                  style: S.cardHead,
-                  onClick: onToggleShared,
-                  role: 'button',
-                  tabIndex: 0,
-                  'aria-expanded': sharedOpen === true ? 'true' : 'false',
-                },
-                h('span', { style: S.sectionTitle }, `${sharedOpen === true ? '▾' : '▸'} ${t('wsSharedSkills')}`),
-                h('span', { style: S.countPill }, String(data?.sharedSkillCount ?? 0)),
-                h('span', { style: S.groupDir }, t('wsSharedHint')),
-              ),
-              sharedOpen === true
-                ? h(
-                    'div',
-                    { style: S.cardBody },
-                    ...sharedGroups.map((group) => {
-                      const key = `ws-shared-${group.source}`
-                      return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key))
-                    }),
-                  )
-                : null,
-            )
-          : null
+      // Skill set = installed skills ∪ this workspace's own, keyed by name. The
+      // workspace entry wins because it carries `linked` (the host's lstat
+      // verdict); the installed entry keeps the skill's real origin.
+      const skillsByName = new Map()
+      for (const skill of installedSkills) {
+        if (typeof skill?.name === 'string' && skill.name.length > 0) skillsByName.set(skill.name, { ...skill })
+      }
+      for (const group of workspace.skills ?? []) {
+        for (const skill of group.skills ?? []) {
+          if (typeof skill?.name !== 'string' || skill.name.length === 0) continue
+          const known = skillsByName.get(skill.name) ?? {}
+          skillsByName.set(skill.name, { ...known, ...skill, source: skill.source ?? known.source ?? group.source, assigned: true })
+        }
+      }
+      const skillRows = [...skillsByName.values()]
+        .sort((left, right) => String(left.name).localeCompare(String(right.name)))
+        .map((skill) => {
+          const assigned = skill.assigned === true
+          const linked = skill.linked === true
+          // A runtime-registered skill has no directory to link into, and a
+          // hand-copied directory is not ours to unlink: both stay read-only.
+          const runtimeOnly = skill.source === 'runtime'
+          const locked = (assigned && !linked) || (!assigned && runtimeOnly)
+          return h(
+            'div',
+            { key: `ws-skill-${workspace.id}-${skill.name}`, style: S.plainRow },
+            h('span', { style: { ...S.rowMain, ...S.mono } }, skill.name),
+            h(Badge, { label: skill.source ? sourceLabel(t, skill.source) : 'disk' }),
+            skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning' }) : null,
+            assigned && !linked ? h(Badge, { label: t('wsNotLinked'), tone: 'warning' }) : null,
+            !assigned && runtimeOnly ? h(Badge, { label: t('wsRuntimeOnly'), tone: 'warning' }) : null,
+            h(Switch, {
+              checked: assigned,
+              disabled: locked || blocked,
+              label: skill.name,
+              stateLabel: assigned ? t('wsSwitchOn') : t('wsSwitchOff'),
+              onToggle: () => onAssign({ workspace, kind: 'skill', action: assigned ? 'remove' : 'add', name: skill.name }),
+            }),
+            skill.description ? h('span', { style: S.rowNote }, skill.description) : null,
+          )
+        })
+
+      const mcpHint =
+        workspace.mcp?.status === 'invalid'
+          ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
+          : workspace.mcp?.status === 'missing'
+            ? t('wsNoDeclaration')
+            : undefined
 
       return h(
         'div',
         { style: S.wsRoot },
         h(
           'div',
-          { style: S.viewSwitch },
-          h(
-            'button',
-            { type: 'button', style: S.button, onClick: () => onSetAll(!allOpenLocal) },
-            allOpenLocal ? t('wsCollapseAll') : t('wsExpandAll'),
-          ),
-          h('span', { style: S.chip }, `${workspaces.length} ${t('wsCount')}`),
+          { style: S.detailHead },
+          h('button', { type: 'button', style: S.back, onClick: () => onBack() }, `‹ ${t('wsBackToList')}`),
+          h('span', { style: S.title }, workspace.title),
+          workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
+          h('span', { style: S.groupDir }, workspace.path),
         ),
-        sharedCard,
-        ...cards,
+        h(
+          Block,
+          { title: t('wsMcpSection'), count: mcpNames.length, hint: mcpHint },
+          mcpRows.length === 0 ? [h('div', { key: 'mcp-empty', style: S.empty }, t('noMcp'))] : mcpRows,
+        ),
+        h(
+          Block,
+          { title: t('wsSkillsSection'), count: skillRows.length },
+          skillRows.length === 0 ? [h('div', { key: 'sk-empty', style: S.empty }, t('noSkills'))] : skillRows,
+        ),
       )
     }
 
@@ -912,13 +784,12 @@ window.__ModuleLoader__.load({
         tools: false,
       })
       const [expanded, setExpanded] = React.useState({})
+      // Two-level navigation: 'global' is the overview, 'workspaces' the list,
+      // 'workspace' the detail of `currentWorkspace` (a workspace id). Every
+      // piece of view state lives here so no child component needs a hook.
       const [view, setView] = React.useState('global')
-      // Folding state for the per-workspace view lives here (not inside
-      // WorkspaceView) so the panel's hook order never depends on a child.
-      const [wsOpen, setWsOpen] = React.useState({})
-      const [wsGroups, setWsGroups] = React.useState({})
-      const [wsSharedOpen, setWsSharedOpen] = React.useState(false)
-      // Button-driven assignment: `wsBusy` is the key of the single request in
+      const [currentWorkspace, setCurrentWorkspace] = React.useState('')
+      // Switch-driven assignment: `wsBusy` is the key of the single request in
       // flight (`<path>|<kind>|<action>|<name>`), `wsError` the last failure.
       const [wsBusy, setWsBusy] = React.useState('')
       const [wsError, setWsError] = React.useState('')
@@ -1020,14 +891,14 @@ window.__ModuleLoader__.load({
       const warnings = data?.warnings ?? []
 
       const workspaceList = Array.isArray(data?.workspaces) ? data.workspaces : []
-      const allWsOpen = workspaceList.length > 0 && workspaceList.every((workspace) => wsOpen[workspace.id] === true)
-      const setAllWs = (value) => {
-        const next = {}
-        for (const workspace of workspaceList) next[workspace.id] = value
-        setWsOpen(next)
+      const activeWorkspace = workspaceList.find((workspace) => workspace.id === currentWorkspace) ?? null
+      // A stale id (workspace removed, snapshot reloaded) falls back to the list
+      // instead of rendering an empty detail page.
+      const showList = view === 'workspaces' || (view === 'workspace' && activeWorkspace === null)
+      const openWorkspace = (id) => {
+        setCurrentWorkspace(id)
+        setView('workspace')
       }
-      const toggleWs = (id) => setWsOpen((prev) => ({ ...prev, [id]: !prev[id] }))
-      const toggleWsGroup = (key) => setWsGroups((prev) => ({ ...prev, [key]: !prev[key] }))
 
       return h(
         'div',
@@ -1047,20 +918,24 @@ window.__ModuleLoader__.load({
             h(
               'button',
               { type: 'button', style: view === 'global' ? S.viewActive : S.button, onClick: () => setView('global') },
-              t('viewGlobal'),
+              t('wsOverview'),
             ),
             h(
               'button',
-              { type: 'button', style: view === 'workspace' ? S.viewActive : S.button, onClick: () => setView('workspace') },
-              t('viewWorkspace'),
+              { type: 'button', style: view !== 'global' ? S.viewActive : S.button, onClick: () => setView('workspaces') },
+              t('wsWorkspaces'),
             ),
           ),
-          h('input', {
-            style: S.search,
-            value: query,
-            placeholder: t('search'),
-            onChange: (event) => setQuery(event.target.value),
-          }),
+          // The filter only drives the overview sections; the workspace views
+          // have their own lists, so a dead search box would just mislead.
+          view === 'global'
+            ? h('input', {
+                style: S.search,
+                value: query,
+                placeholder: t('search'),
+                onChange: (event) => setQuery(event.target.value),
+              })
+            : null,
           h('button', { type: 'button', style: S.button, onClick: () => load(true) }, t('refresh')),
           h(
             'span',
@@ -1068,16 +943,18 @@ window.__ModuleLoader__.load({
             `${t('generatedAt')} ${data?.generatedAt ? new Date(data.generatedAt).toLocaleTimeString() : '-'}`,
           ),
         ),
-        h(
-          'div',
-          { style: S.chips },
-          h('span', { style: S.chip }, `${t('packages')} ${counts.packages ?? 0}`),
-          h('span', { style: S.chip }, `${t('mcp')} ${counts.mcp ?? 0} (${counts.mcpConnected ?? 0})`),
-          h('span', { style: S.chip }, `${t('skills')} ${counts.skills ?? 0} · ${t('shadowed')} ${counts.shadowedSkills ?? 0}`),
-          h('span', { style: S.chip }, `${t('tools')} ${counts.tools ?? 0}`),
-          h('span', { style: S.chip }, `${t('edges')} ${counts.edges ?? 0}`),
-        ),
-        warnings.length > 0
+        view === 'global'
+          ? h(
+              'div',
+              { style: S.chips },
+              h('span', { style: S.chip }, `${t('packages')} ${counts.packages ?? 0}`),
+              h('span', { style: S.chip }, `${t('mcp')} ${counts.mcp ?? 0} (${counts.mcpConnected ?? 0})`),
+              h('span', { style: S.chip }, `${t('skills')} ${counts.skills ?? 0} · ${t('shadowed')} ${counts.shadowedSkills ?? 0}`),
+              h('span', { style: S.chip }, `${t('tools')} ${counts.tools ?? 0}`),
+              h('span', { style: S.chip }, `${t('edges')} ${counts.edges ?? 0}`),
+            )
+          : null,
+        view === 'global' && warnings.length > 0
           ? h(
               'div',
               { style: S.warn },
@@ -1241,22 +1118,21 @@ window.__ModuleLoader__.load({
               }),
         ),
             ]
-          : [
-              h(WorkspaceView, {
-                t,
-                data,
-                openWorkspaces: wsOpen,
-                openGroups: wsGroups,
-                onToggleWorkspace: toggleWs,
-                onToggleGroup: toggleWsGroup,
-                onSetAll: setAllWs,
-                allOpen: allWsOpen,
-                sharedOpen: wsSharedOpen,
-                onToggleShared: () => setWsSharedOpen((prev) => !prev),
-                busy: wsBusy,
-                onAssign: runWorkspaceAction,
-              }),
-            ]),
+          : showList
+            ? [
+                h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace }),
+              ]
+            : [
+                h(WorkspaceDetail, {
+                  key: 'ws-detail',
+                  t,
+                  data,
+                  workspace: activeWorkspace,
+                  busy: wsBusy,
+                  onAssign: runWorkspaceAction,
+                  onBack: () => setView('workspaces'),
+                }),
+              ]),
       )
     }
 

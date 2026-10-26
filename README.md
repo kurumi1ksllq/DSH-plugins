@@ -1,6 +1,6 @@
 # dsh-inventory
 
-DSH 的安装清单插件。在 **左侧栏「安装总览」** 面板里显示这台机器上实际装了什么；面板顶部可切到 **「按工作区」**，看每个工作区自己声明了什么，并**直接点按钮把已安装的 MCP / 技能分配给它**。
+DSH 的安装清单插件。左侧栏 **「安装总览」** 面板分两层：**总览** 看这台机器上实际装了什么，**工作区** 先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，右侧一个开关，开关即「这个工作区要不要它」。
 
 本包有**两个插件入口**：
 
@@ -24,7 +24,7 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
     serverNameSuffix: '-ws'    # 得到 mcp__officecli-ws__*
 ```
 
-按 id 的 patch 是**整体替换 config**，不深度合并；省略的键回落 `gate.js` 的 `DEFAULTS`。清单页读回这个后缀，所以「按工作区」视图显示的挂载名和 gate 实际挂的一致。
+按 id 的 patch 是**整体替换 config**，不深度合并；省略的键回落 `gate.js` 的 `DEFAULTS`。清单页读回这个后缀，所以工作区详情页显示的挂载名和 gate 实际挂的一致。
 
 ### 模型怎么知道这个能力
 
@@ -35,7 +35,7 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 - 声明文件路径 `<workspace>/.dsh/mcp.json` 和它的 JSON 形状
 - 挂载后的工具名形态 `mcp__<name>__<tool>`
 - **生效时机**：文件在 agent 创建时读一次，改了要下一个会话才生效
-- 怎么查当前状态：`GET /inventory/snapshot` 的 `workspaces[].mcp`，或侧边栏「安装总览 → 按工作区」
+- 怎么查当前状态：`GET /inventory/snapshot` 的 `workspaces[].mcp`，或侧边栏「安装总览 → 工作区 → 某个工作区」
 
 这段进每个请求，约 100 token。它注册在 `webServer` 守卫之前，所以没有 Web 服务器的 profile（headless / ACP）里模型同样能看到。
 
@@ -49,16 +49,26 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 含 `disable-model-invocation` 的屏蔽桩、来源 rank |
 | 工具 | `ctx.tools.schemas()` | 全量工具，含被 tool-search 折叠的（`deferred`） |
 | 技能 → 工具 | SKILL.md 正文匹配 + 会话日志 | 四层：精确工具名 / MCP 服务名 / 外部命令 / 脚本路径；会话实证附命中次数 |
-| **按工作区** | `ctx.workspaceRegistry.list()` + 每个工作区的 `.dsh/mcp.json` + 项目 skill 根 | 每个工作区声明的 MCP（含门控后的挂载名）、全局注册的 MCP、以及它可用的技能（按来源分组）；展开后每行带「分配 / 移除」按钮 |
+| **工作区 → 列表** | `ctx.workspaceRegistry.list()` | 一卡一个工作区：title、path、已声明的 MCP 数、已开启的技能数；整卡可点进详情 |
+| **工作区 → 详情** | 该工作区的 `.dsh/mcp.json` + 项目 skill 根 + 全局 MCP / 技能清单 | MCP 与技能各一行一条，右侧开关控制开/关（语义见下节） |
 
-## 分配（页面上的按钮做什么）
+## 分配（详情页的开关做什么）
 
-「按工作区」视图里每个工作区卡片展开后：
+工作区详情页有两个分区：**MCP 服务器** 和 **技能**。每条一行，右侧一个开关。开关的含义是「这个工作区自己声明了这个能力」，因为 DSH 没有「按工作区的白名单」，只有按目录发现：
 
-- **MCP 区**：列出全部已安装服务器（全局 `mcp-client` 行 + 任何工作区已声明的）。已在本工作区声明 → 「移除」；否则 → 「分配」。全局注册的额外标「全局已挂载」（它对所有工作区本来就可用，分配只是让本工作区显式声明，会以 `<name><serverNameSuffix>` 重复挂载一份）。
-- **技能区**：项目技能按来源分组（`project-dsh` 组带「移除」），另有一个「全部已安装技能」折叠组，列出 `~/.dsh/skills`、`~/.agents/skills`、自定义目录、bundled 里的每个技能，未分配 → 「分配」，已分配 → 「移除」。
+| 行 | 开 | 关 |
+|---|---|---|
+| MCP（非全局） | 已写进本工作区 `.dsh/mcp.json` | 没声明；点一下写入 |
+| MCP（全局已注册，未声明） | 开且**锁定**，带「全局已挂载」徽章——所有工作区本来就能用，没有可关的东西 | — |
+| MCP（全局已注册，已声明） | 开且可点 | 点一下删掉这条重复声明（挂载名带 `-ws` 后缀） |
+| 技能（已分配，链接） | 开且可点 | 点一下删掉链接 |
+| 技能（已分配，非本页链接） | 开且**锁定**，带「非本页链接」徽章——手工拷进来的目录不归本页删 | — |
+| 技能（未分配，运行时注册） | — | 关且**锁定**，带「运行时注册（无磁盘目录）」徽章，没有目录可链接 |
+| 技能（未分配，其他） | — | 关；点一下建链接 |
 
-分配 = **让这个工作区自己声明这个能力**，因为 DSH 没有「按工作区的白名单」，只有按目录发现：
+一次只允许一个写请求在飞，其余开关全部禁用；失败信息显示在面板顶部的错误条里，可关闭。
+
+写入落点：
 
 | 能力 | 写到哪里 | 谁读 |
 |---|---|---|
@@ -67,7 +77,7 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 两条设计取舍：
 
-1. **技能是链接不是拷贝**：安装只有一份，链接跟着它走；移除只删链接。若目标是一个真实目录（比如 skills-manager 拷进去的），「移除」会拒绝并说明原因，不会删别人的内容。
+1. **技能是链接不是拷贝**：安装只有一份，链接跟着它走；关掉只删链接。若目标是一个真实目录（比如 skills-manager 拷进去的），host 会拒绝并说明原因，开关也直接锁定，不会删别人的内容。
 2. **MCP 声明原样拷贝**：从全局行的运行配置（含 `env`/`headers`）或另一个工作区的 `.dsh/mcp.json` 复制一份写入；`env` 不进快照，只在写盘时用。
 
 ## 写入边界
@@ -92,9 +102,9 @@ POST /inventory/workspace
 
 成功 `200 { ok: true, workspace, kind, action, name, path }`（`path` 是实际写入的声明文件或链接）；失败 `400/404/500 { ok: false, error }`，`error` 是可直接展示给用户的中文说明。方法不对 `405`。请求体上限 64 KB。
 
-返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及按工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
+返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
 
-`workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`skills[].skills[].linked` 是 host 的 `lstat` 结论：`true` 表示这是本页建的链接（可以移除），手工拷贝进来的真实目录为 `false`（不提供移除按钮）。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
+`workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`skills[].skills[].linked` 是 host 的 `lstat` 结论：`true` 表示这是本页建的链接（可以移除），手工拷贝进来的真实目录为 `false`（详情页把开关锁死，不给删）。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
 
 ## 安装
 
@@ -164,20 +174,20 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 ## 生效方式
 
 - **host 侧代码**：DSH 启动时加载，改完要重启 DSH（当前 profile 没开源码 HMR，`touch cordis.patch.yml` 不会重载插件代码）。
-- **client 侧代码**：浏览器里刷新页面即可。
+- **client 侧代码**：浏览器里刷新页面即可；如果面板没变，说明这个 profile 缓存了客户端 bundle，重启 DSH 再刷新。
 - 加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚（回滚不会撤销已经分配出去的 `.dsh/mcp.json` 与技能链接，需要的话手动删）。
 
 ## 已知限制
 
 - 工具归属是推断：`mcp__<server>__*` 确定；`BUILTIN_TOOLS` 只收 DSH 本体注册的工具（把它写成插件工具会导致归属错判，且扫描会跳过内置名）；其余通过扫描插件包 JS 里的工具名字面量判定，找不到就标「未识别」。
-- 全局视图的技能只扫固定根目录（项目 `.dsh/skills`、项目 `.agents/skills`、`$DSH_CUSTOM_SKILL_DIRS`、`~/.dsh/skills`、`~/.agents/skills`、`$DSH_BUNDLED_SKILL_DIR`），其中「项目」取 host 进程的 `cwd`；「按工作区」视图改为按每个工作区自己的目录扫项目根，共享根只扫一次。
+- 全局视图的技能只扫固定根目录（项目 `.dsh/skills`、项目 `.agents/skills`、`$DSH_CUSTOM_SKILL_DIRS`、`~/.dsh/skills`、`~/.agents/skills`、`$DSH_BUNDLED_SKILL_DIR`），其中「项目」取 host 进程的 `cwd`；工作区视图改为按每个工作区自己的项目根扫，共享根只扫一次。
 - 会话实证只读最近 12 个会话文件，窗口 8 次工具调用。
 - 快照缓存 15 秒；`?refresh=1` 强制重算。
 - 被屏蔽的 skill（`disable-model-invocation: true`）在运行时注册表里看不见，只能靠磁盘扫描，因此显示为「已屏蔽」。
 - **分配**只对已登记工作区生效；只能分配**磁盘上有目录**的技能（插件运行时注册的技能没有目录，链接不了）。
 - 技能目标根按 DSH 的规则取「最近的 `.git` 祖先」：几个工作区共享同一个 git 根时，给其中一个分配技能，整棵仓库都会看到它（DSH 本身就这么发现技能，不是本插件的选择）。
 - Windows 上目录用 junction（不需要管理员）；单文件技能 `<name>.md` 只能建文件符号链接，普通权限下可能失败并报错。
-- 全局注册的 MCP 本来就对所有工作区可用；给它点「分配」只会多出一份带后缀的重复挂载，通常不需要。
+- 全局注册的 MCP 本来就对所有工作区可用：未声明时详情页把开关锁成「开」（无可关）；若某工作区确实声明过它（历史上手写过 `.dsh/mcp.json`），那行可关，关掉就是删掉这份带 `-ws` 后缀的重复挂载。
 - 技能链接指向工作区之外（`~/.dsh/skills` 等）；文件沙箱只允许读工作区外路径的策略下，链接目标可能读不到，此时技能不会生效。
 
 ## 面板布局约定（改 UI 前先读）
