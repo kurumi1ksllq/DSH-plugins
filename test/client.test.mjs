@@ -410,7 +410,7 @@ test('the panel never paints with the contrast token', () => {
  *   context7   — globally mounted, not declared → on but locked
  *   proj-skill — linked into the workspace → switchable off
  *   copied-skill — hand-copied directory (linked:false) → on but locked
- *   runtime-skill — registered at runtime, no directory → off and locked
+ *   runtime-skill — registered at runtime: never listed, never counted
  */
 function workspaceSnapshot() {
   return {
@@ -557,7 +557,7 @@ test('workspace tab lists workspaces, opens a detail page, and goes back', async
   assert.match(textOf(current), /Demo Workspace/, 'workspace card missing')
   assert.match(textOf(current), /D:\/demo/, 'workspace path missing from the card')
   assert.match(textOf(current), /MCP 1/, 'declared MCP count missing')
-  assert.match(textOf(current), /技能 2/, 'project skill count missing')
+  assert.match(textOf(current), /技能 3/, 'the card must count the same set the detail page lists')
   // The list is a list: no rows and no switches leak into it.
   assert.equal(findNode(current, (node) => node.props?.role === 'switch'), null, 'the list must not render switches')
   assert.doesNotMatch(textOf(current), /officecli/, 'the list must not render MCP rows')
@@ -605,11 +605,14 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
     assert.ok(switchIn(row), `row for ${name} has no switch`)
     assert.equal(switchIn(row).props['aria-label'], name, 'the switch must be named after its row')
   }
-  for (const name of ['context7', 'copied-skill', 'runtime-skill']) {
+  for (const name of ['context7', 'copied-skill']) {
     const row = rowOf(current, name)
     assert.ok(row, `row for ${name} is missing`)
     assert.equal(switchIn(row), null, `row for ${name} must not offer a switch`)
   }
+  // A runtime registration has no directory and nothing on disk: it is not a
+  // skill this page can show or count.
+  assert.equal(rowOf(current, 'runtime-skill'), null, 'runtime skills must never be listed')
 
   // Global and not declared: already available to every workspace, nothing to
   // switch off — the row says so instead of relying on a disabled state.
@@ -633,11 +636,9 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   assert.match(textOf(copiedRow), /非本页链接/)
   assert.match(textOf(copiedRow), /手工复制/)
 
-  // Runtime registration: no directory, so it cannot be switched on.
-  const runtimeRow = rowOf(current, 'runtime-skill')
-  assert.equal(switchIn(runtimeRow), null, 'a runtime skill must not offer a switch')
-  assert.match(textOf(runtimeRow), /运行时注册/)
-  assert.match(textOf(runtimeRow), /没有可链接的目录/)
+  // Runtime registration: no directory, so it cannot be switched on — and it is
+  // not listed at all.
+  assert.equal(rowOf(current, 'runtime-skill'), null, 'a runtime skill must not be listed')
 
   // Switching an unassigned server on: POST, then a forced snapshot reload.
   let release
@@ -809,10 +810,17 @@ test('workspace detail search narrows rows and keeps the section headers', async
   assert.match(text, /MCP 服务器/, 'filtering must not drop the section headers')
 })
 
-test('the workspace list counts shared skills instead of hiding them', async () => {
+test('the workspace card counts every skill the workspace can use', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'shared-count-case' })
   findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
-  assert.match(textOf(tree()), /共享 5/)
+  // The card counts the merged set (installed ∪ own) for every workspace, even
+  // one whose own roots are empty: shared skills are not reported as zero.
+  const cards = []
+  eachNode(tree(), (node) => {
+    if (node.props?.role === 'button' && /Workspace/.test(textOf(node))) cards.push(textOf(node))
+  })
+  assert.equal(cards.length, 2, 'workspace cards missing')
+  for (const card of cards) assert.match(card, /技能 3/, `card does not count the merged set: ${card}`)
 
   const input = findNode(tree(), (node) => node.type === 'input' && node.props?.['aria-label'] === '搜索工作区')
   assert.ok(input, 'the workspace list has no search field')
@@ -954,6 +962,31 @@ test('a skill hidden on the overview is hidden on the workspace page too', async
   assert.ok(findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示已隐藏 1'), 'the hidden set is not shared with the overview')
 })
 
+test('runtime-registered skills are never listed or counted', async () => {
+  const snapshot = toggleSnapshot()
+  snapshot.skills = [...snapshot.skills, { name: 'bsk-browser', description: 'runtime registration', source: 'runtime', edges: [] }]
+  const panel = await bootPanel(snapshot, { version: 'runtime-skill-case' })
+  openSkillSection(panel)
+  assert.doesNotMatch(textOf(panel.tree()), /bsk-browser/, 'a runtime skill must not be listed')
+  // Stats card: only the four disk fixtures count.
+  assert.ok(findNode(panel.tree(), (node) => textOf(node) === '4 技能'), 'the stats card must not count runtime skills')
+})
+
+test('the workspace card and the detail page report the same skill count', async () => {
+  const panel = await bootPanel(workspaceSnapshot(), { version: 'count-match-case' })
+  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+  assert.match(textOf(panel.tree()), /技能 3/, 'the card count must come from the same set as the page')
+
+  findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+  const skillsHeader = findNode(
+    panel.tree(),
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).trim().startsWith('技能'),
+  )
+  assert.ok(skillsHeader, 'skills section header missing')
+  assert.match(textOf(skillsHeader), /3 项/, 'the section must count what the card counted')
+  assert.match(textOf(skillsHeader), /已开启 2\/3/)
+})
+
 test('overview MCP switch posts the inverted state to /inventory/global', async () => {
   const panel = await bootPanel(toggleSnapshot(), { version: 'global-mcp-post-case' })
 
@@ -990,7 +1023,7 @@ test('rows the host cannot toggle render a disabled switch and the reason', asyn
     toggleSnapshot({
       mcp: [mcpRow('locked-mcp', { toggleable: false, disabledReason: 'no-writable-profile' })],
       skills: [
-        skillRow('runtime-only', { disabled: true, global: false, toggleable: false, disabledReason: 'runtime' }),
+        { ...skillRow('runtime-only', { disabled: true, global: false, toggleable: false, disabledReason: 'runtime' }), source: 'runtime' },
         skillRow('project-only', { disabled: false, global: false, toggleable: false, disabledReason: 'project-scope' }),
       ],
     }),
@@ -1004,17 +1037,15 @@ test('rows the host cannot toggle render a disabled switch and the reason', asyn
   assert.match(textOf(rowOf(current, 'locked-mcp')), /该条目无法持久化开关/)
 
   current = openSkillSection(panel)
-  const runtimeSwitch = switchNamed(current, 'runtime-only')
-  assert.ok(runtimeSwitch, 'runtime skill row has no switch')
-  assert.equal(runtimeSwitch.props.disabled, true)
-  assert.match(textOf(rowOf(current, 'runtime-only')), /运行时注册，无磁盘文件/)
+  // Runtime registrations are never listed, so there is no row to explain.
+  assert.equal(switchNamed(current, 'runtime-only'), null, 'a runtime skill must not be listed')
   const projectSwitch = switchNamed(current, 'project-only')
   assert.ok(projectSwitch, 'project skill row has no switch')
   assert.equal(projectSwitch.props.disabled, true)
   assert.match(textOf(rowOf(current, 'project-only')), /项目级技能/)
 
   // A disabled switch must not issue a request.
-  runtimeSwitch.props.onClick({ stopPropagation() {} })
+  projectSwitch.props.onClick({ stopPropagation() {} })
   await tick()
   assert.equal(panel.calls.filter((call) => call.method === 'POST').length, 0)
 })
@@ -1312,7 +1343,7 @@ test('workspace detail locks globally reachable skills and only switches vault s
   assert.equal(vaultSwitch.props['aria-checked'], 'false')
 
   // The header counts a globally available skill as on and reports the global share.
-  assert.match(textOf(current), /已开启 3\/7 · 全局 1/)
+  assert.match(textOf(current), /已开启 3\/6 · 全局 1/)
 
   vaultSwitch.props.onClick()
   await tick()

@@ -159,14 +159,13 @@ window.__ModuleLoader__.load({
       wsGlobalNote: '对所有工作区生效',
       wsNotLinked: '非本页链接',
       wsNotLinkedNote: '手工复制，未由本页创建',
-      wsRuntimeOnly: '运行时注册',
-      wsRuntimeNote: '没有可链接的目录',
       wsGlobalSkillOn: '全局可用',
       wsGlobalSkillOnNote: '已对所有工作区生效，在总览里关闭',
       wsGlobalSkillOff: '全局已禁用',
       wsGlobalSkillOffNote: '在总览里开启后所有工作区可用',
       wsDuplicateNote: '与全局根上的同名技能重复，可移除链接',
       wsShareCount: '共享',
+      wsHiddenShort: '已隐藏',
       wsItemCount: '项',
       wsSearch: '搜索 MCP 与技能',
       wsSearchList: '搜索工作区',
@@ -178,7 +177,6 @@ window.__ModuleLoader__.load({
       toggleOff: '停用',
       globalToggleFailed: '全局开关失败',
       globalToggling: '处理中…',
-      toggleUnavailableRuntime: '运行时注册，无磁盘文件',
       toggleUnavailableProject: '项目级技能',
       toggleUnavailableMcp: '该条目无法持久化开关',
       restartNeeded: '下次启动生效',
@@ -308,14 +306,13 @@ window.__ModuleLoader__.load({
       wsGlobalNote: 'applies to every workspace',
       wsNotLinked: 'not linked by this page',
       wsNotLinkedNote: 'hand-copied, not created here',
-      wsRuntimeOnly: 'runtime only',
-      wsRuntimeNote: 'no directory to link',
       wsGlobalSkillOn: 'global',
       wsGlobalSkillOnNote: 'on for every workspace; turn it off in the overview',
       wsGlobalSkillOff: 'disabled globally',
       wsGlobalSkillOffNote: 'enable it in the overview; it then applies to every workspace',
       wsDuplicateNote: 'duplicates the global copy; remove the link',
       wsShareCount: 'shared',
+      wsHiddenShort: 'hidden',
       wsItemCount: 'items',
       wsSearch: 'Search MCP servers and skills',
       wsSearchList: 'Search workspaces',
@@ -327,7 +324,6 @@ window.__ModuleLoader__.load({
       toggleOff: 'Off',
       globalToggleFailed: 'Global toggle failed',
       globalToggling: 'Working…',
-      toggleUnavailableRuntime: 'Runtime-only, no file',
       toggleUnavailableProject: 'Project skill',
       toggleUnavailableMcp: 'Not switchable',
       restartNeeded: 'Takes effect next start',
@@ -859,6 +855,35 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Runtime-registered skills have no directory, no per-workspace switch and
+     * nothing on disk: this panel reports what is installed, so they are never
+     * listed and never counted.
+     */
+    const isRuntimeSkill = (skill) => skill?.source === 'runtime'
+
+    /**
+     * Skill set of one workspace: every installed skill union the workspace's
+     * own project roots, keyed by name. The workspace entry wins because it
+     * carries `linked` (the host's lstat verdict); the installed entry keeps the
+     * skill's real origin. The workspace card and the detail page both use this,
+     * so the two numbers can never disagree.
+     */
+    function workspaceSkillSet(installedSkills, workspace) {
+      const byName = new Map()
+      for (const skill of installedSkills) {
+        if (typeof skill?.name === 'string' && skill.name.length > 0 && !isRuntimeSkill(skill)) byName.set(skill.name, { ...skill })
+      }
+      for (const group of workspace.skills ?? []) {
+        for (const skill of group.skills ?? []) {
+          if (typeof skill?.name !== 'string' || skill.name.length === 0) continue
+          const known = byName.get(skill.name) ?? {}
+          byName.set(skill.name, { ...known, ...skill, source: skill.source ?? known.source ?? group.source, assigned: true })
+        }
+      }
+      return [...byName.values()]
+    }
+
+    /**
      * Enabled rows first, then by label. `sort` is stable, so rows that tie on
      * both keys keep the order the host sent.
      */
@@ -968,7 +993,6 @@ window.__ModuleLoader__.load({
       if (source === 'custom') return t('wsSourceCustom')
       if (source === 'bundled') return t('wsSourceBundled')
       if (source === 'vault') return t('vaultScope')
-      if (source === 'runtime') return t('wsRuntimeOnly')
       return source
     }
 
@@ -1057,8 +1081,10 @@ window.__ModuleLoader__.load({
     }
 
     /** Workspace list: one grouped card, one row per workspace. */
-    function WorkspaceList({ t, data, onEnter, query }) {
+    function WorkspaceList({ t, data, onEnter, query, hiddenSkills, showHiddenSkills }) {
       const all = Array.isArray(data?.workspaces) ? data.workspaces : []
+      const installed = Array.isArray(data?.skills) ? data.skills : []
+      const hidden = Array.isArray(hiddenSkills) ? hiddenSkills : []
       const q = typeof query === 'string' ? query.trim().toLowerCase() : ''
       const workspaces = all.filter((workspace) => q.length === 0 || `${workspace.title} ${workspace.path}`.toLowerCase().includes(q))
       if (data?.workspaceRegistryAvailable === false) return h('div', { style: S.empty }, t('wsUnavailable'))
@@ -1079,10 +1105,14 @@ window.__ModuleLoader__.load({
           ...workspaces.map((workspace, index) => {
             const counts = workspace.counts ?? {}
             const shared = Number(counts.sharedSkills ?? 0)
+            const own = Number(counts.projectSkills ?? 0)
+            // The same set the detail page lists, so "技能 N" on the card and
+            // "N 项" on the page are the same number.
+            const skillCount = workspaceSkillSet(installed, workspace).filter((skill) => showHiddenSkills === true || !hidden.includes(skill.name)).length
             const meta = [
               `MCP ${counts.declared ?? 0}`,
-              `${t('skills')} ${counts.projectSkills ?? 0}`,
-              shared > 0 ? `${t('wsShareCount')} ${shared}` : null,
+              `${t('skills')} ${skillCount}`,
+              own > 0 && shared > 0 ? `${t('wsShareCount')} ${shared}` : null,
             ]
               .filter(Boolean)
               .join(' · ')
@@ -1215,39 +1245,24 @@ window.__ModuleLoader__.load({
         ),
       )
 
-      // Skill set = installed skills ∪ this workspace's own, keyed by name. The
-      // workspace entry wins because it carries `linked` (the host's lstat
-      // verdict); the installed entry keeps the skill's real origin.
-      const skillsByName = new Map()
-      for (const skill of installedSkills) {
-        if (typeof skill?.name === 'string' && skill.name.length > 0) skillsByName.set(skill.name, { ...skill })
-      }
-      for (const group of workspace.skills ?? []) {
-        for (const skill of group.skills ?? []) {
-          if (typeof skill?.name !== 'string' || skill.name.length === 0) continue
-          const known = skillsByName.get(skill.name) ?? {}
-          skillsByName.set(skill.name, { ...known, ...skill, source: skill.source ?? known.source ?? group.source, assigned: true })
-        }
-      }
-      const allSkills = [...skillsByName.values()]
+      // Skill set of this workspace, shared with the workspace card so both
+      // numbers are the same set. Runtime registrations never enter it.
+      const allSkills = workspaceSkillSet(installedSkills, workspace)
       const skillRows = sortByEnabled(
         allSkills
           .map((skill) => {
             const assigned = skill.assigned === true
             const linked = skill.linked === true
             const shadowed = skill.shadowed === true || skill.disabled === true
-            // A runtime-registered skill has no directory to link into, and a
-            // hand-copied directory is not ours to unlink: both stay read-only.
-            const runtimeOnly = skill.source === 'runtime'
             // A skill on a machine-wide root already reaches every workspace, and
             // linking it into the project root would only duplicate it (rank 100
             // shadows rank 400). A globally shadowed skill stays shadowed too: the
             // link points at the same SKILL.md. So only a vaulted skill — which no
             // root scans — needs a workspace switch. The host enforces the same
             // rule on POST /inventory/workspace.
-            const globalReachable = skill.global === true && skill.vaulted !== true && !runtimeOnly
+            const globalReachable = skill.global === true && skill.vaulted !== true
             const enabled = assigned || (globalReachable && !shadowed)
-            const locked = assigned ? !linked : globalReachable || runtimeOnly
+            const locked = assigned ? !linked : globalReachable
             const reason = assigned
               ? linked
                 ? null
@@ -1256,9 +1271,7 @@ window.__ModuleLoader__.load({
                 ? shadowed
                   ? t('wsGlobalSkillOff')
                   : t('wsGlobalSkillOn')
-                : runtimeOnly
-                  ? t('wsRuntimeOnly')
-                  : null
+                : null
             const note = assigned
               ? linked
                 ? globalReachable
@@ -1269,9 +1282,7 @@ window.__ModuleLoader__.load({
                 ? shadowed
                   ? t('wsGlobalSkillOffNote')
                   : t('wsGlobalSkillOnNote')
-                : runtimeOnly
-                  ? t('wsRuntimeNote')
-                  : null
+                : null
             return {
               skill,
               assigned,
@@ -1326,18 +1337,11 @@ window.__ModuleLoader__.load({
 
       const declaredOn = mcpNames.filter((name) => declared.some((server) => server?.name === name)).length
       const globalCount = mcpNames.filter((name) => globalMcp.includes(name) && !declared.some((server) => server?.name === name)).length
-      // "On" for a workspace means the model can reach it: a project link, or a
-      // machine-wide root that is not shadowed. Locked rows count too, or the
-      // header would read 0/N on a workspace with every global skill available.
-      const reachable = (skill) =>
-        skill.assigned === true ||
-        (skill.global === true &&
-          skill.vaulted !== true &&
-          skill.source !== 'runtime' &&
-          skill.shadowed !== true &&
-          skill.disabled !== true)
-      const skillsOn = allSkills.filter(reachable).length
-      const globalSkills = allSkills.filter((skill) => skill.assigned !== true && reachable(skill)).length
+      // Counts come from the rows on screen: the header's "N 项" and the "X/Y"
+      // hint must always describe the same list, hidden rows included.
+      const skillsOn = skillRows.filter((row) => row.enabled).length
+      const globalSkills = skillRows.filter((row) => row.assigned !== true && row.enabled).length
+      const hiddenHere = allSkills.filter((skill) => hiddenSkills.includes(skill.name)).length
       const mcpStatus =
         workspace.mcp?.status === 'invalid'
           ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
@@ -1347,7 +1351,11 @@ window.__ModuleLoader__.load({
       const mcpHint = [`${t('wsSwitchOn')} ${declaredOn}`, globalCount > 0 ? `${t('wsGlobalShort')} ${globalCount}` : null, mcpStatus]
         .filter(Boolean)
         .join(' · ')
-      const skillsHint = [`${t('wsSwitchOn')} ${skillsOn}/${allSkills.length}`, globalSkills > 0 ? `${t('wsGlobalShort')} ${globalSkills}` : null]
+      const skillsHint = [
+        `${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`,
+        globalSkills > 0 ? `${t('wsGlobalShort')} ${globalSkills}` : null,
+        hiddenHere > 0 ? `${t('wsHiddenShort')} ${hiddenHere}` : null,
+      ]
         .filter(Boolean)
         .join(' · ')
 
@@ -1685,7 +1693,9 @@ window.__ModuleLoader__.load({
         (item) => String(item.server ?? ''),
       )
       const skills = sortByEnabled(
-        (data?.skills ?? []).filter((item) => (showHiddenSkills || !hiddenSkills.includes(item.name)) && matches(q, item, FILTERS[3][1])),
+        (data?.skills ?? []).filter(
+          (item) => !isRuntimeSkill(item) && (showHiddenSkills || !hiddenSkills.includes(item.name)) && matches(q, item, FILTERS[3][1]),
+        ),
         (item) => item.disabled !== true,
         (item) => String(item.name ?? ''),
       )
@@ -1988,9 +1998,7 @@ window.__ModuleLoader__.load({
                 // and still live in the global root.
                 const showVaultIn = !vaulted && globalSkill && item.toggleable !== false
                 const vaultRowBusy = vaultBusy === `in|${item.name}` || vaultBusy === `out|${item.name}`
-                // A runtime registration has no file to rewrite; anything else
-                // that cannot be switched is a project-scoped skill.
-                const blockedLabel = item.disabledReason === 'runtime' ? t('toggleUnavailableRuntime') : t('toggleUnavailableProject')
+                // Anything the host cannot switch is a project-scoped skill.
                 return h(
                   'div',
                   { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), ...(hiddenSkills.includes(item.name) ? S.rowHidden : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
@@ -2029,7 +2037,7 @@ window.__ModuleLoader__.load({
                         })
                       : null,
                     h(Badge, { label: `${edges.length} ${t('edges')}`, tone: edges.length > 0 ? 'success' : undefined, dot: edges.length > 0 }),
-                    vaulted ? null : rowLocked ? h(Badge, { label: blockedLabel, tone: 'warning' }) : null,
+                    vaulted ? null : rowLocked ? h(Badge, { label: t('toggleUnavailableProject'), tone: 'warning' }) : null,
                     vaulted
                       ? h(RowButton, {
                           label: t('vaultOut'),
@@ -2179,7 +2187,7 @@ window.__ModuleLoader__.load({
           view === 'global'
             ? overviewSections
             : showList
-              ? h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace, query: wsQuery })
+              ? h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace, query: wsQuery, hiddenSkills, showHiddenSkills })
               : h(WorkspaceDetail, {
                   key: 'ws-detail',
                   t,
