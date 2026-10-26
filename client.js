@@ -24,23 +24,23 @@ window.__ModuleLoader__.load({
     const GLOBAL_ROUTE = '/inventory/global'
     const VAULT_ROUTE = '/inventory/vault'
 
-    // Sections hidden by the eye button on their header, keyed by section id and
-    // remembered across panel opens.
-    const HIDDEN_KEY = 'dsh-inventory:hidden-sections'
+    // Skills hidden one by one from the list, by name. Shared by the overview
+    // and every workspace page, and remembered across panel opens.
+    const HIDDEN_SKILLS_KEY = 'dsh-inventory:hidden-skills'
 
-    function readHiddenSections() {
+    function readHiddenSkills() {
       try {
-        const stored = JSON.parse(window.localStorage.getItem(HIDDEN_KEY) ?? '{}')
-        return stored !== null && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}
+        const stored = JSON.parse(window.localStorage.getItem(HIDDEN_SKILLS_KEY) ?? '[]')
+        return Array.isArray(stored) ? stored.filter((name) => typeof name === 'string') : []
       } catch {
         // No localStorage (test harness, private mode) or garbage stored: hide nothing.
-        return {}
+        return []
       }
     }
 
-    function writeHiddenSections(value) {
+    function writeHiddenSkills(names) {
       try {
-        window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(value))
+        window.localStorage.setItem(HIDDEN_SKILLS_KEY, JSON.stringify(names))
       } catch {
         // Hiding still works for this panel even when it cannot be remembered.
       }
@@ -118,6 +118,7 @@ window.__ModuleLoader__.load({
       deferred: '已折叠',
       deferredHint: '被 tool-search 延迟加载',
       noSkills: '没有发现技能。',
+      hiddenSkillsEmpty: '技能都隐藏了。工具栏的「显示已隐藏」可以把它们放出来。',
       noTools: '工具注册表为空（可能尚未就绪）。',
       noMcp: '没有配置 MCP 服务器。',
       noPackages: 'profile 没有声明插件。',
@@ -125,8 +126,10 @@ window.__ModuleLoader__.load({
       hideOfficial: '隐藏官方',
       officialHidden: '官方条目已隐藏。',
       officialHint: '官方 = @deepseek-ai/* 插件与内置工具',
-      hideSection: '隐藏此栏目',
-      showHiddenSkills: '显示技能栏目',
+      hideSkill: '隐藏此技能',
+      unhideSkill: '取消隐藏',
+      showHiddenSkills: '显示已隐藏',
+      hiddenSkillsHint: '显示已隐藏的技能，再点一次收起',
       wsOverview: '总览',
       wsWorkspaces: '工作区',
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
@@ -264,6 +267,7 @@ window.__ModuleLoader__.load({
       deferred: 'deferred',
       deferredHint: 'loaded on demand by tool-search',
       noSkills: 'No skills found.',
+      hiddenSkillsEmpty: 'Every skill is hidden. "Show hidden" in the toolbar brings them back.',
       noTools: 'The tool registry is empty (not ready yet).',
       noMcp: 'No MCP server configured.',
       noPackages: 'The profile declares no plugins.',
@@ -271,8 +275,10 @@ window.__ModuleLoader__.load({
       hideOfficial: 'Hide official',
       officialHidden: 'Official entries are hidden.',
       officialHint: 'official = @deepseek-ai/* plugins and builtin tools',
-      hideSection: 'Hide this section',
-      showHiddenSkills: 'Show skills section',
+      hideSkill: 'Hide this skill',
+      unhideSkill: 'Unhide',
+      showHiddenSkills: 'Show hidden',
+      hiddenSkillsHint: 'Reveal hidden skills; click again to fold them away',
       wsOverview: 'Overview',
       wsWorkspaces: 'Workspaces',
       wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
@@ -554,16 +560,13 @@ window.__ModuleLoader__.load({
       sectionTitle: { ...T.captionStrong, color: C.secondary },
       sectionCount: { ...T.caption, color: C.secondary, opacity: 0.75, fontVariantNumeric: 'tabular-nums' },
       sectionHint: { ...T.caption, color: C.secondary, opacity: 0.75, marginLeft: 'auto', paddingRight: '4px', whiteSpace: 'nowrap' },
-      // Sits on the section header's right edge, level with the caption line.
-      hideBtn: {
-        position: 'absolute',
-        top: '18px',
-        right: '0px',
+      // Per-row icon button (hide a skill); swallows the row's own click.
+      rowIconBtn: {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: '24px',
-        height: '24px',
+        width: '26px',
+        height: '26px',
         padding: 0,
         border: 'none',
         borderRadius: '7px',
@@ -585,6 +588,7 @@ window.__ModuleLoader__.load({
         flexShrink: 0,
       },
       rowLast: { borderBottom: 'none' },
+      rowHidden: { opacity: 0.55 },
       rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
       rowTitle: { ...T.rowTitle, wordBreak: 'break-word' },
       rowTitleMono: { ...T.rowTitle, fontFamily: FONT_MONO, fontSize: '14px', wordBreak: 'break-all' },
@@ -897,6 +901,10 @@ window.__ModuleLoader__.load({
           h('rect', { key: 'b', x: 5.5, y: 10.5, width: 13, height: 9.5, rx: 2.5, ...stroke }),
           h('path', { key: 's', d: 'M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5', ...stroke }),
         ],
+        eye: [
+          h('path', { key: 'e', d: 'M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z', ...stroke }),
+          h('circle', { key: 'c', cx: 12, cy: 12, r: 2.8, ...stroke }),
+        ],
         eyeOff: [
           h('path', { key: 'e', d: 'M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z', ...stroke }),
           h('path', { key: 's', d: 'M4.5 4.5l15 15', ...stroke }),
@@ -929,11 +937,11 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function Section({ t, title, hint, count, open, onToggle, onHide, children }) {
+    function Section({ t, title, hint, count, open, onToggle, children }) {
       const body = children === undefined || children === null ? [] : Array.isArray(children) ? children : [children]
       return h(
         'div',
-        { style: { display: 'flex', flexDirection: 'column', flexShrink: 0, position: 'relative' } },
+        { style: { display: 'flex', flexDirection: 'column', flexShrink: 0 } },
         h(
           'button',
           {
@@ -946,27 +954,8 @@ window.__ModuleLoader__.load({
           h('span', { style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
           h('span', { style: S.sectionTitle }, title),
           h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
-          hint ? h('span', { style: { ...S.sectionHint, ...(onHide ? { paddingRight: '28px' } : {}) } }, hint) : null,
+          hint ? h('span', { style: S.sectionHint }, hint) : null,
         ),
-        // A sibling, not a child: the header is a button, and a button inside a
-        // button is invalid markup.
-        onHide
-          ? h(
-              'button',
-              {
-                type: 'button',
-                className: 'inv-btn inv-hide',
-                'aria-label': t('hideSection'),
-                title: t('hideSection'),
-                style: S.hideBtn,
-                onClick: (event) => {
-                  if (event !== undefined && event !== null) event.stopPropagation()
-                  onHide()
-                },
-              },
-              h(Icon, { name: 'eyeOff', size: 15 }),
-            )
-          : null,
         open ? h('div', { style: S.card, className: 'inv-section-body' }, ...body) : null,
       )
     }
@@ -1045,6 +1034,28 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** Icon-only twin of RowButton: hides/unhides one skill row. */
+    function RowIconButton({ label, icon, onClick }) {
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: 'inv-btn inv-hide',
+          'aria-label': label,
+          title: label,
+          style: S.rowIconBtn,
+          onClick: (event) => {
+            if (event !== undefined && event !== null) event.stopPropagation()
+            onClick()
+          },
+          onKeyDown: (event) => {
+            if (event !== undefined && event !== null) event.stopPropagation()
+          },
+        },
+        h(Icon, { name: icon, size: 16 }),
+      )
+    }
+
     /** Workspace list: one grouped card, one row per workspace. */
     function WorkspaceList({ t, data, onEnter, query }) {
       const all = Array.isArray(data?.workspaces) ? data.workspaces : []
@@ -1116,6 +1127,11 @@ window.__ModuleLoader__.load({
      */
     function WorkspaceDetail(props) {
       const { t, data, workspace, busy, onAssign, query } = props
+      // Hidden skill names and the reveal switch are shared with the overview, so
+      // a skill hidden once stays hidden on both pages.
+      const hiddenSkills = Array.isArray(props.hiddenSkills) ? props.hiddenSkills : []
+      const showHidden = props.showHiddenSkills === true
+      const setSkillHidden = typeof props.onSetSkillHidden === 'function' ? props.onSetSkillHidden : () => {}
       const globalMcp = Array.isArray(data?.globalMcp) ? data.globalMcp : []
       const workspaces = Array.isArray(data?.workspaces) ? data.workspaces : []
       const installedMcp = Array.isArray(data?.mcp) ? data.mcp : []
@@ -1267,16 +1283,17 @@ window.__ModuleLoader__.load({
               search: `${skill.name} ${skill.description ?? ''} ${skill.source ?? ''}`.toLowerCase(),
             }
           })
-          .filter((row) => q.length === 0 || row.search.includes(q)),
+          .filter((row) => (showHidden || !hiddenSkills.includes(row.skill.name)) && (q.length === 0 || row.search.includes(q))),
         (row) => row.enabled,
         (row) => String(row.skill.name),
       )
 
       const skillNodes = skillRows.map((row, index) => {
         const skill = row.skill
+        const hidden = hiddenSkills.includes(skill.name)
         return h(
           'div',
-          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(index === skillRows.length - 1 ? S.rowLast : {}) } },
+          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(index === skillRows.length - 1 ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
           h(
             'div',
             { style: S.rowMain },
@@ -1299,6 +1316,11 @@ window.__ModuleLoader__.load({
                 stateLabel: row.assigned ? t('wsSwitchOn') : t('wsSwitchOff'),
                 onToggle: () => onAssign({ workspace, kind: 'skill', action: row.assigned ? 'remove' : 'add', name: skill.name }),
               }),
+          h(RowIconButton, {
+            label: hidden ? `${t('unhideSkill')} ${skill.name}` : `${t('hideSkill')} ${skill.name}`,
+            icon: hidden ? 'eye' : 'eyeOff',
+            onClick: () => setSkillHidden(skill.name, !hidden),
+          }),
         )
       })
 
@@ -1357,7 +1379,7 @@ window.__ModuleLoader__.load({
             onToggle: props.onToggleSkills,
           },
           skillRows.length === 0
-            ? h('div', { key: 'sk-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noSkills'))
+            ? h('div', { key: 'sk-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenSkills.length > 0 && !showHidden ? t('hiddenSkillsEmpty') : t('noSkills'))
             : skillNodes,
         ),
       )
@@ -1431,9 +1453,11 @@ window.__ModuleLoader__.load({
       const [vaultBusy, setVaultBusy] = React.useState('')
       const [vaultError, setVaultError] = React.useState('')
       const [detailOpen, setDetailOpen] = React.useState({ mcp: true, skills: true })
-      // The eye button on a section header hides that section; the chip in the
-      // controls brings it back, so hiding is never a dead end.
-      const [hiddenSections, setHiddenSections] = React.useState(readHiddenSections())
+      // Skills hidden one by one from the list (by name, shared by every page and
+      // remembered). `showHiddenSkills` is session-only: it reveals them so they
+      // can be un-hidden again.
+      const [hiddenSkills, setHiddenSkills] = React.useState(readHiddenSkills())
+      const [showHiddenSkills, setShowHiddenSkills] = React.useState(false)
       // Apple's large-title pattern: the toolbar title only appears once the
       // large title has scrolled away. Threshold crossing only, so scrolling
       // does not re-render the panel.
@@ -1595,12 +1619,10 @@ window.__ModuleLoader__.load({
       const toggle = (key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
       const toggleDetail = (key) => setDetailOpen((prev) => ({ ...prev, [key]: !prev[key] }))
       const toggleItem = (key) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
-      const setSectionHidden = (key, hidden) => {
-        const next = { ...hiddenSections }
-        if (hidden === true) next[key] = true
-        else delete next[key]
-        setHiddenSections(next)
-        writeHiddenSections(next)
+      const setSkillHidden = (name, hidden) => {
+        const next = hidden === true ? [...hiddenSkills.filter((entry) => entry !== name), name] : hiddenSkills.filter((entry) => entry !== name)
+        setHiddenSkills(next)
+        writeHiddenSkills(next)
       }
 
       const backToChat =
@@ -1663,7 +1685,7 @@ window.__ModuleLoader__.load({
         (item) => String(item.server ?? ''),
       )
       const skills = sortByEnabled(
-        (data?.skills ?? []).filter((item) => matches(q, item, FILTERS[3][1])),
+        (data?.skills ?? []).filter((item) => (showHiddenSkills || !hiddenSkills.includes(item.name)) && matches(q, item, FILTERS[3][1])),
         (item) => item.disabled !== true,
         (item) => String(item.name ?? ''),
       )
@@ -1771,19 +1793,20 @@ window.__ModuleLoader__.load({
       )
 
       const hiddenSkillsChip =
-        hiddenSections.skills === true
-          ? h(
+        hiddenSkills.length === 0
+          ? null
+          : h(
               'button',
               {
                 type: 'button',
                 className: 'inv-seg-btn',
-                style: S.chip,
-                title: t('showHiddenSkills'),
-                onClick: () => setSectionHidden('skills', false),
+                'aria-pressed': showHiddenSkills ? 'true' : 'false',
+                style: { ...S.chip, ...(showHiddenSkills ? S.chipOn : {}) },
+                title: t('hiddenSkillsHint'),
+                onClick: () => setShowHiddenSkills((prev) => !prev),
               },
-              t('showHiddenSkills'),
+              `${t('showHiddenSkills')} ${hiddenSkills.length}`,
             )
-          : null
 
       const stats = h(
         'div',
@@ -1934,13 +1957,11 @@ window.__ModuleLoader__.load({
                 )
               }),
         ),
-        hiddenSections.skills === true
-          ? null
-          : h(
-              Section,
-              { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills'), onHide: () => setSectionHidden('skills', true) },
+        h(
+          Section,
+          { key: 'skills', t, title: t('skills'), hint: `${t('skillsHint')} · ${t('globalHint')}`, count: skills.length, open: open.skills, onToggle: () => toggle('skills') },
           skills.length === 0
-            ? [h('div', { key: 'skills-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : t('noSkills'))]
+            ? [h('div', { key: 'skills-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenSkills.length > 0 && !showHiddenSkills ? t('hiddenSkillsEmpty') : t('noSkills'))]
             : [
                 vaultCandidates.length === 0
                   ? null
@@ -1972,7 +1993,7 @@ window.__ModuleLoader__.load({
                 const blockedLabel = item.disabledReason === 'runtime' ? t('toggleUnavailableRuntime') : t('toggleUnavailableProject')
                 return h(
                   'div',
-                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
+                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), ...(hiddenSkills.includes(item.name) ? S.rowHidden : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
                   h(
                     'div',
                     {
@@ -2031,6 +2052,11 @@ window.__ModuleLoader__.load({
                       : null,
                     vaultRowBusy ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
                     globalBusy === `skill|${item.name}` ? h('span', { style: S.spinner, className: 'inv-spin' }) : null,
+                    h(RowIconButton, {
+                      label: hiddenSkills.includes(item.name) ? `${t('unhideSkill')} ${item.name}` : `${t('hideSkill')} ${item.name}`,
+                      icon: hiddenSkills.includes(item.name) ? 'eye' : 'eyeOff',
+                      onClick: () => setSkillHidden(item.name, !hiddenSkills.includes(item.name)),
+                    }),
                   ),
                   isOpen
                     ? h(
@@ -2077,7 +2103,7 @@ window.__ModuleLoader__.load({
                 )
                 }),
               ],
-            ),
+        ),
         h(
           Section,
           { key: 'tools', t, title: t('tools'), hint: t('toolsHint'), count: tools.length, open: open.tools, onToggle: () => toggle('tools') },
@@ -2130,7 +2156,7 @@ window.__ModuleLoader__.load({
                 )
               : h('p', { style: S.subtitle }, t('subtitle')),
           ),
-          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, view === 'global' ? hiddenSkillsChip : null, stamp),
+          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, hiddenSkillsChip, stamp),
           view === 'global'
             ? searchField(query, setQuery, t('search'), t('search'))
             : showList
@@ -2162,6 +2188,9 @@ window.__ModuleLoader__.load({
                   busy: wsBusy,
                   query: wsQuery,
                   onAssign: runWorkspaceAction,
+                  hiddenSkills,
+                  showHiddenSkills,
+                  onSetSkillHidden: setSkillHidden,
                   mcpOpen: detailOpen.mcp,
                   skillsOpen: detailOpen.skills,
                   onToggleMcp: () => toggleDetail('mcp'),

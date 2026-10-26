@@ -908,22 +908,50 @@ test('overview sorts enabled MCP servers and skills above disabled ones', async 
   ])
 })
 
-test('the skills section hides from its header and comes back from the controls', async () => {
-  const panel = await bootPanel(toggleSnapshot(), { version: 'hide-skills-case' })
-  const skillsHeader = (tree) =>
-    findNode(tree, (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('技能'))
-  assert.ok(skillsHeader(panel.tree()), 'skills section header missing')
+test('one skill hides from its own row and the chip in the controls brings it back', async () => {
+  const panel = await bootPanel(toggleSnapshot(), { version: 'hide-skill-case' })
+  openSkillSection(panel)
 
-  const hideButton = findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '隐藏此栏目')
-  assert.ok(hideButton, 'the skills header has no hide button')
-  hideButton.props.onClick({ stopPropagation() {} })
-  assert.equal(skillsHeader(panel.tree()), null, 'the hidden section is still rendered')
+  const hideButton = (name) =>
+    findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === `隐藏此技能 ${name}`)
+  const rowOfSkill = (name) => findNode(panel.tree(), (node) => node.props?.role === 'switch' && node.props['aria-label'] === name)
 
-  // Hiding is not a dead end: the chip in the controls restores it.
-  const restore = findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示技能栏目')
-  assert.ok(restore, 'a hidden section has no way back')
-  restore.props.onClick()
-  assert.ok(skillsHeader(panel.tree()), 'the section did not come back')
+  assert.ok(rowOfSkill('s-zulu'), 's-zulu row missing before hiding')
+  hideButton('s-zulu').props.onClick({ stopPropagation() {} })
+
+  // Only that row is gone; its neighbour and the section itself stay.
+  assert.equal(rowOfSkill('s-zulu'), null, 'the hidden skill is still listed')
+  assert.ok(rowOfSkill('s-bravo'), 'hiding one skill must not drop the others')
+  assert.ok(findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('技能')), 'the section must stay')
+
+  // The chip says how many are hidden and reveals them, dimmed with an unhide button.
+  const chip = findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示已隐藏 1')
+  assert.ok(chip, 'the controls do not offer to reveal hidden skills')
+  chip.props.onClick()
+  assert.ok(rowOfSkill('s-zulu'), 'revealing must list the hidden skill again')
+  const unhide = findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '取消隐藏 s-zulu')
+  assert.ok(unhide, 'a revealed row has no unhide button')
+
+  unhide.props.onClick({ stopPropagation() {} })
+  assert.equal(findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示已隐藏 1'), null, 'the chip must go once nothing is hidden')
+  assert.ok(rowOfSkill('s-zulu'), 'unhiding must keep the row')
+})
+
+test('a skill hidden on the overview is hidden on the workspace page too', async () => {
+  const panel = await bootPanel(workspaceSnapshot(), { version: 'hide-skill-workspace-case' })
+  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+  findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+
+  const detailRow = (name) => findNode(panel.tree(), (node) => node.props?.role === 'switch' && node.props['aria-label'] === name)
+  assert.ok(detailRow('proj-skill'), 'proj-skill row missing on the detail page')
+  const hide = findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '隐藏此技能 proj-skill')
+  assert.ok(hide, 'the detail page has no per-skill hide button')
+  hide.props.onClick({ stopPropagation() {} })
+  assert.equal(detailRow('proj-skill'), null, 'the hidden skill is still listed on the detail page')
+
+  // Same hidden set: the overview chip counts it too.
+  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node).includes('工作区列表')).props.onClick()
+  assert.ok(findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '显示已隐藏 1'), 'the hidden set is not shared with the overview')
 })
 
 test('overview MCP switch posts the inverted state to /inventory/global', async () => {
