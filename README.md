@@ -64,13 +64,13 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 | 认 | 例 |
 |---|---|
 | 盘符绝对路径 | `C:\Users\me\.dsh\skills\office\refs\officecli-xlsx.md` |
-| 已知资产前缀 | `refs/` `reference/` `references/` `scripts/` `assets/` `templates/` |
+| 已知资产前缀 | `refs/` `reference/` `references/` `scripts/` `assets/` `templates/`，**且该前缀目录在 skill 内确实存在** |
 | `../` 相对 | `../morph-ppt/reference/styles/INDEX.md` |
 | 旧式 skill 引用 | `skills/officecli-pptx/SKILL.md` |
 | markdown 链接 | `[x](refs/a.md)` |
 | 裸文件名 | 仅当它在同目录 / `refs/` / `references/` 下**真的存在** |
 
-**明确忽略**：命令片段（`officecli create a.pptx`）、URL（`http://HOST:8188/prompt`）、XML 路径（`/body/p[1]`、`/Sheet1/A1`）、占位符（`refs/<name>.md`）、裸目录（`reference/`）。
+**明确忽略**：命令片段（`officecli create a.pptx`）、URL（`http://HOST:8188/prompt`）、XML 路径（`/body/p[1]`、`/Sheet1/A1`）、占位符（`refs/<name>.md`）、裸目录（`reference/`），以及**前缀目录不存在**的相对路径（`scripts\selftest.py` 写在 `E:\AI\...\py.bat` 旁边时，它属于那个外部项目，不是本 skill 的资产）。
 
 三条实现细节，改之前先看：
 

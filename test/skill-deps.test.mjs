@@ -85,9 +85,19 @@ test('extractRefs keeps drive-letter paths and drops XML document paths', () => 
 
 test('resolveRef maps known prefixes and refuses unknown shapes', () => {
   const root = mkdtempSync(join(tmpdir(), 'inv-deps-resolve-'))
+  mkdirSync(join(root, 'x', 'refs'), { recursive: true })
   const base = { fileDir: join(root, 'x'), skillDir: join(root, 'x'), skillsRoot: root }
   assert.equal(resolveRef('refs/a.md', base), join(root, 'x', 'refs', 'a.md'))
   assert.equal(resolveRef('skills/other/SKILL.md', base), join(root, 'other', 'SKILL.md'))
   assert.equal(resolveRef('C:\\tmp\\a.md', base), normalize('C:/tmp/a.md'))
   assert.equal(resolveRef('nonsense/a.md', base), null)
+})
+
+test('a prefix that does not exist under the skill is an external project path', () => {
+  const root = mkdtempSync(join(tmpdir(), 'inv-deps-external-'))
+  // `scripts\selftest.py` belongs to E:\AI\qwen3-asr-0.6b, not to this skill.
+  skill(root, 'asr', '自检：`E:\\AI\\qwen3-asr-0.6b\\py.bat scripts\\selftest.py`')
+  const graph = graphOf(root, 'asr')
+  assert.equal(graph.bySkill.asr.refs, 0)
+  assert.equal(graph.totals.missing, 0)
 })
