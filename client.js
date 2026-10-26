@@ -164,7 +164,6 @@ window.__ModuleLoader__.load({
       wsGlobalSkillOff: '全局已禁用',
       wsGlobalSkillOffNote: '在总览里开启后所有工作区可用',
       wsDuplicateNote: '与全局根上的同名技能重复，可移除链接',
-      wsShareCount: '共享',
       wsHiddenShort: '已隐藏',
       wsItemCount: '项',
       wsSearch: '搜索 MCP 与技能',
@@ -311,7 +310,6 @@ window.__ModuleLoader__.load({
       wsGlobalSkillOff: 'disabled globally',
       wsGlobalSkillOffNote: 'enable it in the overview; it then applies to every workspace',
       wsDuplicateNote: 'duplicates the global copy; remove the link',
-      wsShareCount: 'shared',
       wsHiddenShort: 'hidden',
       wsItemCount: 'items',
       wsSearch: 'Search MCP servers and skills',
@@ -884,6 +882,16 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * True when the model can reach this skill in a workspace: a project link, or
+     * a machine-wide root that is not shadowed. The card and the detail rows use
+     * this one rule, so "已开启 X/N" means the same thing in both places.
+     */
+    function workspaceSkillEnabled(skill) {
+      if (skill.assigned === true) return true
+      return skill.global === true && skill.vaulted !== true && skill.shadowed !== true && skill.disabled !== true
+    }
+
+    /**
      * Enabled rows first, then by label. `sort` is stable, so rows that tie on
      * both keys keep the order the host sent.
      */
@@ -1104,18 +1112,11 @@ window.__ModuleLoader__.load({
           { style: S.card, role: 'list' },
           ...workspaces.map((workspace, index) => {
             const counts = workspace.counts ?? {}
-            const shared = Number(counts.sharedSkills ?? 0)
-            const own = Number(counts.projectSkills ?? 0)
-            // The same set the detail page lists, so "技能 N" on the card and
-            // "N 项" on the page are the same number.
-            const skillCount = workspaceSkillSet(installed, workspace).filter((skill) => showHiddenSkills === true || !hidden.includes(skill.name)).length
-            const meta = [
-              `MCP ${counts.declared ?? 0}`,
-              `${t('skills')} ${skillCount}`,
-              own > 0 && shared > 0 ? `${t('wsShareCount')} ${shared}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')
+            // Same set the detail page lists, so the card reads like the page's
+            // "已开启 X/N": how many of this workspace's skills are on, out of all.
+            const skillSet = workspaceSkillSet(installed, workspace).filter((skill) => showHiddenSkills === true || !hidden.includes(skill.name))
+            const onCount = skillSet.filter(workspaceSkillEnabled).length
+            const meta = [`MCP ${counts.declared ?? 0}`, `${t('skills')} ${onCount}/${skillSet.length}`].join(' · ')
             const open = () => onEnter(workspace.id)
             return h(
               'div',
@@ -1261,7 +1262,7 @@ window.__ModuleLoader__.load({
             // root scans — needs a workspace switch. The host enforces the same
             // rule on POST /inventory/workspace.
             const globalReachable = skill.global === true && skill.vaulted !== true
-            const enabled = assigned || (globalReachable && !shadowed)
+            const enabled = workspaceSkillEnabled(skill)
             const locked = assigned ? !linked : globalReachable
             const reason = assigned
               ? linked

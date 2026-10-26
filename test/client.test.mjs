@@ -557,7 +557,7 @@ test('workspace tab lists workspaces, opens a detail page, and goes back', async
   assert.match(textOf(current), /Demo Workspace/, 'workspace card missing')
   assert.match(textOf(current), /D:\/demo/, 'workspace path missing from the card')
   assert.match(textOf(current), /MCP 1/, 'declared MCP count missing')
-  assert.match(textOf(current), /技能 3/, 'the card must count the same set the detail page lists')
+  assert.match(textOf(current), /技能 2\/3/, 'the card must read like the page: how many are on, out of all')
   // The list is a list: no rows and no switches leak into it.
   assert.equal(findNode(current, (node) => node.props?.role === 'switch'), null, 'the list must not render switches')
   assert.doesNotMatch(textOf(current), /officecli/, 'the list must not render MCP rows')
@@ -810,17 +810,21 @@ test('workspace detail search narrows rows and keeps the section headers', async
   assert.match(text, /MCP 服务器/, 'filtering must not drop the section headers')
 })
 
-test('the workspace card counts every skill the workspace can use', async () => {
+test('the workspace card reads 已开启/总数 for the same set the detail page lists', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'shared-count-case' })
   findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
-  // The card counts the merged set (installed ∪ own) for every workspace, even
-  // one whose own roots are empty: shared skills are not reported as zero.
+  // Both cards report "on/total" over the merged set (installed ∪ own), even a
+  // workspace whose own roots are empty: shared skills are not reported as zero.
   const cards = []
   eachNode(tree(), (node) => {
     if (node.props?.role === 'button' && /Workspace/.test(textOf(node))) cards.push(textOf(node))
   })
   assert.equal(cards.length, 2, 'workspace cards missing')
-  for (const card of cards) assert.match(card, /技能 3/, `card does not count the merged set: ${card}`)
+  for (const card of cards) assert.match(card, /技能 \d\/3/, `card does not read on/total: ${card}`)
+  // Demo links two of the three; the fixture's installed skills carry no `global`
+  // flag, so the second workspace has nothing switched on.
+  assert.match(cards.find((card) => card.includes('Demo')), /技能 2\/3/)
+  assert.match(cards.find((card) => card.includes('Second')), /技能 0\/3/)
 
   const input = findNode(tree(), (node) => node.type === 'input' && node.props?.['aria-label'] === '搜索工作区')
   assert.ok(input, 'the workspace list has no search field')
@@ -975,7 +979,7 @@ test('runtime-registered skills are never listed or counted', async () => {
 test('the workspace card and the detail page report the same skill count', async () => {
   const panel = await bootPanel(workspaceSnapshot(), { version: 'count-match-case' })
   findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
-  assert.match(textOf(panel.tree()), /技能 3/, 'the card count must come from the same set as the page')
+  assert.match(textOf(panel.tree()), /技能 2\/3/, 'the card must read like the page: how many are on, out of all')
 
   findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
   const skillsHeader = findNode(
