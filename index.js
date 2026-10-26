@@ -34,6 +34,39 @@ export const inject = ['webServer']
 
 export const SNAPSHOT_ROUTE = '/inventory/snapshot'
 
+/**
+ * Prompt section that makes the workspace-scoped MCP capability discoverable.
+ *
+ * The gate decides what to mount, but a model in an unrelated workspace sees
+ * only its own tool list: it cannot tell that a declaration file exists, that
+ * other workspaces have MCP servers, or that writing one would change the next
+ * session. Without this section the capability is invisible from the inside.
+ */
+const WORKSPACE_MCP_SECTION = {
+  name: 'dsh-inventory:workspace-mcp',
+  order: 150,
+  text: [
+    'Workspace-scoped MCP: a workspace can declare MCP servers in `<workspace>/.dsh/mcp.json` as',
+    '{"servers": {"<name>": {"transport": "stdio", "command": "...", "args": ["..."]}}},',
+    'or with {"transport": "streamable-http", "url": "..."} for a remote server.',
+    'A session whose cwd is inside that workspace mounts those servers when its agent is created,',
+    'exposing tools named `mcp__<name>__<tool>`; every other workspace spawns nothing.',
+    'The file is read once at agent creation, so a new or edited declaration applies to the next',
+    'session, not the current one. Inspect the current state with `GET /inventory/snapshot`',
+    '(workspaces[].mcp) or the sidebar Inventory -> By workspace page.',
+  ].join(' '),
+}
+
+/** Contribute the section when the profile composes a system prompt. */
+function registerPromptSection(ctx) {
+  if (typeof ctx.inject !== 'function') return
+  ctx.effect(() =>
+    ctx.inject(['systemPrompt'], (inner) => {
+      inner.systemPrompt.section({ ...WORKSPACE_MCP_SECTION })
+    }),
+  )
+}
+
 const CACHE_MS = 15_000
 const SESSION_FILE_LIMIT = 12
 const SESSION_WINDOW = 8
@@ -402,6 +435,10 @@ async function getSnapshot(ctx, { refresh = false } = {}) {
  * @param {import('@deepseek-ai/cordis').Context} ctx
  */
 export function apply(ctx) {
+  // Registered before the webServer guard: the prompt section must reach the
+  // model even in a profile without a web server (headless/ACP).
+  registerPromptSection(ctx)
+
   if (typeof ctx.webServer?.register !== 'function') {
     ctx.logger?.warn?.('dsh-inventory: webServer service unavailable; snapshot route not registered')
     return

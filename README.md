@@ -26,6 +26,19 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 按 id 的 patch 是**整体替换 config**，不深度合并；省略的键回落 `gate.js` 的 `DEFAULTS`。清单页读回这个后缀，所以「按工作区」视图显示的挂载名和 gate 实际挂的一致。
 
+### 模型怎么知道这个能力
+
+门控只决定挂不挂，它不会向模型解释自己——一个在无关工作区里的会话，看到的是「没有那些工具」，而不是「这里可以声明 MCP」。
+
+所以 `index.js` 通过 `ctx.systemPrompt.section()` 注册一段全局提示（`name: dsh-inventory:workspace-mcp`、`order: 150`），内容包含：
+
+- 声明文件路径 `<workspace>/.dsh/mcp.json` 和它的 JSON 形状
+- 挂载后的工具名形态 `mcp__<name>__<tool>`
+- **生效时机**：文件在 agent 创建时读一次，改了要下一个会话才生效
+- 怎么查当前状态：`GET /inventory/snapshot` 的 `workspaces[].mcp`，或侧边栏「安装总览 → 按工作区」
+
+这段进每个请求，约 100 token。它注册在 `webServer` 守卫之前，所以没有 Web 服务器的 profile（headless / ACP）里模型同样能看到。
+
 ## 显示什么
 
 | 分区 | 数据源 | 说明 |

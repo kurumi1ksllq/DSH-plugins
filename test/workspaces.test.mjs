@@ -255,3 +255,43 @@ test('the snapshot lists globally registered MCP servers next to workspace ones'
   const snapshot = JSON.parse(body)
   assert.deepEqual(snapshot.globalMcp, ['codegraph', 'context7'])
 })
+
+/**
+ * Discoverability: without a prompt section, a model in an unrelated session
+ * has no way to learn that a workspace can declare its own MCP servers. The
+ * gate alone is invisible — it only decides what to mount, it never explains
+ * itself to the model.
+ */
+test('registers a system-prompt section explaining workspace-scoped MCP', () => {
+  const sections = []
+  const ctx = {
+    baseUrl: 'file:///C:/nope/',
+    logger: { warn() {}, info() {}, error() {} },
+    get() {
+      return undefined
+    },
+    effect(fn) {
+      return fn()
+    },
+    inject(deps, callback) {
+      assert.ok(Array.isArray(deps), 'inject must receive a dependency list')
+      if (deps.includes('systemPrompt')) {
+        callback({ systemPrompt: { section: (section) => sections.push(section) } })
+      }
+    },
+    webServer: {
+      register() {
+        return () => {}
+      },
+    },
+  }
+  apply(ctx)
+  assert.equal(sections.length, 1, 'exactly one prompt section must be contributed')
+  const section = sections[0]
+  assert.equal(typeof section.name, 'string')
+  assert.ok(section.name.length > 0, 'a section needs a stable name')
+  assert.equal(typeof section.order, 'number')
+  assert.match(section.text, /\.dsh\/mcp\.json/, 'the section must name the declaration file')
+  assert.match(section.text, /mcp__/, 'the section must name the tool prefix the model will see')
+  assert.match(section.text, /next session|new session/i, 'the section must say when an edit takes effect')
+})
