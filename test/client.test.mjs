@@ -272,7 +272,7 @@ test('client registers a sidebar entry plus a main panel and renders both states
   assert.ok(noRowBadge, 'row-less package has no explanatory badge')
 
   // The refresh button is the only path that bypasses the cache.
-  const button = findNode(readyTree, (node) => node.type === 'button' && textOf(node) === '刷新')
+  const button = findNode(readyTree, (node) => node.type === 'button' && (node.props?.['aria-label'] === '刷新' || textOf(node) === '刷新'))
   assert.ok(button, 'refresh button not found')
   button.props.onClick()
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -457,6 +457,15 @@ function workspaceSnapshot() {
         ],
         counts: { declared: 1, projectSkills: 2, sharedSkills: 0 },
       },
+      {
+        id: 'ws-2',
+        title: 'Second Workspace',
+        path: 'D:/second',
+        available: true,
+        mcp: { status: 'missing', servers: [] },
+        skills: [],
+        counts: { declared: 0, projectSkills: 0, sharedSkills: 5 },
+      },
     ],
   }
 }
@@ -503,8 +512,8 @@ async function bootPanel(snapshot, { version = 'nav-case', post } = {}) {
 /** The row whose own name span is exactly `name`. */
 function rowOf(node, name) {
   return findNode(node, (candidate) => {
-    if (candidate.props?.style?.padding !== '5px 0') return false
-    return (candidate.children ?? []).some((child) => child.type === 'span' && textOf(child) === name)
+    if (candidate.props?.style?.minHeight !== '44px') return false
+    return findNode(candidate, (child) => child.type === 'span' && textOf(child) === name) !== null
   })
 }
 
@@ -581,19 +590,25 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   let current = tree()
-  // Every row carries a switch.
-  for (const name of ['officecli', 'codegraph', 'context7', 'proj-skill', 'copied-skill', 'runtime-skill']) {
+  // Switchable rows carry a switch named after the row; locked rows state why
+  // instead of offering a disabled switch that still reads as "on".
+  for (const name of ['officecli', 'codegraph', 'proj-skill']) {
     const row = rowOf(current, name)
     assert.ok(row, `row for ${name} is missing`)
     assert.ok(switchIn(row), `row for ${name} has no switch`)
+    assert.equal(switchIn(row).props['aria-label'], name, 'the switch must be named after its row')
+  }
+  for (const name of ['context7', 'copied-skill', 'runtime-skill']) {
+    const row = rowOf(current, name)
+    assert.ok(row, `row for ${name} is missing`)
+    assert.equal(switchIn(row), null, `row for ${name} must not offer a switch`)
   }
 
   // Global and not declared: already available to every workspace, nothing to
-  // switch off — but the badge says so instead of relying on the disabled state.
+  // switch off — the row says so instead of relying on a disabled state.
   const globalRow = rowOf(current, 'context7')
-  assert.equal(switchIn(globalRow).props['aria-checked'], 'true', 'a global server reads as on')
-  assert.equal(switchIn(globalRow).props.disabled, true, 'a global server cannot be switched off')
   assert.match(textOf(globalRow), /全局已挂载/, 'a global server must be flagged')
+  assert.match(textOf(globalRow), /对所有工作区生效/, 'a global server must say why it is locked')
 
   // Declared: on and switchable (it is also global, so closing removes the
   // duplicate mount).
@@ -607,15 +622,15 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
 
   // Hand-copied directory: assigned but not ours to unlink.
   const copiedRow = rowOf(current, 'copied-skill')
-  assert.equal(switchIn(copiedRow).props['aria-checked'], 'true')
-  assert.equal(switchIn(copiedRow).props.disabled, true, 'a non-link skill cannot be switched off')
+  assert.equal(switchIn(copiedRow), null, 'a non-link skill must not offer a switch')
   assert.match(textOf(copiedRow), /非本页链接/)
+  assert.match(textOf(copiedRow), /手工复制/)
 
   // Runtime registration: no directory, so it cannot be switched on.
   const runtimeRow = rowOf(current, 'runtime-skill')
-  assert.equal(switchIn(runtimeRow).props['aria-checked'], 'false')
-  assert.equal(switchIn(runtimeRow).props.disabled, true, 'a runtime skill cannot be switched on')
+  assert.equal(switchIn(runtimeRow), null, 'a runtime skill must not offer a switch')
   assert.match(textOf(runtimeRow), /运行时注册/)
+  assert.match(textOf(runtimeRow), /没有可链接的目录/)
 
   // Switching an unassigned server on: POST, then a forced snapshot reload.
   let release
@@ -700,29 +715,32 @@ test('workspace detail keeps rows on hairlines and the panel scrollable', async 
     assert.notEqual(node.props?.style?.alignItems, 'baseline', `baseline alignment on ${String(node.type)}`)
   })
 
-  // Inside a section body, nesting is rows and controls only: no bordered
+  // Inside a grouped card, nesting is rows and controls only: no second bordered
   // container. Pills (badges, switches) are controls, not containers.
-  const bodies = []
+  const cards = []
   eachNode(current, (node) => {
-    if (node.props?.style?.padding === '2px 14px 8px') bodies.push(node)
+    const style = node.props?.style
+    if (style?.borderRadius === '14px' && typeof style?.border === 'string') cards.push(node)
   })
-  assert.ok(bodies.length >= 2, 'detail page must render both section bodies')
-  for (const body of bodies) {
+  assert.ok(cards.length >= 2, 'detail page must render both grouped cards')
+  for (const card of cards) {
     let nestedBoxes = 0
-    eachNode(body, (node) => {
-      const style = node.props?.style
-      if (style === undefined || style === null) return
-      if (typeof style.border === 'string' && style.borderRadius !== '999px' && style.height !== '18px') nestedBoxes += 1
-    })
-    assert.equal(nestedBoxes, 0, `no bordered container may nest inside a section body, found ${nestedBoxes}`)
+    for (const child of card.children) {
+      eachNode(child, (node) => {
+        const style = node.props?.style
+        if (style === undefined || style === null) return
+        if (typeof style.border === 'string' && style.border !== 'none' && style.borderRadius !== '999px' && style.height !== '31px') nestedBoxes += 1
+      })
+    }
+    assert.equal(nestedBoxes, 0, `no bordered container may nest inside a grouped card, found ${nestedBoxes}`)
   }
 
-  // The switch is a 34×18 pill track with a round knob.
+  // The switch is a 51×31 iOS track with a round knob.
   const control = switchIn(rowOf(current, 'codegraph'))
   assert.ok(control, 'switch missing on the detail page')
   assert.equal(control.props.style.borderRadius, '999px')
-  assert.equal(control.props.style.width, '34px')
-  assert.equal(control.props.style.height, '18px')
+  assert.equal(control.props.style.width, '51px')
+  assert.equal(control.props.style.height, '31px')
 
   // Rows must separate with a hairline, never a box.
   let boxedRows = 0
@@ -733,4 +751,66 @@ test('workspace detail keeps rows on hairlines and the panel scrollable', async 
     }
   })
   assert.equal(boxedRows, 0, 'list rows must not be drawn as boxes')
+})
+
+test('expandable rows answer the keyboard and expose aria-expanded', async () => {
+  const { tree } = await bootPanel(SNAPSHOT, { version: 'keyboard-case' })
+  let current = tree()
+
+  // A native button: the browser fires click on Enter/Space, so the panel must
+  // not also handle the key itself (that would toggle twice).
+  const header = findNode(
+    current,
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('插件包'),
+  )
+  assert.ok(header, 'no expandable section header')
+  assert.equal(header.props['aria-expanded'], 'true')
+  assert.equal(header.props.onKeyDown, undefined, 'a native button must not double-handle Enter')
+  header.props.onClick()
+  current = tree()
+  const collapsed = findNode(
+    current,
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('插件包'),
+  )
+  assert.equal(collapsed.props['aria-expanded'], 'false', 'the header must collapse')
+
+  // The MCP row is a div with role=button, so it has to handle Enter itself.
+  const row = findNode(
+    current,
+    (node) => node.props?.role === 'button' && node.props?.['aria-expanded'] === 'false' && textOf(node).includes('officecli'),
+  )
+  assert.ok(row, 'MCP row is not an expandable button')
+  assert.equal(typeof row.props.onKeyDown, 'function', 'a div row must handle its own keys')
+  row.props.onKeyDown({ key: 'Enter', preventDefault() {} })
+  assert.match(textOf(tree()), /mcp__officecli__officecli/, 'Enter must expand the row')
+})
+
+test('workspace detail search narrows rows and keeps the section headers', async () => {
+  const { tree } = await bootPanel(workspaceSnapshot(), { version: 'detail-search-case' })
+  findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+  findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+
+  let current = tree()
+  const input = findNode(current, (node) => node.type === 'input' && node.props?.['aria-label'] === '搜索 MCP 与技能')
+  assert.ok(input, 'detail page has no search field')
+  input.props.onChange({ target: { value: 'proj' } })
+
+  current = tree()
+  const text = textOf(current)
+  assert.match(text, /proj-skill/)
+  assert.doesNotMatch(text, /codegraph/)
+  assert.match(text, /MCP 服务器/, 'filtering must not drop the section headers')
+})
+
+test('the workspace list counts shared skills instead of hiding them', async () => {
+  const { tree } = await bootPanel(workspaceSnapshot(), { version: 'shared-count-case' })
+  findNode(tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
+  assert.match(textOf(tree()), /共享 5/)
+
+  const input = findNode(tree(), (node) => node.type === 'input' && node.props?.['aria-label'] === '搜索工作区')
+  assert.ok(input, 'the workspace list has no search field')
+  input.props.onChange({ target: { value: 'second' } })
+  const filtered = textOf(tree())
+  assert.match(filtered, /Second Workspace/)
+  assert.doesNotMatch(filtered, /Demo Workspace/, 'the list filter must narrow the rows')
 })
