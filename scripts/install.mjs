@@ -224,6 +224,108 @@ function removeBundleEntry(text) {
   return { text: next, changed: true };
 }
 
+// ---------------------------------------------------------------- dependency pin
+//
+// Why this exists: the bundle used to be copied into <profile>/node_modules with no
+// manifest record. Any `pnpm install` in the profile (the DSH plugin manager runs one
+// for every install/uninstall) then treats that directory as extraneous and moves it
+// to node_modules/.ignored — the bundle silently stops resolving and the sidebar panel
+// disappears. Declaring it as a `link:` dependency keeps pnpm honest: it is part of the
+// dependency tree, so it is never pruned, and the loader still resolves the same name.
+
+/** `link:` spec pointing at this checkout's plugin/ directory (forward slashes, pnpm style). */
+function bundleLinkSpec(sourceRoot) {
+  return `link:${path.join(sourceRoot, 'plugin').replace(/\\/g, '/')}`;
+}
+
+/** Span of the manifest's top-level "dependencies" object, or undefined when there is none. */
+function dependenciesSpan(text) {
+  const keyAt = text.indexOf('"dependencies"');
+  if (keyAt === -1) return undefined;
+  const open = text.indexOf('{', keyAt);
+  if (open === -1) return undefined;
+  let depth = 0;
+  let inString = false;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (char === '\\') index += 1;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return { open, close: index };
+    }
+  }
+  return undefined;
+}
+
+function readDependencies(text) {
+  const span = dependenciesSpan(text);
+  if (span === undefined) return {};
+  return JSON.parse(text.slice(span.open, span.close + 1));
+}
+
+/** @returns {{ text: string, changed: boolean }} */
+function upsertDependency(text, spec) {
+  const span = dependenciesSpan(text);
+  if (span === undefined) {
+    fail('profile package.json has no "dependencies" object — add `"dependencies": {}` by hand, then re-run');
+  }
+  const current = readDependencies(text);
+  if (current[BUNDLE] === spec) return { text, changed: false };
+  const entry = JSON.stringify(BUNDLE);
+  const inner = text.slice(span.open + 1, span.close);
+  let replacement;
+  if (current[BUNDLE] !== undefined) {
+    replacement = inner.replace(new RegExp(`(${escapeRegex(entry)}\\s*:\\s*)"[^"]*"`), `$1${JSON.stringify(spec)}`);
+  } else {
+    const tail = inner.match(/\s*$/)[0];
+    const body = inner.slice(0, inner.length - tail.length);
+    const indent = inner.match(/\n([ \t]+)(?=")/)?.[1] ?? `${indentUnit(text)}${indentUnit(text)}`;
+    const pair = `${entry}: ${JSON.stringify(spec)}`;
+    replacement =
+      body.trim() === ''
+        ? `\n${indent}${pair}\n${indent.slice(0, Math.max(0, indent.length - indentUnit(text).length))}`
+        : `${body},\n${indent}${pair}${tail}`;
+  }
+  const next = `${text.slice(0, span.open + 1)}${replacement}${text.slice(span.close)}`;
+  let parsed;
+  try {
+    parsed = JSON.parse(next);
+  } catch (error) {
+    fail(`refusing to write a broken profile package.json (${error.message}); restore it from the backup and retry`);
+  }
+  if (parsed.dependencies?.[BUNDLE] !== spec) fail('internal: failed to pin the dependency');
+  return { text: next, changed: true };
+}
+
+/** @returns {{ text: string, changed: boolean }} */
+function removeDependency(text) {
+  const span = dependenciesSpan(text);
+  if (span === undefined) return { text, changed: false };
+  if (readDependencies(text)[BUNDLE] === undefined) return { text, changed: false };
+  const entry = JSON.stringify(BUNDLE);
+  const inner = text.slice(span.open + 1, span.close);
+  const pair = `${escapeRegex(entry)}\\s*:\\s*"[^"]*"`;
+  let replacement;
+  if (new RegExp(`,\\s*${pair}`).test(inner)) replacement = inner.replace(new RegExp(`,\\s*${pair}`), '');
+  else if (new RegExp(`${pair}\\s*,`).test(inner)) replacement = inner.replace(new RegExp(`${pair}\\s*,`), '');
+  else replacement = inner.replace(new RegExp(pair), '');
+  const next = `${text.slice(0, span.open + 1)}${replacement}${text.slice(span.close)}`;
+  let parsed;
+  try {
+    parsed = JSON.parse(next);
+  } catch (error) {
+    fail(`refusing to write a broken profile package.json (${error.message}); restore it from the backup and retry`);
+  }
+  if (parsed.dependencies?.[BUNDLE] !== undefined) fail('internal: failed to remove the dependency pin');
+  return { text: next, changed: true };
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -383,12 +485,13 @@ function plan({ options, profile, sourceRoot, targetDir, manifestPath, patchPath
       const note = diff.extra.length > 0 ? `, remove ${diff.extra.length} stale file(s)` : '';
       actions.push({ kind: 'copy', text: `copy plugin/ (${files.size} files) -> ${targetDir}${note}`, files });
     }
-    const manifest = addBundleEntry(text(manifestPath));
+    const manifestBefore = text(manifestPath);
+    const manifest = upsertDependency(addBundleEntry(manifestBefore).text, bundleLinkSpec(sourceRoot));
     if (manifest.changed)
       actions.push({
         kind: 'manifest',
-        text: `add "${BUNDLE}" to dsh.profile.bundles`,
-        before: text(manifestPath),
+        text: `add "${BUNDLE}" to dsh.profile.bundles and pin ${bundleLinkSpec(sourceRoot)} in dependencies`,
+        before: manifestBefore,
         next: manifest.text,
         file: manifestPath,
       });
@@ -403,12 +506,13 @@ function plan({ options, profile, sourceRoot, targetDir, manifestPath, patchPath
       });
   } else {
     if (fs.existsSync(targetDir)) actions.push({ kind: 'copy', text: `remove ${targetDir}` });
-    const manifest = removeBundleEntry(text(manifestPath));
+    const manifestBefore = text(manifestPath);
+    const manifest = removeDependency(removeBundleEntry(manifestBefore).text);
     if (manifest.changed)
       actions.push({
         kind: 'manifest',
-        text: `remove "${BUNDLE}" from dsh.profile.bundles`,
-        before: text(manifestPath),
+        text: `remove "${BUNDLE}" from dsh.profile.bundles and dependencies`,
+        before: manifestBefore,
         next: manifest.text,
         file: manifestPath,
       });
@@ -525,11 +629,12 @@ function main() {
   if (install) {
     say('');
     say('next steps:');
-    say('  1. HMR is on in this profile: the host half (provider + API) applies live, no DSH restart needed');
-    say('  2. reload the page once so the sidebar entry and the panel bundle load');
-    say('  3. confirm the left sidebar shows the web-search provider manager');
-    say(`  4. config: ${path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'websearch-failover', 'providers.json')}`);
-    say('  5. roll back with: node scripts/install.mjs --uninstall');
+    say(`  1. the bundle is pinned in the profile manifest as ${bundleLinkSpec(sourceRoot)} — a later \`pnpm install\` keeps it instead of moving it to node_modules/.ignored`);
+    say('  2. HMR is on in this profile: the host half (provider + API) applies live, no DSH restart needed');
+    say('  3. reload the page once so the sidebar entry and the panel bundle load');
+    say('  4. confirm the left sidebar shows the web-search provider manager');
+    say(`  5. config: ${path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'websearch-failover', 'providers.json')}`);
+    say('  6. roll back with: node scripts/install.mjs --uninstall');
   } else {
     say('');
     say('next steps:');

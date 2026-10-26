@@ -86,6 +86,11 @@ function profileManifest(bundles) {
   )}\n`;
 }
 
+/** The exact `link:` spec the installer must pin for a given checkout. */
+function linkSpec(root) {
+  return `link:${path.join(root, 'plugin').replace(/\\/g, '/')}`;
+}
+
 function makeProfile(dir, bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']) {
   fs.mkdirSync(dir, { recursive: true });
   write(path.join(dir, 'package.json'), profileManifest(bundles));
@@ -204,19 +209,33 @@ let manifestAfterFirst;
   );
 
   manifestAfterFirst = read(manifestPath);
-  const expectedManifest = ORIGINAL.get('package.json').replace(
-    '        "@deepseek-ai/dsh-web-app"\n      ]',
-    '        "@deepseek-ai/dsh-web-app",\n        "dsh-websearch-failover"\n      ]',
-  );
+  const expectedManifest = ORIGINAL.get('package.json')
+    .replace(
+      '        "@deepseek-ai/dsh-web-app"\n      ]',
+      '        "@deepseek-ai/dsh-web-app",\n        "dsh-websearch-failover"\n      ]',
+    )
+    .replace(
+      '"@local/dsh-prompt-inject": "link:E:/Project-hub/dsh-reverse-plugin/prompt-inject"\n  },',
+      `"@local/dsh-prompt-inject": "link:E:/Project-hub/dsh-reverse-plugin/prompt-inject",\n    "dsh-websearch-failover": "${linkSpec(sourceRoot)}"\n  },`,
+    );
   assert.equal(
     manifestAfterFirst,
     expectedManifest,
-    'the bundles entry must be inserted on its own, properly indented line',
+    'the bundles entry and the dependency pin must be inserted on their own, properly indented lines',
   );
   const parsed = JSON.parse(manifestAfterFirst);
   assert.deepEqual(parsed.dsh.profile.bundles.filter((name) => name === BUNDLE), [BUNDLE], 'bundles entry added exactly once');
   assert.ok(parsed.dsh.profile.bundles.includes('@deepseek-ai/dsh-web-app'), 'existing bundles must be preserved');
-  assert.equal(parsed.dependencies[BUNDLE], undefined, 'the installer must not add a dependency');
+  assert.equal(
+    parsed.dependencies[BUNDLE],
+    linkSpec(sourceRoot),
+    'the installer must pin the bundle as a link: dependency — an undeclared copy is what pnpm moves to node_modules/.ignored',
+  );
+  assert.equal(
+    parsed.dependencies['@local/dsh-prompt-inject'],
+    'link:E:/Project-hub/dsh-reverse-plugin/prompt-inject',
+    'existing dependencies must be preserved',
+  );
 
   patchAfterFirst = read(patchPath);
   assert.ok(patchAfterFirst.startsWith(BASE_PATCH), 'existing patch content must be preserved');
@@ -273,6 +292,7 @@ let manifestAfterFirst;
   assert.equal(read(manifestPath), ORIGINAL.get('package.json'), 'uninstall must restore package.json');
   assert.equal(read(patchPath), ORIGINAL.get('cordis.patch.yml'), 'uninstall must restore cordis.patch.yml');
   assert.equal(fs.existsSync(targetDir), false, 'uninstall must remove the installed package');
+  assert.equal(JSON.parse(read(manifestPath)).dependencies[BUNDLE], undefined, 'uninstall must drop the dependency pin');
   assert.equal(read(path.join(profile, backups(profile, 'package.json')[0])), read(manifestPath), 'restored manifest matches its backup');
   assert.equal(read(path.join(profile, backups(profile, 'cordis.patch.yml')[0])), read(patchPath), 'restored patch matches its backup');
   console.log('PASS  --uninstall restores the original profile files');
@@ -295,7 +315,8 @@ let manifestAfterFirst;
   assert.equal(result.status, 0, out(result));
   const parsed = JSON.parse(read(path.join(already, 'package.json')));
   assert.equal(parsed.dsh.profile.bundles.filter((name) => name === BUNDLE).length, 1);
-  assert.equal(backups(already, 'package.json').length, 0, 'no backup when the manifest needs no change');
+  assert.equal(parsed.dependencies[BUNDLE], linkSpec(sourceRoot), 'the dependency pin is still added');
+  assert.equal(backups(already, 'package.json').length, 1, 'one backup: only the dependency pin was added');
   console.log('PASS  an existing bundles entry is not duplicated');
 }
 
@@ -340,6 +361,71 @@ let manifestAfterFirst;
   assert.match(out(result), /dry-run: nothing written/);
   assert.deepEqual(snapshot(p4), installedSnapshot, 'dry-run uninstall must not touch the profile');
   console.log('PASS  --dry-run --uninstall plans without writing');
+}
+
+// 12) an existing dependency spec is replaced in place, never duplicated -----
+{
+  const p5 = makeProfile(path.join(TMP, 'profile-stale-spec'));
+  const staleManifest = path.join(p5, 'package.json');
+  const parsedStale = JSON.parse(read(staleManifest));
+  parsedStale.dependencies[BUNDLE] = 'link:E:/old/checkout/plugin';
+  write(staleManifest, `${JSON.stringify(parsedStale, null, 2)}\n`);
+  const result = run(INSTALL, ['--profile', p5, '--source', sourceRoot]);
+  assert.equal(result.status, 0, out(result));
+  const installed = JSON.parse(read(staleManifest));
+  assert.equal(installed.dependencies[BUNDLE], linkSpec(sourceRoot), 'a stale spec must be rewritten to the current checkout');
+  assert.equal(
+    (read(staleManifest).match(/"dsh-websearch-failover"\s*:/g) ?? []).length,
+    1,
+    'the dependency key must appear exactly once',
+  );
+  assert.equal(installed.dsh.profile.bundles.filter((name) => name === BUNDLE).length, 1, 'the bundles entry stays single');
+  assert.equal(
+    installed.dependencies['@local/dsh-prompt-inject'],
+    'link:E:/Project-hub/dsh-reverse-plugin/prompt-inject',
+    'other dependencies must survive the rewrite',
+  );
+  console.log('PASS  a stale dependency spec is replaced in place');
+}
+
+// 13) re-install over a pnpm-style symlink updates it without damaging the linked checkout --
+{
+  const p6 = makeProfile(path.join(TMP, 'profile-symlink'));
+  assert.equal(run(INSTALL, ['--profile', p6, '--source', sourceRoot]).status, 0);
+  // Reproduce what `pnpm install` does for a `link:` dependency: node_modules/<bundle>
+  // becomes a directory symlink to the checkout's plugin/ directory.
+  const linked = path.join(TMP, 'linked-checkout', 'plugin');
+  fs.mkdirSync(path.dirname(linked), { recursive: true });
+  fs.cpSync(path.join(sourceRoot, 'plugin'), linked, { recursive: true });
+  const linkDir = path.join(p6, 'node_modules', BUNDLE);
+  fs.rmSync(linkDir, { recursive: true, force: true });
+  fs.symlinkSync(linked, linkDir, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(fs.lstatSync(linkDir).isSymbolicLink(), true, 'fixture must be a symlink');
+  // Diverge the checkout so the installer has to rewrite the installed tree.
+  write(path.join(sourceRoot, 'plugin', 'index.js'), "export const inject = ['web'];\nexport function apply() {}\n// v2\n");
+  const result = run(INSTALL, ['--profile', p6, '--source', sourceRoot]);
+  assert.equal(result.status, 0, out(result));
+  assert.match(read(path.join(linkDir, 'index.js')), /\/\/ v2/, 'the installed bundle must pick up the new file');
+  assert.equal(fs.existsSync(path.join(linked, 'package.json')), true, 'the linked checkout must survive intact');
+  assert.equal(fs.existsSync(path.join(linked, 'index.js')), true, 'the linked checkout must not be deleted');
+  console.log('PASS  re-install over a symlinked bundle updates it without damaging the checkout');
+}
+
+// 14) a profile without a "dependencies" object is refused, not half-written --
+{
+  const p5 = path.join(TMP, 'profile-no-deps');
+  fs.mkdirSync(p5, { recursive: true });
+  write(
+    path.join(p5, 'package.json'),
+    `${JSON.stringify({ name: 'dsh-profile-desktop', private: true, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base'] } } }, null, 2)}\n`,
+  );
+  write(path.join(p5, 'cordis.patch.yml'), BASE_PATCH);
+  const before = snapshot(p5);
+  const result = run(INSTALL, ['--profile', p5, '--source', sourceRoot]);
+  assert.notEqual(result.status, 0, 'install must fail when the manifest has no dependencies object');
+  assert.match(out(result), /dependencies/, 'the failure must name the missing dependencies object');
+  assert.deepEqual(snapshot(p5), before, 'a refused install must leave the profile untouched');
+  console.log('PASS  install refuses a profile without dependencies and writes nothing');
 }
 
 fs.rmSync(TMP, { recursive: true, force: true });

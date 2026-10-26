@@ -33,12 +33,13 @@ node scripts/install.mjs                 # 装进 profile
 node scripts/install.mjs --uninstall     # 完全回滚
 ```
 
-安装器只做四件事：
+安装器只做五件事：
 
 1. 跑 `scripts/build-plugin.mjs`（失败即中止，profile 一个字节都不动）；
-2. 把 `plugin/` 整棵树复制到 `<profile>/node_modules/dsh-websearch-failover/`（先递归删旧副本；`plugin/lib/` 一并复制，所以装完是自包含的，不会反向依赖本仓库）；
-3. 在 `<profile>/package.json` 的 `dsh.profile.bundles` 里追加 `"dsh-websearch-failover"`（**不加 dependencies**，DSH 的 loader 直接从 profile 的 `node_modules` 解析 bundle）；
-4. 在 `<profile>/cordis.patch.yml` 末尾追加一个带标记的块（`# >>> websearch-failover` … `# <<< websearch-failover`）：
+2. 把 `plugin/` 整棵树同步到 `<profile>/node_modules/dsh-websearch-failover/`（先递归删旧副本；`plugin/lib/` 一并复制，所以装完是自包含的）；
+3. 在 `<profile>/package.json` 的 `dsh.profile.bundles` 里追加 `"dsh-websearch-failover"`；
+4. 在同一份 `package.json` 的 `dependencies` 里写 `"dsh-websearch-failover": "link:<仓库>/plugin"`——**必须声明**：DSH 插件管理器每次装/卸插件都会在 profile 跑 `pnpm install`，未声明为依赖的目录会被 pnpm 判为 extraneous 丢进 `node_modules/.ignored/`，插件随即静默失效（侧栏面板消失，`web_search` 回落原生单提供方）。声明成 `link:` 后 pnpm 视其为正式依赖，`pnpm install` 只打印 `Already up to date`；
+5. 在 `<profile>/cordis.patch.yml` 末尾追加一个带标记的块（`# >>> websearch-failover` … `# <<< websearch-failover`）：
 
 ```yaml
 - id: web
@@ -269,7 +270,7 @@ MIT，见 `LICENSE`。
 
 **dsh-websearch-failover** is a DeepSeek Harness bundle that turns the native `web_search` into an ordered multi-provider failover chain: providers are tried top-to-bottom in the user's priority order, and quota/auth/transport failures put that provider on a quota-aware cooldown instead of failing the search. It registers a single `websearch-failover` provider on `ctx.web`, so the harness never sees an ambiguous provider set, and it serves a small HTTP API behind a left-sidebar provider manager.
 
-- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer copies the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). The profile has HMR enabled, so the host half applies live without restarting DSH; only the browser half needs one page reload.
+- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer syncs the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, pins it in `dependencies` as `"link:<repo>/plugin"` (mandatory: an undeclared copy is what `pnpm install` — which the DSH plugin manager runs on every plugin change — moves to `node_modules/.ignored`, silently killing the sidebar panel), and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). The profile has HMR enabled, so the host half applies live without restarting DSH; only the browser half needs one page reload. If the bundle directory itself went missing, restore it and restart DSH — `GET /websearch-failover/api/state` returning 404 means the host half never loaded.
 - **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search. Built-in balance probes (verified against the live APIs on 2026-10-24): firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits` (v1 snake_case also accepted), tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`.
 - **State:** `~/.dsh/websearch-failover/runtime.json` (order, disabled, balances, stats), `~/.dsh/websearch-failover-state.json` (cooldowns), `~/.dsh/websearch-failover/plugin.log`.
 - **API:** `/websearch-failover/api/{state,order,refresh,enable}`; POST bodies `{order:[...]}`, `{ids?:[...]}`, `{id,enabled}`. Same-origin checked, 128 KiB body cap, never returns API keys.

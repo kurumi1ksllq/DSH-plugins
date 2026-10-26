@@ -89,7 +89,7 @@ node scripts/install.mjs                 # 装进 profile（内容没变会打�
 node scripts/install.mjs --uninstall     # 逐字节还原 profile 两个文件
 ```
 
-安装器只做四件事：跑 build（失败即中止）→ 复制 `plugin/` 到 `<profile>/node_modules/dsh-websearch-failover/`（自包含，已含 `plugin/lib/`）→ 在 `<profile>/package.json` 的 `dsh.profile.bundles` 追加 `"dsh-websearch-failover"`（**不加 dependencies**，loader 直接从 profile 的 node_modules 解析）→ 在 `<profile>/cordis.patch.yml` 末尾写一个带标记的块：
+安装器只做五件事：跑 build（失败即中止）→ 把 `plugin/` 同步到 `<profile>/node_modules/dsh-websearch-failover/`（自包含，已含 `plugin/lib/`）→ 在 `<profile>/package.json` 的 `dsh.profile.bundles` 追加 `"dsh-websearch-failover"` → 在同一份 `package.json` 的 `dependencies` 里写 `"dsh-websearch-failover": "link:<仓库>/plugin"`（**必须声明**，见下面「为什么必须写 dependencies」）→ 在 `<profile>/cordis.patch.yml` 末尾写一个带标记的块：
 
 ```yaml
 # >>> websearch-failover (managed by scripts/install.mjs — re-run to update, --uninstall to remove)
@@ -104,9 +104,10 @@ node scripts/install.mjs --uninstall     # 逐字节还原 profile 两个文件
 ```
 
 要点：
+- **为什么必须写 dependencies（2026-10-25 事故复盘）**：只复制目录、不声明依赖时，DSH 插件管理器每次装/卸插件都会在 profile 里跑一次 `pnpm install`，pnpm 会把这个「不在依赖树里」的目录判为 extraneous，移到 `node_modules/.ignored/`，插件静默失效：侧栏面板消失，`web_search` 回落原生单提供方，`plugin.log` 停在最后一次 `registered search provider`。识别特征：`dsh.profile.bundles` 和 patch 块都还在，只有 `node_modules/dsh-websearch-failover` 不见了（`ls node_modules/.ignored` 能找到它）。声明成 `link:` 后 pnpm 把它当正式依赖（symlink 到 `<仓库>/plugin`），`pnpm install` 只打印 `Already up to date`，不再 prune。代价：仓库目录不能移动；移动后重跑 `node scripts/install.mjs`。
 - profile patch 会**整块替换**目标行的 `config`，所以必须同时写回 `fetchProvider: http`，否则原生 http 抓取器会被冲掉。
-- 真正修改前写 `*.bak-websearch-failover-<时间戳>`；`--uninstall` 按文本精确摘除，`test/test-install.mjs` 逐字节比对还原结果。
-- 本机 profile 开了 hmr（`dsh-base` 的 `hmr` 行在 `profileContext` 存在时启用），所以 **Host 侧改动热生效**；浏览器端需要刷新页面才会消费新的 boot graph。
+- 真正修改前写 `*.bak-websearch-failover-<时间戳>`；`--uninstall` 按文本精确摘除（含 dependencies 条目），`test/test-install.mjs` 逐字节比对还原结果。
+- 本机 profile 开了 hmr（`dsh-base` 的 `hmr` 行在 `profileContext` 存在时启用），所以 **Host 侧改动热生效**；浏览器端需要刷新页面才会消费新的 boot graph。注意：bundle 目录本身缺失时 HMR 不会自愈，必须补回目录并重启 DSH（`GET /websearch-failover/api/state` 返回 404 就是没加载）。
 
 ---
 
