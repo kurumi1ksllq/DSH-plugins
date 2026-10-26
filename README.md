@@ -83,9 +83,13 @@ pnpm add "link:<仓库克隆到的绝对路径>/dsh-inventory"
 - insert:
     - id: inventory
       name: "dsh-inventory"
+    - id: inventory-gate
+      name: "dsh-inventory/gate"
 ```
 
 重启 DSH 后，左侧栏会出现「安装总览」入口；点进去是整页面板，左上角「‹ 返回对话」回到聊天。
+
+`inventory-gate` 是可选的：只插 `inventory` 就只有清单页，没有按工作区门控；需要门控就一起插上，再给各工作区放 `.dsh/mcp.json`（格式见上文「模型怎么知道这个能力」）。
 
 ## 开发
 
