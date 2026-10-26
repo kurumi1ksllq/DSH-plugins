@@ -490,6 +490,215 @@ test('workspace view folds cards and skill groups, then expands on click', async
  * an indent rule and background layers, not by boxing every level. Nested
  * bordered boxes on a single grey scale is what made the panel unreadable.
  */
+/**
+ * Button-driven assignment. The panel must post the documented contract to
+ * `/inventory/workspace`, force a snapshot reload afterwards (the host drops
+ * its cache on write), keep every other button disabled while one request is in
+ * flight, and surface the host's error text when the write is rejected.
+ */
+test('workspace assign buttons POST the contract, reload, and surface errors', async () => {
+  const { React, render } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL('../client.js?v=assign-case', import.meta.url).href)
+  const module = loaded.factory(() => React)
+  const dictionary = {}
+  const injections = []
+  const registrations = []
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: {
+      inject: (name, factory) => injections.push({ name, factory }),
+      register: (spec, component) => registrations.push({ spec, component }),
+    },
+  })
+  for (const injection of injections) injection.factory()
+  const main = registrations.find((entry) => entry.spec.name === 'main')
+  assert.ok(main, 'main panel not registered')
+
+  const snapshot = {
+    ...SNAPSHOT,
+    mcp: [
+      { entryId: 'mcp-officecli', server: 'officecli', transport: 'stdio', status: 'connected', toolCount: 1, toolNames: [] },
+      { entryId: 'mcp-codegraph', server: 'codegraph', transport: 'stdio', command: 'codegraph.exe', status: 'connected', toolCount: 2, toolNames: [] },
+    ],
+    skills: [
+      { name: 'officecli', description: 'Office CLI', source: 'user-dsh', edges: [] },
+      { name: 'codegraph-explore', description: 'graph queries', source: 'user-dsh', edges: [] },
+      { name: 'proj-skill', description: 'project skill', source: 'project-dsh', edges: [] },
+      { name: 'copied-skill', description: 'hand copied', source: 'project-dsh', edges: [] },
+      // Registered at runtime by a plugin: no directory to link, so no button.
+      { name: 'runtime-skill', description: 'runtime only', source: 'runtime', edges: [] },
+    ],
+    workspaceRegistryAvailable: true,
+    globalMcp: ['officecli'],
+    gateServerNameSuffix: '-ws',
+    workspaces: [
+      {
+        id: 'ws-1',
+        title: 'Demo Workspace',
+        path: 'D:/demo',
+        available: true,
+        mcp: {
+          status: 'ok',
+          file: 'D:/demo/.dsh/mcp.json',
+          servers: [{ name: 'officecli', mountedAs: 'officecli-ws', transport: 'stdio', detail: 'officecli.exe' }],
+        },
+        skills: [
+          {
+            source: 'project-dsh',
+            dir: 'D:/demo/.dsh/skills',
+            rank: 100,
+            exists: true,
+            // `linked` is the host's lstat verdict: only links this panel created
+            // may be removed; a hand-copied directory must not grow a button.
+            skills: [
+              { name: 'proj-skill', description: 'project skill', shadowed: false, linked: true },
+              { name: 'copied-skill', description: 'hand copied', shadowed: false, linked: false },
+            ],
+            diagnostics: [],
+          },
+        ],
+        counts: { declared: 1, projectSkills: 2, sharedSkills: 0 },
+      },
+    ],
+  }
+
+  const calls = []
+  let postImpl = async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) })
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    calls.push({ url: String(url), method, body: options.body })
+    if (method === 'POST') return postImpl(url, options)
+    return { ok: true, status: 200, json: async () => snapshot }
+  }
+
+  const injected = main.spec.inject()
+  render(main.component, injected)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const tree = () => resolveTree(render(main.component, injected))
+
+  /** The row whose own name span is exactly `name` (rows, not group heads). */
+  const rowOf = (node, name) =>
+    findNode(node, (candidate) => {
+      if (candidate.props?.style?.padding !== '5px 0') return false
+      return (candidate.children ?? []).some((child) => child.type === 'span' && textOf(child) === name)
+    })
+  const buttonsIn = (row) => (row?.children ?? []).filter((child) => child.type === 'button')
+  const buttonIn = (row, label) => buttonsIn(row).find((child) => textOf(child) === label) ?? null
+  /** The group container (S.group) whose header mentions `needle`. */
+  const groupOf = (node, needle) => {
+    const head = findNode(node, (candidate) => candidate.props?.role === 'button' && textOf(candidate).includes(needle))
+    return head === null ? null : findParent(node, head)
+  }
+
+  findNode(tree(), (node) => node.type === 'button' && textOf(node).includes('按工作区')).props.onClick()
+  findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+
+  let current = tree()
+  // The declared server keeps its facts and offers removal; the installed-only
+  // server offers assignment; the global one is flagged.
+  assert.ok(buttonIn(rowOf(current, 'officecli'), '移除'), 'declared server row has no remove button')
+  const assignCodegraph = buttonIn(rowOf(current, 'codegraph'), '分配')
+  assert.ok(assignCodegraph, 'installed-but-undeclared server row has no assign button')
+  assert.match(textOf(current), /全局已挂载/, 'globally registered server is not flagged')
+
+  // All-skills group is folded by default.
+  assert.equal(findNode(current, (node) => textOf(node).includes('codegraph-explore')), null, 'all-skills group must start folded')
+
+  // Project skill groups: only links this panel created offer removal. A
+  // hand-copied directory is marked assigned but must not grow a button that
+  // can only fail.
+  groupOf(current, 'project .dsh/skills').children.find((child) => child.props?.role === 'button').props.onClick()
+  current = tree()
+  const projectGroup = groupOf(current, 'project .dsh/skills')
+  assert.ok(projectGroup, 'project skill group missing')
+  const linkedRow = rowOf(projectGroup, 'proj-skill')
+  const copiedRow = rowOf(projectGroup, 'copied-skill')
+  assert.ok(linkedRow, 'linked project skill row missing')
+  assert.ok(copiedRow, 'hand-copied project skill row missing')
+  assert.deepEqual(buttonsIn(linkedRow).map(textOf), ['移除'], 'a linked project skill must offer remove')
+  assert.equal(buttonsIn(copiedRow).length, 0, 'a hand-copied project skill must not offer remove')
+
+  // The all-skills group mirrors the same rule and offers assign otherwise.
+  groupOf(current, '全部已安装技能').children.find((child) => child.props?.role === 'button').props.onClick()
+  current = tree()
+  const allGroup = groupOf(current, '全部已安装技能')
+  assert.ok(allGroup, 'all-skills group missing')
+  const allLinkedRow = rowOf(allGroup, 'proj-skill')
+  const allCopiedRow = rowOf(allGroup, 'copied-skill')
+  const allFreeRow = rowOf(allGroup, 'codegraph-explore')
+  assert.ok(allLinkedRow && allCopiedRow && allFreeRow, 'all-skills rows missing')
+  assert.match(textOf(allLinkedRow), /已分配/, 'an assigned skill must be marked assigned')
+  assert.deepEqual(buttonsIn(allLinkedRow).map(textOf), ['移除'], 'a linked assigned skill must offer remove')
+  assert.match(textOf(allCopiedRow), /已分配/, 'a hand-copied skill is still assigned')
+  assert.equal(buttonsIn(allCopiedRow).length, 0, 'an assigned-but-not-linked skill must not offer remove')
+  assert.doesNotMatch(textOf(allFreeRow), /已分配/)
+  assert.deepEqual(buttonsIn(allFreeRow).map(textOf), ['分配'], 'an unassigned skill must offer assign')
+  // A runtime-registered skill has no directory: say so and offer no button.
+  const runtimeRow = rowOf(allGroup, 'runtime-skill')
+  assert.ok(runtimeRow, 'runtime skill row missing')
+  assert.match(textOf(runtimeRow), /运行时注册/, 'a runtime skill must explain why it cannot be assigned')
+  assert.equal(buttonsIn(runtimeRow).length, 0, 'a runtime skill must not offer assign')
+
+  // One request in flight at a time: the running button shows "…" and every
+  // other action button is disabled.
+  let release
+  postImpl = () =>
+    new Promise((resolve) => {
+      release = () => resolve({ ok: true, status: 200, json: async () => ({ ok: true }) })
+    })
+  const getsBefore = calls.filter((call) => call.method === 'GET').length
+  assignCodegraph.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  current = tree()
+  const busyButton = findNode(current, (node) => node.type === 'button' && textOf(node) === '…')
+  assert.ok(busyButton, 'in-flight button does not show the busy label')
+  assert.equal(busyButton.props.disabled, true, 'in-flight button must be disabled')
+  const otherButtons = []
+  eachNode(current, (node) => {
+    if (node.type === 'button' && (textOf(node) === '分配' || textOf(node) === '移除')) otherButtons.push(node)
+  })
+  assert.ok(otherButtons.length > 0, 'no other action buttons rendered')
+  for (const button of otherButtons) assert.equal(button.props.disabled, true, 'other action buttons must be disabled while one request is in flight')
+
+  const post = calls.find((call) => call.method === 'POST')
+  assert.ok(post, 'no POST was issued')
+  assert.equal(post.url, '/inventory/workspace')
+  assert.deepEqual(JSON.parse(post.body), { workspace: 'D:/demo', kind: 'mcp', action: 'add', name: 'codegraph' })
+
+  release()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const reload = calls.filter((call) => call.method === 'GET').slice(getsBefore)
+  assert.ok(
+    reload.some((call) => call.url.includes('refresh=1')),
+    'a successful write must force a snapshot reload',
+  )
+  assert.equal(
+    calls.filter((call) => call.method === 'POST').length,
+    1,
+    'exactly one POST for one click',
+  )
+
+  // A rejected write shows the host's message in a dismissible bar.
+  postImpl = async () => ({ ok: false, status: 409, json: async () => ({ ok: false, error: '写不进去' }) })
+  current = tree()
+  buttonIn(rowOf(current, 'codegraph'), '分配').props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  current = tree()
+  const failedText = textOf(current)
+  assert.match(failedText, /写不进去/, 'host error message is not rendered')
+  assert.match(failedText, /操作失败/, 'error bar has no heading')
+  const dismiss = findNode(current, (node) => node.type === 'button' && textOf(node) === '关闭')
+  assert.ok(dismiss, 'error bar is not dismissible')
+  dismiss.props.onClick()
+  assert.doesNotMatch(textOf(tree()), /写不进去/, 'dismissing the error bar must clear it')
+})
+
 test('workspace view expresses nesting with a left rule, not nested boxes', async () => {
   const { React, render } = makeReactRuntime()
   let loaded = null

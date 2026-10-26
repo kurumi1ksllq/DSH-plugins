@@ -15,6 +15,7 @@ window.__ModuleLoader__.load({
 
     const NS = 'inventory'
     const ROUTE = '/inventory/snapshot'
+    const WORKSPACE_ROUTE = '/inventory/workspace'
 
     const zh = {
       tab: '安装总览',
@@ -92,8 +93,6 @@ window.__ModuleLoader__.load({
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
       wsUnavailable: 'workspaceRegistry 不可用，无法列出工作区。',
       wsUnavailableDir: '目录不可用',
-      wsDeclared: '工作区声明',
-      wsGlobal: '全局注册',
       wsNoDeclaration: '未声明 .dsh/mcp.json',
       wsInvalidDeclaration: '声明无法解析',
       wsMountedAs: '挂载为',
@@ -109,6 +108,16 @@ window.__ModuleLoader__.load({
       wsSharedHint: '来自 ~/.dsh/skills 与 ~/.agents/skills，不随工作区变化',
       wsNoProjectSkills: '该项目没有自己的技能目录',
       wsShared: '共享',
+      wsAssign: '分配',
+      wsRemove: '移除',
+      wsAssignBusy: '…',
+      wsAllSkills: '全部已安装技能（可分配）',
+      wsAllSkillsHint: '分配会在项目根的 .dsh/skills 下建一条目录链接；移除只删这条链接',
+      wsGlobalMounted: '全局已挂载',
+      wsAssigned: '已分配',
+      wsRuntimeOnly: '运行时注册（无磁盘目录）',
+      wsActionFailed: '操作失败',
+      wsDismiss: '关闭',
     }
 
     const en = {
@@ -187,8 +196,6 @@ window.__ModuleLoader__.load({
       wsNoWorkspaces: 'No workspaces yet. Create or open a directory from the sidebar first.',
       wsUnavailable: 'The workspaceRegistry service is unavailable, so workspaces cannot be listed.',
       wsUnavailableDir: 'directory unavailable',
-      wsDeclared: 'declared',
-      wsGlobal: 'global',
       wsNoDeclaration: 'no .dsh/mcp.json',
       wsInvalidDeclaration: 'declaration unreadable',
       wsMountedAs: 'mounted as',
@@ -204,6 +211,16 @@ window.__ModuleLoader__.load({
       wsSharedHint: 'From ~/.dsh/skills and ~/.agents/skills; identical in every workspace',
       wsNoProjectSkills: 'This project has no skill directories of its own.',
       wsShared: 'shared',
+      wsAssign: 'Assign',
+      wsRemove: 'Remove',
+      wsAssignBusy: '…',
+      wsAllSkills: 'All installed skills (assignable)',
+      wsAllSkillsHint: 'Assign links it into the project root’s .dsh/skills; remove deletes that link',
+      wsGlobalMounted: 'mounted globally',
+      wsAssigned: 'assigned',
+      wsRuntimeOnly: 'runtime only (no directory)',
+      wsActionFailed: 'Action failed',
+      wsDismiss: 'Dismiss',
     }
 
     const color = {
@@ -266,6 +283,27 @@ window.__ModuleLoader__.load({
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',
       },
+      // Row-level action: the S.button recipe shrunk into a pill. A pill is a
+      // control, not a container, so it does not nest a second box inside a row
+      // (see the nesting contract in test/client.test.mjs).
+      wsAction: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        boxSizing: 'border-box',
+        height: '20px',
+        padding: '0 8px',
+        fontSize: '11px',
+        fontWeight: 500,
+        lineHeight: '18px',
+        color: color.text,
+        background: 'transparent',
+        border: `1px solid ${color.border}`,
+        borderRadius: '999px',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      },
+      wsActionDanger: { color: color.danger, borderColor: color.danger },
+      wsActionDisabled: { opacity: 0.5, cursor: 'default' },
       viewSwitch: { display: 'flex', gap: '4px', flexShrink: 0 },
       wsRoot: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
       // Per-workspace hierarchy: one bordered card per workspace (a real block
@@ -316,6 +354,9 @@ window.__ModuleLoader__.load({
         marginBottom: '2px',
       },
       groupDir: { fontSize: '10.5px', color: color.muted, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-all' },
+      // Free-flowing hint next to a group title: wraps instead of forcing the
+      // row wider than the card.
+      groupHint: { fontSize: '10.5px', color: color.muted, wordBreak: 'break-word' },
       plainRow: {
         display: 'flex',
         gap: '8px',
@@ -389,6 +430,8 @@ window.__ModuleLoader__.load({
       },
       rowMain: { fontWeight: 500, wordBreak: 'break-all' },
       rowSub: { fontSize: '11.5px', color: color.muted },
+      // A description under a row: full width so it never pushes a button away.
+      rowNote: { fontSize: '11.5px', color: color.muted, flex: '1 1 100%', wordBreak: 'break-word' },
       badge: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -494,19 +537,82 @@ window.__ModuleLoader__.load({
      * root they came from. Every direct child of the panel root stays
      * `flexShrink: 0` (S.section already is), so the panel's single scrollbar
      * keeps working.
+     *
+     * Assignment is button-driven: every row that can be mounted into (or
+     * removed from) a workspace carries one action button. The in-flight key and
+     * the error bar live in InventoryPanel — the offline test runtime shares one
+     * hook cursor across nested components, so no child may call a hook.
      */
-    function WorkspaceView({ t, data, openWorkspaces, openGroups, onToggleWorkspace, onToggleGroup, onSetAll, allOpen, sharedOpen, onToggleShared }) {
+    function WorkspaceView(props) {
+      const {
+        t,
+        data,
+        openWorkspaces,
+        openGroups,
+        onToggleWorkspace,
+        onToggleGroup,
+        onSetAll,
+        allOpen,
+        sharedOpen,
+        onToggleShared,
+        busy,
+        onAssign,
+      } = props
       const workspaces = Array.isArray(data?.workspaces) ? data.workspaces : []
       const globalMcp = Array.isArray(data?.globalMcp) ? data.globalMcp : []
       // Two levels of folding: a workspace card collapses as a whole (the
       // "dozens of rows per workspace" complaint), and each skill-source group
       // collapses inside it. Both start closed so a long workspace list stays a
-      // list of titles. The state lives in InventoryPanel: the offline test
-      // runtime shares one hook cursor across nested components, so a child
-      // component with its own useState would desync the panel's hooks.
+      // list of titles.
       const allOpenLocal = allOpen === true
+      const installedMcp = Array.isArray(data?.mcp) ? data.mcp : []
+      const installedSkills = Array.isArray(data?.skills) ? data.skills : []
 
-      const groupBlock = (group, key, groupOpen, onToggle) =>
+      // MCP row set = every installed server ∪ every server any workspace
+      // declares, so a server another workspace already mounted can still be
+      // assigned here.
+      const mcpNames = []
+      for (const item of installedMcp) {
+        const name = item?.server
+        if (typeof name === 'string' && name.length > 0 && !mcpNames.includes(name)) mcpNames.push(name)
+      }
+      for (const workspace of workspaces) {
+        for (const server of Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []) {
+          const name = server?.name
+          if (typeof name === 'string' && name.length > 0 && !mcpNames.includes(name)) mcpNames.push(name)
+        }
+      }
+      mcpNames.sort((left, right) => left.localeCompare(right))
+
+      /**
+       * One action per row: "assign" when the name is not declared in this
+       * workspace yet, "remove" when it is. Only one request may be in flight,
+       * so every other button is disabled meanwhile and the running one shows
+       * the busy label.
+       */
+      const actionButton = (workspace, kind, name, isAssigned) => {
+        const busyKey = typeof busy === 'string' ? busy : ''
+        const key = `${workspace.path}|${kind}|${isAssigned ? 'remove' : 'add'}|${name}`
+        const isBusy = busyKey === key
+        const blocked = busyKey.length > 0
+        return h(
+          'button',
+          {
+            key: `act-${key}`,
+            type: 'button',
+            style: { ...S.wsAction, ...(isAssigned ? S.wsActionDanger : {}), ...(blocked ? S.wsActionDisabled : {}) },
+            disabled: blocked,
+            'aria-busy': isBusy ? 'true' : 'false',
+            onClick: () => {
+              if (blocked) return
+              onAssign({ workspace, kind, action: isAssigned ? 'remove' : 'add', name })
+            },
+          },
+          isBusy ? t('wsAssignBusy') : isAssigned ? t('wsRemove') : t('wsAssign'),
+        )
+      }
+
+      const groupBlock = (group, key, groupOpen, onToggle, actionFor) =>
         h(
           'div',
           { key, style: S.group },
@@ -533,7 +639,10 @@ window.__ModuleLoader__.load({
                     { key: `${key}-${skill.name}`, style: S.plainRow },
                     h('span', { style: S.rowMain }, skill.name),
                     skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning' }) : null,
-                    skill.description ? h('span', { style: S.rowSub }, skill.description) : null,
+                    ...(typeof actionFor === 'function' ? actionFor(skill) : []),
+                    // Last and full-width: a description wraps under the row it
+                    // belongs to instead of pushing the button onto a new line.
+                    skill.description ? h('span', { style: S.rowNote }, skill.description) : null,
                   ),
                 ),
               )
@@ -554,29 +663,28 @@ window.__ModuleLoader__.load({
       const cards = workspaces.map((workspace) => {
         const isOpen = openWorkspaces[workspace.id] === true
         const declared = Array.isArray(workspace.mcp?.servers) ? workspace.mcp.servers : []
-        const mcpRows = declared.map((server) =>
-          h(
+        const mcpRows = mcpNames.map((name) => {
+          const declaredEntry = declared.find((server) => server?.name === name)
+          const installedEntry = installedMcp.find((item) => item?.server === name)
+          // Declared rows keep their mounted-as/transport/detail facts; an
+          // installed-but-not-declared server borrows what the global list knows.
+          const transport = declaredEntry?.transport ?? installedEntry?.transport
+          const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
+          return h(
             'div',
-            { key: `ws-d-${workspace.id}-${server.name}`, style: S.plainRow },
-            h('span', { style: { ...S.rowMain, ...S.mono } }, server.name),
-            server.transport ? h('span', { style: S.countPill }, server.transport) : null,
-            server.mountedAs && server.mountedAs !== server.name
-              ? h(Badge, { label: `${t('wsMountedAs')} ${server.mountedAs}`, tone: 'success' })
+            { key: `ws-mcp-${workspace.id}-${name}`, style: S.plainRow },
+            h('span', { style: { ...S.rowMain, ...S.mono } }, name),
+            transport ? h('span', { style: S.countPill }, transport) : null,
+            declaredEntry?.mountedAs && declaredEntry.mountedAs !== name
+              ? h(Badge, { label: `${t('wsMountedAs')} ${declaredEntry.mountedAs}`, tone: 'success' })
               : null,
-            server.detail ? h('span', { style: S.rowSub }, server.detail) : null,
-            h('span', { style: S.countPill }, t('wsDeclared')),
-          ),
-        )
-        for (const server of globalMcp) {
-          mcpRows.push(
-            h(
-              'div',
-              { key: `ws-g-${workspace.id}-${server}`, style: S.plainRow },
-              h('span', { style: { ...S.rowMain, ...S.mono } }, server),
-              h('span', { style: S.countPill }, t('wsGlobal')),
-            ),
+            detail ? h('span', { style: S.rowSub }, detail) : null,
+            // A globally registered server already reaches every workspace;
+            // assigning it only adds an explicit mount under <name><suffix>.
+            globalMcp.includes(name) ? h(Badge, { label: t('wsGlobalMounted'), tone: 'warning' }) : null,
+            actionButton(workspace, 'mcp', name, declaredEntry !== undefined),
           )
-        }
+        })
         if (mcpRows.length === 0) {
           mcpRows.push(
             h(
@@ -590,13 +698,80 @@ window.__ModuleLoader__.load({
         }
 
         const skillGroups = (workspace.skills ?? []).filter((group) => (group.skills ?? []).length > 0)
+        // name → linked. `linked` is the host's lstat verdict: true only for the
+        // links this panel created. A directory someone copied in is not ours to
+        // delete, so its row must not grow a button that can only fail.
+        const assignedSkills = new Map()
+        for (const group of workspace.skills ?? []) {
+          for (const skill of group.skills ?? []) {
+            if (typeof skill?.name === 'string' && skill.name.length > 0) assignedSkills.set(skill.name, skill.linked === true)
+          }
+        }
         const skillBlocks = skillGroups.map((group) => {
           const key = `ws-sk-${workspace.id}-${group.source}`
-          return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key))
+          // Only the .dsh/skills links are ours to delete: the .agents tree and
+          // hand-copied directories belong to the user's own setup.
+          const actionFor =
+            group.source === 'project-dsh'
+              ? (skill) => (skill.linked === true ? [actionButton(workspace, 'skill', skill.name, true)] : [])
+              : undefined
+          return groupBlock(group, key, openGroups[key] === true, () => onToggleGroup(key), actionFor)
         })
         if (skillBlocks.length === 0) {
           skillBlocks.push(h('div', { key: `ws-sk-none-${workspace.id}`, style: S.empty }, t('wsNoProjectSkills')))
         }
+
+        // Everything installed, assignable into this workspace. Folded by
+        // default like every other group; the key is namespaced so it cannot
+        // collide with a source group.
+        const allSkillsKey = `ws-all-skills-${workspace.id}`
+        const allSkillsOpen = openGroups[allSkillsKey] === true
+        const allSkillsBlock = h(
+          'div',
+          { key: allSkillsKey, style: S.group },
+          h(
+            'div',
+            {
+              style: S.groupHead,
+              onClick: () => onToggleGroup(allSkillsKey),
+              role: 'button',
+              tabIndex: 0,
+              'aria-expanded': allSkillsOpen ? 'true' : 'false',
+            },
+            h('span', { style: S.groupTitle }, `${allSkillsOpen ? '▾' : '▸'} ${t('wsAllSkills')}`),
+            h('span', { style: S.countPill }, String(installedSkills.length)),
+            h('span', { style: S.groupHint }, t('wsAllSkillsHint')),
+          ),
+          allSkillsOpen
+            ? installedSkills.length === 0
+              ? h('div', { style: S.empty }, t('noSkills'))
+              : h(
+                  'div',
+                  null,
+                  ...installedSkills.map((skill) => {
+                    const assigned = assignedSkills.has(skill.name)
+                    const linked = assignedSkills.get(skill.name) === true
+                    // A runtime-registered skill has no directory to link to.
+                    const assignable = skill.source !== 'runtime'
+                    return h(
+                      'div',
+                      { key: `${allSkillsKey}-${skill.name}`, style: S.plainRow },
+                      h('span', { style: S.rowMain }, skill.name),
+                      h(Badge, { label: skill.source ? sourceLabel(t, skill.source) : 'disk' }),
+                      assigned ? h(Badge, { label: t('wsAssigned'), tone: 'success' }) : null,
+                      !assignable ? h(Badge, { label: t('wsRuntimeOnly'), tone: 'warning' }) : null,
+                      // Assigned but not a link: show the state, offer no button.
+                      linked
+                        ? actionButton(workspace, 'skill', skill.name, true)
+                        : assigned || !assignable
+                          ? null
+                          : actionButton(workspace, 'skill', skill.name, false),
+                      skill.description ? h('span', { style: S.rowNote }, skill.description) : null,
+                    )
+                  }),
+                )
+            : null,
+        )
 
         return h(
           'div',
@@ -630,6 +805,7 @@ window.__ModuleLoader__.load({
                 ...mcpRows,
                 h('div', { style: S.groupLabel }, t('skills')),
                 ...skillBlocks,
+                allSkillsBlock,
               )
             : null,
         )
@@ -742,6 +918,10 @@ window.__ModuleLoader__.load({
       const [wsOpen, setWsOpen] = React.useState({})
       const [wsGroups, setWsGroups] = React.useState({})
       const [wsSharedOpen, setWsSharedOpen] = React.useState(false)
+      // Button-driven assignment: `wsBusy` is the key of the single request in
+      // flight (`<path>|<kind>|<action>|<name>`), `wsError` the last failure.
+      const [wsBusy, setWsBusy] = React.useState('')
+      const [wsError, setWsError] = React.useState('')
 
       const load = React.useCallback(async (force) => {
         setStatus('loading')
@@ -761,6 +941,42 @@ window.__ModuleLoader__.load({
           setStatus('error')
         }
       }, [])
+
+      /**
+       * Assign/remove one server or skill in one workspace. The host answers
+       * `{ ok: true }` on success (and drops its snapshot cache, hence the
+       * forced reload) or `{ ok: false, error }` with a display-ready message.
+       */
+      const runWorkspaceAction = React.useCallback(
+        async ({ workspace, kind, action, name }) => {
+          setWsBusy(`${workspace?.path ?? ''}|${kind}|${action}|${name}`)
+          setWsError('')
+          try {
+            const response = await fetch(WORKSPACE_ROUTE, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ workspace: workspace?.path, kind, action, name }),
+            })
+            if (!response.ok) {
+              let detail = ''
+              try {
+                const payload = await response.json()
+                if (payload && typeof payload.error === 'string' && payload.error.length > 0) detail = payload.error
+              } catch {
+                // A non-JSON error body still has a status worth showing.
+                detail = ''
+              }
+              throw new Error(detail.length > 0 ? detail : `HTTP ${response.status}`)
+            }
+            await load(true)
+          } catch (error) {
+            setWsError(error && error.message ? error.message : String(error))
+          } finally {
+            setWsBusy('')
+          }
+        },
+        [load],
+      )
 
       React.useEffect(() => {
         load(false)
@@ -867,6 +1083,15 @@ window.__ModuleLoader__.load({
               { style: S.warn },
               h('strong', null, t('warnings')),
               ...warnings.slice(0, 8).map((warning, index) => h('div', { key: `w-${index}` }, warning.message ?? warning.code)),
+            )
+          : null,
+        // Last failed assign/remove. Dismissible, and the next action clears it.
+        wsError.length > 0
+          ? h(
+              'div',
+              { style: S.errorBox },
+              h('span', { style: { flex: '1 1 auto' } }, `${t('wsActionFailed')}: ${wsError}`),
+              h('button', { type: 'button', style: S.button, onClick: () => setWsError('') }, t('wsDismiss')),
             )
           : null,
         ...(view === 'global'
@@ -1028,6 +1253,8 @@ window.__ModuleLoader__.load({
                 allOpen: allWsOpen,
                 sharedOpen: wsSharedOpen,
                 onToggleShared: () => setWsSharedOpen((prev) => !prev),
+                busy: wsBusy,
+                onAssign: runWorkspaceAction,
               }),
             ]),
       )

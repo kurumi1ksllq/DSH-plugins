@@ -6,6 +6,7 @@ import { join } from 'node:path'
 
 import { apply } from '../index.js'
 import { collectWorkspaces, projectSkillRoots, readWorkspaceMcp } from '../lib/workspaces.js'
+import { assignSkill } from '../lib/assign.js'
 
 /**
  * Per-workspace view: the MCP a workspace declares plus the skills reachable
@@ -294,4 +295,34 @@ test('registers a system-prompt section explaining workspace-scoped MCP', () => 
   assert.match(section.text, /\.dsh\/mcp\.json/, 'the section must name the declaration file')
   assert.match(section.text, /mcp__/, 'the section must name the tool prefix the model will see')
   assert.match(section.text, /next session|new session/i, 'the section must say when an edit takes effect')
+})
+
+test('project skill roots follow the nearest .git, not the workspace directory', () => {
+  const repo = scratch()
+  mkdirSync(join(repo, '.git'))
+  const nested = join(repo, 'packages', 'app')
+  mkdirSync(nested, { recursive: true })
+  const roots = projectSkillRoots(nested)
+  assert.deepEqual(
+    roots.map((root) => root.dir),
+    [join(repo, '.dsh', 'skills'), join(repo, '.agents', 'skills')],
+  )
+})
+
+test('a linked skill is flagged linked, a copied one is not', () => {
+  const home = scratch()
+  const source = join(home, 'demo-skill')
+  mkdirSync(source, { recursive: true })
+  writeFileSync(join(source, 'SKILL.md'), '---\nname: demo-skill\ndescription: linked\n---\n', 'utf8')
+  const dir = scratch()
+  assignSkill({ workspaceDir: dir, name: 'demo-skill', sourcePath: join(source, 'SKILL.md') })
+  const copied = join(dir, '.dsh', 'skills', 'copied')
+  mkdirSync(copied, { recursive: true })
+  writeFileSync(join(copied, 'SKILL.md'), '---\nname: copied\ndescription: copied\n---\n', 'utf8')
+
+  const view = collectWorkspaces({ registry: { list: () => [{ id: 'ws', title: 'ws', path: dir }] } })
+  const projectDsh = view.workspaces[0].skills.find((group) => group.source === 'project-dsh')
+  const byName = new Map(projectDsh.skills.map((skill) => [skill.name, skill]))
+  assert.equal(byName.get('demo-skill').linked, true)
+  assert.equal(byName.get('copied').linked, false)
 })

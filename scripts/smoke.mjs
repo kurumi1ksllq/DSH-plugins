@@ -14,11 +14,11 @@
  *   node scripts/smoke.mjs --snapshot=live.json
  */
 
-import { readFileSync, existsSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readFileSync, existsSync, mkdtempSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { apply } from '../index.js'
+import { apply, ASSIGN_ROUTE, SNAPSHOT_ROUTE } from '../index.js'
 import { buildSnapshot } from '../lib/inventory.js'
 
 const arg = process.argv.find((value) => value.startsWith('--snapshot='))
@@ -55,12 +55,15 @@ const rows = live.rows.map((row) => {
 
 const liveAgent = { id: 'smoke-agent' }
 const CORE_TOOLS = ['read', 'write', 'edit', 'pwsh', 'skill', 'todo_write', 'grep', 'glob']
+// A throwaway workspace so the assign round-trip writes somewhere disposable.
+const smokeWorkspace = mkdtempSync(join(tmpdir(), 'inv-smoke-ws-'))
 
-let registered = null
+let routes = new Map()
 const ctx = {
   baseUrl: `file:///${profileDir.replace(/\\/g, '/').replace(/^\/+/, '')}/`,
   logger: { warn: console.warn, info: () => {}, error: console.error },
   get(name) {
+    if (name === 'workspaceRegistry') return { list: () => [{ id: 'smoke-ws', title: 'smoke', path: smokeWorkspace }] }
     if (name === 'loader') {
       return {
         entries() {
@@ -77,8 +80,11 @@ const ctx = {
     if (name === 'tools') {
       return {
         schemas(scope) {
-          const globalPlane = live.tools.map((tool) => ({ name: tool.name, description: 'x'.repeat(tool.descLen ?? 0) }))
-          // Core tools live on the agent plane, which the global view cannot see.
+          // A live snapshot is a union of both planes; the global plane is that
+          // union minus the core tools, which only the agent plane registers.
+          const globalPlane = live.tools
+            .filter((tool) => !CORE_TOOLS.includes(tool.name))
+            .map((tool) => ({ name: tool.name, description: 'x'.repeat(tool.descLen ?? 0) }))
           if (scope === liveAgent) return [...CORE_TOOLS.map((tool) => ({ name: tool, description: 'core' })), ...globalPlane]
           if (scope === undefined) return globalPlane
           return []
@@ -92,36 +98,91 @@ const ctx = {
   },
   webServer: {
     register(route) {
-      registered = route
+      routes.set(route.path, route)
       return () => {}
     },
   },
 }
 
 apply(ctx)
-if (registered === null) {
-  console.error('FAIL: plugin did not register a route')
+const snapshotRoute = routes.get(SNAPSHOT_ROUTE)
+const assignRoute = routes.get(ASSIGN_ROUTE)
+if (snapshotRoute === undefined || assignRoute === undefined) {
+  console.error(`FAIL: plugin did not register both routes (got ${[...routes.keys()].join(', ')})`)
   process.exit(1)
+}
+
+function capture() {
+  const box = { status: 0, body: '' }
+  box.res = {
+    writeHead(code) {
+      box.status = code
+    },
+    end(chunk) {
+      box.body = chunk ?? ''
+    },
+  }
+  return box
 }
 
 let body = ''
 let status = 0
 const started = Date.now()
-await registered.handler({ method: 'GET', url: '/inventory/snapshot?refresh=1' }, {
-  writeHead(code) {
-    status = code
-  },
-  end(chunk) {
-    body = chunk
-  },
-})
+{
+  const box = capture()
+  await snapshotRoute.handler({ method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` }, box.res)
+  status = box.status
+  body = box.body
+}
 const elapsed = Date.now() - started
+
+/** Drive the write path: add an MCP to the throwaway workspace, then remove it. */
+async function assignRoundTrip() {
+  const server = live.mcp[0]?.server
+  if (typeof server !== 'string') return { ok: false, detail: 'no live MCP to assign' }
+  const post = async (action) => {
+    const box = capture()
+    const payload = JSON.stringify({ workspace: smokeWorkspace, kind: 'mcp', action, name: server })
+    const listeners = new Map()
+    const pending = assignRoute.handler(
+      {
+        method: 'POST',
+        url: ASSIGN_ROUTE,
+        on(event, fn) {
+          listeners.set(event, fn)
+          return this
+        },
+      },
+      box.res,
+    )
+    listeners.get('data')?.(Buffer.from(payload))
+    listeners.get('end')?.()
+    await pending
+    return { status: box.status, body: box.body.length > 0 ? JSON.parse(box.body) : null }
+  }
+  const added = await post('add')
+  const afterAdd = capture()
+  await snapshotRoute.handler({ method: 'GET', url: SNAPSHOT_ROUTE }, afterAdd.res)
+  const declared = JSON.parse(afterAdd.body).workspaces?.[0]?.mcp?.servers?.map((entry) => entry.name) ?? []
+  const removed = await post('remove')
+  const afterRemove = capture()
+  await snapshotRoute.handler({ method: 'GET', url: SNAPSHOT_ROUTE }, afterRemove.res)
+  const left = JSON.parse(afterRemove.body).workspaces?.[0]?.mcp?.servers?.length ?? -1
+  return {
+    ok: added.status === 200 && declared.includes(server) && removed.status === 200 && left === 0,
+    detail: `add=${added.status} declared=${JSON.stringify(declared)} remove=${removed.status} left=${left}`,
+  }
+}
+
+const roundTrip = await assignRoundTrip()
 
 const checks = []
 const snapshot = JSON.parse(body)
 const orphan = snapshot.packages.filter((pkg) => pkg.orphan).map((pkg) => pkg.name)
 const deferred = snapshot.tools.filter((tool) => tool.deferred).length
-const bskOwner = snapshot.tools.find((tool) => tool.name === 'bsk_session')?.owner?.ref
+// bsk_* only exists when the captured session had the browser skill loaded.
+const bskTools = snapshot.tools.filter((tool) => tool.name.startsWith('bsk_'))
+const bskOwner = bskTools.find((tool) => tool.name === 'bsk_session')?.owner?.ref
 const inventoryOwner = snapshot.tools.find((tool) => tool.name === 'tool_search')?.owner?.ref
 
 /** Orphan detection is asserted on a synthetic fixture, not on this machine. */
@@ -155,7 +216,11 @@ checks.push(['package facts match disk', packageFactsMatchDisk(), ''])
 checks.push(['HTTP 200', status === 200, `status=${status}`])
 checks.push(['orphan detection works', orphanRulesOk(), 'synthetic fixture'])
 checks.push(['deferred tools computed', deferred > 10, `deferred=${deferred}/${snapshot.tools.length}`])
-checks.push(['bsk_* attributed to plugin', bskOwner === '@wxg-prc-cpg/browser-skill-dsh-plugin', `owner=${bskOwner}`])
+checks.push([
+  'bsk_* attributed to plugin',
+  bskTools.length === 0 || bskOwner === '@wxg-prc-cpg/browser-skill-dsh-plugin',
+  bskTools.length === 0 ? 'no bsk_* tool in this snapshot' : `owner=${bskOwner}`,
+])
 checks.push(['tool_search attributed', inventoryOwner === 'dsh-tool-search', `owner=${inventoryOwner}`])
 checks.push(['mcp servers all live', snapshot.mcp.every((entry) => entry.status === 'connected'), JSON.stringify(snapshot.mcp.map((m) => `${m.server}:${m.status}`))])
 checks.push(['skills scanned', snapshot.skills.length >= 28, `skills=${snapshot.skills.length}`])
@@ -166,6 +231,7 @@ checks.push(['agent-plane tools included', ['read', 'pwsh', 'skill'].every((name
 checks.push(['global-plane tools still included', snapshot.tools.some((tool) => tool.name === 'mcp__officecli__officecli'), ''])
 checks.push(['tool planes reported', Array.isArray(snapshot.toolPlanes) && snapshot.toolPlanes.length >= 2, JSON.stringify(snapshot.toolPlanes)])
 checks.push(['no secret in payload', !/ctx7sk-|sk-live-/.test(body), ''])
+checks.push(['assign round-trip writes then removes', roundTrip.ok, roundTrip.detail])
 
 let failed = 0
 for (const [label, ok, detail] of checks) {

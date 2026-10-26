@@ -63,6 +63,21 @@ const VALID = JSON.stringify({
   servers: { officecli: { transport: 'stdio', command: 'officecli.exe', args: ['mcp'] } },
 })
 
+/**
+ * Fire `agent/created` and wait for its background work to settle.
+ *
+ * The listener is deliberately fire-and-forget (a mount must not hold up session
+ * creation), so the promise it returns is not the work's promise. Every branch
+ * writes one decision line before returning, so the log is the settle signal.
+ */
+async function dispatch(listeners, logs, agent) {
+  listeners.get('agent/created')({ agent })
+  const settled = () => logs.some(([, message]) => / (skip|mount|mount failed|gate error) agent=/.test(message))
+  for (let attempt = 0; attempt < 200 && !settled(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
 test('the gate half exports its own plugin name', () => {
   assert.equal(pluginName, 'dsh-inventory-gate')
 })
@@ -78,7 +93,7 @@ test('an undeclared workspace is skipped, never thrown', async () => {
   const { ctx, listeners, logs } = fakeCtx()
   apply(ctx, { logFile: '' })
   const agent = { id: 'gate-skip', session: { header: { cwd: scratch() } } }
-  await assert.doesNotReject(() => listeners.get('agent/created')({ agent }))
+  await dispatch(listeners, logs, agent)
   assert.ok(
     logs.some(([level, message]) => level === 'info' && message.includes('skip agent=gate-skip') && message.includes('no .dsh/mcp.json')),
   )
@@ -88,7 +103,7 @@ test('a broken declaration degrades to a skip with the parse reason', async () =
   const { ctx, listeners, logs } = fakeCtx()
   apply(ctx, { logFile: '' })
   const agent = { id: 'gate-broken', session: { header: { cwd: workspaceWith('{ nope') } } }
-  await assert.doesNotReject(() => listeners.get('agent/created')({ agent }))
+  await dispatch(listeners, logs, agent)
   assert.ok(
     logs.some(
       ([level, message]) =>
@@ -101,7 +116,7 @@ test('a declared workspace warns instead of throwing when mcp-client is unreacha
   const { ctx, listeners, logs } = fakeCtx()
   apply(ctx, { logFile: '' })
   const agent = { id: 'gate-mount', session: { header: { cwd: workspaceWith(VALID) } } }
-  await assert.doesNotReject(() => listeners.get('agent/created')({ agent }))
+  await dispatch(listeners, logs, agent)
   assert.ok(
     logs.some(
       ([level, message]) =>
@@ -123,7 +138,7 @@ test('a forbidden service read falls back to the session header', async () => {
       throw new Error('cannot get property "workingDirectory" without inject')
     },
   })
-  await assert.doesNotReject(() => listeners.get('agent/created')({ agent }))
+  await dispatch(listeners, logs, agent)
   assert.ok(!logs.some(([, message]) => message.includes('gate error')), 'must not surface as a gate error')
   assert.ok(
     logs.some(([level, message]) => level === 'warn' && message.includes('agent=gate-forbidden')),

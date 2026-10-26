@@ -8,8 +8,11 @@
  *   - the full tool registry, with inferred ownership
  *   - skill -> tool edges: static text matching plus session-log evidence
  *
- * Surface: one plain HTTP route, `GET /inventory/snapshot` (read-only, no
- * writes, no auth bypass concerns because nothing mutates state).
+ * Surface: two plain HTTP routes.
+ *   `GET  /inventory/snapshot`  — the read-only snapshot.
+ *   `POST /inventory/workspace` — assign or remove one MCP server / skill for a
+ *                                 registered workspace. The only write path; it
+ *                                 touches nothing but `<workspace>/.dsh/`.
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -24,7 +27,9 @@ import { collectSkillToolEvidence } from './lib/collect-sessions.js'
 import { buildSnapshot } from './lib/inventory.js'
 import { collectPackages } from './lib/profile-packages.js'
 import { buildPluginToolIndex } from './lib/plugin-tool-index.js'
-import { collectWorkspaces } from './lib/workspaces.js'
+import { collectWorkspaces, sharedSkillRoots } from './lib/workspaces.js'
+import { assignMcp, assignSkill, mcpFileOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
+import { normalizeDir, pathKey } from './lib/workspace-gate.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 
 export const name = 'dsh-inventory'
@@ -33,6 +38,7 @@ export const name = 'dsh-inventory'
 export const inject = ['webServer']
 
 export const SNAPSHOT_ROUTE = '/inventory/snapshot'
+export const ASSIGN_ROUTE = '/inventory/workspace'
 
 /**
  * Prompt section that makes the workspace-scoped MCP capability discoverable.
@@ -430,6 +436,188 @@ async function getSnapshot(ctx, { refresh = false } = {}) {
   return payload
 }
 
+/** A write makes the cached snapshot a lie; drop it instead of serving stale state. */
+function invalidateSnapshot() {
+  cache.at = 0
+  cache.payload = null
+}
+
+// ---- POST /inventory/workspace ------------------------------------------
+
+const MAX_BODY_BYTES = 64 * 1024
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let size = 0
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error(`请求体超过 ${MAX_BODY_BYTES} 字节`))
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
+/** Registered workspaces — the only directories this route is allowed to write in. */
+function registeredWorkspaces(ctx) {
+  const registry = ctx.get('workspaceRegistry')
+  if (registry === undefined || registry === null || typeof registry.list !== 'function') return []
+  try {
+    return (registry.list() ?? []).filter((entry) => typeof entry?.path === 'string' && entry.path.length > 0)
+  } catch {
+    return []
+  }
+}
+
+function findWorkspace(ctx, requested) {
+  if (typeof requested !== 'string' || requested.trim() === '') return undefined
+  let key
+  try {
+    key = pathKey(requested)
+  } catch {
+    return undefined
+  }
+  for (const entry of registeredWorkspaces(ctx)) {
+    try {
+      if (pathKey(entry.path) === key) return entry
+    } catch {
+      // An unparsable registered path cannot match a request.
+    }
+  }
+  return undefined
+}
+
+/** Project a live mcp-client row config back onto a declaration entry. */
+function declarationFromConfig(config) {
+  if (config === null || typeof config !== 'object') return undefined
+  if (config.transport === 'streamable-http') {
+    if (typeof config.url !== 'string' || config.url === '') return undefined
+    return {
+      transport: 'streamable-http',
+      url: config.url,
+      ...(config.headers !== undefined ? { headers: config.headers } : {}),
+    }
+  }
+  if (typeof config.command !== 'string' || config.command === '') return undefined
+  return {
+    transport: 'stdio',
+    command: config.command,
+    ...(Array.isArray(config.args) && config.args.length > 0 ? { args: config.args.map(String) } : {}),
+    ...(config.env !== undefined ? { env: config.env } : {}),
+    ...(typeof config.cwd === 'string' && config.cwd !== '' ? { cwd: config.cwd } : {}),
+  }
+}
+
+/**
+ * The declaration for an installed MCP server, wherever it currently lives:
+ * a global mcp-client row first, then another workspace's declaration (that is
+ * how a server mounted only in one workspace can be copied into a second one).
+ */
+function installedMcp(ctx, name) {
+  const loader = ctx.get('loader')
+  if (loader !== undefined && typeof loader.entries === 'function') {
+    for (const entry of loader.entries()) {
+      const options = entry.options ?? {}
+      if (options.name !== '@deepseek-ai/dsh-mcp-client') continue
+      const config = options.config ?? {}
+      if (config.serverName !== name) continue
+      const declaration = declarationFromConfig(config)
+      if (declaration !== undefined) return declaration
+    }
+  }
+  for (const entry of registeredWorkspaces(ctx)) {
+    const parsed = readDeclaration(mcpFileOf(entry.path))
+    if (!parsed.ok) continue
+    const server = parsed.servers[name]
+    if (server !== undefined && server !== null && typeof server === 'object') return server
+  }
+  return undefined
+}
+
+/** Disk path of an installed skill, or undefined for a runtime-only registration. */
+function installedSkillPath(name) {
+  const { skills } = scanSkillRoots(sharedSkillRoots())
+  return skills.find((skill) => skill.name === name)?.path
+}
+
+/**
+ * Assign or remove one capability for one workspace.
+ * @returns {Promise<{status: number, payload: object}>}
+ */
+async function assignForWorkspace(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  let body
+  try {
+    body = JSON.parse(await readBody(req))
+  } catch (error) {
+    return { status: 400, payload: { ok: false, error: `请求体无法解析：${error?.message ?? error}` } }
+  }
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { status: 400, payload: { ok: false, error: '请求体必须是对象' } }
+  }
+  const kind = body.kind
+  const action = body.action
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  if (kind !== 'mcp' && kind !== 'skill') {
+    return { status: 400, payload: { ok: false, error: 'kind 必须是 mcp 或 skill' } }
+  }
+  if (action !== 'add' && action !== 'remove') {
+    return { status: 400, payload: { ok: false, error: 'action 必须是 add 或 remove' } }
+  }
+  if (name === '') return { status: 400, payload: { ok: false, error: 'name 不能为空' } }
+
+  const workspace = findWorkspace(ctx, body.workspace)
+  if (workspace === undefined) {
+    return { status: 404, payload: { ok: false, error: `工作区未登记：${String(body.workspace)}` } }
+  }
+  const dir = workspace.path
+  if (!existsSync(dir)) {
+    return { status: 400, payload: { ok: false, error: `工作区目录不可用：${dir}` } }
+  }
+
+  let result
+  try {
+    if (kind === 'mcp') {
+      if (action === 'remove') {
+        result = removeMcp({ workspaceDir: dir, name })
+      } else {
+        const server = installedMcp(ctx, name)
+        if (server === undefined) {
+          return { status: 404, payload: { ok: false, error: `没有已安装的 MCP 服务器 ${name}` } }
+        }
+        result = assignMcp({ workspaceDir: dir, name, server })
+      }
+    } else if (action === 'remove') {
+      result = removeSkill({ workspaceDir: dir, name })
+    } else {
+      const sourcePath = installedSkillPath(name)
+      if (sourcePath === undefined) {
+        return {
+          status: 404,
+          payload: { ok: false, error: `没有可链接的已安装技能 ${name}（运行时注册的技能没有磁盘目录）` },
+        }
+      }
+      result = assignSkill({ workspaceDir: dir, name, sourcePath })
+    }
+  } catch (error) {
+    return { status: 500, payload: { ok: false, error: `写入失败：${error?.message ?? error}` } }
+  }
+
+  if (!result.ok) return { status: 400, payload: { ok: false, error: result.error } }
+  invalidateSnapshot()
+  return {
+    status: 200,
+    payload: { ok: true, workspace: normalizeDir(dir), kind, action, name, path: result.path },
+  }
+}
+
 /**
  * Cordis plugin entry.
  * @param {import('@deepseek-ai/cordis').Context} ctx
@@ -469,6 +657,21 @@ export function apply(ctx) {
             error: 'snapshot-failed',
             message: String(error?.message ?? error),
           })
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: ASSIGN_ROUTE,
+      handler: async (req, res) => {
+        try {
+          const { status, payload } = await assignForWorkspace(ctx, req)
+          sendJson(res, status, payload)
+        } catch (error) {
+          sendJson(res, 500, { ok: false, error: `分配失败：${error?.message ?? error}` })
         }
       },
     }),

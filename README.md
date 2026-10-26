@@ -1,15 +1,15 @@
 # dsh-inventory
 
-DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里显示这台机器上实际装了什么；面板顶部可切到 **「按工作区」**，看每个工作区自己声明了什么。
+DSH 的安装清单插件。在 **左侧栏「安装总览」** 面板里显示这台机器上实际装了什么；面板顶部可切到 **「按工作区」**，看每个工作区自己声明了什么，并**直接点按钮把已安装的 MCP / 技能分配给它**。
 
 本包有**两个插件入口**：
 
 | 入口 | 行 id | 作用 |
 |---|---|---|
-| `dsh-inventory` | `inventory` | 只读快照聚合 + `GET /inventory/snapshot` + 面板 |
+| `dsh-inventory` | `inventory` | 快照聚合 + `GET /inventory/snapshot` + `POST /inventory/workspace`（分配）+ 面板 |
 | `dsh-inventory/gate` | `inventory-gate` | 按工作区门控 MCP：只有会话 cwd 命中 `<workspace>/.dsh/mcp.json` 才挂载对应服务器 |
 
-两者分开成两行是有意的：清单是只读 HTTP 面，门控挂在每个 agent 生命周期上；分开后任一半失败都不会拖垮另一半。
+两者分开成两行是有意的：清单是 HTTP 面，门控挂在每个 agent 生命周期上；分开后任一半失败都不会拖垮另一半。
 
 ### 门控行的 `serverNameSuffix`
 
@@ -49,23 +49,52 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 含 `disable-model-invocation` 的屏蔽桩、来源 rank |
 | 工具 | `ctx.tools.schemas()` | 全量工具，含被 tool-search 折叠的（`deferred`） |
 | 技能 → 工具 | SKILL.md 正文匹配 + 会话日志 | 四层：精确工具名 / MCP 服务名 / 外部命令 / 脚本路径；会话实证附命中次数 |
-| **按工作区** | `ctx.workspaceRegistry.list()` + 每个工作区的 `.dsh/mcp.json` + 项目 skill 根 | 每个工作区声明的 MCP（含门控后的挂载名）、全局注册的 MCP、以及它可用的技能（按来源分组） |
+| **按工作区** | `ctx.workspaceRegistry.list()` + 每个工作区的 `.dsh/mcp.json` + 项目 skill 根 | 每个工作区声明的 MCP（含门控后的挂载名）、全局注册的 MCP、以及它可用的技能（按来源分组）；展开后每行带「分配 / 移除」按钮 |
 
-## 只读保证
+## 分配（页面上的按钮做什么）
 
-- 只有 `GET /inventory/snapshot`，没有写端点
-- 不写任何 state 文件，不改 profile 配置，不改 SKILL.md
-- 不注册模型可见的工具、skill 或 prompt 段落
+「按工作区」视图里每个工作区卡片展开后：
+
+- **MCP 区**：列出全部已安装服务器（全局 `mcp-client` 行 + 任何工作区已声明的）。已在本工作区声明 → 「移除」；否则 → 「分配」。全局注册的额外标「全局已挂载」（它对所有工作区本来就可用，分配只是让本工作区显式声明，会以 `<name><serverNameSuffix>` 重复挂载一份）。
+- **技能区**：项目技能按来源分组（`project-dsh` 组带「移除」），另有一个「全部已安装技能」折叠组，列出 `~/.dsh/skills`、`~/.agents/skills`、自定义目录、bundled 里的每个技能，未分配 → 「分配」，已分配 → 「移除」。
+
+分配 = **让这个工作区自己声明这个能力**，因为 DSH 没有「按工作区的白名单」，只有按目录发现：
+
+| 能力 | 写到哪里 | 谁读 |
+|---|---|---|
+| MCP | `<workspace>/.dsh/mcp.json` 的 `servers[name]` | `dsh-inventory/gate`，在 agent 创建时读一次（下一个会话生效） |
+| 技能 | `<projectRoot>/.dsh/skills/<name>` → 指向已安装目录的**目录链接**（Windows 用 junction，不需要管理员） | `@deepseek-ai/dsh-skill-filesystem`（项目根 = 最近的 `.git` 祖先，没有 `.git` 就是工作区目录本身） |
+
+两条设计取舍：
+
+1. **技能是链接不是拷贝**：安装只有一份，链接跟着它走；移除只删链接。若目标是一个真实目录（比如 skills-manager 拷进去的），「移除」会拒绝并说明原因，不会删别人的内容。
+2. **MCP 声明原样拷贝**：从全局行的运行配置（含 `env`/`headers`）或另一个工作区的 `.dsh/mcp.json` 复制一份写入；`env` 不进快照，只在写盘时用。
+
+## 写入边界
+
+- 只有两个端点：`GET /inventory/snapshot`、`POST /inventory/workspace`
+- 写入只发生在**已登记工作区**的 `<workspace>/.dsh/` 里；请求里的路径不在 `workspaceRegistry.list()` 中直接 404，不会拿任意路径写盘
+- 不写 state 文件，不改 profile 配置，不改 SKILL.md，不注册模型可见的工具 / skill / prompt 段落
+- 每次写入后立刻作废快照缓存，下一次 `GET` 读到的就是新状态
 
 ## 快照接口
 
 ```
-GET /inventory/snapshot[?refresh=1]
+GET  /inventory/snapshot[?refresh=1]
+POST /inventory/workspace
 ```
+
+`POST /inventory/workspace` 请求体：
+
+```json
+{ "workspace": "<workspace.path>", "kind": "mcp" | "skill", "action": "add" | "remove", "name": "<serverName | skillName>" }
+```
+
+成功 `200 { ok: true, workspace, kind, action, name, path }`（`path` 是实际写入的声明文件或链接）；失败 `400/404/500 { ok: false, error }`，`error` 是可直接展示给用户的中文说明。方法不对 `405`。请求体上限 64 KB。
 
 返回 `packages / rows / mcp / skills / tools / edges / warnings / counts`，以及按工作区视图的 `workspaces / globalMcp / gateServerNameSuffix / workspaceRegistryAvailable`。MCP 的 `env` 与 `headers` 一律不返回，`args` 里的密钥值会被替换为 `<redacted>`。
 
-`workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
+`workspaces[]` 每项：`{ id, title, path, available, mcp: { status, file, servers[], error? }, skills: [{ source, dir, rank, exists, skills[], diagnostics[] }], counts }`。`skills[].skills[].linked` 是 host 的 `lstat` 结论：`true` 表示这是本页建的链接（可以移除），手工拷贝进来的真实目录为 `false`（不提供移除按钮）。`mcp.status` 为 `ok | missing | invalid`；`servers[].mountedAs` 是门控加过后缀的实际挂载名（读自 `inventory-gate` 行的 `serverNameSuffix`）。
 
 ## 安装
 
@@ -99,9 +128,9 @@ node scripts/preview.mjs        # 用 profile 配置 + 真实 skill 目录跑一
 node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照跑 host 集成冒烟
 ```
 
-`npm test` 覆盖：多帧 zstd 会话解码、frontmatter（含 CRLF / symlink）、技能扫描与去重、四层边匹配、会话实证窗口、快照组装、包安装判定、工具归属推断、tool-search 折叠判定、客户端侧栏入口 + 主面板注册与三态渲染。
+`npm test` 覆盖：多帧 zstd 会话解码、frontmatter（含 CRLF / symlink）、技能扫描与去重、四层边匹配、会话实证窗口、快照组装、包安装判定、工具归属推断、tool-search 折叠判定、客户端侧栏入口 + 主面板注册与三态渲染、**分配写入面**（`lib/assign.js` 的 MCP 声明与技能链接，断言写完之后门控 `planMount` 与技能扫描真的能看见；路由的 405/400/404、缓存作废、未登记工作区拒绝）。
 
-`scripts/smoke.mjs` 会起一个 stub Cordis 上下文，跑真实的 `apply()` 和 HTTP handler，验证 14 项：HTTP 200、幽灵包识别、deferred 计算、`bsk_*` 归属、`tool_search` 归属、MCP 全连通、技能扫描、屏蔽桩、会话实证、冷构建 <3s、agent 平面工具收录、global 平面工具收录、平面计数上报、payload 无密钥。本机实测冷构建 **626 ms**，15s 缓存命中 **3–4 ms**，payload 约 82 KB。
+`scripts/smoke.mjs` 会起一个 stub Cordis 上下文（含一个临时工作区），跑真实的 `apply()` 和两个 HTTP handler，验证 17 项：HTTP 200、幽灵包识别、deferred 计算、`bsk_*` 归属、`tool_search` 归属、MCP 全连通、技能扫描、屏蔽桩、会话实证、冷构建 <3s、agent 平面工具收录、global 平面工具收录、平面计数上报、payload 无密钥，以及**分配往返**（给临时工作区分配一个 MCP → 刷新快照能看到 → 移除 → 快照恢复）。本机实测冷构建 **626 ms**，15s 缓存命中 **3–4 ms**，payload 约 82 KB。
 
 ## 实测数据（本机 2026-10-25 审计，live 快照）
 
@@ -136,7 +165,7 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 
 - **host 侧代码**：DSH 启动时加载，改完要重启 DSH（当前 profile 没开源码 HMR，`touch cordis.patch.yml` 不会重载插件代码）。
 - **client 侧代码**：浏览器里刷新页面即可。
-- 插件本身是只读的，加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚。
+- 加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚（回滚不会撤销已经分配出去的 `.dsh/mcp.json` 与技能链接，需要的话手动删）。
 
 ## 已知限制
 
@@ -145,6 +174,11 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 - 会话实证只读最近 12 个会话文件，窗口 8 次工具调用。
 - 快照缓存 15 秒；`?refresh=1` 强制重算。
 - 被屏蔽的 skill（`disable-model-invocation: true`）在运行时注册表里看不见，只能靠磁盘扫描，因此显示为「已屏蔽」。
+- **分配**只对已登记工作区生效；只能分配**磁盘上有目录**的技能（插件运行时注册的技能没有目录，链接不了）。
+- 技能目标根按 DSH 的规则取「最近的 `.git` 祖先」：几个工作区共享同一个 git 根时，给其中一个分配技能，整棵仓库都会看到它（DSH 本身就这么发现技能，不是本插件的选择）。
+- Windows 上目录用 junction（不需要管理员）；单文件技能 `<name>.md` 只能建文件符号链接，普通权限下可能失败并报错。
+- 全局注册的 MCP 本来就对所有工作区可用；给它点「分配」只会多出一份带后缀的重复挂载，通常不需要。
+- 技能链接指向工作区之外（`~/.dsh/skills` 等）；文件沙箱只允许读工作区外路径的策略下，链接目标可能读不到，此时技能不会生效。
 
 ## 面板布局约定（改 UI 前先读）
 
