@@ -11,6 +11,21 @@ DSH 的只读安装清单插件。在 **左侧栏「安装总览」** 面板里�
 
 两者分开成两行是有意的：清单是只读 HTTP 面，门控挂在每个 agent 生命周期上；分开后任一半失败都不会拖垮另一半。
 
+### 门控行的 `serverNameSuffix`
+
+bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写的 `serverName` 原样挂载，工具名是 `mcp__<serverName>__<tool>`。
+
+如果你的 profile 已经把某个同名服务器注册成**全局行**（比如全局 `officecli`），同一作用域里再加一个同名 gate 实例会撞名。这种情况在自己的 profile `cordis.patch.yml` 里覆盖：
+
+```yaml
+- id: inventory-gate
+  name: 'dsh-inventory/gate'
+  config:
+    serverNameSuffix: '-ws'    # 得到 mcp__officecli-ws__*
+```
+
+按 id 的 patch 是**整体替换 config**，不深度合并；省略的键回落 `gate.js` 的 `DEFAULTS`。清单页读回这个后缀，所以「按工作区」视图显示的挂载名和 gate 实际挂的一致。
+
 ## 显示什么
 
 | 分区 | 数据源 | 说明 |
