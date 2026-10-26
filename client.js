@@ -248,7 +248,7 @@ window.__ModuleLoader__.load({
         cursor: 'pointer',
         padding: '2px 0',
       },
-      title: { fontSize: '15px', fontWeight: 600, margin: 0 },
+      title: { fontSize: '16px', fontWeight: 700, margin: 0 },
       subtitle: { fontSize: '12.5px', color: color.muted, margin: 0, lineHeight: 1.5 },
       toolbar: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 },
       search: {
@@ -306,7 +306,7 @@ window.__ModuleLoader__.load({
       wsRoot: { display: 'flex', flexDirection: 'column', gap: '10px', flexShrink: 0 },
       detailHead: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flexShrink: 0 },
       cardMeta: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' },
-      enterHint: { marginLeft: 'auto', fontSize: '11.5px', color: color.muted, whiteSpace: 'nowrap' },
+      enterHint: { marginLeft: 'auto', fontSize: '12px', fontWeight: 600, color: color.brand, whiteSpace: 'nowrap' },
       // Workspace list: one bordered card per workspace (a real block of colour)
       // holding a title row and two counter lines. Rows inside a detail section
       // are separated by hairlines instead: nesting boxes inside boxes is what
@@ -339,14 +339,21 @@ window.__ModuleLoader__.load({
         borderBottom: `1px solid ${color.border}`,
       },
       mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '11.5px' },
+      rowName: {
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: '13px',
+        fontWeight: 600,
+        wordBreak: 'break-word',
+      },
+      cardTitle: { fontSize: '14.5px', fontWeight: 700 },
       countPill: { fontSize: '11px', color: color.muted, whiteSpace: 'nowrap' },
       viewActive: {
         padding: '6px 12px',
         fontSize: '12.5px',
-        fontWeight: 600,
-        color: color.text,
-        background: 'transparent',
-        border: `1px solid ${color.text}`,
+        fontWeight: 700,
+        color: '#fff',
+        background: color.brand,
+        border: '1px solid transparent',
         borderRadius: 'var(--dsw-radius-sm, 6px)',
         cursor: 'pointer',
       },
@@ -384,7 +391,7 @@ window.__ModuleLoader__.load({
         cursor: 'pointer',
         userSelect: 'none',
       },
-      sectionTitle: { fontSize: '13px', fontWeight: 600 },
+      sectionTitle: { fontSize: '13.5px', fontWeight: 700 },
       sectionHint: { fontSize: '11.5px', color: color.muted },
       sectionBody: { display: 'flex', flexDirection: 'column', gap: '0px', padding: '2px 14px 8px' },
       row: {
@@ -400,10 +407,22 @@ window.__ModuleLoader__.load({
         // panel into a grid of identical rectangles with no hierarchy.
         borderBottom: `1px solid ${color.border}`,
       },
-      rowMain: { fontWeight: 500, wordBreak: 'break-all' },
+      rowMain: { fontSize: '13px', fontWeight: 600, wordBreak: 'break-all' },
       rowSub: { fontSize: '11.5px', color: color.muted },
       // A description under a row: full width so it never pushes a button away.
-      rowNote: { fontSize: '11.5px', color: color.muted, flex: '1 1 100%', wordBreak: 'break-word' },
+      rowNote: {
+        fontSize: '11.5px',
+        color: color.muted,
+        flex: '1 1 100%',
+        lineHeight: 1.45,
+        wordBreak: 'break-word',
+        // Two lines is enough to recognise a skill; the rest would only
+        // push the next name out of sight.
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical',
+        overflow: 'hidden',
+      },
       badge: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -574,7 +593,7 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { style: S.cardHead },
-              h('span', { style: S.sectionTitle }, workspace.title),
+              h('span', { style: S.cardTitle }, workspace.title),
               workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
               h('span', { style: S.enterHint }, t('wsEnter')),
             ),
@@ -642,13 +661,13 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           { key: `ws-mcp-${workspace.id}-${name}`, style: S.plainRow },
-          h('span', { style: { ...S.rowMain, ...S.mono } }, name),
+          h('span', { style: S.rowName }, name),
           transport ? h('span', { style: S.countPill }, transport) : null,
           detail ? h('span', { style: S.rowSub }, detail) : null,
           declaredEntry?.mountedAs && declaredEntry.mountedAs !== name
             ? h(Badge, { label: `${t('wsMountedAs')} ${declaredEntry.mountedAs}`, tone: 'success' })
             : null,
-          isGlobal ? h(Badge, { label: t('wsGlobalMounted'), tone: 'warning' }) : null,
+          isGlobal ? h(Badge, { label: t('wsGlobalMounted') }) : null,
           h(Switch, {
             checked: isOn,
             disabled: locked || blocked,
@@ -685,7 +704,7 @@ window.__ModuleLoader__.load({
           return h(
             'div',
             { key: `ws-skill-${workspace.id}-${skill.name}`, style: S.plainRow },
-            h('span', { style: { ...S.rowMain, ...S.mono } }, skill.name),
+            h('span', { style: S.rowName }, skill.name),
             h(Badge, { label: skill.source ? sourceLabel(t, skill.source) : 'disk' }),
             skill.shadowed ? h(Badge, { label: t('shadowed'), tone: 'warning' }) : null,
             assigned && !linked ? h(Badge, { label: t('wsNotLinked'), tone: 'warning' }) : null,
@@ -701,12 +720,16 @@ window.__ModuleLoader__.load({
           )
         })
 
-      const mcpHint =
+      const mcpOn = mcpNames.filter((name) => declared.some((server) => server?.name === name) || globalMcp.includes(name)).length
+      const skillsOn = [...skillsByName.values()].filter((skill) => skill.assigned === true).length
+      const mcpStatus =
         workspace.mcp?.status === 'invalid'
           ? `${t('wsInvalidDeclaration')}: ${workspace.mcp.error ?? ''}`
           : workspace.mcp?.status === 'missing'
             ? t('wsNoDeclaration')
             : undefined
+      const mcpHint = [mcpStatus, `${t('wsSwitchOn')} ${mcpOn}/${mcpNames.length}`].filter(Boolean).join(' · ')
+      const skillsHint = `${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`
 
       return h(
         'div',
@@ -717,7 +740,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', style: S.back, onClick: () => onBack() }, `‹ ${t('wsBackToList')}`),
           h('span', { style: S.title }, workspace.title),
           workspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger' }) : null,
-          h('span', { style: S.groupDir }, workspace.path),
+          h('span', { style: { ...S.groupDir, flex: '1 1 100%' } }, workspace.path),
         ),
         h(
           Block,
@@ -726,7 +749,7 @@ window.__ModuleLoader__.load({
         ),
         h(
           Block,
-          { title: t('wsSkillsSection'), count: skillRows.length },
+          { title: t('wsSkillsSection'), count: skillRows.length, hint: skillsHint },
           skillRows.length === 0 ? [h('div', { key: 'sk-empty', style: S.empty }, t('noSkills'))] : skillRows,
         ),
       )
