@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" role="img" aria-label="Web search providers">
+  <circle cx="10" cy="10" r="6.25" stroke="currentColor" stroke-width="1.7"/>
+  <path d="M14.6 14.6 20 20" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M7.4 8.6h5.2M7.4 11.6h3.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

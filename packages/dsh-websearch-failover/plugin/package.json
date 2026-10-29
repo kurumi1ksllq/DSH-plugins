@@ -1,0 +1,61 @@
+{
+  "name": "dsh-websearch-failover",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Ordered multi-provider web_search with quota-aware cooldown failover, plus a left-sidebar provider manager showing each provider's balance and quota reset.",
+  "type": "module",
+  "icon": "icon.svg",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib/*.mjs",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "bundle",
+    "web-search",
+    "failover",
+    "tavily",
+    "exa",
+    "firecrawl",
+    "serper",
+    "sidebar"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurumi1ksllq/websearch-dsh-plugin.git"
+  }
+}

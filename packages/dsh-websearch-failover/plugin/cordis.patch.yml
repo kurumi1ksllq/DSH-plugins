@@ -1,0 +1,11 @@
+# Bundle patch layer for dsh-websearch-failover.
+#
+# It only inserts this package's host row, which registers the
+# `websearch-failover` provider into ctx.web and mounts the sidebar API.
+# It deliberately does NOT touch the `web` row: selecting the provider
+# (`web.searchProvider: websearch-failover`) belongs to the profile patch
+# layer, where scripts/install.mjs writes one marked, removable block. That
+# keeps the bundle reusable by any profile and rollback-able byte for byte.
+- insert:
+    - id: websearch-failover
+      name: 'dsh-websearch-failover'

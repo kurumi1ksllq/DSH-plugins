@@ -1,0 +1,20 @@
+# --- generated bundle runtime copies -----------------------------------------
+# `node scripts/build-plugin.mjs` copies lib/*.mjs into plugin/lib/ so the
+# installed bundle is self-contained. Generated output, never committed.
+plugin/lib/
+# legacy prototype layout (single generated core.mjs at the plugin root)
+plugin/core.mjs
+
+# --- runtime secrets and state (live in $DSH_HOME, never in the repo) --------
+providers.json
+runtime.json
+websearch-failover-state.json
+websearch-failover/runtime.json
+plugin.log
+
+# --- install backups / editor noise -----------------------------------------
+*.bak-websearch-failover-*
+node_modules/
+*.log
+*.tmp
+.DS_Store

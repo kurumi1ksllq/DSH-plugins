@@ -1,0 +1,34 @@
+{
+  "name": "websearch-dsh-plugin",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH bundle: ordered multi-provider web_search failover with quota-aware cooldown, plus a left-sidebar provider manager that shows every provider's balance in its own billing unit and when that quota resets",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "test": "node test/mock-failover.mjs && node test/test-runtime.mjs && node test/test-balance.mjs && node test/test-api.mjs && node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-client-static.mjs && node test/test-client-render.mjs && node test/test-install.mjs",
+    "test:engine": "node test/mock-failover.mjs",
+    "test:runtime": "node test/test-runtime.mjs",
+    "test:balance": "node test/test-balance.mjs",
+    "test:api": "node test/test-api.mjs",
+    "test:plugin": "node test/test-host-plugin.mjs",
+    "test:integration": "node test/test-integration.mjs",
+    "test:client": "node test/test-client-static.mjs",
+    "test:render": "node test/test-client-render.mjs",
+    "test:install": "node test/test-install.mjs",
+    "build": "node scripts/build-plugin.mjs",
+    "build:check": "node scripts/build-plugin.mjs --check",
+    "plugin:dry": "node scripts/install.mjs --dry-run",
+    "plugin:install": "node scripts/install.mjs",
+    "plugin:uninstall": "node scripts/install.mjs --uninstall",
+    "verify:installed": "node tools/verify-installed.mjs",
+    "search": "node search.mjs",
+    "probe": "node search.mjs --probe",
+    "probe:balance": "node tools/probe-balance-endpoints.mjs",
+    "list": "node search.mjs --list",
+    "asar:get": "node tools/asar-get.cjs",
+    "asar:files": "node tools/asar-files.mjs"
+  }
+}
