@@ -1,6 +1,6 @@
 {
   "name": "dsh-ctx-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Hard context budget gate for DeepSeek Harness: deny oversized single-shot tool payloads, freeze context expansion past a token watermark, and add a /handoff command that writes a paste-ready handoff document.",
   "license": "MIT",
   "type": "module",

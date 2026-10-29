@@ -25,7 +25,7 @@ tools stay open.
 | R3 | `bash` / `pwsh` 的 `command` > `maxCommandChars` | deny，要求写成脚本文件 |
 | R4 | 上下文 ≥ `warnTokens` | 只写日志（每 10k 一次） |
 | R5 | 上下文 > `freezeTokens` | deny `write`(新文件)、`skill`、`web_fetch`、`bsk_inspect` |
-| R6 | R5 且上下文 ≥ `compactTokens` | 先试一次 `compaction.compactIfNeeded`，再判定 |
+| R6 | R5 且上下文 ≥ `compactTokens` | 先试一次压缩，成功则复测；复测不过才 deny |
 
 R5 是**黑名单**而不是白名单。`present`、`ask_user_question`、`todo_write`、team 工具在冻结后仍然可用——
 冻结的语义是「停止扩张、开始交付」，不是「什么都干不了」。覆盖已存在文件的 `write` 也放行（那是 edit 的尾巴）。

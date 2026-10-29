@@ -68,13 +68,60 @@ writeFileSync(existing, 'old')
 assert.equal((await run('write', { file_path: existing, content: 'new' })).kind, 'allow')
 rmSync(existing)
 
+// A relative file_path resolves against the agent's session cwd, not the host cwd.
+const agentCwd = mkdtempSync(join(tmpdir(), 'ctx-guard-cwd-'))
+writeFileSync(join(agentCwd, 'relative.md'), 'old')
+const agentIn = (dir) => ({ id: 'a', session: { id: 's', header: { cwd: dir } } })
+assert.equal((await run('write', { file_path: 'relative.md', content: 'new' }, agentIn(agentCwd))).kind, 'allow')
+assert.equal((await run('write', { file_path: 'missing.md', content: 'new' }, agentIn(agentCwd))).kind, 'deny')
+
+// R6: a frozen call past compactTokens compacts once, then re-measures.
+// If the compaction frees enough room, the same call goes through.
+let compactions = 0
+const compactionCtx = {
+  ...ctx,
+  get: (service) => (service === 'compaction' ? {
+    compactIfNeeded: async () => {
+      compactions += 1
+      tokens = 120
+      return null
+    },
+  } : undefined),
+}
+const compactListeners = new Map()
+compactionCtx.on = (event, listener) => { compactListeners.set(event, listener); return () => {} }
+apply(compactionCtx, { maxWriteChars: 10, maxEditChars: 10, maxCommandChars: 10, freezeTokens: 200, compactTokens: 300 })
+tokens = 400
+const afterCompact = await compactListeners.get('tools/pre-execute')(
+  { name: 'web_fetch', arguments: { url: 'https://example.com' }, agent: agentIn(agentCwd) },
+  () => allow,
+)
+assert.equal(compactions, 1, 'R6 compacts once')
+assert.equal(afterCompact.kind, 'allow', 'R6 re-measures after compaction')
+
+// Without the compaction service the call stays denied; a throw is contained.
+tokens = 400
+assert.equal((await run('web_fetch', { url: 'https://example.com' })).kind, 'deny')
+const throwingCtx = { ...compactionCtx, get: () => ({ compactIfNeeded: async () => { throw new Error('boom') } }) }
+const throwingListeners = new Map()
+throwingCtx.on = (event, listener) => { throwingListeners.set(event, listener); return () => {} }
+apply(throwingCtx, { freezeTokens: 200, compactTokens: 300 })
+assert.equal((await throwingListeners.get('tools/pre-execute')(
+  { name: 'skill', arguments: {}, agent: agentIn(agentCwd) },
+  () => allow,
+)).kind, 'deny', 'compaction failure never opens the gate')
+rmSync(agentCwd, { recursive: true, force: true })
+
 // R4: pre-step warns once per 10k tokens, never denies the step.
+// The agent object is stable across steps in the real loop, so it is the warn key.
+const warnBase = warnings.length
+const stableAgent = { id: 'a', session: { id: 's' } }
 const preStep = listeners.get('agent/pre-step')
 tokens = 150
-assert.deepEqual(preStep({ agent: { id: 'a', session: { id: 's' } } }, () => allow), allow)
-assert.equal(warnings.length, 1)
-preStep({ agent: { id: 'a', session: { id: 's' } } }, () => allow)
-assert.equal(warnings.length, 1, 'warn is rate limited')
+assert.deepEqual(preStep({ agent: stableAgent }, () => allow), allow)
+assert.equal(warnings.length, warnBase + 1)
+preStep({ agent: stableAgent }, () => allow)
+assert.equal(warnings.length, warnBase + 1, 'warn is rate limited')
 
 // /handoff: four sections, edited files, todos, paste-ready prompt.
 const cwd = mkdtempSync(join(tmpdir(), 'ctx-guard-handoff-'))
@@ -93,6 +140,17 @@ const session = {
 }
 
 tokens = 4321
+// Freeze the clock so both writes below land on the same filename stamp.
+const RealDate = Date
+const frozen = RealDate.parse('2026-10-28T12:00:00.000Z')
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    super(...(args.length === 0 ? [frozen] : args))
+  }
+  static now() {
+    return frozen
+  }
+}
 const result = await commands.get('handoff').handler({ agent: { session }, rawInput: ' 交接标题 ' })
 assert.equal(result.kind, 'success', result.text)
 const path = /交接文档: (.+)/u.exec(result.text)?.[1]
@@ -106,6 +164,16 @@ assert.match(body, /## 未完成\n- \[ \] 验证 R5/u)
 assert.match(body, /~4321 tokens/u)
 assert.match(result.text, /先读 .*HANDOFF-.*\.md/u)
 assert.equal(readFileSync(path, 'utf8').match(/lib\/index\.js/gu).length, 1, 'files deduped')
+
+// Two handoffs in the same millisecond must not clobber each other.
+const second = await commands.get('handoff').handler({ agent: { session }, rawInput: '' })
+globalThis.Date = RealDate
+const secondPath = /交接文档: (.+)/u.exec(second.text)?.[1]
+assert.equal(second.kind, 'success', second.text)
+assert.notEqual(secondPath, path, 'second handoff gets its own file')
+assert.ok(existsSync(secondPath) && existsSync(path), 'both handoffs survive')
+assert.match(secondPath, /-1\.md$/u)
+
 rmSync(cwd, { recursive: true, force: true })
 
 console.log('ctx-guard self-check: ok')
