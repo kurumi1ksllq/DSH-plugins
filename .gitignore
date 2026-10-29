@@ -1,0 +1,18 @@
+# --- dependencies -----------------------------------------------------------
+node_modules/
+
+# --- generated bundle runtime copies ----------------------------------------
+# dsh-websearch-failover: `node scripts/build-plugin.mjs` copies lib/*.mjs into
+# plugin/lib/ so the installed bundle is self-contained. Generated, never committed.
+packages/dsh-websearch-failover/plugin/lib/
+packages/dsh-websearch-failover/plugin/core.mjs
+
+# --- local scratch / runtime secrets ----------------------------------------
+.tmp/
+*.log
+*.bak-*
+providers.json
+runtime.json
+websearch-failover-state.json
+.DS_Store
+Thumbs.db
