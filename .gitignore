@@ -16,3 +16,6 @@ runtime.json
 websearch-failover-state.json
 .DS_Store
 Thumbs.db
+
+# transient snapshot dumps
+scripts/.inv*.json
