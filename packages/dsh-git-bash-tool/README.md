@@ -44,7 +44,7 @@ pwsh -File install.ps1 -Yes     # 执行：备份 package.json → 建 junction 
 安装做的事：
 1. `$env:DSH_HOME\profiles\desktop\package.json` 备份到 `$env:DSH_HOME\backup\`；
 2. `profiles\desktop\node_modules\dsh-git-bash-tool` 建 junction 指向本目录（`link:` 依赖，和 `dsh-inventory`、`dsh-lsp-actions` 同一种装法）；
-3. `dependencies` 加 `"dsh-git-bash-tool": "link:E:/Project-hub/dsh-gitBash-plugin"`；
+3. `dependencies` 加 `"dsh-git-bash-tool": "link:E:/Project-hub/DSH-plugins/packages/dsh-git-bash-tool"`；
 4. `dsh.profile.bundles` 追加 `dsh-git-bash-tool`。
 
 ## 验证

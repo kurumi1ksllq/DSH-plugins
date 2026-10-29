@@ -10,7 +10,7 @@
 - **Scope**：在范围内：(1) 已把 `~/.dsh/profiles/desktop/node_modules/.ignored/dsh-websearch-failover` 挪回 `node_modules` 并验证 bundle 完整；(2) 改 `scripts/install.mjs`：安装时在 profile `package.json` 的 `dependencies` 写入 `"dsh-websearch-failover": "link:<repo>/plugin"`，卸载时按文本精确移除；(3) 同步改 `test/test-install.mjs` 的期望（原来断言「不加 dependency」）；(4) 对真实 profile 跑一次 install 写入 `link:` 声明；(5) 更新 `HANDOVER.md` / `README.md` 记录根因与 pnpm 交互。不在范围内：插件运行时代码（`index.js` / `client.js` / `lib/*.mjs` / `cordis.patch.yml` 内容）、插件 UI 与功能、`web_fetch` 覆盖、DSH 自身源码、git 提交、自动重启 DSH Desktop。
 - **Acceptance criteria**：
   1. `node tools/verify-installed.mjs` 输出 `installed bundle verified`，provider `available=true`。
-  2. 真实 profile `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 里含 `"dsh-websearch-failover": "link:E:/Project-hub/websearch-dsh-plugin/plugin"`，且 `dsh.profile.bundles` 与 `cordis.patch.yml` 的 managed 块保持不变。
+  2. 真实 profile `~/.dsh/profiles/desktop/package.json` 的 `dependencies` 里含 `"dsh-websearch-failover": "link:E:/Project-hub/DSH-plugins/packages/dsh-websearch-failover/plugin"`，且 `dsh.profile.bundles` 与 `cordis.patch.yml` 的 managed 块保持不变。
   3. `npm test` 全绿（9 个测试文件全过），其中 test-install 覆盖：安装后 dependencies 含 link: 值、重复安装为 unchanged、`--uninstall` 逐字节还原 manifest 与 patch。
   4. 模拟 pnpm 的 extraneous 判定：声明后该目录出现在依赖树中（可用 `pnpm install` 在真实 profile 上复核，目录不再进 `.ignored`）。
   5. 用户重启 DSH Desktop 后 `GET /websearch-failover/api/state` 返回 200、boot graph 含 `dsh-websearch-failover`、左侧栏出现提供方管理器。

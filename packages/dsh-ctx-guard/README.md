@@ -70,7 +70,7 @@ R5 是**黑名单**而不是白名单。`present`、`ask_user_question`、`todo_
 ```bash
 # 1. 放进 profile
 cd ~/.dsh/profiles/<profile>
-#   package.json → dependencies: { "dsh-ctx-guard": "link:E:/Project-hub/dsh-ctx-guard" }
+#   package.json → dependencies: { "dsh-ctx-guard": "link:E:/Project-hub/DSH-plugins/packages/dsh-ctx-guard" }
 #   package.json → dsh.profile.bundles 追加 "dsh-ctx-guard"
 pnpm install          # 或手工建 node_modules/dsh-ctx-guard 链接
 ```

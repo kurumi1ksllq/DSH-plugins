@@ -38,6 +38,9 @@
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
+  "scripts": {
+    "test": "node --test test/plugin.test.mjs"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",
