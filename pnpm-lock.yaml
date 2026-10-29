@@ -1,0 +1,19 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  packages/dsh-ctx-guard: {}
+
+  packages/dsh-git-bash-tool: {}
+
+  packages/dsh-inventory: {}
+
+  packages/dsh-prompt-inject: {}
+
+  packages/dsh-websearch-failover: {}

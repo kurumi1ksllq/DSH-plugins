@@ -1,0 +1,27 @@
+# dsh-git-bash-tool — bundle patch
+#
+# 1) 打开内置 bash 工具、关掉 pwsh 工具（两条都是 dsh-base 里按平台闸掉的 shipped 行，
+#    这里按 id 覆盖；applyEntryPatches 的 entryMap 会递归进 isolate group，所以能命中）。
+# 2) 插入本插件自己的执行器适配行。
+#
+# 注意：patch 会整体替换被命中行的 config，所以 bash-sandbox 的 timeoutMs 要原样重述。
+
+- id: bash-sandbox
+  name: '@deepseek-ai/dsh-bash-sandbox'
+  disabled: false
+  config:
+    timeoutMs: 60000
+
+- id: pwsh-sandbox
+  disabled: true
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: false
+
+- id: tool-pwsh
+  disabled: true
+
+- insert:
+    - id: git-bash-tool
+      name: 'dsh-git-bash-tool'

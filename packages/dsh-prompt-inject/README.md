@@ -1,40 +1,103 @@
-# dsh-prompt-inject
+# @local/dsh-prompt-inject
 
-DeepSeek Harness（DSH）插件开发工作区，同时归档独立复核报告。
+DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段可编辑的中英双语演示段落，并提供左侧边栏入口 + 主面板编辑器，用于读取、修改并保存注入文本。段落里带有唯一验证令牌 `DSH-INJECT-7F3A-2026`。
 
-> 仓库与本地目录已从 `dsh-reverse-plugin` 重命名为 `dsh-prompt-inject`。DSH profile 的插件 `link:` 已更新为新路径；旧路径 `E:\Project-hub\dsh-reverse-plugin` 现在是一个指向新目录的**目录 junction**（NTFS 重解析点，`fsutil reparsepoint query` 报 `0xa0000003` 即 mount point；Git Bash 会把它显示成 `->` 符号链接），仅用于兼容改名之前创建的会话与 workspace 记录，`git rev-parse --show-toplevel` 经它解析到 `E:/Project-hub/dsh-prompt-inject`。重启 DSH、用新路径重新登记 workspace 后可删除：`cmd /c rmdir E:\Project-hub\dsh-reverse-plugin`（只删 junction，不动目标目录；不要对它用 `rm -rf`）。
+- Host 半区（`index.js`）：注册系统提示词段落 + `GET/POST /prompt-inject/state` 路由 + 本地持久化。
+- Client 半区（`client.js`）：侧边栏按钮（id `prompt-inject`）+ 主面板（key `prompt-inject`），通过上面两个 HTTP 方法读写文本。
 
-## 目录结构
+## 注入内容
 
-| 路径 | 内容 |
+通过 `@deepseek-ai/dsh-system-prompt` 的 `ctx.systemPrompt.section()` 注册一个全局段落：
+
+| 字段 | 默认值 |
 | --- | --- |
-| [`prompt-inject/`](prompt-inject/README.md) | 插件 `@local/dsh-prompt-inject`：向每个 Agent 的系统提示词追加可编辑段落，并提供侧边栏编辑器（Host 路由 + Client UI + 契约测试） |
-| [`reports/`](reports/) | 项目级独立复核报告：[侧边栏编辑器](reports/review-prompt-editor.md)、[首版注入 bundle](reports/review-prompt-inject.md) |
-| [`.gitattributes`](.gitattributes) | 全仓库 `* text=auto eol=lf` |
+| section `name` | `demo:prompt-inject` |
+| `order` | `3500`（在内置段落之后） |
+| `interpolate` | `false`（固定值，文案按字面量处理） |
+| `text` | getter `() => currentText`，每次 prompt assembly 重新求值 |
+| 初始文案 | `DEFAULT_TEXT`（见 `index.js`；保留原有演示语义与令牌） |
 
-本仓库根目录即工作区根目录，`prompt-inject/` 是唯一的插件包目录，不是独立仓库。
+文案要点：
 
-## 历史布局说明
+- 明确标注由本地插件 `@local/dsh-prompt-inject` 注入、仅作演示，不覆盖安全策略与权限规则；
+- 声明验证令牌 `DSH-INJECT-7F3A-2026`；
+- 行为约定：用户问"注入令牌是什么 / what is the injection token"时，只逐字回答该令牌、不加解释；其余情况下不主动提及本段，也不改变其他行为。
 
-- `ee1aa58` 及更早的提交里，仓库根目录直接是插件内容（`index.js`、`package.json` 等）。
-- 自 `chore: promote repo root to workspace dir` 起，插件内容移入 `prompt-inject/` 子目录，复核报告从工作区兄弟目录纳入版本管理。
-- 迁移沿用同一分支历史，文件内容未变（`git log --follow prompt-inject/index.js` 可追溯到迁移前提交）。
+## 侧边栏编辑器
 
-## 插件使用
+1. 左侧边栏出现「提示词注入」按钮（`sidebar.panellist`，id `prompt-inject`，order 20，随界面语言显示中/英文）。
+2. 点击后打开主面板（`main`，key `prompt-inject`）：标题、说明、受控 textarea、底部「确定」「返回对话」按钮，以及读取/保存状态提示。
+3. 打开面板时自动 `GET /prompt-inject/state` 回填当前文本；「确定」用 `POST` 保存，成功后提示已保存，并可在下一次模型请求中生效（Host 的 section 是 getter）。
+4. 文本为空时本地提示且不发请求；保存中按钮禁用；textarea 内回车只换行，不触发提交；「返回对话」调用 `ctx.layout.selectPanel(null)`。
 
-```bash
-# 契约测试（纯 Node，无第三方依赖）
-node --test prompt-inject/test/plugin.test.mjs
+页面文案来自 Client 内置的 zh/en 字典（namespace `prompt-inject`），不依赖任何 Harness Client 组件包，只用主题 token 着色。
 
-# 安装到 DSH profile：plugin_manager → install_bundle，target 传 prompt-inject/ 的绝对路径
+## HTTP 契约
+
+路由为普通 HTTP（不走 `/api` 鉴权），因此 Host 自行校验来源。
+
+| 方法 | 请求 | 成功响应 | 失败 |
+| --- | --- | --- | --- |
+| `GET /prompt-inject/state` | — | `200 { text, updatedAt }` | — |
+| `POST /prompt-inject/state` | JSON `{ text }` | `200 { text, updatedAt }`，并 `emit('system-prompt/change')` | `400 { error:'invalid-text' }`、`400 { error:'invalid-json' }`、`403 { error:'forbidden-origin' }`、`413 { error:'payload-too-large' }`、`500 { error:'persist-failed', message }` |
+| 其他方法 | — | — | `405 { error:'method-not-allowed' }` |
+
+- 响应头统一 `content-type: application/json; charset=utf-8`、`cache-control: no-store`。
+- `text` 必须是字符串、非空、长度 ≤ 200000；请求体上限约 256 KiB。
+- POST 若带 `Origin`，其 host 必须与 `Host` 头一致；`sec-fetch-site: cross-site` 一律拒绝（含 `Origin: null`）。
+- 写盘失败时返回 500，且内存中的注入文本保持不变（先落盘、后更新内存）。
+- 路由注册包在 `ctx.effect(...)` 内，卸载插件时自动移除。
+
+## 持久化
+
+状态文件（`{ text, updatedAt }`）按以下顺序定位：
+
+1. `$DSH_PROFILE_DIR/prompt-inject.state.json`（Host 运行时通常存在此变量）
+2. `$DSH_HOME/prompt-inject/state.json`
+3. `~/.dsh/prompt-inject/state.json`
+
+写入采用「临时文件 + rename」原子替换；启动时同步读取，文件缺失/JSON 损坏/字段非法时回退到默认文案（`updatedAt: 0`）。不写 profile 的 `package.json` / `cordis.patch.yml`。
+
+## 配置覆盖
+
+`apply(ctx, config)` 接受三个可选字段（不定义 Config schema，不引入第三方依赖）：
+
+```js
+// profile 的 patch 层示例（非本包自带）
+- id: prompt-inject
+  name: "@local/dsh-prompt-inject"
+  config:
+    name: "demo:prompt-inject"   // 覆盖 section 名称
+    order: 3500                  // 覆盖排序位置
+    text: "自定义注入文本"        // 覆盖初始文案（空字符串仍用默认/持久化文案）
 ```
 
-细节、HTTP 契约、持久化与配置覆盖见 [`prompt-inject/README.md`](prompt-inject/README.md)；运行时验证证据见 [`prompt-inject/VERIFICATION.md`](prompt-inject/VERIFICATION.md)。
+优先级：`config.text` > 持久化文本 > `DEFAULT_TEXT`。字段类型不合法（`order` 非有限数字、`text`/`name` 非字符串或为空）时静默回退。
 
-## 免责与边界
+## 安装与生效
 
-插件只读写本机 profile 下的注入状态文件，不联网、不注册其他路由；修改注入文本等同修改系统提示词，属本机 profile 管理者的操作。不要把 DSH 端口暴露到不受信任网络。
+- 安装：`plugin_manager` → `install_bundle`，target 传本目录绝对路径，由 plugin_manager 负责写 profile 的依赖与 patch。
+- 生效：Host 半区与 Client 半区都需要 Harness 重新加载插件；已运行的进程通常需要重启 DSH 并刷新页面。安装返回若为 `restart-required`，以 `VERIFICATION.md` 记录为准。
+- 关闭：在 `plugin_manager` 中禁用该插件行（`set_plugin`，enabled: false），或从 profile 中移除该 bundle。段落与路由都绑定在插件 Context 上，卸载时自动清理。
 
-## License
+## 文件
 
-MIT（见 `prompt-inject/package.json`）。
+- `index.js` — Host 入口：动态 section、HTTP 路由、原子持久化
+- `client.js` — Client 入口：`window.__ModuleLoader__.load`，侧边栏按钮 + 编辑面板
+- `cordis.patch.yml` — bundle patch 层，插入 `prompt-inject` 行
+- `locale/en.json`、`locale/zh.json` — 插件标题与描述（面板文案在 `client.js` 内）
+- `icon.svg` — 64×64 原创几何图标
+- `package.json` — 包声明（bundle patch + `dsh.client`）
+- `test/plugin.test.mjs` — 纯 Node 契约测试（fake ctx + `node:vm`）
+
+## 验证
+
+- [VERIFICATION.md](VERIFICATION.md) — 构建、安装、路由契约、测试与运行时验证证据
+- [../reports/review-prompt-inject.md](../reports/review-prompt-inject.md) — 首版独立复核报告（判定 ACCEPT，针对无 UI 版本；项目级归档在仓库根 `reports/`）
+- [../reports/review-prompt-editor.md](../reports/review-prompt-editor.md) — 侧边栏编辑器复核报告（判定 ACCEPT）
+
+## 安全说明
+
+- Host 只读写上述状态文件，不联网、不注册其他路由、不监听其他事件；Client 只向同源 `/prompt-inject/state` 发请求。
+- 修改注入文本等同于修改系统提示词，属于本机 profile 管理者的操作；路由仅绑定本机 Host 并做同源校验，不要将 DSH 端口暴露到不受信任的网络。
+- 默认文案显式声明"不覆盖任何安全/权限规则"，且不要求模型泄露系统提示词全文。
