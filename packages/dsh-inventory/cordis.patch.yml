@@ -1,0 +1,22 @@
+# Bundle patch layer for dsh-inventory.
+# Two host-side rows:
+#   inventory       — the read-only aggregator plus GET /inventory/snapshot
+#   inventory-gate  — mounts MCP servers only for sessions whose workspace
+#                     declares them in <workspace>/.dsh/mcp.json
+#
+# The gate row ships with no config so a fresh install mounts the declared
+# serverName verbatim. Deployments that already register a server of the same
+# name globally should override `serverNameSuffix` in their own profile patch:
+#
+#   - id: inventory-gate
+#     name: 'dsh-inventory/gate'
+#     config:
+#       serverNameSuffix: '-ws'
+#
+# The inventory snapshot reads that suffix back from the loader, so the page
+# shows the name the gate will actually mount.
+- insert:
+    - id: inventory
+      name: "dsh-inventory"
+    - id: inventory-gate
+      name: "dsh-inventory/gate"
