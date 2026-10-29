@@ -1,0 +1,46 @@
+{
+  "name": "dsh-ctx-guard",
+  "version": "0.1.0",
+  "description": "Hard context budget gate for DeepSeek Harness: deny oversized single-shot tool payloads, freeze context expansion past a token watermark, and add a /handoff command that writes a paste-ready handoff document.",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "context",
+    "compaction",
+    "handoff"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurumi1ksllq/dsh-ctx-guard.git"
+  },
+  "homepage": "https://github.com/kurumi1ksllq/dsh-ctx-guard",
+  "bugs": {
+    "url": "https://github.com/kurumi1ksllq/dsh-ctx-guard/issues"
+  },
+  "scripts": {
+    "test": "node test/self-check.mjs"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

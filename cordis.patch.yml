@@ -1,0 +1,11 @@
+# Bundle patch layer for dsh-ctx-guard.
+#
+# One host-side row. `config` is deliberately absent: a profile patch that
+# targets this row replaces the whole `config` object, so keeping the defaults
+# here would force every override to restate every key. Defaults live in
+# lib/index.js (DEFAULTS) and are merged shallowly with whatever the profile
+# supplies, so `- id: ctx-guard / config: { freezeTokens: 160000 }` is a
+# partial override, not a reset.
+- insert:
+    - id: ctx-guard
+      name: "dsh-ctx-guard"
