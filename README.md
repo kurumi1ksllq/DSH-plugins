@@ -43,3 +43,19 @@ pnpm verify           # 校验每个包仍是合法 bundle，且 profile 指到�
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
 - 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第六个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
+
+## profiles/
+
+`profiles/web/` 是**服务器侧 DSH web profile**，与 `packages/` 同级，因此 `link:` 可以用相对路径
+（`../../packages/...`），Windows 与 Linux 通用，`package.json` 与 `pnpm-lock.yaml` 各只需一份。
+
+该 profile 刻意**不含** `dsh-git-bash-tool`（硬编码 `C:\Program Files\Git\bin\bash.exe`）和
+`browser-skill`（依赖本机登录态 Chromium）。
+
+## 部署到服务器
+
+见 [`docs/HANDOFF-2026-10-31-server-sync.md`](docs/HANDOFF-2026-10-31-server-sync.md)。其中最容易踩的一条：
+
+> `packages/dsh-websearch-failover/plugin/lib/` 是**生成物且被 .gitignore 排除**，
+> 服务器 clone 后必须先在 install 前跑 `node packages/dsh-websearch-failover/scripts/build-plugin.mjs`，
+> 否则加载该 bundle 会 MODULE_NOT_FOUND。
