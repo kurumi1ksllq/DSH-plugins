@@ -15,6 +15,7 @@
     "test:prompt-inject": "node --test packages/dsh-prompt-inject/prompt-inject/test/plugin.test.mjs",
     "build:websearch": "pnpm --filter websearch-dsh-plugin run build",
     "check:websearch": "pnpm --filter websearch-dsh-plugin run build:check",
-    "verify": "node scripts/verify-packages.mjs"
+    "verify": "node scripts/verify-packages.mjs",
+    "verify:web-profile": "node scripts/verify-web-profile.mjs"
   }
 }

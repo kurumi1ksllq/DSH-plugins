@@ -74,7 +74,24 @@ function prependPath() {
   }
 }
 
+/**
+ * Whether this host can actually use Git Bash.
+ *
+ * The platform gate belongs in `cordis.patch.yml`, which is static — this guard
+ * only keeps the plugin from rewriting argv (to `C:\Program Files\...`) or
+ * prepending a Windows PATH on a host where Git Bash cannot exist.
+ * @returns true on Windows, where Git for Windows ships a bash binary.
+ */
+export function isSupported() {
+  return process.platform === 'win32'
+}
+
 export function apply(ctx) {
+  if (!isSupported()) {
+    // Linux/macOS already ship a real `bash`; rewriting it would break every command.
+    ctx.logger?.debug?.('git-bash-tool: not win32, leaving the shell executor untouched')
+    return
+  }
   ctx.inject(['shell'], (scoped) => {
     const shell = scoped.shell
     scoped.effect(() => {
