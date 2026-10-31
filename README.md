@@ -1,6 +1,6 @@
 # DSH-plugins
 
-一个仓库，六个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
+一个仓库，五个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
 **这个仓库只放插件。** 服务器怎么配 DSH、profile 怎么接、密钥怎么管，都不在这里。
 
@@ -9,7 +9,6 @@
 | [`packages/dsh-ctx-guard`](packages/dsh-ctx-guard) | `dsh-ctx-guard` | 上下文预算硬闸：拒绝超大 write/edit/命令载荷，超过 token 水位冻结扩张类工具，附 `/handoff` 交接命令 |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行） |
-| [`packages/dsh-plugin-sync`](packages/dsh-plugin-sync) | `dsh-plugin-sync` | 启动时对齐插件：读目标 git 仓库的清单，比对本 profile 已装的，缺的装、旧的报 |
 | [`packages/dsh-prompt-inject`](packages/dsh-prompt-inject) | `@local/dsh-prompt-inject` | 往所有 Agent 系统提示词注入一段可编辑文本，带侧栏编辑器 |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移 + 侧栏余额管理器 |
 
@@ -25,7 +24,6 @@ profile 的 `package.json` 里逐个 link，包名不需要改：
   "dsh-ctx-guard": "link:../../packages/dsh-ctx-guard",
   "dsh-git-bash-tool": "link:../../packages/dsh-git-bash-tool",
   "dsh-inventory": "link:../../packages/dsh-inventory",
-  "dsh-plugin-sync": "link:../../packages/dsh-plugin-sync",
   "dsh-websearch-failover": "link:../../packages/dsh-websearch-failover/plugin"
 }
 ```
@@ -36,19 +34,35 @@ profile 的 `package.json` 里逐个 link，包名不需要改：
 
 ```bash
 pnpm install          # 一次装齐 workspace 依赖
-pnpm test             # 六个包全部测试
+pnpm test             # 五个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
-单包：`pnpm --filter dsh-inventory test`、`pnpm --filter dsh-plugin-sync test`。
+单包：`pnpm --filter dsh-inventory test`、`pnpm --filter dsh-ctx-guard test`。
 
 ## 边界
 
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第七个 bundle。
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第六个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
 - `scripts/verify-packages.mjs` 只校验 `packages/` 内部，不检查任何 profile。宿主怎么接线是宿主的事。
 
-## 插件自动对齐
+## 跨机同步（dsh-inventory 的一部分）
 
-[`dsh-plugin-sync`](packages/dsh-plugin-sync) 启动时读目标仓库根目录的 `dsh-plugins.json`，比对本 profile 已装插件的版本。默认只报告，`apply: true` 才真正安装/更新。默认 `repo` 为空，即完全静默不联网。
+同步能力在 [`dsh-inventory`](packages/dsh-inventory) 里，不是一个单独的插件。它做两件事：
+
+- **发布**：把本机的插件 / MCP / skill 清单写成一份 `dsh-manifest.json`，推到清单仓库。默认会先脱敏（密钥、本机绝对路径），面板会告诉你脱掉了什么。
+- **按需拉取**：读清单仓库，和本机现状比对，列出差异（`missing` / `outdated` / `blocked` / `disabled` / `current` / `local-only`），**你勾哪项就装哪项**，不会自动装。
+
+`blocked` 是给不适合本机的项准备的：Windows 专属插件在 Linux 上、需要 GPU 的 skill 在没显卡的机器上、依赖 `officecli` 但没装的情况。它们不会被当成 `missing`，也不会出现在可勾选列表里。
+
+配置（仓库地址、token、每项的平台/依赖标注）存在 `$DSH_HOME/plugin-sync.json`，不在 profile 里，也不会被发布。
+
+HTTP 接口：
+
+| 路由 | 方法 | 作用 |
+| --- | --- | --- |
+| `/inventory/sync` | GET | 配置状态 + 清单差异 |
+| `/inventory/sync/config` | GET/POST | 读/改仓库地址与 token |
+| `/inventory/sync/preview` | GET | 生成本机清单，返回脱敏报告，不写仓库 |
+| `/inventory/sync/apply` | POST | `{selection:[...]}` 装勾选项；`{action:"publish"}` 发布 |

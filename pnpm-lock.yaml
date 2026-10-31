@@ -14,8 +14,6 @@ importers:
 
   packages/dsh-inventory: {}
 
-  packages/dsh-plugin-sync: {}
-
   packages/dsh-prompt-inject: {}
 
   packages/dsh-websearch-failover: {}

@@ -2,7 +2,7 @@
   "name": "dsh-plugins-workspace",
   "private": true,
   "version": "0.0.0",
-  "description": "One repository, six independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
+  "description": "One repository, five independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -11,7 +11,6 @@
     "test": "pnpm -r --if-present run test",
     "test:ctx-guard": "pnpm --filter dsh-ctx-guard run test",
     "test:inventory": "pnpm --filter dsh-inventory run test",
-    "test:plugin-sync": "pnpm --filter dsh-plugin-sync run test",
     "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
     "test:prompt-inject": "node --test packages/dsh-prompt-inject/test/*.test.mjs",
     "build:websearch": "pnpm --filter websearch-dsh-plugin run build",

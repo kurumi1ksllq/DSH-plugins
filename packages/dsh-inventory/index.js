@@ -39,6 +39,7 @@ import { setSkillEnabled } from './lib/skill-toggle.js'
 import { writePatchEnabled } from './lib/global-patch.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
+import { syncApply, syncConfigure, syncPreview, syncPublish, syncStatus } from './lib/sync-service.js'
 
 export const name = 'dsh-inventory'
 
@@ -49,6 +50,10 @@ export const SNAPSHOT_ROUTE = '/inventory/snapshot'
 export const ASSIGN_ROUTE = '/inventory/workspace'
 export const GLOBAL_ROUTE = '/inventory/global'
 export const VAULT_ROUTE = '/inventory/vault'
+export const SYNC_ROUTE = '/inventory/sync'
+export const SYNC_CONFIG_ROUTE = '/inventory/sync/config'
+export const SYNC_PREVIEW_ROUTE = '/inventory/sync/preview'
+export const SYNC_APPLY_ROUTE = '/inventory/sync/apply'
 
 const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 
@@ -1055,6 +1060,89 @@ async function assignForWorkspace(ctx, req) {
   }
 }
 
+// ---- /inventory/sync/* --------------------------------------------------
+//
+// The sync half of this plugin. Every handler reads the cached snapshot rather
+// than rebuilding one: publishing a manifest from a stale snapshot is no worse
+// than from a fresh one (the user reviews the diff either way), while a full
+// rebuild costs seconds and can race a write in flight.
+
+/** Where a pulled plugin repository lives on this machine. */
+function pluginRepoRoot(ctx) {
+  const explicit = process.env.DSH_PLUGIN_REPO
+  if (typeof explicit === 'string' && explicit.length > 0) return explicit
+  const home = homedir()
+  return home === null ? null : join(home, '.dsh', 'plugin-repo')
+}
+
+/** Everything `applyItems` needs to actually install a selection. */
+function installContext(ctx) {
+  return {
+    profileDir: resolveProfileDir(ctx),
+    repoRoot: pluginRepoRoot(ctx),
+    vaultDir: vaultDir(),
+  }
+}
+
+async function handleSync(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'GET') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  const snapshot = await getSnapshot(ctx, { refresh: true })
+  const status = await syncStatus({ snapshot })
+  return { status: 200, payload: status }
+}
+
+async function handleSyncConfig(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method === 'GET') {
+    const { readState, publicState } = await import('./lib/sync-state.js')
+    return { status: 200, payload: { ok: true, state: publicState(readState()) } }
+  }
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  const body = await readBody(req)
+  let patch
+  try {
+    patch = JSON.parse(body.length === 0 ? '{}' : body)
+  } catch {
+    return { status: 400, payload: { ok: false, error: '请求体不是合法 JSON' } }
+  }
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+    return { status: 400, payload: { ok: false, error: '请求体必须是对象' } }
+  }
+  return { status: 200, payload: { ok: true, state: syncConfigure(patch) } }
+}
+
+async function handleSyncPreview(ctx) {
+  const snapshot = await getSnapshot(ctx, { refresh: true })
+  return { status: 200, payload: { ok: true, ...syncPreview({ snapshot }) } }
+}
+
+async function handleSyncApply(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  const body = await readBody(req)
+  let parsed
+  try {
+    parsed = JSON.parse(body.length === 0 ? '{}' : body)
+  } catch {
+    return { status: 400, payload: { ok: false, error: '请求体不是合法 JSON' } }
+  }
+  // `publish` and `apply` share this route: the body says which.
+  if (parsed?.action === 'publish') {
+    const snapshot = await getSnapshot(ctx, { refresh: true })
+    const result = await syncPublish({ snapshot, options: { force: parsed.force === true } })
+    return { status: result.ok === true ? 200 : 400, payload: result }
+  }
+  const snapshot = await getSnapshot(ctx, { refresh: true })
+  const result = await syncApply({
+    snapshot,
+    selection: parsed?.selection,
+    options: installContext(ctx),
+  })
+  if (result.applied > 0) invalidateSnapshot()
+  return { status: result.ok === true ? 200 : 400, payload: result }
+}
+
 /**
  * Cordis plugin entry.
  * @param {import('@deepseek-ai/cordis').Context} ctx
@@ -1143,4 +1231,27 @@ export function apply(ctx) {
       },
     }),
   )
+
+  const syncRoutes = [
+    { path: SYNC_ROUTE, handler: handleSync, label: '同步状态' },
+    { path: SYNC_CONFIG_ROUTE, handler: handleSyncConfig, label: '同步配置' },
+    { path: SYNC_PREVIEW_ROUTE, handler: handleSyncPreview, label: '清单预览' },
+    { path: SYNC_APPLY_ROUTE, handler: handleSyncApply, label: '同步执行' },
+  ]
+  for (const route of syncRoutes) {
+    ctx.effect(() =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: route.path,
+        handler: async (req, res) => {
+          try {
+            const { status, payload } = await route.handler(ctx, req)
+            sendJson(res, status, payload)
+          } catch (error) {
+            sendJson(res, 500, { ok: false, error: `${route.label}失败：${error?.message ?? error}` })
+          }
+        },
+      }),
+    )
+  }
 }

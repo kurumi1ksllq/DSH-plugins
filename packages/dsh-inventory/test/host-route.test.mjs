@@ -6,7 +6,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { apply, ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE, VAULT_ROUTE } from '../index.js'
+import {
+  apply,
+  ASSIGN_ROUTE,
+  GLOBAL_ROUTE,
+  SNAPSHOT_ROUTE,
+  SYNC_APPLY_ROUTE,
+  SYNC_CONFIG_ROUTE,
+  SYNC_PREVIEW_ROUTE,
+  SYNC_ROUTE,
+  VAULT_ROUTE,
+} from '../index.js'
 
 /**
  * Host-half route contract, with an empty loader/tool registry: the routes must
@@ -55,13 +65,26 @@ test('registers one exact route per surface', () => {
   apply(ctx)
   assert.deepEqual(
     ctx.routes.map((route) => route.path).sort(),
-    [ASSIGN_ROUTE, GLOBAL_ROUTE, SNAPSHOT_ROUTE, VAULT_ROUTE].sort(),
+    [
+      ASSIGN_ROUTE,
+      GLOBAL_ROUTE,
+      SNAPSHOT_ROUTE,
+      SYNC_APPLY_ROUTE,
+      SYNC_CONFIG_ROUTE,
+      SYNC_PREVIEW_ROUTE,
+      SYNC_ROUTE,
+      VAULT_ROUTE,
+    ].sort(),
   )
   for (const route of ctx.routes) assert.equal(route.kind, 'exact')
   assert.equal(SNAPSHOT_ROUTE, '/inventory/snapshot')
   assert.equal(ASSIGN_ROUTE, '/inventory/workspace')
   assert.equal(GLOBAL_ROUTE, '/inventory/global')
   assert.equal(VAULT_ROUTE, '/inventory/vault')
+  assert.equal(SYNC_ROUTE, '/inventory/sync')
+  assert.equal(SYNC_CONFIG_ROUTE, '/inventory/sync/config')
+  assert.equal(SYNC_PREVIEW_ROUTE, '/inventory/sync/preview')
+  assert.equal(SYNC_APPLY_ROUTE, '/inventory/sync/apply')
 })
 
 test('rejects non-GET methods with 405', async () => {

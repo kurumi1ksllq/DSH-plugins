@@ -1,0 +1,276 @@
+/**
+ * Secret and host-specific redaction for anything that leaves this machine.
+ *
+ * Two different leaks, both fatal in different ways:
+ *
+ *   Secrets  A literal API key pushed to a public repository is compromised the
+ *            moment it is pushed. It cannot be un-pushed. Redaction therefore
+ *            runs on every outbound document, not only on the ones that "look"
+ *            sensitive.
+ *   Host facts  `C:\Program Files\nodejs\node.exe` is not secret, but it is
+ *            meaningless on Linux and actively harmful if copied: the target
+ *            tries to spawn it, fails, and reports a broken capability that is
+ *            really just a path from someone else's machine.
+ *
+ * The rule is uniform: an outbound string that looks like a secret becomes a
+ * placeholder, and an absolute path is replaced by a portable form.
+ */
+
+/** Placeholder left where a secret was removed. */
+export const REDACTED = '<REDACTED>'
+
+/**
+ * Known credential shapes. Ordered most-specific first so a `ctx7sk-` key is
+ * not also matched by the generic long-token rule.
+ */
+const SECRET_PATTERNS = [
+  // context7 service keys
+  /ctx7sk-[A-Za-z0-9-]{10,}/g,
+  // GitHub tokens
+  /gh[pousr]_[A-Za-z0-9]{20,}/g,
+  // OpenAI / DeepSeek style keys
+  /sk-[A-Za-z0-9-]{16,}/g,
+  // AWS access key ids
+  /AKIA[0-9A-Z]{16}/g,
+  // Bearer tokens in a literal
+  /Bearer\s+[A-Za-z0-9._~+/=-]{20,}/g,
+  // Google API keys
+  /AIza[A-Za-z0-9_-]{30,}/g,
+]
+
+/** Object keys whose value is always a credential, whatever it looks like. */
+const SECRET_KEYS = new Set([
+  'apikey',
+  'api_key',
+  'api-key',
+  'token',
+  'accesstoken',
+  'access_token',
+  'secret',
+  'password',
+  'passwd',
+  'authorization',
+  'auth',
+  'credential',
+  'credentials',
+])
+
+/** A key whose name marks it as an *indirection* to a secret, not the secret. */
+const ENV_KEY_HINTS = /(?:apikeyenv|api_key_env|tokenenv|envkey)$/i
+
+/** Replace every recognised credential shape inside a string. */
+export function redactString(text) {
+  if (typeof text !== 'string' || text.length === 0) return text
+  let out = text
+  for (const pattern of SECRET_PATTERNS) {
+    out = out.replace(pattern, REDACTED)
+  }
+  return out
+}
+
+/** True when a key name says "this value is a credential". */
+export function isSecretKey(key) {
+  if (typeof key !== 'string') return false
+  const lower = key.toLowerCase().replace(/[^a-z0-9_-]/g, '')
+  if (ENV_KEY_HINTS.test(lower)) return false
+  return SECRET_KEYS.has(lower)
+}
+
+/**
+ * Deep-redact a value.
+ *
+ * Walks objects and arrays, replacing credential-keyed values wholesale and
+ * scrubbing credential shapes out of every other string. Returns a new
+ * structure; the input is never mutated.
+ */
+export function redactValue(value, depth = 0) {
+  if (depth > 12) return value
+  if (typeof value === 'string') return redactString(value)
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1))
+  if (value !== null && typeof value === 'object') {
+    const out = {}
+    for (const [key, item] of Object.entries(value)) {
+      if (isSecretKey(key) && item !== null && item !== undefined && item !== '') {
+        out[key] = REDACTED
+        continue
+      }
+      out[key] = redactValue(item, depth + 1)
+    }
+    return out
+  }
+  return value
+}
+
+/**
+ * Absolute-path shapes worth replacing with a portable placeholder.
+ *
+ * `%LOCAL_ONLY%` is not a real path on purpose: a target that blindly substitutes
+ * it fails loudly instead of silently pointing at the wrong file.
+ *
+ * Windows paths are matched in two passes because they can contain spaces
+ * (`C:\Program Files\nodejs\node.exe`): a quoted path is consumed whole, and
+ * only then does the space-terminated rule apply to bare occurrences.
+ */
+const QUOTED_WIN_PATH = /(['"`])([A-Za-z]:[\\/][^'"`\n]*)(['"`])/g
+
+/** A string that is entirely one absolute path, spaces and all. */
+const WHOLE_WIN_PATH = /^[A-Za-z]:[\\/][^"'`\n,;|<>]*$/
+const WHOLE_POSIX_PATH = /^(?![a-z][a-z0-9+.-]*:\/\/)\/[^"'`\n,;|<>]*$/
+
+const ABSOLUTE_PATHS = [
+  // Windows drive letters without spaces: C:\..., C:/...
+  { pattern: /(?:[A-Za-z]:[\\/][^"'`\s,;|<>]*)/g, kind: 'win-abs' },
+  // POSIX absolute paths that are clearly host-local (not URLs, which never
+  // reach this branch because the scheme is shielded first).
+  { pattern: /(?:^|[\s"'`=(,])(\/[A-Za-z0-9_.-]+[^"'`\s,;|<>]*)/g, kind: 'posix-abs' },
+]
+
+/**
+ * Park URLs on sentinels so absolute-path rules cannot reach inside them.
+ *
+ * Shared by both the rewriter and the scanner: if they disagreed, the panel
+ * would report paths that redaction then leaves alone (or vice versa), and the
+ * user would be told a lie about their own document.
+ */
+function shieldUrls(text) {
+  const urls = []
+  const masked = text.replace(/[a-z][a-z0-9+.-]*:\/\/[^\s"'`<>]*/gi, (match) => {
+    urls.push(match)
+    return `\u0000URL${urls.length - 1}\u0000`
+  })
+  return { masked, urls }
+}
+
+function restoreUrls(text, urls) {
+  return text.replace(/\u0000URL(\d+)\u0000/g, (_, index) => urls[Number(index)] ?? '')
+}
+
+/**
+ * Replace host-absolute paths with `%LOCAL_ONLY%`.
+ *
+ * URLs are protected first so `https://host/path` keeps its path.
+ */
+export function redactPaths(text) {
+  if (typeof text !== 'string' || text.length === 0) return text
+
+  // A parsed config value is often exactly one path, with no quotes around it
+  // and spaces inside it (`C:\Program Files\nodejs\node.exe`). Handle that
+  // before any embedded-occurrence rule, which would stop at the first space.
+  const whole = text.trim()
+  if (WHOLE_WIN_PATH.test(whole) || WHOLE_POSIX_PATH.test(whole)) {
+    return text.replace(whole, '%LOCAL_ONLY%')
+  }
+
+  const { masked, urls } = shieldUrls(text)
+  let out = masked
+  // Quoted Windows paths next: they may contain spaces, which the bare rule
+  // would treat as a terminator.
+  out = out.replace(QUOTED_WIN_PATH, (match, open, _path, close) => `${open}%LOCAL_ONLY%${close}`)
+  out = out.replace(ABSOLUTE_PATHS[0].pattern, '%LOCAL_ONLY%')
+  out = out.replace(ABSOLUTE_PATHS[1].pattern, (match, path) => {
+    // Keep whatever separator preceded the path (space, quote, `=`, ...).
+    const prefix = match.slice(0, match.length - path.length)
+    return `${prefix}%LOCAL_ONLY%`
+  })
+  return restoreUrls(out, urls)
+}
+
+/** Redact secrets, then paths, across a whole structure. */
+export function redactForTransport(value) {
+  return redactPathsDeep(redactValue(value))
+}
+
+function redactPathsDeep(value, depth = 0) {
+  if (depth > 12) return value
+  if (typeof value === 'string') return redactPaths(value)
+  if (Array.isArray(value)) return value.map((item) => redactPathsDeep(item, depth + 1))
+  if (value !== null && typeof value === 'object') {
+    const out = {}
+    for (const [key, item] of Object.entries(value)) {
+      out[key] = redactPathsDeep(item, depth + 1)
+    }
+    return out
+  }
+  return value
+}
+
+/**
+ * Report what redaction would remove, without producing the redacted document.
+ *
+ * The panel shows this before a publish: "3 secrets will be stripped" is a
+ * decision the user gets to make, not something to discover afterwards.
+ */
+export function scanForSecrets(value, path = '', found = []) {
+  if (typeof value === 'string') {
+    for (const pattern of SECRET_PATTERNS) {
+      // Fresh lastIndex: the patterns are /g and are shared across calls.
+      pattern.lastIndex = 0
+      const match = pattern.exec(value)
+      if (match !== null) {
+        found.push({ path, kind: 'literal', preview: maskPreview(match[0]) })
+        break
+      }
+    }
+    return found
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => scanForSecrets(item, `${path}[${index}]`, found))
+    return found
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      const next = path.length === 0 ? key : `${path}.${key}`
+      if (isSecretKey(key) && item !== null && item !== undefined && item !== '') {
+        found.push({ path: next, kind: 'keyed', preview: maskPreview(String(item)) })
+        continue
+      }
+      scanForSecrets(item, next, found)
+    }
+  }
+  return found
+}
+
+/** Show enough of a secret to recognise it, never enough to use it. */
+function maskPreview(text) {
+  const value = String(text)
+  if (value.length <= 6) return REDACTED
+  return `${value.slice(0, 4)}…${value.slice(-2)}`
+}
+
+/** Count absolute paths that would be replaced. */
+export function scanForPaths(value, path = '', found = []) {
+  if (typeof value === 'string') {
+    // Same URL shielding as redactPaths, so the count matches what redaction
+    // would actually change.
+    const { masked } = shieldUrls(value)
+    const whole = masked.trim()
+    if (WHOLE_WIN_PATH.test(whole) || WHOLE_POSIX_PATH.test(whole)) {
+      found.push({ path })
+      return found
+    }
+    QUOTED_WIN_PATH.lastIndex = 0
+    if (QUOTED_WIN_PATH.test(masked)) {
+      found.push({ path })
+      return found
+    }
+    for (const { pattern } of ABSOLUTE_PATHS) {
+      pattern.lastIndex = 0
+      if (pattern.test(masked)) {
+        found.push({ path })
+        break
+      }
+    }
+    return found
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => scanForPaths(item, `${path}[${index}]`, found))
+    return found
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      const next = path.length === 0 ? key : `${path}.${key}`
+      scanForPaths(item, next, found)
+    }
+  }
+  return found
+}
