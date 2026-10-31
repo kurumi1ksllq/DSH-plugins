@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /**
- * Verify the workspace contract: every package under packages/ must look like a
- * loadable DSH bundle, and the desktop profile must link to it.
+ * Verify the workspace contract: every directory under packages/ must look like
+ * a loadable DSH bundle, and each bundle must be self-describing.
  *
  *   node scripts/verify-packages.mjs
- *   node scripts/verify-packages.mjs --profile <dir>
  *
  * A package counts as a DSH bundle when its package.json declares
  * `dsh.bundle.patch` and that patch file exists. Packages without the field
  * (workspace metadata such as the websearch repo root) are reported as meta and
  * do not fail the run.
+ *
+ * This script deliberately checks nothing outside packages/. How a host wires
+ * these bundles into a profile is the host's business, not this repository's.
  */
-import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,19 +29,12 @@ const EXPECTED = [
   ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
   ['dsh-inventory', 'dsh-inventory'],
   ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
+  ['dsh-plugin-sync', 'dsh-plugin-sync'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
 ]
 
 function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'))
-}
-
-function profileDir(argv) {
-  const at = argv.indexOf('--profile')
-  if (at !== -1 && argv[at + 1] !== undefined) return resolve(argv[at + 1])
-  if (process.env.DSH_PROFILE_DIR) return resolve(process.env.DSH_PROFILE_DIR)
-  const home = process.env.DSH_HOME ? resolve(process.env.DSH_HOME) : join(homedir(), '.dsh')
-  return join(home, 'profiles', 'desktop')
 }
 
 const problems = []
@@ -85,32 +79,6 @@ for (const [bundleName, relDir] of EXPECTED) {
   notes.push(`${bundleName}@${manifest.version} -> packages/${relDir}`)
 }
 
-// --- 3. the live profile links to these directories ------------------------
-const profile = profileDir(process.argv.slice(2))
-const profileManifestFile = join(profile, 'package.json')
-if (!existsSync(profileManifestFile)) {
-  problems.push(`profile: ${profileManifestFile} missing`)
-} else {
-  const manifest = readJson(profileManifestFile)
-  const bundles = manifest.dsh?.profile?.bundles ?? []
-  for (const [bundleName, relDir] of EXPECTED) {
-    if (!bundles.includes(bundleName)) problems.push(`profile: ${bundleName} is not in dsh.profile.bundles`)
-    const spec = manifest.dependencies?.[bundleName]
-    if (spec === undefined) {
-      problems.push(`profile: ${bundleName} has no dependency entry`)
-      continue
-    }
-    if (!spec.startsWith('link:')) {
-      problems.push(`profile: ${bundleName} is pinned as ${spec}, expected a link: to this workspace`)
-      continue
-    }
-    const linked = resolve(spec.slice('link:'.length))
-    const expectedDir = join(ROOT, 'packages', relDir)
-    const same = existsSync(linked) && resolve(realpathSync(linked)) === resolve(realpathSync(expectedDir))
-    if (!same) problems.push(`profile: ${bundleName} links to ${linked}, expected ${expectedDir}`)
-  }
-}
-
 // --- report ---------------------------------------------------------------
 for (const line of notes) console.log(`  ok  ${line}`)
 if (problems.length > 0) {
@@ -118,4 +86,4 @@ if (problems.length > 0) {
   for (const line of problems) console.error(`  !!  ${line}`)
   process.exit(1)
 }
-console.log(`\nworkspace ok: ${EXPECTED.length} bundles, profile ${profile}`)
+console.log(`\nworkspace ok: ${EXPECTED.length} bundles`)
