@@ -54,8 +54,10 @@ pnpm verify           # 校验每个包仍是合法 bundle，且 profile 指到�
 
 ## 部署到服务器
 
-见 [`docs/HANDOFF-2026-10-31-server-sync.md`](docs/HANDOFF-2026-10-31-server-sync.md)。其中最容易踩的一条：
+见 [`docs/HANDOFF-2026-10-31-server-sync.md`](docs/HANDOFF-2026-10-31-server-sync.md)。三条最容易踩的：
 
-> `packages/dsh-websearch-failover/plugin/lib/` 是**生成物且被 .gitignore 排除**，
-> 服务器 clone 后必须先在 install 前跑 `node packages/dsh-websearch-failover/scripts/build-plugin.mjs`，
-> 否则加载该 bundle 会 MODULE_NOT_FOUND。
+> 1. `packages/dsh-websearch-failover/plugin/lib/` 是**生成物且被 .gitignore 排除**，
+>    服务器 clone 后必须先在 install 前跑 `node packages/dsh-websearch-failover/scripts/build-plugin.mjs`，
+>    否则加载该 bundle 会 MODULE_NOT_FOUND。
+> 2. **Node 必须 ≥ 24.2**。dsh 的 `bin.js` 用 `import.meta.main`，低版本上 CLI 会静默 exit 0、零输出。
+> 3. **`DSH_HOME` 指到仓库根**，不要用 `DSH_PROFILE_DIR`（会被静默忽略并建一个空 profile）。

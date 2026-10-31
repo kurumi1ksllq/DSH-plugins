@@ -2,7 +2,7 @@
 # 隔离验证 —— 在**另一个端口**上起一个临时的 dsh web，确认 profiles/web/ 里的插件
 # 都能加载，然后干净地杀掉。全程不碰现有的 18237。
 #
-# 为什么必须隔离：18237 是 desktop profile（DSH_PROFILE_DIR=~/.dsh/profiles/desktop），
+# 为什么必须隔离：18237 是 desktop profile（DSH_HOME=~/.dsh，走默认 desktop），
 # 它根本不读 profiles/web/。这个脚本只做「起进程 + 探活 + kill」，不改任何文件。
 #
 # 用法：
@@ -56,8 +56,11 @@ case "${DSH_CMD}" in
 esac
 
 # ---------------------------------------------------------- 2. 起临时进程
-DSH_PROFILE=web \
-DSH_PROFILE_DIR="${PROFILE_DIR}" \
+# DSH_HOME 必须指到**仓库根**：dsh 只认 $DSH_HOME/profiles/<name>，
+# 传 DSH_PROFILE_DIR 会被静默忽略，并在 $DSH_HOME/profiles/web 建一个空 profile。
+# 把 DSH_HOME 设成 REPO_ROOT 后，$DSH_HOME/profiles/web 正好等于本仓库的 profiles/web。
+# DSH_HOME 单独给一个子目录没意义（会污染仓库外的状态），所以这里直接复用仓库根。
+DSH_HOME="${REPO_ROOT}" \
 "${LAUNCH[@]}" >"${LOG}" 2>&1 &
 DSH_PID=$!
 

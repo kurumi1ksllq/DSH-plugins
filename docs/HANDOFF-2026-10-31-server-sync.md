@@ -12,6 +12,11 @@
 >   `packages/*/` 下**没有任何 `node_modules`**，不存在反向污染。
 > - `node scripts/build-plugin.mjs --check` → `plugin/lib is up to date (5 files)`，exit 0。
 >
+> **2026-10-31 晚：服务器实测已完成。** §7 第 5、6、7 项全部落地并通过，
+> 且**推翻了原文两处做法**：`DSH_PROFILE_DIR` 无效（见 §7.1），Node 必须 ≥ 24.2（见 §7.2）。
+> 服务器 `/opt/dsh` 上已装好 Node 24 + pnpm + dsh 0.2.1-rc.5，仓库已就位，
+> 4 个插件全部加载成功。原 §7 第 8 项（systemd）仍未做，且不排期。
+>
 > **状态**：`profiles/web/` 已落地并实测通过，尚未 `git commit`。
 > **目标**：让 `E:\Project-hub\DSH-plugins` 里的插件能在 Linux 服务器上被 `pnpm install` 解析并加载，
 > 服务器配置单向跟随本地。
@@ -273,20 +278,65 @@ dsh-runtimes/
 | 2 | `pnpm install` 生成 lockfile | ✅ 完成 |
 | 3 | 4 个 bundle 解析验证 | ✅ 完成 |
 | 4 | 删掉 Windows LSP 段 | ✅ 完成 |
-| 5 | 首次加载验证（`DSH_PROFILE_DIR=... dsh web`） | ⬜ **未做** |
-| 6 | `git commit` | ⬜ 未做，等你确认 |
-| 7 | 服务器 `bootstrap.sh`（含 build 步骤） | ⬜ 另文 |
-| 8 | 服务器 systemd + `EnvironmentFile` | ⬜ 另文 |
+| 5 | 首次加载验证 | ✅ **2026-10-31 服务器实测通过** |
+| 6 | `git commit` | ✅ 完成 |
+| 7 | 服务器 `bootstrap.sh`（含 build 步骤） | ✅ 已落文件并实测 |
+| 8 | 服务器 systemd + `EnvironmentFile` | ⬜ 备忘，暂不排期 |
 
-第 5 项是**上线前必须做的**：本地先把问题暴露完，别到服务器才炸。做法：
+### 7.1 首次加载验证的正确做法（**原方案有误，已修正**）
+
+原文写的 `DSH_PROFILE_DIR=...` **不生效**。dsh 只认 `$DSH_HOME/profiles/<name>`，
+`DSH_PROFILE_DIR` 会被静默忽略，dsh 反手在 `$DSH_HOME/profiles/web` 建一个**空 profile**
+（只有 `dsh-base` + `dsh-web-app`），于是所有本地插件都不加载、
+`/inventory/snapshot` 直接 404。这个坑实测踩过一次。
+
+正确姿势是**把 `DSH_HOME` 指到仓库根**，让 `$DSH_HOME/profiles/web` 自然等于
+`<repo>/profiles/web`，`link:../../packages/...` 的相对路径也就自然成立：
 
 ```bash
-DSH_PROFILE=web \
-DSH_PROFILE_DIR="E:\Project-hub\DSH-plugins\profiles\web" \
-dsh web --port 18238
+# 服务器（Linux）
+export DSH_HOME=/opt/dsh            # 仓库根，profiles/ 就在它下面
+dsh web --no-open --port 18238
+
+# 本地（Windows）
+export DSH_HOME="E:\Project-hub\DSH-plugins"
+dsh web --no-open --port 18238
 ```
 
-开另一个端口，别撞现有 18237。看 4 个插件是否都加载、`inventory` 页是否正常。
+`--no-open` 必加：否则 dsh 会抢前台弹浏览器，验证脚本会干扰正在使用的窗口。
+
+2026-10-31 服务器实测结果（Ubuntu 24.04 / root / `/opt/dsh`）：
+
+| 检查项 | 结果 |
+|---|---|
+| `build-plugin.mjs` + `--check` | ✅ `plugin/lib ready (5 modules)` |
+| `pnpm install --frozen-lockfile` | ✅ 4 个 link 全部建链，5.3s |
+| `verify-web-profile.mjs` | ✅ `ok — 15 bundles, 4 local links` |
+| `dsh-inventory` | ✅ `/inventory/snapshot` → 200，返回完整 profile |
+| `@local/dsh-prompt-inject` | ✅ `/prompt-inject/state` → 200 |
+| `dsh-websearch-failover` | ✅ `/websearch-failover/api/state` → 200 |
+| `dsh-ctx-guard` | ✅ `dump-config` 有 `id: ctx-guard` |
+| `dsh-git-bash-tool` 排除 | ✅ dump-config 里出现 0 次 |
+
+### 7.2 服务器运行时前置条件（**新增，原文缺失**）
+
+| 要求 | 说明 |
+|---|---|
+| **Node ≥ 24.2** | `dsh/lib/bin.js` 末行是 `if (import.meta.main) await runCli()`，而 `import.meta.main` 是 Node **24.2+** 才有的属性。用 Node 22 装出来的 dsh **不报错、不输出、exit 0** —— 整条 CLI 被静默跳过，极难排查 |
+| Node 装独立目录 | 服务器上已有别的服务吃 `/usr/bin/node`（Ubuntu 24.04 自带 18.19），不要动全局。实测放 `/opt/dsh-runtime/node24` |
+| pnpm 与 node 同前缀 | `npm i -g pnpm@10 --prefix /opt/dsh-runtime/node24`，避免 pnpm 拉起系统 node |
+| **SFTP 可能不可用** | 该机器上 SFTP `put` 对任何路径都返回 ENOENT（连 `/root/x` 也不行），但 `exec_command` 正常。传文件走 `cat > file` + stdin，别指望 `scp`/`sftp`。Windows 侧调用还要加 `MSYS_NO_PATHCONV=1`，否则 `/root/x` 会被改写成 `C:/Program Files/Git/root/x` |
+
+实测的 dsh CLI 调用方式（`dsh` 不在 PATH 时用绝对路径）：
+
+```bash
+/opt/dsh-runtime/dshcli/bin/dsh --version          # 0.2.1-rc.5
+/opt/dsh-runtime/dshcli/bin/dsh -h                 # launcher 帮助
+/opt/dsh-runtime/dshcli/bin/dsh --profile web --dump-config   # 打印合成后的 profile 树
+```
+
+注意 `--dump-config` 是**选项**，不是子命令：`dsh dump-config` 会被当成 profile 名，
+报 `profile "dump-config" does not exist`。
 
 ---
 
@@ -300,3 +350,6 @@ dsh web --port 18238
 | gateway baseURL 不通 | 该 IP 有访问限制 | 换官方 endpoint |
 | 服务器 workspace 无写权限 | skill 分配报 EACCES | `dsh-inventory` 需要 workspace `.dsh/skills/` 可写 |
 | git-bash-tool 误装 | 手动往服务器 profile 加回 | 第 3 节，直接别装 |
+| **Node < 24.2** | 用 Node 22/20 装 dsh | dsh CLI **静默 exit 0、零输出**，见 §7.2 |
+| **误用 `DSH_PROFILE_DIR`** | 想从外部目录挂 profile | 被静默忽略 + 自动建空 profile，见 §7.1 |
+| **SFTP 不可用** | 想用 `scp`/`sftp` 传仓库 | 改走 `exec_command` stdin，见 §7.2 |
