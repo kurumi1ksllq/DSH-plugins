@@ -5,7 +5,6 @@ import {
   checkEligibility,
   diffManifest,
   probeCapabilities,
-  selectableRows,
   summarizeDiff,
 } from '../lib/sync-diff.js'
 
@@ -199,17 +198,11 @@ test('summarizeDiff counts each status and the actionable subset', () => {
   assert.equal(counts.disabled, 0)
 })
 
-test('selectableRows keeps only missing and outdated', () => {
-  const rows = [
-    { key: 'a', status: 'missing' },
-    { key: 'b', status: 'blocked' },
-    { key: 'c', status: 'outdated' },
-    { key: 'd', status: 'current' },
-  ]
-  assert.deepEqual(
-    selectableRows(rows).map((r) => r.key),
-    ['a', 'c'],
-  )
+test('probeCapabilities defaults gpu to false when unprobed', () => {
+  // An unprobed capability must count as absent: claiming a GPU would mark a
+  // GPU-dependent skill "installable" instead of blocked.
+  const caps = probeCapabilities({ platform: 'linux', hasCommand: (c) => c === 'git' })
+  assert.equal(caps.gpu, false)
 })
 
 test('probeCapabilities defaults to the current platform and a custom probe', () => {

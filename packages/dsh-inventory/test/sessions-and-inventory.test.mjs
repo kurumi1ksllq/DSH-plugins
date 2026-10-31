@@ -163,3 +163,16 @@ test('a configured MCP server with no live tools reports no-tools', () => {
   assert.equal(snapshot.mcp[0].status, 'no-tools')
   assert.equal(snapshot.mcp[0].toolCount, 0)
 })
+
+test('header redaction tolerates a missing space after the colon', () => {
+  const summary = summarizeConfig({ args: ['--header', 'Authorization:Bearer sk-live-XYZ789uvwxyz'] })
+  assert.match(JSON.stringify(summary), /<redacted>/)
+  assert.doesNotMatch(JSON.stringify(summary), /sk-live-XYZ789uvwxyz/)
+})
+
+test('long opaque tokens are masked even without both letters and digits', () => {
+  const lettersOnly = summarizeConfig({ args: ['--token', 'abcdefghijklmnopqrstuvwxyzzzzzzzzzzz'] })
+  assert.match(JSON.stringify(lettersOnly), /<redacted>/)
+  const digitsOnly = summarizeConfig({ args: ['--token', '123456789012345678901234567890123456789012'] })
+  assert.match(JSON.stringify(digitsOnly), /<redacted>/)
+})

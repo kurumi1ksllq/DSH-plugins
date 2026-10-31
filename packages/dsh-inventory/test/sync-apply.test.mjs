@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -134,4 +134,28 @@ test('applyItems rejects an unusable profile directory', async () => {
 test('applyItems refuses mcp entries instead of pretending to install them', async () => {
   const result = await applyItems([{ kind: 'mcp', name: 'context7' }], { profileDir: makeProfile() })
   assert.match(result.results[0].error, /暂不支持自动安装/)
+})
+
+test('applyItems refuses traversal / absolute / nested skill names with no files written', async () => {
+  const profileDir = makeProfile()
+  const workdir = scratch()
+  const result = await applyItems(
+    [
+      { kind: 'skill', name: '../../evil' },
+      { kind: 'skill', name: 'C:/evil' },
+      { kind: 'skill', name: 'a/b' },
+      { kind: 'skill', name: 'UPPER' },
+    ],
+    { profileDir, vaultDir: workdir, repoRoot: workdir },
+  )
+  const byKey = new Map(result.results.map((r) => [r.key, r]))
+  for (const name of ['../../evil', 'C:/evil', 'a/b', 'UPPER']) {
+    assert.match(byKey.get(`skill:${name}`).error, /非法技能名/)
+  }
+  assert.equal(result.failed, 4)
+  assert.equal(result.applied, 0)
+  // Nothing escaped anywhere: the scratch dir stays empty.
+  assert.deepEqual(readdirSync(workdir), [])
+  // package.json untouched too (skills never touch it, but guard anyway).
+  assert.deepEqual(JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')).dependencies, {})
 })

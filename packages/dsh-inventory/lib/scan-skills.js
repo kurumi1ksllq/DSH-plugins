@@ -20,7 +20,7 @@ export const DEFAULT_SKILL_ROOTS = [
   { source: 'bundled', rank: 600, dir: '.system/skills' },
 ]
 
-const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+export const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /**
  * Parse YAML frontmatter with the tiny subset skills actually use: `key: value`

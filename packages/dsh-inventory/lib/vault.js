@@ -12,18 +12,16 @@
  */
 
 import { existsSync, mkdirSync, renameSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { dshHome } from './dsh-home.js'
 import { scanSkillRoots } from './scan-skills.js'
 
 /** Source label the snapshot uses for a vaulted skill. */
 export const VAULT_SOURCE = 'vault'
 
-/** DSH home, honouring the same override every other root uses. */
-export function dshHome() {
-  return process.env.DSH_HOME ?? join(homedir(), '.dsh')
-}
+/** DSH home — re-exported so existing `vault.js` consumers keep working. */
+export { dshHome }
 
 /** Directory holding registered-but-inactive skills. Never a scanned root. */
 export function vaultDir() {

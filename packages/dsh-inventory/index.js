@@ -24,7 +24,9 @@ import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { dshHome } from './lib/dsh-home.js'
 import { readSessionEvents } from './lib/decode-session.js'
+import { isForbiddenOrigin } from './lib/http-guard.js'
 import { scanSkillRoots } from './lib/scan-skills.js'
 import { attachDeps, buildSkillDeps } from './lib/skill-deps.js'
 import { matchSkillTools } from './lib/match-tools.js'
@@ -91,8 +93,11 @@ const WORKSPACE_MCP_SECTION = {
     'which no skill root scans. Enable one for a workspace with a directory link',
     '`<projectRoot>/.dsh/skills/<name>` -> that vault directory (projectRoot is the nearest `.git` ancestor);',
     'disable by removing the link. `disable-model-invocation: true` still hides a skill from the model catalog.',
-    'The panel does all of this: sidebar Inventory -> 工作区 -> open a workspace, one switch per capability.',
-    'Inspect state with `GET /inventory/snapshot` (vault, workspaces[].mcp, workspaces[].skills).',
+    'One switch decides each capability: if it is ENABLED globally it is available in every workspace and the',
+    'per-workspace switch is inert (linking it again would only mount a second copy — the gate suffixes the',
+    'workspace copy with `-ws`); if it is DISABLED globally, the workspace switch is the only control.',
+    'The panel does all of this: sidebar Inventory -> 工作区 -> open a workspace, one live switch per capability.',
+    'Inspect state with `GET /inventory/snapshot` (globalMcp, workspaces[].mcp, workspaces[].skills).',
   ].join(' '),
 }
 
@@ -141,7 +146,7 @@ function resolveProfileDir(ctx) {
   const candidates = [
     pathFromBaseUrl(ctx?.baseUrl),
     process.env.DSH_PROFILE_DIR,
-    join(homedir(), '.dsh', 'profiles', 'desktop'),
+    join(dshHome(), 'profiles', 'desktop'),
   ]
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.length > 0 && existsSync(join(candidate, 'package.json'))) {
@@ -161,13 +166,12 @@ function skillRootsFor(cwd) {
 
 /** Machine-wide skill roots: user homes, custom dirs, the bundled tree. */
 function globalSkillRoots() {
-  const home = homedir()
-  const dshHome = process.env.DSH_HOME ?? join(home, '.dsh')
-  const agentsHome = process.env.DSH_AGENTS_HOME ?? join(home, '.agents')
+  const home = dshHome()
+  const agentsHome = process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')
   const roots = []
   const custom = (process.env.DSH_CUSTOM_SKILL_DIRS ?? '').split(delimiter).filter(Boolean)
   custom.forEach((dir, index) => roots.push({ dir, source: 'custom', rank: 300 + index }))
-  roots.push({ dir: join(dshHome, 'skills'), source: 'user-dsh', rank: 400 })
+  roots.push({ dir: join(home, 'skills'), source: 'user-dsh', rank: 400 })
   roots.push({ dir: join(agentsHome, 'skills'), source: 'user-agents', rank: 500 })
   if (process.env.DSH_BUNDLED_SKILL_DIR) {
     roots.push({ dir: process.env.DSH_BUNDLED_SKILL_DIR, source: 'bundled', rank: 600 })
@@ -301,7 +305,7 @@ function listSessionFiles(root, limit) {
 }
 
 function collectSessionEdges(warnings) {
-  const root = join(homedir(), '.dsh', 'sessions')
+  const root = join(dshHome(), '.dsh', 'sessions')
   const files = listSessionFiles(root, SESSION_FILE_LIMIT)
   const merged = new Map()
   let decoded = 0
@@ -532,13 +536,29 @@ async function loadSnapshot(ctx) {
   return snapshot
 }
 
+// Shared in-flight rebuild: concurrent refresh=1 requests cost one rebuild,
+// not one per caller.
+let snapshotRefresh = null
+
 async function getSnapshot(ctx, { refresh = false } = {}) {
   const now = Date.now()
   if (!refresh && cache.payload !== null && now - cache.at < CACHE_MS) return cache.payload
-  const payload = await loadSnapshot(ctx)
-  cache.at = now
-  cache.payload = payload
-  return payload
+  if (refresh && snapshotRefresh !== null) return snapshotRefresh
+  const rebuild = (async () => {
+    const payload = await loadSnapshot(ctx)
+    cache.at = Date.now()
+    cache.payload = payload
+    return payload
+  })()
+  if (refresh) {
+    snapshotRefresh = rebuild
+    try {
+      return await rebuild
+    } finally {
+      snapshotRefresh = null
+    }
+  }
+  return rebuild
 }
 
 /** A write makes the cached snapshot a lie; drop it instead of serving stale state. */
@@ -551,14 +571,17 @@ function invalidateSnapshot() {
 
 const MAX_BODY_BYTES = 64 * 1024
 
-function readBody(req) {
+function readBody(req, limit = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
-    const chunks = []
     let size = 0
+    const chunks = []
     req.on('data', (chunk) => {
       size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error(`请求体超过 ${MAX_BODY_BYTES} 字节`))
+      if (size > limit) {
+        // Stop reading and drop the socket: a client that keeps streaming
+        // would otherwise hang the handler until its own socket timeout.
+        req.destroy()
+        reject(new Error(`请求体超过 ${limit} 字节`))
         return
       }
       chunks.push(chunk)
@@ -823,6 +846,7 @@ async function toggleGlobalSkill(ctx, name, enabled) {
 async function toggleGlobal(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  if (isForbiddenOrigin(req)) return { status: 403, payload: { ok: false, error: 'forbidden-origin' } }
 
   let body
   try {
@@ -915,6 +939,7 @@ function relinkWorkspaces(ctx, moved) {
 async function changeVault(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  if (isForbiddenOrigin(req)) return { status: 403, payload: { ok: false, error: 'forbidden-origin' } }
 
   let body
   try {
@@ -981,6 +1006,7 @@ async function changeVault(ctx, req) {
 async function assignForWorkspace(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  if (isForbiddenOrigin(req)) return { status: 403, payload: { ok: false, error: 'forbidden-origin' } }
 
   let body
   try {
@@ -1071,8 +1097,7 @@ async function assignForWorkspace(ctx, req) {
 function pluginRepoRoot(ctx) {
   const explicit = process.env.DSH_PLUGIN_REPO
   if (typeof explicit === 'string' && explicit.length > 0) return explicit
-  const home = homedir()
-  return home === null ? null : join(home, '.dsh', 'plugin-repo')
+  return join(dshHome(), 'plugin-repo')
 }
 
 /** Everything `applyItems` needs to actually install a selection. */
@@ -1099,6 +1124,7 @@ async function handleSyncConfig(ctx, req) {
     return { status: 200, payload: { ok: true, state: publicState(readState()) } }
   }
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  if (isForbiddenOrigin(req)) return { status: 403, payload: { ok: false, error: 'forbidden-origin' } }
   const body = await readBody(req)
   let patch
   try {
@@ -1120,6 +1146,7 @@ async function handleSyncPreview(ctx) {
 async function handleSyncApply(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  if (isForbiddenOrigin(req)) return { status: 403, payload: { ok: false, error: 'forbidden-origin' } }
   const body = await readBody(req)
   let parsed
   try {
@@ -1245,6 +1272,10 @@ export function apply(ctx) {
         path: route.path,
         handler: async (req, res) => {
           try {
+            if (isForbiddenOrigin(req)) {
+              sendJson(res, 403, { ok: false, error: 'forbidden-origin' })
+              return
+            }
             const { status, payload } = await route.handler(ctx, req)
             sendJson(res, status, payload)
           } catch (error) {

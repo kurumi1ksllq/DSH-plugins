@@ -12,7 +12,7 @@
  * "can push but cannot pull" unrepresentable.
  */
 
-import { buildManifest, entriesOf, parseManifest, readManifestFile } from './manifest.js'
+import { buildManifest, entriesOf, parseManifest } from './manifest.js'
 import { diffManifest, probeCapabilities, summarizeDiff } from './sync-diff.js'
 import { fetchManifestText, parseRepoUrl, repoSlug } from './sync-remote.js'
 import { publicState, readState, writeState } from './sync-state.js'
@@ -208,11 +208,4 @@ export function syncConfigure(patch) {
     next.annotations = patch.annotations
   }
   return publicState(writeState(next))
-}
-
-/** Read a manifest straight off disk, for local-only setups and tests. */
-export function readLocalManifest(dir) {
-  const read = readManifestFile(dir)
-  if (read.error !== undefined) return read
-  return { manifest: read.manifest, entries: entriesOf(read.manifest) }
 }

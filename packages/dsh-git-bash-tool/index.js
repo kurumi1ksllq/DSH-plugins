@@ -32,12 +32,17 @@ export const inject = ['shell']
 
 /**
  * Rewrite the shell binary in one spawn argv.
+ *
+ * Only argv[0] is rewritten, by reference to position — never by matching the
+ * string `bash` anywhere in the argv. The host's bash spawn convention is
+ * `['bash', '-c', cmd]`, where cmd is a single unsplit element; a command that
+ * literally contains the word `bash` must not be rewritten to a path.
  * @param argv - the exact argv the executor is about to spawn.
- * @returns the same argv with a bare `bash` replaced by the absolute Git Bash path.
+ * @returns the same argv with a bare `bash` in argv[0] replaced by the absolute Git Bash path.
  */
 function rewriteArgv(argv) {
-  if (!Array.isArray(argv)) return argv
-  return argv.map((arg) => (arg === 'bash' ? GIT_BASH : arg))
+  if (!Array.isArray(argv) || argv.length === 0 || argv[0] !== 'bash') return argv
+  return [GIT_BASH, ...argv.slice(1)]
 }
 
 /**

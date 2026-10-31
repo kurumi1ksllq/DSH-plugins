@@ -55,7 +55,7 @@ window.__ModuleLoader__.load({
       panel: '工具管理',
       back: '返回对话',
       title: '工具管理',
-      subtitle: '插件包、加载行、MCP 服务器、技能与工具，以及每个工作区开了哪些 MCP 与技能。',
+      subtitle: '插件包、MCP 服务器与技能，以及每个工作区开了哪些 MCP 与技能。',
       refresh: '刷新',
       loading: '正在汇总安装信息…',
       error: '读取安装清单失败。',
@@ -66,14 +66,10 @@ window.__ModuleLoader__.load({
       counts: '统计',
       packages: '插件包',
       packagesHint: 'profile 声明的依赖与 bundle 清单',
-      rows: '插件加载行',
-      rowsHint: 'Cordis Loader 当前组合',
       mcp: 'MCP 服务器',
       mcpHint: '由 @deepseek-ai/dsh-mcp-client 条目提供',
       skills: '技能',
       skillsHint: '磁盘扫描（含被屏蔽的桩）+ 运行时注册',
-      tools: '工具',
-      toolsHint: '当前工具注册表的全量视图',
       warnings: '注意事项',
       orphan: '未安装',
       loaded: '已加载',
@@ -85,12 +81,6 @@ window.__ModuleLoader__.load({
       disabled: '已停用',
       shadowed: '已屏蔽',
       runtimeSnap: '运行时注册',
-      fiberPending: '等待依赖',
-      fiberLoading: '加载中',
-      fiberActive: '运行中',
-      fiberFailed: '启动失败',
-      fiberUnloading: '卸载中',
-      fiberNone: '无 fiber 记录',
       statusConnected: '已连接',
       statusNoTools: '无工具',
       statusFailed: '失败',
@@ -115,21 +105,14 @@ window.__ModuleLoader__.load({
       edgeCount: '会话命中 {count} 次',
       clickExpand: '展开',
       clickCollapse: '收起',
-      ownerBuiltin: '内置',
-      ownerPlugin: '插件',
-      ownerMcp: 'MCP',
-      ownerUnknown: '未识别',
-      deferred: '已折叠',
-      deferredHint: '被 tool-search 延迟加载',
       noSkills: '没有发现技能。',
       hiddenSkillsEmpty: '技能都隐藏了。工具栏的「显示已隐藏」可以把它们放出来。',
-      noTools: '工具注册表为空（可能尚未就绪）。',
       noMcp: '没有配置 MCP 服务器。',
       noPackages: 'profile 没有声明插件。',
       showOfficial: '显示官方',
       hideOfficial: '隐藏官方',
       officialHidden: '官方条目已隐藏。',
-      officialHint: '官方 = @deepseek-ai/* 插件与内置工具',
+      officialHint: '官方 = @deepseek-ai/* 插件包',
       hideSkill: '隐藏此技能',
       unhideSkill: '取消隐藏',
       showHiddenSkills: '显示已隐藏',
@@ -159,7 +142,10 @@ window.__ModuleLoader__.load({
       wsDeclaredCount: '已声明',
       wsEnabledCount: '已开',
       wsGlobalMounted: '全局已挂载',
+      wsGlobalDuplicate: '重复挂载',
       wsGlobalShort: '全局',
+      wsGlobalSkillsFold: '全局已可用',
+      wsGlobalSkillsFoldHint: '这些技能在所有工作区都已加载，开关在总览页',
       wsGlobalNote: '对所有工作区生效',
       wsNotLinked: '非本页链接',
       wsNotLinkedNote: '手工复制，未由本页创建',
@@ -259,7 +245,7 @@ window.__ModuleLoader__.load({
       panel: 'Tools',
       back: 'Back to chat',
       title: 'Tools',
-      subtitle: 'Plugin packages, loader rows, MCP servers, skills and tools — plus what each workspace has switched on.',
+      subtitle: 'Plugin packages, MCP servers and skills — plus what each workspace has switched on.',
       refresh: 'Refresh',
       loading: 'Collecting installation data…',
       error: 'Could not read the inventory.',
@@ -270,14 +256,10 @@ window.__ModuleLoader__.load({
       counts: 'Counts',
       packages: 'Plugin packages',
       packagesHint: 'Dependencies and bundles declared by the profile',
-      rows: 'Loader rows',
-      rowsHint: 'Current Cordis Loader composition',
       mcp: 'MCP servers',
       mcpHint: 'Rows served by @deepseek-ai/dsh-mcp-client',
       skills: 'Skills',
       skillsHint: 'Disk scan (including shadowed stubs) plus runtime registrations',
-      tools: 'Tools',
-      toolsHint: 'Full view of the current tool registry',
       warnings: 'Notes',
       orphan: 'missing',
       loaded: 'loaded',
@@ -289,12 +271,6 @@ window.__ModuleLoader__.load({
       disabled: 'disabled',
       shadowed: 'shadowed',
       runtimeSnap: 'runtime',
-      fiberPending: 'pending',
-      fiberLoading: 'loading',
-      fiberActive: 'active',
-      fiberFailed: 'failed',
-      fiberUnloading: 'unloading',
-      fiberNone: 'no fiber',
       statusConnected: 'connected',
       statusNoTools: 'no tools',
       statusFailed: 'failed',
@@ -319,21 +295,14 @@ window.__ModuleLoader__.load({
       edgeCount: '{count} calls seen',
       clickExpand: 'Expand',
       clickCollapse: 'Collapse',
-      ownerBuiltin: 'builtin',
-      ownerPlugin: 'plugin',
-      ownerMcp: 'MCP',
-      ownerUnknown: 'unknown',
-      deferred: 'deferred',
-      deferredHint: 'loaded on demand by tool-search',
       noSkills: 'No skills found.',
       hiddenSkillsEmpty: 'Every skill is hidden. "Show hidden" in the toolbar brings them back.',
-      noTools: 'The tool registry is empty (not ready yet).',
       noMcp: 'No MCP server configured.',
       noPackages: 'The profile declares no plugins.',
       showOfficial: 'Show official',
       hideOfficial: 'Hide official',
       officialHidden: 'Official entries are hidden.',
-      officialHint: 'official = @deepseek-ai/* plugins and builtin tools',
+      officialHint: 'official = @deepseek-ai/* plugin packages',
       hideSkill: 'Hide this skill',
       unhideSkill: 'Unhide',
       showHiddenSkills: 'Show hidden',
@@ -363,7 +332,10 @@ window.__ModuleLoader__.load({
       wsDeclaredCount: 'declared',
       wsEnabledCount: 'on',
       wsGlobalMounted: 'mounted globally',
+      wsGlobalDuplicate: 'mounted twice',
       wsGlobalShort: 'global',
+      wsGlobalSkillsFold: 'Available everywhere',
+      wsGlobalSkillsFoldHint: 'these skills load in every workspace; the switch lives on the overview page',
       wsGlobalNote: 'applies to every workspace',
       wsNotLinked: 'not linked by this page',
       wsNotLinkedNote: 'hand-copied, not created here',
@@ -870,6 +842,24 @@ window.__ModuleLoader__.load({
       },
       linkBtnDisabled: { opacity: 0.4, cursor: 'default' },
       rowActions: { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '6px 16px 2px', flexShrink: 0 },
+      // Header that folds a block of rows away: a divider, not a box.
+      foldHeader: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        width: '100%',
+        padding: '10px 16px 6px',
+        border: 'none',
+        borderTop: `1px solid ${C.hairline}`,
+        background: 'transparent',
+        color: 'inherit',
+        font: 'inherit',
+        textAlign: 'left',
+        cursor: 'pointer',
+        userSelect: 'none',
+        flexShrink: 0,
+      },
+      foldHeaderEmpty: { cursor: 'default', opacity: 0.6 },
       spinner: {
         width: '16px',
         height: '16px',
@@ -939,11 +929,11 @@ window.__ModuleLoader__.load({
 
     const FILTERS = [
       ['packages', (item) => `${item.name} ${item.spec ?? ''} ${item.version ?? ''} ${item.declaredBy.join(' ')}`],
-      ['rows', (item) => `${item.id} ${item.name} ${item.fiberPhase ?? ''}`],
       ['mcp', (item) => `${item.server} ${item.entryId} ${item.transport ?? ''} ${item.command ?? ''} ${item.status}`],
       ['skills', (item) => `${item.name} ${item.description ?? ''} ${item.source ?? ''} ${(item.edges ?? []).map((e) => e.id).join(' ')}`],
-      ['tools', (item) => `${item.name} ${item.owner?.ref ?? ''} ${item.owner?.kind ?? ''}`],
     ]
+    const FILTER_QUERY = Object.fromEntries(FILTERS.map(([key, pick]) => [key, pick]))
+    const filterFor = (key) => FILTER_QUERY[key]
 
     function matches(query, item, pick) {
       if (query.length === 0) return true
@@ -951,21 +941,14 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * First-party entries shipped inside the DSH app: bundles from the
-     * `@deepseek-ai/` scope, loader rows for those modules, and the builtin
-     * tools registered by the app itself. The panel exists to answer "what did
-     * I install", so these are hidden by default and the toolbar has one
-     * switch to bring them back.
+     * First-party bundles shipped inside the DSH app: everything in the
+     * `@deepseek-ai/` scope. The panel exists to answer "what did I install",
+     * so these are hidden by default and the toolbar has one switch to bring
+     * them back.
      */
     const FIRST_PARTY_SCOPE = '@deepseek-ai/'
 
     const isOfficialEntry = (item) => String(item?.name ?? '').startsWith(FIRST_PARTY_SCOPE)
-
-    const isOfficialTool = (item) => {
-      const owner = item?.owner ?? {}
-      if (owner.kind === 'builtin') return true
-      return owner.kind === 'plugin' && String(owner.ref ?? '').startsWith(FIRST_PARTY_SCOPE)
-    }
 
     /** True when the item should be listed given the "show official" switch. */
     function listed(item, isOfficial, showOfficial) {
@@ -1278,6 +1261,9 @@ window.__ModuleLoader__.load({
      */
     function WorkspaceDetail(props) {
       const { t, data, workspace, busy, onAssign, query } = props
+      // Global-reachable skills are already on everywhere, so they sit behind
+      // one collapsed header instead of padding the switchable rows.
+      const [showGlobalSkills, setShowGlobalSkills] = React.useState(false)
       // Hidden skill names and the reveal switch are shared with the overview, so
       // a skill hidden once stays hidden on both pages.
       const hiddenSkills = Array.isArray(props.hiddenSkills) ? props.hiddenSkills : []
@@ -1315,10 +1301,11 @@ window.__ModuleLoader__.load({
             const detail = declaredEntry?.detail ?? installedEntry?.command ?? installedEntry?.url
             const isGlobal = globalMcp.includes(name)
             const isDeclared = declaredEntry !== undefined
-            // A globally registered server already reaches every workspace: there
-            // is nothing to switch off, so the row states the fact instead of
-            // offering a disabled control.
-            const locked = !isDeclared && isGlobal
+            // A globally mounted server already reaches every workspace, so the
+            // workspace switch could not change the outcome — the global switch
+            // (overview page) owns this row. Only a globally off server is
+            // decided here.
+            const locked = isGlobal
             const isOn = isDeclared || isGlobal
             const sub = [transport, detail].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
             return {
@@ -1353,6 +1340,7 @@ window.__ModuleLoader__.load({
           row.declaredEntry?.mountedAs && row.declaredEntry.mountedAs !== row.name
             ? h(Badge, { label: `${t('wsMountedAs')} ${row.declaredEntry.mountedAs}`, tone: 'success', dot: true })
             : null,
+          row.locked && row.isDeclared ? h(Badge, { label: t('wsGlobalDuplicate'), tone: 'warning', dot: true }) : null,
           row.locked
             ? h('span', { style: S.lockLabel }, h(Icon, { name: 'lock', size: 14 }), ` ${t('wsGlobalMounted')}`)
             : h(Switch, {
@@ -1410,6 +1398,10 @@ window.__ModuleLoader__.load({
               enabled,
               shadowed,
               locked,
+              // Which part of the page this row belongs to. 'global' rows are
+              // already on everywhere and are collected behind one collapse
+              // header, so the switchable rows stay near the top.
+              group: assigned ? 'workspace' : globalReachable ? 'global' : 'workspace',
               reason,
               note,
               search: `${skill.name} ${skill.description ?? ''} ${skill.source ?? ''}`.toLowerCase(),
@@ -1420,12 +1412,12 @@ window.__ModuleLoader__.load({
         (row) => String(row.skill.name),
       )
 
-      const skillNodes = skillRows.map((row, index) => {
+      const skillRowNode = (row, last) => {
         const skill = row.skill
         const hidden = hiddenSkills.includes(skill.name)
         return h(
           'div',
-          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(index === skillRows.length - 1 ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
+          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
           h(
             'div',
             { style: S.rowMain },
@@ -1454,12 +1446,43 @@ window.__ModuleLoader__.load({
             onClick: () => setSkillHidden(skill.name, !hidden),
           }),
         )
-      })
+      }
 
-      const declaredOn = mcpNames.filter((name) => declared.some((server) => server?.name === name)).length
-      const globalCount = mcpNames.filter((name) => globalMcp.includes(name) && !declared.some((server) => server?.name === name)).length
+      // Two blocks: what this workspace decides, then what the machine already
+      // provides. The second block has no switches at all, so folding it away is
+      // free — and it keeps the workspace's own switches in the first screenful.
+      const localSkillRows = skillRows.filter((row) => row.group === 'workspace')
+      const globalSkillRows = skillRows.filter((row) => row.group === 'global')
+      const globalFold = h(
+        'button',
+        {
+          key: `ws-skills-global-${workspace.id}`,
+          type: 'button',
+          className: 'inv-seg-btn',
+          'aria-expanded': showGlobalSkills ? 'true' : 'false',
+          title: t('wsGlobalSkillsFoldHint'),
+          style: { ...S.foldHeader, ...(globalSkillRows.length === 0 ? S.foldHeaderEmpty : {}) },
+          onClick: () => setShowGlobalSkills((prev) => !prev),
+        },
+        h('span', { style: { ...S.chev, transform: showGlobalSkills ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+        h('span', { style: S.rowTitle }, t('wsGlobalSkillsFold')),
+        h('span', { style: S.sectionCount }, `${globalSkillRows.length} ${t('wsItemCount')}`),
+      )
+      const skillNodes = [
+        ...localSkillRows.map((row, index) => skillRowNode(row, globalSkillRows.length === 0 && index === localSkillRows.length - 1)),
+        globalSkillRows.length === 0 ? null : globalFold,
+        ...(showGlobalSkills ? globalSkillRows.map((row, index) => skillRowNode(row, index === globalSkillRows.length - 1)) : []),
+      ].filter(Boolean)
+
+      // "On" means on *because of this workspace*: a globally mounted server is
+      // already on everywhere and is counted separately, so the two numbers
+      // never describe the same row.
+      const declaredOn = mcpRows.filter((row) => row.isOn && !row.locked).length
+      const globalCount = mcpRows.filter((row) => row.locked).length
       // Counts come from the rows on screen: the header's "N 项" and the "X/Y"
-      // hint must always describe the same list, hidden rows included.
+      // hint must always describe the same list, hidden rows included — and the
+      // same set the workspace card counts. "全局 K" is a subset marker, not a
+      // second total.
       const skillsOn = skillRows.filter((row) => row.enabled).length
       const hiddenHere = allSkills.filter((skill) => hiddenSkills.includes(skill.name)).length
       const mcpStatus =
@@ -1471,7 +1494,11 @@ window.__ModuleLoader__.load({
       const mcpHint = [`${t('wsSwitchOn')} ${declaredOn}`, globalCount > 0 ? `${t('wsGlobalShort')} ${globalCount}` : null, mcpStatus]
         .filter(Boolean)
         .join(' · ')
-      const skillsHint = [`${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`, hiddenHere > 0 ? `${t('wsHiddenShort')} ${hiddenHere}` : null]
+      const skillsHint = [
+        `${t('wsSwitchOn')} ${skillsOn}/${skillRows.length}`,
+        globalSkillRows.length > 0 ? `${t('wsGlobalShort')} ${globalSkillRows.length}` : null,
+        hiddenHere > 0 ? `${t('wsHiddenShort')} ${hiddenHere}` : null,
+      ]
         .filter(Boolean)
         .join(' · ')
 
@@ -1507,15 +1534,6 @@ window.__ModuleLoader__.load({
             : skillNodes,
         ),
       )
-    }
-
-    function fiberLabel(t, phase) {
-      if (phase === 'pending') return t('fiberPending')
-      if (phase === 'loading') return t('fiberLoading')
-      if (phase === 'active') return t('fiberActive')
-      if (phase === 'failed') return t('fiberFailed')
-      if (phase === 'unloading') return t('fiberUnloading')
-      return t('fiberNone')
     }
 
     function edgeKindLabel(t, kind) {
@@ -1906,15 +1924,13 @@ window.__ModuleLoader__.load({
       const [message, setMessage] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [wsQuery, setWsQuery] = React.useState('')
-      // Official DSH bundles, loader rows and builtin tools are noise for
-      // "what did I install"; hidden until this switch is on.
+      // Official DSH bundles are noise for "what did I install"; hidden until
+      // this switch is on.
       const [showOfficial, setShowOfficial] = React.useState(false)
       const [open, setOpen] = React.useState({
         packages: true,
-        rows: false,
         mcp: true,
         skills: false,
-        tools: false,
       })
       const [expanded, setExpanded] = React.useState({})
       // Two-level navigation: 'global' is the overview, 'workspaces' the list,
@@ -2155,28 +2171,24 @@ window.__ModuleLoader__.load({
 
       const counts = data?.counts ?? {}
       const allPackages = data?.packages ?? []
-      const allRows = data?.rows ?? []
-      const allTools = data?.tools ?? []
-      const packages = allPackages.filter((item) => listed(item, isOfficialEntry, showOfficial) && matches(q, item, FILTERS[0][1]))
-      const rows = allRows.filter((item) => listed(item, isOfficialEntry, showOfficial) && matches(q, item, FILTERS[1][1]))
+      const packages = allPackages.filter(
+        (item) => listed(item, isOfficialEntry, showOfficial) && matches(q, item, filterFor('packages')),
+      )
       const mcp = sortByEnabled(
-        (data?.mcp ?? []).filter((item) => matches(q, item, FILTERS[2][1])),
+        (data?.mcp ?? []).filter((item) => matches(q, item, filterFor('mcp'))),
         (item) => item.enabled === true,
         (item) => String(item.server ?? ''),
       )
       const skills = sortByEnabled(
         (data?.skills ?? []).filter(
-          (item) => !isRuntimeSkill(item) && (showHiddenSkills || !hiddenSkills.includes(item.name)) && matches(q, item, FILTERS[3][1]),
+          (item) => !isRuntimeSkill(item) && (showHiddenSkills || !hiddenSkills.includes(item.name)) && matches(q, item, filterFor('skills')),
         ),
         (item) => item.disabled !== true,
         (item) => String(item.name ?? ''),
       )
-      const tools = allTools.filter((item) => listed(item, isOfficialTool, showOfficial) && matches(q, item, FILTERS[4][1]))
       // An empty section that is empty *because everything in it is official*
       // needs its own message; "nothing installed" would be a lie.
       const hiddenPackages = showOfficial ? 0 : allPackages.filter(isOfficialEntry).length
-      const hiddenRows = showOfficial ? 0 : allRows.filter(isOfficialEntry).length
-      const hiddenTools = showOfficial ? 0 : allTools.filter(isOfficialTool).length
       const warnings = data?.warnings ?? []
       // Capability bits: a false means the host cannot persist that kind at all,
       // so the whole section renders its switches disabled.
@@ -2308,8 +2320,7 @@ window.__ModuleLoader__.load({
           [t('packages'), packages.length],
           [t('mcp'), mcp.length],
           [t('skills'), skills.length],
-          [t('tools'), tools.length],
-          [t('edges'), counts.edges ?? 0],
+          [t('wsWorkspaces'), Array.isArray(data?.workspaces) ? data.workspaces.length : 0],
         ].map(([label, value]) =>
           h(
             'div',
@@ -2358,24 +2369,6 @@ window.__ModuleLoader__.load({
                   !item.loaded && !item.orphan && item.rowless !== true && item.fiberPhase !== null && item.fiberPhase !== undefined
                     ? h(Badge, { label: t('inactive'), tone: 'warning', dot: true })
                     : null,
-                ),
-              ),
-        ),
-        h(
-          Section,
-          { key: 'rows', t, title: t('rows'), hint: t('rowsHint'), count: rows.length, open: open.rows, onToggle: () => toggle('rows') },
-          rows.length === 0
-            ? [h('div', { key: 'rows-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenRows > 0 ? t('officialHidden') : '-')]
-            : rows.map((item, index) =>
-                h(
-                  'div',
-                  { key: `row-${item.id}`, style: { ...S.row, ...(index === rows.length - 1 ? S.rowLast : {}) } },
-                  h('div', { style: S.rowMain }, h('span', { style: S.rowTitleMono }, item.id), item.name ? h('span', { style: S.rowSub }, item.name) : null),
-                  h(Badge, { label: item.enabled ? t('enabled') : t('disabled'), tone: item.enabled ? 'success' : 'danger', dot: true }),
-                  h(Badge, {
-                    label: fiberLabel(t, item.fiberPhase),
-                    tone: item.fiberPhase === 'failed' ? 'danger' : item.fiberPhase === 'active' ? 'success' : undefined,
-                  }),
                 ),
               ),
         ),
@@ -2594,29 +2587,6 @@ window.__ModuleLoader__.load({
                 )
                 }),
               ],
-        ),
-        h(
-          Section,
-          { key: 'tools', t, title: t('tools'), hint: t('toolsHint'), count: tools.length, open: open.tools, onToggle: () => toggle('tools') },
-          tools.length === 0
-            ? [h('div', { key: 'tools-empty', style: S.empty }, q.length > 0 ? t('emptySearch') : hiddenTools > 0 ? t('officialHidden') : t('noTools'))]
-            : tools.map((item, index) => {
-                const ownerLabel =
-                  item.owner.kind === 'builtin'
-                    ? t('ownerBuiltin')
-                    : item.owner.kind === 'plugin'
-                      ? t('ownerPlugin')
-                      : item.owner.kind === 'mcp'
-                        ? t('ownerMcp')
-                        : t('ownerUnknown')
-                return h(
-                  'div',
-                  { key: `tool-${item.name}`, style: { ...S.row, ...(index === tools.length - 1 ? S.rowLast : {}) } },
-                  h('div', { style: S.rowMain }, h('span', { style: S.rowTitleMono }, item.name)),
-                  h(Badge, { label: `${ownerLabel}${item.owner.ref ? `: ${item.owner.ref}` : ''}` }),
-                  item.deferred ? h(Badge, { label: t('deferred'), tone: 'warning', dot: true }) : null,
-                )
-              }),
         ),
       ]
 

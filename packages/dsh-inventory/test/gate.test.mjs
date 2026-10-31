@@ -153,3 +153,36 @@ test('the cleanup removes the listener', () => {
   if (typeof cleanup === 'function') cleanup()
   assert.ok(true, 'cleanup must not throw')
 })
+
+test('a mount that resolves after mountTimeoutMs is disposed when the agent is gone', async () => {
+  // Stub mcp-client module: the gate only needs an `apply` export to proceed.
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const lateFiber = { disposed: false, dispose() { this.disposed = true } }
+  let resolveMount
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = (_mod, _serverConfig) =>
+    new Promise((resolve) => {
+      resolveMount = () => resolve(lateFiber)
+    })
+
+  const cleanup = apply(ctx, { logFile: '', mcpClientEntry: stubFile, mountTimeoutMs: 20 })
+  const agent = { id: 'gate-late', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  listeners.get('agent/created')({ agent })
+  // No decision line is written on the timeout path, so just wait out the
+  // timeout plus slack instead of dispatch()'s log-based settle.
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  assert.ok(
+    logs.some(([, message]) => message.includes('mount slow agent=gate-late')),
+    'the slow mount must be reported',
+  )
+
+  // The agent goes away (the timed-out mount was never recorded in the
+  // mounted table), then the underlying mount succeeds.
+  if (typeof cleanup === 'function') cleanup()
+  resolveMount()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(lateFiber.disposed, true, 'the late fiber must be disposed, not leaked')
+})

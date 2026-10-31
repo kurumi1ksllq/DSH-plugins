@@ -47,7 +47,8 @@ export function matchSkillTools({ body, toolNames = [], mcpServers = [], cliName
   // Servers already pinned down by an exact tool edge need no second edge.
   const coveredServers = new Set()
   for (const edge of edges) {
-    const match = /^mcp__([^_]+(?:-[^_]+)*)__/.exec(edge.id)
+    // Server name charset matches workspace-gate SERVER_NAME ([A-Za-z0-9_-]{1,32}).
+    const match = /^mcp__([A-Za-z0-9_-]+)__/.exec(edge.id)
     if (match) coveredServers.add(match[1])
   }
 

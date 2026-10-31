@@ -114,7 +114,9 @@ function cooldownActive(entry, now) {
 
 // ---------------------------------------------------------------- errors
 
-const QUOTA_RE = /quota|credit|insufficient|balance|exceeded|rate.?limit|too many requests|额度|余额|配额|超出|用尽|次|上限/i;
+// `次`/`上限` were dropped on purpose: alone they match ordinary error copy
+// ("调用次数超限的接口", "超出重试次数") that has nothing to do with billing.
+const QUOTA_RE = /quota|credit|insufficient|balance|exceeded|rate.?limit|too many requests|额度|余额|配额|超出|用尽/i;
 const AUTH_RE = /invalid api key|unauthorized|authentication|forbidden|invalid.?key|api.?key/i;
 
 export function classifyFailure({ status, bodyText, error }) {

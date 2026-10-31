@@ -24,6 +24,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
+import { SKILL_NAME } from './scan-skills.js'
+
 const run = promisify(execFile)
 
 /** Where a plugin repository is cloned on this machine, for `repo` sources. */
@@ -134,6 +136,12 @@ export async function applyItems(entries, options = {}) {
       continue
     }
     if (entry.kind === 'skill') {
+      // The name comes from a remote manifest and is later joined into paths
+      // (repo skills dir and vault); a traversal name must never reach cpSync.
+      if (typeof entry.name !== 'string' || !SKILL_NAME.test(entry.name)) {
+        results.push({ key: entryKeyOf(entry), ok: false, error: '非法技能名' })
+        continue
+      }
       skills.push(entry)
       continue
     }

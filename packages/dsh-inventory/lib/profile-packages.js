@@ -117,5 +117,3 @@ export function collectPackages(profileDir, rows = []) {
 
   return packages.sort((a, b) => a.name.localeCompare(b.name))
 }
-
-export { existsSync as _exists }

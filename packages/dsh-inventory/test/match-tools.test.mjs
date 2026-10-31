@@ -58,3 +58,14 @@ test('generic words do not become cli edges', () => {
   const edges = matchSkillTools({ ...base, body: 'A single node in the graph, plus generic python prose.' })
   assert.equal(edges.some((e) => e.kind === 'cli'), false)
 })
+
+test('MCP server ids with underscores resolve to the server edge', () => {
+  const edges = matchSkillTools({
+    body: 'Use the mcp__code_graph_ws__codegraph_explore tool to inspect the graph.',
+    toolNames: ['mcp__code_graph_ws__codegraph_explore'],
+  })
+  const edge = edges.find((e) => e.id === 'mcp__code_graph_ws__codegraph_explore')
+  assert.ok(edge, 'underscore server id should match')
+  assert.equal(edge.kind, 'tool')
+  assert.equal(edge.confidence, 'high')
+})

@@ -13,6 +13,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+import { dshHome } from './dsh-home.js'
+
 export const STATE_FILE = 'plugin-sync.json'
 
 export const STATE_DEFAULTS = {
@@ -33,19 +35,12 @@ export const STATE_DEFAULTS = {
   lastPushAt: 0,
 }
 
-/** `$DSH_HOME`, honouring the env override the rest of dsh uses. */
-export function dshHome(env = process.env) {
-  const explicit = env.DSH_HOME
-  if (typeof explicit === 'string' && explicit.length > 0) return explicit
-  const home = env.HOME ?? env.USERPROFILE
-  if (typeof home !== 'string' || home.length === 0) return null
-  return join(home, '.dsh')
-}
+/** `$DSH_HOME` — the one shared resolver lives in `./dsh-home.js`. */
+export { dshHome } from './dsh-home.js'
 
-/** Absolute path of the state file, or null when no home can be resolved. */
+/** Absolute path of the state file under the resolved DSH home. */
 export function statePath(env = process.env) {
-  const home = dshHome(env)
-  return home === null ? null : join(home, STATE_FILE)
+  return join(dshHome(env), STATE_FILE)
 }
 
 /** Read the state, merged over defaults. Never throws. */
@@ -76,19 +71,36 @@ function mergeState(raw) {
 }
 
 /**
+ * Module-level serialization queue for `writeState`.
+ *
+ * The read→merge→write sequence is only safe under a lock; two concurrent
+ * `writeState` calls could each read the same "current" state and one would
+ * clobber the other's keys. Node is single-process here, so chaining promises
+ * is enough — no file lock, no dependency.
+ */
+let writeQueue = Promise.resolve()
+
+/**
  * Write a partial update. Returns the merged state.
  *
  * Only the keys present in `patch` change; a caller saving `repo` cannot
- * accidentally erase the token.
+ * accidentally erase the token. Concurrent calls are serialized, so a burst of
+ * partial updates merges instead of racing.
  */
 export function writeState(patch, env = process.env) {
-  const path = statePath(env)
-  const current = readState(env)
-  const next = mergeState({ ...current, ...patch })
-  if (path === null) return next
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
-  return next
+  const result = writeQueue.then(() => {
+    const path = statePath(env)
+    const current = readState(env)
+    const next = mergeState({ ...current, ...patch })
+    if (path === null) return next
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+    return next
+  })
+  // Keep the queue alive even when a write rejects, but keep it last so the
+  // caller's rejection is not swallowed by the queue's own handling.
+  writeQueue = result.catch(() => {})
+  return result
 }
 
 /**

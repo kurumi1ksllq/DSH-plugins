@@ -100,3 +100,21 @@ test('scanForPaths counts strings containing absolute paths', () => {
   assert.equal(found.length, 1)
   assert.equal(found[0].path, 'a')
 })
+
+test('redactPaths shields URLs before the whole-string path branch', () => {
+  // WHOLE_WIN_PATH allows spaces, so without the shield `C:\x https://y`
+  // would be swallowed whole and the URL (and its secret) would vanish.
+  const out = redactPaths('C:\\x https://example.com/sk-abc123')
+  assert.match(out, /%LOCAL_ONLY%/)
+  assert.match(out, /https:\/\/example\.com\//)
+  // A plain path with spaces is still caught by the whole-string branch.
+  assert.equal(redactPaths('C:\\Program Files\\nodejs\\node.exe'), '%LOCAL_ONLY%')
+})
+
+test('redactForTransport redacts a secret inside an URL that follows a path', () => {
+  const key = 'sk-a2a-8VQCBeyEZfRYMhl6R5XFYFvBEDB673Kr'
+  const out = redactForTransport(`C:\\x https://example.com/${key}`)
+  assert.match(out, /%LOCAL_ONLY%/)
+  assert.match(out, /https:\/\/example\.com\//)
+  assert.doesNotMatch(out, /8VQCBeyEZfRYMhl6R5XFYFvBEDB673Kr/)
+})

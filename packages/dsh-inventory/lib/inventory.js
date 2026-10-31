@@ -13,7 +13,7 @@ const REDACTED = '<redacted>'
 
 /** Redact one argument value: header form, env form, inline flag, opaque token. */
 function redactValue(value) {
-  const header = /^([A-Za-z0-9-]+):\s+(.+)$/.exec(value)
+  const header = /^([A-Za-z0-9-]+): ?(.+)$/.exec(value)
   if (header !== null && SECRET_KEY.test(header[1])) return `${header[1]}: ${REDACTED}`
 
   const env = /^([A-Za-z0-9_]+)=(.+)$/.exec(value)
@@ -22,8 +22,10 @@ function redactValue(value) {
   const flag = /^(--?[A-Za-z0-9-]+)=(.+)$/.exec(value)
   if (flag !== null && SECRET_KEY.test(flag[1])) return `${flag[1]}=${REDACTED}`
 
-  // A long path stays readable (it is not a secret); a long opaque token is masked.
-  if (value.length > 40 && !/[/\\]/.test(value) && /[A-Za-z]/.test(value) && /\d/.test(value)) {
+  // A long path stays readable (it is not a secret); a long opaque token is
+  // masked. Length alone is the signal — real tokens need not mix letters and
+  // digits.
+  if (value.length > 40 && !/[/\\]/.test(value)) {
     return `${value.slice(0, 6)}…${REDACTED}`
   }
   return value

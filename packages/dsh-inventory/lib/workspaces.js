@@ -14,6 +14,7 @@ import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 
+import { dshHome } from './dsh-home.js'
 import { scanSkillRoots } from './scan-skills.js'
 import { projectRootOf } from './assign.js'
 import { normalizeDir, planMount } from './workspace-gate.js'
@@ -28,10 +29,10 @@ import { normalizeDir, planMount } from './workspace-gate.js'
  * does not list it.
  * @returns {{id: string, path?: string, title?: string} | undefined}
  */
-export function readDefaultWorkspace({ dshHome = process.env.DSH_HOME ?? join(homedir(), '.dsh') } = {}) {
+export function readDefaultWorkspace({ dshHome: dshHomeOverride = dshHome() } = {}) {
   let doc
   try {
-    doc = JSON.parse(readFileSync(join(dshHome, 'storages', 'workspace.json'), 'utf8'))
+    doc = JSON.parse(readFileSync(join(dshHomeOverride, 'storages', 'workspace.json'), 'utf8'))
   } catch {
     return undefined
   }
@@ -49,12 +50,12 @@ export function readDefaultWorkspace({ dshHome = process.env.DSH_HOME ?? join(ho
  */
 export function sharedSkillRoots() {
   const home = homedir()
-  const dshHome = process.env.DSH_HOME ?? join(home, '.dsh')
+  const dshHomeDir = dshHome()
   const agentsHome = process.env.DSH_AGENTS_HOME ?? join(home, '.agents')
   const roots = []
   const custom = (process.env.DSH_CUSTOM_SKILL_DIRS ?? '').split(delimiter).filter(Boolean)
   custom.forEach((dir, index) => roots.push({ dir, source: 'custom', rank: 300 + index }))
-  roots.push({ dir: join(dshHome, 'skills'), source: 'user-dsh', rank: 400 })
+  roots.push({ dir: join(dshHomeDir, 'skills'), source: 'user-dsh', rank: 400 })
   roots.push({ dir: join(agentsHome, 'skills'), source: 'user-agents', rank: 500 })
   if (process.env.DSH_BUNDLED_SKILL_DIR) {
     roots.push({ dir: process.env.DSH_BUNDLED_SKILL_DIR, source: 'bundled', rank: 600 })

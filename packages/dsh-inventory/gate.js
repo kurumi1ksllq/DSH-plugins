@@ -99,7 +99,8 @@ async function loadMcpClient(emit, config) {
     }
   }
 
-  mcpClientModule = null
+  // Only success is cached: a failed resolution (e.g. no packaged runtime in
+  // a test environment) should be retried on the next agent, not pinned.
   emit('warn', `${LOG} mcp-client unavailable; attempts: ${attempts.join(' | ')}`)
   return null
 }
@@ -197,8 +198,9 @@ export function apply(ctx, rawConfig) {
           const fibers = []
           await Promise.all(Object.entries(plan.servers).map(async ([declaredName, serverConfig]) => {
             try {
+              const mounting = Promise.resolve(agent.ctx.plugin(mod, serverConfig))
               const fiber = await withTimeout(
-                Promise.resolve(agent.ctx.plugin(mod, serverConfig)),
+                mounting,
                 config.mountTimeoutMs,
                 () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
               )
@@ -207,6 +209,26 @@ export function apply(ctx, rawConfig) {
                 'info',
                 `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
               )
+              // The timeout above only gave up *waiting* on the mount; the
+              // underlying plugin call may still succeed later. Consume the
+              // original promise so a late fiber is still tracked — or disposed
+              // immediately if the agent is already gone — instead of leaking.
+              mounting
+                .then((lateFiber) => {
+                  if (lateFiber === undefined || lateFiber === null) return
+                  if (mounted.has(agentId)) {
+                    mounted.get(agentId).push(lateFiber)
+                  } else {
+                    try {
+                      lateFiber?.dispose?.()
+                    } catch {
+                      // Agent may already be disposed.
+                    }
+                  }
+                })
+                .catch(() => {
+                  // A late mount failure is only a leak risk; nothing to do.
+                })
             } catch (error) {
               emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
             }

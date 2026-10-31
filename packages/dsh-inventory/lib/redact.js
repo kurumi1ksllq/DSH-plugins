@@ -153,15 +153,20 @@ function restoreUrls(text, urls) {
 export function redactPaths(text) {
   if (typeof text !== 'string' || text.length === 0) return text
 
-  // A parsed config value is often exactly one path, with no quotes around it
-  // and spaces inside it (`C:\Program Files\nodejs\node.exe`). Handle that
-  // before any embedded-occurrence rule, which would stop at the first space.
-  const whole = text.trim()
-  if (WHOLE_WIN_PATH.test(whole) || WHOLE_POSIX_PATH.test(whole)) {
-    return text.replace(whole, '%LOCAL_ONLY%')
+  // URLs are parked on sentinels first: WHOLE_WIN_PATH allows spaces, so
+  // `C:\x https://y` would otherwise be swallowed whole by the whole-string
+  // branch and the URL would vanish with it.
+  const { masked, urls } = shieldUrls(text)
+
+  // Only when no URL was shielded can the value be treated as one whole path;
+  // otherwise the sentinel would ride along inside the match.
+  if (urls.length === 0) {
+    const whole = text.trim()
+    if (WHOLE_WIN_PATH.test(whole) || WHOLE_POSIX_PATH.test(whole)) {
+      return text.replace(whole, '%LOCAL_ONLY%')
+    }
   }
 
-  const { masked, urls } = shieldUrls(text)
   let out = masked
   // Quoted Windows paths next: they may contain spaces, which the bare rule
   // would treat as a terminator.

@@ -587,7 +587,13 @@ test('workspace tab lists workspaces, opens a detail page, and goes back', async
  * Switch semantics. The panel must post the documented contract to
  * `/inventory/workspace`, force a snapshot reload afterwards (the host drops its
  * cache on write), keep every switch disabled while one request is in flight,
- * and leave locked rows (global MCP, hand-copied skill, runtime skill) alone.
+ * and leave locked rows alone.
+ *
+ * Locked means "the global switch owns this row": a globally mounted server is
+ * already available in every workspace, so a workspace switch could not change
+ * the outcome. The fixture mounts `officecli` and `context7` globally and the
+ * demo workspace also declares `officecli` — that row stays locked and is
+ * flagged as a duplicate mount.
  */
 test('workspace detail switches POST the contract and respect locked rows', async () => {
   const panel = await bootPanel(workspaceSnapshot(), { version: 'switch-case' })
@@ -599,13 +605,13 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   let current = tree()
   // Switchable rows carry a switch named after the row; locked rows state why
   // instead of offering a disabled switch that still reads as "on".
-  for (const name of ['officecli', 'codegraph', 'proj-skill']) {
+  for (const name of ['codegraph', 'proj-skill']) {
     const row = rowOf(current, name)
     assert.ok(row, `row for ${name} is missing`)
     assert.ok(switchIn(row), `row for ${name} has no switch`)
     assert.equal(switchIn(row).props['aria-label'], name, 'the switch must be named after its row')
   }
-  for (const name of ['context7', 'copied-skill']) {
+  for (const name of ['officecli', 'context7', 'copied-skill']) {
     const row = rowOf(current, name)
     assert.ok(row, `row for ${name} is missing`)
     assert.equal(switchIn(row), null, `row for ${name} must not offer a switch`)
@@ -620,11 +626,12 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   assert.match(textOf(globalRow), /全局已挂载/, 'a global server must be flagged')
   assert.match(textOf(globalRow), /对所有工作区生效/, 'a global server must say why it is locked')
 
-  // Declared: on and switchable (it is also global, so closing removes the
-  // duplicate mount).
+  // Declared: locked too, because the global row already mounts it everywhere.
+  // The two instances both mount (`-ws` suffix), so this row also warns.
   const declaredRow = rowOf(current, 'officecli')
-  assert.equal(switchIn(declaredRow).props['aria-checked'], 'true')
-  assert.equal(switchIn(declaredRow).props.disabled, false, 'a declared server must be switchable')
+  assert.equal(switchIn(declaredRow), null, 'a globally mounted server must not offer a workspace switch')
+  assert.match(textOf(declaredRow), /全局已挂载/)
+  assert.match(textOf(declaredRow), /重复挂载/, 'a global server also declared here must warn about the duplicate mount')
 
   // Installed, not declared, not global: off and switchable.
   assert.equal(switchIn(rowOf(current, 'codegraph')).props['aria-checked'], 'false')
@@ -639,6 +646,15 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   // Runtime registration: no directory, so it cannot be switched on — and it is
   // not listed at all.
   assert.equal(rowOf(current, 'runtime-skill'), null, 'a runtime skill must not be listed')
+
+  // The MCP header splits the two owners: what this workspace declared vs what
+  // is mounted for everyone. A locked row is counted once, in the global number.
+  const mcpHeader = findNode(
+    current,
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('MCP 服务器'),
+  )
+  assert.ok(mcpHeader, 'MCP section header missing')
+  assert.match(textOf(mcpHeader), /全局 2/, 'globally mounted servers must be counted apart')
 
   // Switching an unassigned server on: POST, then a forced snapshot reload.
   let release
@@ -675,14 +691,14 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
     'a successful write must force a snapshot reload',
   )
 
-  // Switching a declared server off sends action: remove.
+  // Switching a linked project skill off sends action: remove.
   panel.setPost(async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }))
   current = tree()
-  switchIn(rowOf(current, 'officecli')).props.onClick()
+  switchIn(rowOf(current, 'proj-skill')).props.onClick()
   await tick()
   const posts = calls.filter((call) => call.method === 'POST')
   assert.equal(posts.length, 2, 'one POST per switch click')
-  assert.deepEqual(JSON.parse(posts[1].body), { workspace: 'D:/demo', kind: 'mcp', action: 'remove', name: 'officecli' })
+  assert.deepEqual(JSON.parse(posts[1].body), { workspace: 'D:/demo', kind: 'skill', action: 'remove', name: 'proj-skill' })
 
   // A rejected write shows the host's message in a dismissible bar.
   panel.setPost(async () => ({ ok: false, status: 409, json: async () => ({ ok: false, error: '写不进去' }) }))
@@ -1258,25 +1274,17 @@ test('the default workspace is badged in the list and on its detail page', async
 })
 
 /**
- * The panel answers "what did I install". First-party entries — `@deepseek-ai/*`
- * bundles, their loader rows, and the app's builtin tools — are noise there, so
- * they stay hidden until the toolbar switch is on. The switch must bring them
- * back and hide them again within the same session.
+ * The panel answers "what did I install". First-party `@deepseek-ai/*` bundles are
+ * noise there, so they stay hidden until the toolbar switch is on. The switch
+ * must bring them back and hide them again within the same session — and the
+ * statistics follow the visible set, not the raw snapshot.
  */
-test('official DSH entries are hidden until the toolbar switch is turned on', async () => {
+test('official DSH packages are hidden until the toolbar switch is turned on', async () => {
   const snapshot = {
     ...SNAPSHOT,
     packages: [
       { name: '@deepseek-ai/dsh-base', declaredBy: ['bundles'], installed: true, loaded: true, orphan: false },
       { name: 'dsh-tool-search', version: '0.1.8', declaredBy: ['dependencies', 'bundles'], installed: true, loaded: true, orphan: false },
-    ],
-    rows: [
-      { id: 'base', name: '@deepseek-ai/dsh-base', enabled: true, fiberPhase: 'active', group: false },
-      { id: 'tool-search', name: 'dsh-tool-search', enabled: true, fiberPhase: 'active', group: false },
-    ],
-    tools: [
-      { name: 'pwsh', descLen: 10, deferred: false, owner: { kind: 'builtin', ref: 'deepseek-harness' } },
-      { name: 'tool_search', descLen: 10, deferred: false, owner: { kind: 'plugin', ref: 'dsh-tool-search' } },
     ],
   }
   const { tree } = await bootPanel(snapshot, { version: 'official-case' })
@@ -1284,28 +1292,38 @@ test('official DSH entries are hidden until the toolbar switch is turned on', as
   let current = tree()
   assert.doesNotMatch(textOf(current), /@deepseek-ai\/dsh-base/, 'official package must be hidden by default')
   assert.match(textOf(current), /dsh-tool-search/, 'third-party package must stay visible')
-
-  // The tools section starts collapsed; open it so its rows render at all.
-  const toolsHead = findNode(
-    current,
-    (node) =>
-      node.type === 'button' &&
-      (node.children ?? []).some((child) => child.type === 'span' && textOf(child) === '工具'),
-  )
-  assert.ok(toolsHead, 'tools section header missing')
-  toolsHead.props.onClick()
-
-  current = tree()
-  assert.match(textOf(current), /tool_search/, 'third-party tool must stay visible')
-  assert.doesNotMatch(textOf(current), /\bpwsh\b/, 'builtin tool must be hidden by default')
+  // The overview is three sections: packages, MCP servers, skills. Nothing else.
+  assert.doesNotMatch(textOf(current), /插件加载行/, 'loader rows are not a section any more')
+  assert.doesNotMatch(textOf(current), /\b工具\b/, 'tools are not a section any more')
 
   findNode(current, (node) => node.type === 'button' && textOf(node) === '显示官方').props.onClick()
   current = tree()
   assert.match(textOf(current), /@deepseek-ai\/dsh-base/, 'the switch must bring official packages back')
-  assert.match(textOf(current), /\bpwsh\b/, 'the switch must bring builtin tools back')
 
   findNode(current, (node) => node.type === 'button' && textOf(node) === '隐藏官方').props.onClick()
   assert.doesNotMatch(textOf(tree()), /@deepseek-ai\/dsh-base/, 'the switch must hide them again')
+})
+
+/**
+ * The overview's statistic strip counts exactly the three sections below it: the
+ * visible packages, the MCP servers, the skills, and then the workspaces. A
+ * number with no section under it would be a promise the page does not keep.
+ */
+test('the overview statistics match the three sections', async () => {
+  const { tree } = await bootPanel(SNAPSHOT, { version: 'stats-case' })
+  const current = tree()
+
+  const cells = []
+  eachNode(current, (node) => {
+    if (node.props?.style?.padding === '12px 16px') cells.push(textOf(node))
+  })
+  assert.equal(cells.length, 4, `expected 4 statistic cells, got ${cells.length}`)
+  assert.deepEqual(
+    cells.map((cell) => cell.replace(/\d+\s*/, '')),
+    ['插件包', 'MCP 服务器', '技能', '工作区'],
+    'the statistics must name exactly the sections on the page',
+  )
+  assert.doesNotMatch(cells.join(' '), /工具/, 'no tools statistic any more')
 })
 
 /**
@@ -1326,7 +1344,24 @@ test('workspace detail locks globally reachable skills and only switches vault s
   const panel = await bootPanel(snapshot, { version: 'global-skill-case' })
   findNode(panel.tree(), (node) => node.type === 'button' && textOf(node) === '工作区').props.onClick()
   findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
+
+  // Globally reachable skills sit behind one collapsed header: they have no
+  // switch, so they must not push the workspace's own rows down the page.
+  const collapsed = panel.tree()
+  assert.equal(rowOf(collapsed, 'office'), null, 'global skills must start folded away')
+  const fold = findNode(
+    collapsed,
+    (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).includes('全局已可用'),
+  )
+  assert.ok(fold, 'the global skills fold is missing')
+  assert.equal(fold.props['aria-expanded'], 'false')
+  fold.props.onClick()
   const current = panel.tree()
+  assert.equal(
+    findNode(current, (node) => node.type === 'button' && textOf(node).includes('全局已可用')).props['aria-expanded'],
+    'true',
+    'the fold must open',
+  )
 
   const officeRow = rowOf(current, 'office')
   assert.ok(officeRow, 'global skill row missing')
@@ -1346,14 +1381,15 @@ test('workspace detail locks globally reachable skills and only switches vault s
   assert.ok(vaultSwitch, 'a vaulted skill must keep its workspace switch')
   assert.equal(vaultSwitch.props['aria-checked'], 'false')
 
-  // The header counts a globally available skill as on; the hint carries on/total only.
+  // The hint keeps the same on/total set the workspace card counts, then says
+  // how many of those are provided by the machine rather than by this workspace.
   const skillsHeader = findNode(
     current,
     (node) => node.type === 'button' && node.props?.['aria-expanded'] !== undefined && textOf(node).trim().startsWith('技能'),
   )
   assert.ok(skillsHeader, 'skills section header missing')
   assert.match(textOf(skillsHeader), /已开启 3\/6/)
-  assert.doesNotMatch(textOf(skillsHeader), /全局/, 'the hint must not repeat the global count')
+  assert.match(textOf(skillsHeader), /全局 2/, 'the hint must say how many rows are global')
 
   vaultSwitch.props.onClick()
   await tick()

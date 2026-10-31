@@ -21,7 +21,11 @@ test('dshHome honours DSH_HOME and falls back to ~/.dsh', () => {
   assert.equal(dshHome({ DSH_HOME: '/custom' }), '/custom')
   assert.equal(dshHome({ HOME: '/home/u' }), join('/home/u', '.dsh'))
   assert.equal(dshHome({ USERPROFILE: 'C:\\Users\\u' }), join('C:\\Users\\u', '.dsh'))
-  assert.equal(dshHome({}), null)
+  // No env override: the shared resolver in dsh-home.js falls back to os.homedir(),
+  // so an empty env still resolves (never null) — same value for every module.
+  const resolved = dshHome({})
+  assert.equal(typeof resolved, 'string')
+  assert.equal(resolved.endsWith(join('.dsh')), true)
 })
 
 test('readState returns defaults when the file is absent', () => {
@@ -36,10 +40,10 @@ test('readState returns defaults when the file is garbage', () => {
   assert.deepEqual(readState(env), { ...STATE_DEFAULTS })
 })
 
-test('writeState persists and merges partial updates', () => {
+test('writeState persists and merges partial updates', async () => {
   const env = { DSH_HOME: scratchHome() }
-  writeState({ repo: 'o/r', token: 'secret' }, env)
-  writeState({ lastPullAt: 42 }, env)
+  await writeState({ repo: 'o/r', token: 'secret' }, env)
+  await writeState({ lastPullAt: 42 }, env)
   const state = readState(env)
   assert.equal(state.repo, 'o/r')
   // A later partial write must not erase the token.
@@ -47,15 +51,35 @@ test('writeState persists and merges partial updates', () => {
   assert.equal(state.lastPullAt, 42)
 })
 
-test('writeState creates the file with owner-only permissions', () => {
+test('writeState creates the file with owner-only permissions', async () => {
   const env = { DSH_HOME: scratchHome() }
-  writeState({ token: 't' }, env)
+  await writeState({ token: 't' }, env)
   if (process.platform !== 'win32') {
     const mode = statSync(statePath(env)).mode & 0o777
     assert.equal(mode, 0o600)
   }
   const raw = JSON.parse(readFileSync(statePath(env), 'utf8'))
   assert.equal(raw.token, 't')
+})
+
+test('writeState serializes concurrent partial updates', async () => {
+  const env = { DSH_HOME: scratchHome() }
+  // 50 concurrent partial writes, each its own field: without the queue the
+  // read→merge→write of one call would clobber the others' keys.
+  const patches = []
+  for (let i = 0; i < 50; i += 1) {
+    patches.push({ [`annotations`]: { ...(patches[i - 1]?.annotations ?? {}), [`k${i}`]: i } })
+  }
+  // Also mix in plain top-level fields to catch merges of scalars.
+  patches.push({ lastPullAt: 7 }, { lastPushAt: 8 }, { repo: 'o/r' })
+  await Promise.all(patches.map((patch) => writeState(patch, env)))
+  const state = readState(env)
+  for (let i = 0; i < 50; i += 1) {
+    assert.equal(state.annotations[`k${i}`], i, `annotations.k${i} must survive`)
+  }
+  assert.equal(state.lastPullAt, 7)
+  assert.equal(state.lastPushAt, 8)
+  assert.equal(state.repo, 'o/r')
 })
 
 test('publicState never exposes the token', () => {
@@ -70,6 +94,9 @@ test('publicState reports no token when empty', () => {
   assert.equal(publicState({ ...STATE_DEFAULTS }).hasToken, false)
 })
 
-test('statePath is null without a home', () => {
-  assert.equal(statePath({}), null)
+test('statePath falls back to os.homedir() when env has no home', () => {
+  // dsh-home.js never returns null: an empty env resolves via os.homedir().
+  const resolved = statePath({})
+  assert.equal(typeof resolved, 'string')
+  assert.equal(resolved.endsWith(join('.dsh', 'plugin-sync.json')), true)
 })

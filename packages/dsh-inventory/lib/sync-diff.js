@@ -33,12 +33,14 @@ export const STATUSES = ['current', 'outdated', 'missing', 'blocked', 'disabled'
  *
  * Probed, not assumed: `requires: ['officecli']` must resolve against the real
  * PATH, otherwise the panel would claim a capability is installable when the
- * command it depends on does not exist.
+ * command it depends on does not exist. An unprobed capability counts as
+ * absent (`gpu` defaults to false): claiming a GPU that is not there would
+ * mark a GPU-dependent skill "installable" instead of blocked.
  */
 export function probeCapabilities(options = {}) {
   const platform = options.platform ?? process.platform
   const hasCommand = options.hasCommand ?? defaultHasCommand
-  const gpu = options.gpu ?? true
+  const gpu = options.gpu ?? false
   return { platform, hasCommand, gpu }
 }
 
@@ -224,9 +226,4 @@ export function summarizeDiff(rows) {
   counts.total = rows.length
   counts.actionable = counts.missing + counts.outdated
   return counts
-}
-
-/** The rows an install pass may touch: only the ones the user selected. */
-export function selectableRows(rows) {
-  return rows.filter((item) => item.status === 'missing' || item.status === 'outdated')
 }
