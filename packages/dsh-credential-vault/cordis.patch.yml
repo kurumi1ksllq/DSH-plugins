@@ -1,10 +1,10 @@
 # Bundle patch layer for dsh-credential-vault.
 #
-# One host-side row: the encrypted store, the HTTP API and the `credential`
-# tool. The system-prompt section is pinned inside index.js (HINT_SECTION,
-# order 160) — a second row named 'dsh-credential-vault/hint' would make cordis
-# import subpath './hint', which the package does not export, and a `config`
-# on a row without an exported Config schema fails validation at load.
+# One host-side row: the encrypted store, the HTTP API and the credential tool.
+# The system-prompt section is pinned inside index.js (HINT_SECTION, order 160):
+# a second row named dsh-credential-vault/hint would make cordis import subpath
+# ./hint, which the package does not export, and a config on a row without an
+# exported Config schema fails validation at load.
 - insert:
     - id: credential-vault
-      name: 'dsh-credential-vault'
+      name: dsh-credential-vault

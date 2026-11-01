@@ -11,7 +11,9 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { createVaultStore } from './lib/vault-store.js'
+import { appendFileSync } from 'node:fs'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { createVaultStore } from './lib/vault-store.js' // STARTUP-MARKER
 import { appendAudit, readAudit } from './lib/audit.js'
 import { API_BASE, createApiHandler } from './lib/api.mjs'
 import { isValidName } from './lib/store.js'
@@ -25,9 +27,6 @@ export const TOOL_NAME = 'credential'
 
 /** Cordis service dependencies. */
 export const inject = ['tools', 'webServer']
-
-/** Config schema defaults, overridable in cordis.patch.yml. */
-export const Config = {}
 
 /** Directory holding master.key / vault.json / audit.log. */
 export function defaultVaultDir() {
@@ -54,6 +53,7 @@ const HINT_SECTION = {
  * @param {{vaultDir?: string}} [config]
  */
 export function apply(ctx, config = {}) {
+
   const options = config && typeof config === 'object' ? config : {}
   const dir = typeof options.vaultDir === 'string' && options.vaultDir.length > 0
     ? options.vaultDir
@@ -62,8 +62,13 @@ export function apply(ctx, config = {}) {
 
   ctx.systemPrompt.section({ ...HINT_SECTION })
 
-  ctx.effect(() =>
-    ctx.tools.register({
+  const outputSpec = {
+    schema: { type: 'object', additionalProperties: true },
+    render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+  }
+  ctx.effect(() => {
+    try {
+      return ctx.tools.register(defineTool({
       name: TOOL_NAME,
       description:
         'Read credentials from the encrypted vault: list what is stored, get masked metadata, or reveal the secret ' +
@@ -115,10 +120,32 @@ export function apply(ctx, config = {}) {
         const label = action === 'list' ? 'List credentials' : action === 'reveal' ? 'Reveal credential' : 'Read credential'
         return { title: label, kind: 'read', detail: typeof args?.name === 'string' ? args.name : undefined }
       },
-    }),
-  )
+      output: outputSpec,
+      }))
+    } catch (error) {
+      // Another fiber of this plugin (the loader can create several during a
+      // hot reconcile) may have registered the same tool name first; that
+      // sibling owns the registration and this context must not fail for it.
+      if (/already registered/.test(error?.message ?? '')) {
+              return
+      }
+      throw error
+    }
+  })
 
-  ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: API_BASE, handler: createApiHandler({ store }) }))
+  // kind 'exact' per route: the web app's listener serves exact routes; the
+  // prefix kind registered from a hot-reloaded subtree never became reachable.
+  const apiHandler = createApiHandler({ store })
+  for (const [routePath, method] of [
+    [`${API_BASE}/list`, 'GET'],
+    [`${API_BASE}/entry`, 'GET'],
+    [`${API_BASE}/audit`, 'GET'],
+    [`${API_BASE}/set`, 'POST'],
+    [`${API_BASE}/delete`, 'POST'],
+    [`${API_BASE}/rotate`, 'POST'],
+  ]) {
+    ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: routePath, handler: apiHandler }))
+  }
 
   // Keep the audit reader reachable for tests and future callers.
   void readAudit

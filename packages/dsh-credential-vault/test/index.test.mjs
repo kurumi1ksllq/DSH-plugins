@@ -39,7 +39,7 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'vault-index-test-'))
 }
 
-test('apply registers the tool, the hint section and the API route', () => {
+test('apply registers the tool, the hint section and the API route', async () => {
   const dir = tempDir()
   try {
     const ctx = fakeContext()
@@ -47,23 +47,26 @@ test('apply registers the tool, the hint section and the API route', () => {
     assert.equal(ctx.registered.tools.length, 1)
     assert.equal(ctx.registered.tools[0].name, TOOL_NAME)
     assert.ok(ctx.registered.sections.some((section) => section.name === 'dsh-credential-vault:hint'))
-    const route = ctx.registered.routes[0]
-    assert.equal(route.path, API_BASE)
-    assert.equal(route.kind, 'prefix')
-    assert.equal(typeof route.handler, 'function')
+    assert.equal(ctx.registered.routes.length, 6)
+    for (const route of ctx.registered.routes) {
+      assert.equal(route.kind, 'exact')
+      assert.ok(route.path.startsWith(API_BASE))
+      assert.equal(typeof route.handler, 'function')
+    }
+    assert.ok(ctx.registered.routes.some((r) => r.path === `${API_BASE}/list`))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('list action returns names and kinds but never secrets', () => {
+test('list action returns names and kinds but never secrets', async () => {
   const dir = tempDir()
   try {
     createVaultStore(dir).set('github-token', { kind: 'token', secret: 'ghp_supersecret' })
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
     const tool = ctx.registered.tools[0]
-    const result = tool.execute({ action: 'list' })
+    const result = await tool.execute({ action: 'list' })
     assert.equal(result.count, 1)
     assert.equal(result.entries[0].name, 'github-token')
     assert.equal(result.entries[0].kind, 'token')
@@ -74,14 +77,14 @@ test('list action returns names and kinds but never secrets', () => {
   }
 })
 
-test('get returns masked metadata and audits ok', () => {
+test('get returns masked metadata and audits ok', async () => {
   const dir = tempDir()
   try {
     createVaultStore(dir).set('prod-server', { kind: 'password', secret: 'hunter2', username: 'root' })
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
     const tool = ctx.registered.tools[0]
-    const result = tool.execute({ action: 'get', name: 'prod-server' })
+    const result = await tool.execute({ action: 'get', name: 'prod-server' })
     assert.equal(result.action, 'get')
     assert.equal(result.username, 'root')
     assert.equal(JSON.stringify(result).includes('hunter2'), false)
@@ -93,14 +96,14 @@ test('get returns masked metadata and audits ok', () => {
   }
 })
 
-test('reveal returns the plaintext and audits it', () => {
+test('reveal returns the plaintext and audits it', async () => {
   const dir = tempDir()
   try {
     createVaultStore(dir).set('github-token', { kind: 'token', secret: 'ghp_supersecret' })
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
     const tool = ctx.registered.tools[0]
-    const result = tool.execute({ action: 'reveal', name: 'github-token' })
+    const result = await tool.execute({ action: 'reveal', name: 'github-token' })
     assert.equal(result.secret, 'ghp_supersecret')
     const audit = readAudit(dir)
     assert.equal(audit[0].outcome, 'ok')
@@ -110,16 +113,16 @@ test('reveal returns the plaintext and audits it', () => {
   }
 })
 
-test('unknown name throws and audits missing; bad action and bad name rejected', () => {
+test('unknown name throws and audits missing; bad action and bad name rejected', async () => {
   const dir = tempDir()
   try {
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
     const tool = ctx.registered.tools[0]
-    assert.throws(() => tool.execute({ action: 'reveal', name: 'ghost' }), /no credential named/)
-    assert.throws(() => tool.execute({ action: 'get', name: 'a/b' }), /name.*required/)
-    assert.throws(() => tool.execute({ action: 'explode' }), /action must be/)
-    assert.throws(() => tool.execute({}), /action must be/)
+    await assert.rejects(() => tool.execute({ action: 'reveal', name: 'ghost' }), /no credential named/)
+    await assert.rejects(() => tool.execute({ action: 'get', name: 'a/b' }), /name.*required/)
+    await assert.rejects(() => tool.execute({ action: 'explode' }), /action must be/)
+    await assert.rejects(() => tool.execute({}), /missing required property "action"/)
     const outcomes = readAudit(dir).map((record) => record.outcome)
     assert.ok(outcomes.includes('rejected'))
     assert.ok(outcomes.includes('missing'))
