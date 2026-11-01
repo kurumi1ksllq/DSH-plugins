@@ -157,20 +157,20 @@ window.__ModuleLoader__.load({
       toolbar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
       ghostBtn: {
         fontSize: 13, padding: '6px 14px', borderRadius: 999,
-        border: '1px solid var(--dsh-border, rgba(128,128,128,0.3))',
+        border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3))',
         background: 'transparent', cursor: 'pointer', color: 'inherit',
       },
       card: {
-        background: 'var(--dsh-card, rgba(128,128,128,0.08))', borderRadius: 14,
+        background: 'var(--dsw-alias-bg-layer-2, rgba(128,128,128,0.08))', borderRadius: 14,
         padding: '4px 16px', marginBottom: 16,
       },
       cardTitle: { fontSize: 13, fontWeight: 600, opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '12px 2px 4px' },
-      row: { display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 2px', borderTop: '1px solid var(--dsh-hairline, rgba(128,128,128,0.18))' },
+      row: { display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, padding: '8px 2px', borderTop: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.18))' },
       rowFirst: { borderTop: 'none' },
       rowMain: { flex: '1 1 auto', minWidth: 0 },
       rowTitle: { fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       rowSub: { fontSize: 12, opacity: 0.55, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-      badge: { fontSize: 11, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--dsh-border, rgba(128,128,128,0.3))', opacity: 0.75, flex: '0 0 auto' },
+      badge: { fontSize: 11, padding: '2px 8px', borderRadius: 999, border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3))', opacity: 0.75, flex: '0 0 auto' },
       badgeAccent: { fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(88,140,255,0.18)', flex: '0 0 auto' },
       badgeWarn: { fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,159,10,0.2)', flex: '0 0 auto' },
       mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13 },
@@ -178,17 +178,17 @@ window.__ModuleLoader__.load({
       emptyTitle: { fontSize: 20, fontWeight: 600, marginBottom: 8 },
       emptyBody: { fontSize: 14, opacity: 0.6, maxWidth: 420, margin: '0 auto', lineHeight: 1.5 },
       hint: { fontSize: 13, opacity: 0.65, padding: '12px 2px' },
-      link: { color: 'var(--dsh-link, #588cff)', textDecoration: 'none', fontSize: 13 },
+      link: { color: 'var(--dsw-alias-button-info-fill, #588cff)', textDecoration: 'none', fontSize: 13 },
       // issue #22: interactive affordances (open on GitHub, copy, diff).
       iconBtn: {
         fontSize: 12, padding: '3px 9px', borderRadius: 8, cursor: 'pointer',
-        border: '1px solid var(--dsh-border, rgba(128,128,128,0.3))',
+        border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3))',
         background: 'transparent', color: 'inherit', opacity: 0.8, flex: '0 0 auto',
         textDecoration: 'none', lineHeight: '18px',
       },
       iconBtnOn: {
         fontSize: 12, padding: '3px 9px', borderRadius: 8, cursor: 'pointer',
-        border: '1px solid var(--dsh-border, rgba(128,128,128,0.3))',
+        border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.3))',
         background: 'rgba(88,140,255,0.16)', color: 'inherit', flex: '0 0 auto',
         lineHeight: '18px',
       },
@@ -202,8 +202,8 @@ window.__ModuleLoader__.load({
         background: 'rgba(128,128,128,0.10)', borderRadius: 10, padding: '8px 10px',
         margin: '4px 0 8px',
       },
-      diffAdd: { color: 'var(--dsh-diff-add, #2f9e5f)' },
-      diffDel: { color: 'var(--dsh-diff-del, #d1495b)' },
+      diffAdd: { color: 'var(--dsw-alias-state-success-primary, #2f9e5f)' },
+      diffDel: { color: 'var(--dsw-alias-state-error-primary, #d1495b)' },
       diffMeta: { opacity: 0.55 },
     }
 
@@ -229,7 +229,7 @@ window.__ModuleLoader__.load({
           titleElement,
           sub ? h('div', { style: S.rowSub }, sub) : null,
         ),
-        ...(badges ?? []).map((b, i) => h(Badge, { key: i, text: b.text, tone: b.tone })),
+        ...(badges ?? []).map((b) => h(Badge, { key: `badge-${b.text}`, text: b.text, tone: b.tone })),
         right ?? null,
       )
     }
@@ -325,19 +325,39 @@ function GithubLink({ slug, suffix, t }) {
 }
 
 /**
+ * Render a remote URL without its credentials. The host already strips them,
+ * but the panel is the last place a token could reach the screen (a snapshot
+ * from an older build, a hand-made payload), so it strips again.
+ */
+function maskRemoteUrl(url) {
+  if (typeof url !== 'string' || url.length === 0) return url
+  return url
+    .replace(/^([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/i, '$1***@')
+    .replace(/^([^/:\s]+):[^/@\s]+@([^/:\s]+:)/, '$1@$2')
+}
+
+/**
  * Read-only diff preview for one changed path (issue #22). Fetches the host's
  * `/git-status/diff` route lazily — only when the row is expanded — so opening
  * the panel never reads file contents the user did not ask for.
  */
-function DiffView({ t, sessionId, path }) {
+function DiffView({ t, sessionId, path, statusSha }) {
   const [state, setState] = React.useState({ status: 'loading', diff: '', truncated: false })
   React.useEffect(() => {
     let alive = true
     setState({ status: 'loading', diff: '', truncated: false })
     const query = [`path=${encodeURIComponent(path)}`]
     if (sessionId) query.push(`sessionId=${encodeURIComponent(sessionId)}`)
+    // The host only answers for a path that is in the changed-file list this
+    // panel rendered; the hash proves both sides describe the same list.
+    if (statusSha) query.push(`statusSha=${encodeURIComponent(statusSha)}`)
     fetch(`${DIFF_ROUTE}?${query.join('&')}`, { method: 'GET' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((res) => {
+        // 404 = no diff for this path right now (reverted, resolved, stale
+        // list). That is an empty preview, not a failure.
+        if (res.status === 404) return { diff: '', truncated: false }
+        return res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))
+      })
       .then((body) => {
         if (!alive) return
         setState({ status: 'ready', diff: body?.diff ?? '', truncated: body?.truncated === true })
@@ -346,7 +366,7 @@ function DiffView({ t, sessionId, path }) {
         if (alive) setState({ status: 'error', diff: String(e?.message ?? e), truncated: false })
       })
     return () => { alive = false }
-  }, [sessionId, path])
+  }, [sessionId, path, statusSha])
 
   if (state.status === 'loading') return h('div', { style: S.hint }, t('diffLoading'))
   if (state.status === 'error') return h('div', { style: S.hint }, `${t('diffFailed')}: ${state.diff}`)
@@ -438,7 +458,7 @@ function DiffView({ t, sessionId, path }) {
         )
       }
       for (const r of snap.git?.remotes ?? []) {
-        rows.push(h(Row, { key: `r-${r.name}`, title: r.name, sub: r.url }))
+        rows.push(h(Row, { key: `r-${r.name}`, title: r.name, sub: maskRemoteUrl(r.url), mono: true }))
       }
       return h(
         Card,
@@ -462,16 +482,22 @@ function DiffView({ t, sessionId, path }) {
           b.lastCommitDate && b.lastCommitSubject
             ? t('lastCommit')(b.lastCommitDate, b.lastCommitSubject)
             : null
+        // A tracked branch with an upstream that happens to be neither ahead
+        // nor behind used to fall through to "no upstream" — the two facts are
+        // independent: `upstream === null` alone means unset.
         const ab = b.ahead > 0 || b.behind > 0 ? t('aheadBehind')(b.ahead ?? 0, b.behind ?? 0) : null
+        const upstream = b.upstream === null || b.upstream === undefined ? t('branchNoUpstream') : b.upstream
         rows.push(
           h(Row, {
             key: b.name, first: rows.length === 0, mono: true, title: null,
-            titleNode: h(Copyable, { t, value: b.name }),
-            sub: [ab, tip ?? b.upstream ?? t('branchNoUpstream')].filter(Boolean).join(' · '),
-            badges: [
-              ...(b.current ? [{ text: t('branchCurrent'), tone: 'accent' }] : []),
-              ...(b.gone ? [{ text: t('branchGone'), tone: 'warn' }] : []),
-            ],
+            titleNode: h(
+              'span',
+              { style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+              h(Copyable, { t, value: b.name }),
+              b.current ? h(Badge, { text: t('branchCurrent'), tone: 'accent' }) : null,
+            ),
+            sub: [ab, tip ?? upstream].filter(Boolean).join(' · '),
+            badges: b.gone ? [{ text: t('branchGone'), tone: 'warn' }] : [],
             right: h(GithubLink, { slug: snap.repoSlug, suffix: `tree/${encodeURIComponent(b.name)}`, t }),
           }),
         )
@@ -490,14 +516,14 @@ function DiffView({ t, sessionId, path }) {
     }
 
     /** Group heading inside the changed-files card (issue #18). */
-    function ChangeGroup({ t, title, entries, sessionId }) {
+    function ChangeGroup({ t, title, entries, sessionId, statusSha }) {
       if (entries.length === 0) return null
       return h(
         'div',
         null,
         h('div', { style: { ...S.cardTitle, textTransform: 'none', letterSpacing: 0 } }, `${title} · ${entries.length}`),
-        entries.map((c, i) =>
-          h(ChangeRow, { key: `${c.kind}-${c.path}-${i}`, t, change: c, sessionId }),
+        entries.map((c) =>
+          h(ChangeRow, { key: `${c.kind}-${c.path}`, t, change: c, sessionId }),
         ),
       )
     }
@@ -506,7 +532,7 @@ function DiffView({ t, sessionId, path }) {
      * One changed path: click to expand its read-only diff (issue #22), with
      * the GitHub link for the file when the repo slug is known.
      */
-    function ChangeRow({ t, change, sessionId }) {
+    function ChangeRow({ t, change, sessionId, statusSha }) {
       const [open, setOpen] = React.useState(false)
       const label = change.origPath ? `${change.origPath} → ${change.path}` : change.path
       return h(
@@ -523,7 +549,7 @@ function DiffView({ t, sessionId, path }) {
           ),
           h('span', { style: S.iconBtn }, open ? t('hideDiff') : t('viewDiff')),
         ),
-        open ? h(DiffView, { t, sessionId, path: change.path }) : null,
+        open ? h(DiffView, { t, sessionId, path: change.path, statusSha }) : null,
       )
     }
 
@@ -531,6 +557,7 @@ function DiffView({ t, sessionId, path }) {
     function ChangesCard({ t, snap, sessionId }) {
       const status = snap.git?.status ?? {}
       const changes = status.changes ?? []
+      const statusSha = snap.git?.statusSha
       if (changes.length === 0) {
         return h(Card, { title: t('sectionChanges') }, h('div', { style: S.hint }, t('noChanges')))
       }
@@ -541,10 +568,10 @@ function DiffView({ t, sessionId, path }) {
       return h(
         Card,
         { title: t('sectionChanges') },
-        h(ChangeGroup, { t, title: t('changeConflict'), entries: conflicts, sessionId }),
-        h(ChangeGroup, { t, title: t('changeStaged'), entries: staged, sessionId }),
-        h(ChangeGroup, { t, title: t('changeUnstaged'), entries: unstaged, sessionId }),
-        h(ChangeGroup, { t, title: t('changeUntracked'), entries: untracked, sessionId }),
+        h(ChangeGroup, { t, title: t('changeConflict'), entries: conflicts, sessionId, statusSha }),
+        h(ChangeGroup, { t, title: t('changeStaged'), entries: staged, sessionId, statusSha }),
+        h(ChangeGroup, { t, title: t('changeUnstaged'), entries: unstaged, sessionId, statusSha }),
+        h(ChangeGroup, { t, title: t('changeUntracked'), entries: untracked, sessionId, statusSha }),
         status.changesTruncated
           ? h('div', { style: S.hint }, t('changesTruncated')(changes.length, status.changesTotal ?? changes.length))
           : null,
@@ -587,9 +614,13 @@ function DiffView({ t, sessionId, path }) {
     function PrCard({ t, snap }) {
       const hint = ghHintText(t, snap)
       if (hint) return h(Card, { title: t('sectionPrs') }, h('div', { style: S.hint }, hint))
+      const source = typeof snap.gh?.source === 'string' && snap.gh.source.length > 0 ? t('ghSource')(snap.gh.source) : null
       const prs = snap.prs ?? []
       if (prs.length === 0) return h(Card, { title: t('sectionPrs') }, h('div', { style: S.hint }, t('noPrs')))
-      const rows = prs.map((pr, i) =>
+      const rows = source ? [h('div', { key: 'gh-source', style: { ...S.hint, padding: '8px 2px 0' } }, source)] : []
+      for (const pr of prs) {
+        const i = prs.indexOf(pr)
+        rows.push(
         h(Row, {
           key: pr.number ?? i, first: i === 0, title: `#${pr.number} ${pr.title}`,
           sub: `${pr.headRefName} → ${pr.baseRefName} · ${pr.author?.login ?? ''}`,
@@ -599,7 +630,8 @@ function DiffView({ t, sessionId, path }) {
           ],
           right: pr.url ? h('a', { href: pr.url, target: '_blank', rel: 'noreferrer', style: S.link }, '↗') : null,
         }),
-      )
+        )
+      }
       for (const pr of (snap.mergedPrs ?? []).slice(0, 5)) {
         rows.push(
           h(Row, {

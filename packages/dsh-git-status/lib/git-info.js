@@ -90,7 +90,16 @@ export async function statusOf(repoDir, opts = {}) {
     changed: 0, untracked: 0, conflicts: 0, staged: 0, unstaged: 0,
     changes: [], changesTruncated: false, changesTotal: 0,
   }
-  const out = await runCommand('git', ['-C', repoDir, 'status', '--porcelain=v2', '-b', '-z'], { allowFailure: true })
+  // `-uall` expands untracked DIRECTORIES into their files. Plain porcelain v2
+  // collapses a new directory to `? sub/`, and a directory has no diff — the
+  // panel listed a row whose preview was always empty (issue #18 was defeated
+  // by its own data source). `--no-renames` keeps a rename as delete+add pairs,
+  // so no path is ever reported only as its pre-rename name.
+  const out = await runCommand(
+    'git',
+    ['-C', repoDir, 'status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--no-renames'],
+    { allowFailure: true },
+  )
   if (typeof out !== 'string') return empty
 
   let branch = null
@@ -217,14 +226,52 @@ export async function aheadCommitsOf(repoDir, limit = MAX_AHEAD_COMMITS) {
     })
 }
 
-/** Configured remotes: [{ name, url }] (fetch URL only). */
+/**
+ * Strip credentials out of a remote URL before it is ever rendered.
+ * `https://user:ghp_xxx@github.com/o/r.git` becomes `https://user@github.com/…`
+ * (the user name is kept: it is the one part that is not a secret), and any
+ * `user:pass@` in a bare URL loses the password. A token pasted into a remote
+ * is a real leak vector for a panel every local process can read.
+ * @param {string} url
+ */
+export function redactRemoteUrl(url) {
+  if (typeof url !== 'string' || url.length === 0) return url
+  const known = /^(?:git|oauth2|x-access-token|token|anonymous)$/i
+  const scp = /^([^/:\s]+):([^/@\s]+)@([^/:\s]+:)/.exec(url)
+  if (scp !== null) {
+    // user:secret@host:path — the secret goes, a well-known user name too.
+    return known.test(scp[1]) ? `***@${scp[3]}` : `${scp[1]}@${scp[3]}`
+  }
+  const scheme = /^([a-z][a-z0-9+.-]*:\/\/)(.*)$/i.exec(url)
+  if (scheme === null) return url
+  const [rest, tail] = [scheme[2], scheme[1]]
+  const at = rest.lastIndexOf('@')
+  if (at < 0) return url
+  const userinfo = rest.slice(0, at)
+  const host = rest.slice(at + 1)
+  const colon = userinfo.indexOf(':')
+  if (colon < 0) {
+    // No password part: the "user name" is either a name or a pasted token.
+    return known.test(userinfo) ? url : `${tail}***@${host}`
+  }
+  const user = userinfo.slice(0, colon)
+  return known.test(user) ? `${tail}***@${host}` : `${tail}${user}@${host}`
+}
+
+/**
+ * Configured remotes: [{ name, url }] (fetch URL only), credential-free.
+ * Output shape is `name<TAB>url (fetch)`, i.e. the URL and the suffix share a
+ * SPACE — matching a `\t` before `(fetch)` never matched anything, so every
+ * snapshot carried `remotes: []` and the panel lost its repo slug and its
+ * forge hint along with it.
+ */
 export async function remotesOf(repoDir) {
   const out = await runCommand('git', ['-C', repoDir, 'remote', '-v'], { allowFailure: true })
   if (typeof out !== 'string') return []
   const seen = new Map()
   for (const line of out.split('\n')) {
-    const match = /^(\S+)\t(\S+)\t\(fetch\)$/.exec(line.trim())
-    if (match) seen.set(match[1], match[2])
+    const match = /^(\S+)\t(\S+) \((fetch)\)$/.exec(line.trim())
+    if (match) seen.set(match[1], redactRemoteUrl(match[2]))
   }
   return [...seen].map(([name, url]) => ({ name, url }))
 }
@@ -265,35 +312,41 @@ export async function stashCountOf(repoDir) {
 /**
  * One path's uncommitted diff, read-only, for the panel's diff preview
  * (issue #22). Unstaged and staged halves are concatenated when both exist.
- * A path with no diff at all (untracked) is diffed against /dev/null so its
- * content is still shown as additions.
+ *
+ * `allowAddedFallback` is the caller's promise that this path is untracked;
+ * only then may an empty diff be rendered from the file's contents. Reading
+ * any empty-diff path as "a new file" is how a clean, committed file could be
+ * served in full to a route that any same-origin request can call.
  * @param {string} repoDir
- * @param {string} path repo-relative path
+ * @param {string} path repo-relative path (`absolute` also accepted)
  * @param {object} [opts]
- * @param {number} [opts.maxBytes]
+ * @param {number} [opts.maxBytes] cap on the returned diff
+ * @param {boolean} [opts.allowAddedFallback] read the file when it has no diff
+ * @param {string} [opts.displayPath] path to report back (defaults to `path`)
  * @returns {Promise<{path:string,diff:string,truncated:boolean}|null>}
  */
 export async function fileDiffOf(repoDir, path, opts = {}) {
   if (typeof path !== 'string' || path.length === 0) return null
   const maxBytes = Number.isInteger(opts.maxBytes) && opts.maxBytes > 0 ? opts.maxBytes : 200_000
+  const displayPath = typeof opts.displayPath === 'string' && opts.displayPath.length > 0 ? opts.displayPath : path
   const parts = []
   for (const extra of [[], ['--cached']]) {
     const out = await runCommand(
       'git',
-      ['-C', repoDir, 'diff', '--no-color', '--no-ext-diff', ...extra, '--', path],
-      { allowFailure: true },
+      ['-C', repoDir, 'diff', '--no-color', '--no-ext-diff', ...extra, '--', displayPath],
+      // Bound the read itself, not just the returned string: the child is
+      // killed once it would exceed this, instead of buffering a whole file.
+      { allowFailure: true, maxBuffer: maxBytes * 4 },
     )
     if (typeof out === 'string' && out.trim().length > 0) parts.push(out)
   }
-  if (parts.length === 0) {
-    // No diff at all → the path is untracked. Read it as a pure-addition hunk
-    // so the preview still shows what is in the file.
-    const added = await addedFileHunkOf(repoDir, path)
+  if (parts.length === 0 && opts.allowAddedFallback === true) {
+    const added = await addedFileHunkOf(repoDir, path, maxBytes)
     if (added !== null) parts.push(added)
   }
   const diff = parts.join('\n')
   const truncated = diff.length > maxBytes
-  return { path, diff: truncated ? diff.slice(0, maxBytes) : diff, truncated }
+  return { path: displayPath, diff: truncated ? diff.slice(0, maxBytes) : diff, truncated }
 }
 
 /**
@@ -301,27 +354,31 @@ export async function fileDiffOf(repoDir, path, opts = {}) {
  * `git diff --no-index` needs two real paths (`-- /dev/null <path>` prints
  * nothing on GNU git), so the file is read directly instead. Read-only.
  * @param {string} repoDir
- * @param {string} path repo-relative path
+ * @param {string} path repo-relative path, or an absolute one inside it
+ * @param {number} [maxBytes]
  * @returns {Promise<string|null>}
  */
-async function addedFileHunkOf(repoDir, path) {
+async function addedFileHunkOf(repoDir, path, maxBytes = 200_000) {
   const absolute = resolve(repoDir, path)
   if (absolute !== resolve(repoDir) && !absolute.startsWith(resolve(repoDir) + sep)) return null
   try {
     const info = await stat(absolute)
-    if (!info.isFile()) return null
+    // A symlink is not an untracked file with content: following it is how a
+    // path inside the repo would read a file outside it.
+    if (info.isSymbolicLink() || !info.isFile()) return null
     // Cap the read so a huge binary never lands in a snapshot response.
-    if (info.size > 400_000) return null
-    const text = await readFile(join(repoDir, path), 'utf8')
+    if (info.size > Math.max(maxBytes * 2, 400_000)) return null
+    const text = await readFile(absolute, 'utf8')
     if (text.includes('\0')) return null // binary
     const lines = text.split('\n')
     if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
     const body = lines.map((line) => `+${line}`).join('\n')
+    const headerPath = absolute === resolve(repoDir) ? path : absolute.slice(resolve(repoDir).length + 1)
     return [
-      `diff --git a/${path} b/${path}`,
+      `diff --git a/${headerPath} b/${headerPath}`,
       'new file mode 100644',
       '--- /dev/null',
-      `+++ b/${path}`,
+      `+++ b/${headerPath}`,
       `@@ -0,0 +1,${lines.length} @@`,
       body,
     ].join('\n')

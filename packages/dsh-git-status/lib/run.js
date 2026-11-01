@@ -9,6 +9,15 @@
 import { spawn } from 'node:child_process'
 
 const DEFAULT_TIMEOUT_MS = 10_000
+/**
+ * Hard cap on captured stdout. `fileDiffOf` used to read a whole diff into
+ * memory and only then cut it to `maxBytes`, so a very large (or binary) change
+ * could balloon the web process even though the comment claimed a bound. The
+ * cap stops reading and kills the child; it sits well above the largest
+ * `maxBytes` any caller asks for, so ordinary truncation is still reported by
+ * the caller rather than silently here.
+ */
+export const DEFAULT_MAX_BUFFER = 4 * 1024 * 1024
 
 /**
  * Run one read-only command and capture stdout.
@@ -17,11 +26,13 @@ const DEFAULT_TIMEOUT_MS = 10_000
  * @param {object} [opts]
  * @param {string} [opts.cwd] working directory; defaults to the process cwd
  * @param {number} [opts.timeoutMs] kill the child after this long
+ * @param {number} [opts.maxBuffer] kill the child past this many bytes of stdout
  * @param {boolean} [opts.allowFailure] resolve null on non-zero exit instead of throwing
  * @returns {Promise<string|null>} stdout, or null on failure when allowFailure
  */
 export function runCommand(file, args, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const maxBuffer = Number.isInteger(opts.maxBuffer) && opts.maxBuffer > 0 ? opts.maxBuffer : DEFAULT_MAX_BUFFER
   const cwd = typeof opts.cwd === 'string' && opts.cwd.length > 0 ? opts.cwd : undefined
   return new Promise((resolve) => {
     let child
@@ -32,26 +43,33 @@ export function runCommand(file, args, opts = {}) {
       return
     }
     let stdout = ''
+    let size = 0
     let settled = false
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
     const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
       try { child.kill('SIGKILL') } catch { /* already gone */ }
-      resolve(opts.allowFailure ? null : undefined)
+      finish(opts.allowFailure ? null : undefined)
     }, timeoutMs)
-    child.stdout?.on('data', (chunk) => { stdout += chunk })
-    child.on('error', () => {
+    child.stdout?.on('data', (chunk) => {
       if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve(null)
+      size += chunk.length
+      if (size > maxBuffer) {
+        // Over the cap: stop the child instead of buffering the rest of it.
+        try { child.kill('SIGKILL') } catch { /* already gone */ }
+        finish(opts.allowFailure ? null : undefined)
+        return
+      }
+      stdout += chunk
     })
+    child.on('error', () => finish(null))
     child.on('close', (code) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (code === 0) resolve(stdout)
-      else resolve(opts.allowFailure ? null : undefined)
+      if (code === 0) finish(stdout)
+      else finish(opts.allowFailure ? null : undefined)
     })
   })
 }

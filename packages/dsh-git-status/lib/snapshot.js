@@ -28,6 +28,9 @@ import {
   recentlyMergedPullRequests,
   slugFromRemoteUrl,
 } from './gh.js'
+import { createHash } from 'node:crypto'
+
+import { resolveInsideRepo } from './path-guard.js'
 import { pickWorkspace, sessionCwdOf } from './workspace.js'
 
 const CACHE_TTL_MS = 30_000
@@ -43,25 +46,36 @@ export function invalidateSnapshot() {
  * Human "3 hours ago" for an ISO timestamp (issue #20). Stashes carry an
  * absolute date because `git stash list --date=relative` would corrupt the
  * `stash@{n}` selector, so the relative wording is derived here.
+ *
+ * The unit is chosen by elapsed magnitude and the count FLOORED, never
+ * rounded: rounding promoted 59.5 s to "1 minute" and re-rounded at every
+ * step (23.6 h became "1 day"), reporting an event that has not happened yet.
+ * A unit is only entered once the elapsed time really reaches it, so the
+ * wording never overstates the age.
  * @param {string} iso
  * @param {number} [now]
  */
+const MINUTE = 60
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+const MONTH = 30 * DAY
+const YEAR = 365 * DAY
+
 export function relativeTime(iso, now = Date.now()) {
   if (typeof iso !== 'string' || iso.length === 0) return null
   const then = Date.parse(iso)
   if (!Number.isFinite(then)) return null
-  const seconds = Math.max(0, Math.round((now - then) / 1000))
-  if (seconds < 60) return `${seconds} second${seconds === 1 ? '' : 's'} ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.round(hours / 24)
-  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`
-  const months = Math.round(days / 30)
-  if (months < 12) return `${months} month${months === 1 ? '' : 's'} ago`
-  const years = Math.round(months / 12)
-  return `${years} year${years === 1 ? '' : 's'} ago`
+  const seconds = Math.max(0, Math.floor((now - then) / 1000))
+  if (seconds < MINUTE) return plural(seconds, 'second')
+  if (seconds < HOUR) return plural(Math.floor(seconds / MINUTE), 'minute')
+  if (seconds < DAY) return plural(Math.floor(seconds / HOUR), 'hour')
+  if (seconds < MONTH) return plural(Math.floor(seconds / DAY), 'day')
+  if (seconds < YEAR) return plural(Math.floor(seconds / MONTH), 'month')
+  return plural(Math.floor(seconds / YEAR), 'year')
+}
+
+function plural(count, unit) {
+  return `${count} ${unit}${count === 1 ? '' : 's'} ago`
 }
 
 /**
@@ -153,6 +167,10 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     ])
   }
 
+  // GitHub deep links may only point at GitHub: `git@gitlab.com:me/repo.git`
+  // has the same `owner/repo` shape, and github.com/<it> is someone else's repo.
+  const repoSlug = forgeHint === 'not-github' ? null : origin ? slugFromRemoteUrl(origin.url) : null
+
   return {
     ...base,
     // The Session's own directory, which may sit below the repo root.
@@ -168,31 +186,83 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
       aheadCommits,
       // Everything the panel needs to build forge deep links (issue #22).
       currentBranch: status.detached ? null : status.branch,
+      // Lets the diff route prove the client asks about the list it rendered.
+      statusSha: statusShaOf(status.changes),
     },
     gh,
     forgeHint,
-    repoSlug: origin ? slugFromRemoteUrl(origin.url) : null,
+    repoSlug,
     prs,
     mergedPrs,
     issues,
   }
 }
 
+/** Stable hash of the changed-path set a snapshot carries. */
+export function statusShaOf(changes) {
+  const paths = new Set()
+  for (const change of changes ?? []) {
+    if (change?.path) paths.add(change.path)
+    if (change?.origPath) paths.add(change.origPath)
+  }
+  return createHash('sha1').update([...paths].sort().join('\0')).digest('hex')
+}
+
 /**
  * Read-only diff for one changed path (issue #22). Resolves the workspace the
  * same way `getSnapshot` does, so the diff always belongs to the repo the panel
  * is describing — never to whatever directory the host process sits in.
- * @param {object} opts same options as `getSnapshot`
+ *
+ * The path is NOT trusted: `/git-status/diff` answers any same-origin request.
+ * Three gates must pass before a byte is read:
+ *   1. the path is one `git status` currently reports (allowlist of
+ *      `changes[].path` + `origPath`),
+ *   2. it resolves — symlinks included — to a real file inside the worktree,
+ *   3. only an untracked, non-symlink file may be rendered from its contents.
+ * Without (1) and (3) a clean but committed file was served in full as a "new
+ * file", under any name the caller invented.
+ *
+ * @param {object} opts same options as `getSnapshot` (+ `statusSha`)
  * @param {string} path repo-relative path
- * @returns {Promise<{path:string,diff:string,truncated:boolean}|null>}
+ * @returns {Promise<{status:'ok'|'missing'|'not-changed'|'outside',payload:object|null,statusSha:string|null}>}
  */
-export async function getDiff(opts = {}, path) {
+export async function getDiffResult(options = {}, path) {
+  const opts = options ?? {}
   const env = opts.env ?? process.env
   const sessionCwd = opts.sessionCwd ?? (await sessionCwdOf(opts, opts.sessionId))
   const workspace = await pickWorkspace({ cwd: sessionCwd ?? undefined, env })
-  if (workspace.reason !== 'git' || !workspace.dir) return null
-  if (typeof path !== 'string' || path.length === 0) return null
-  // A path that escapes the worktree is not a path this panel may read.
-  if (path.startsWith('/') || path.includes('\0') || path.split('/').includes('..')) return null
-  return fileDiffOf(workspace.dir, path)
+  if (workspace.reason !== 'git' || !workspace.dir) return { status: 'outside', payload: null, statusSha: null }
+  if (typeof path !== 'string' || path.length === 0) return { status: 'missing', payload: null, statusSha: null }
+
+  const status = await statusOf(workspace.dir)
+  const sha = statusShaOf(status.changes)
+  if (typeof opts.statusSha === 'string' && opts.statusSha.length > 0 && opts.statusSha !== sha) {
+    // The client rendered a different list (file reverted, list refreshed):
+    // refuse instead of guessing what it wants.
+    return { status: 'not-changed', payload: null, statusSha: sha }
+  }
+  const change = status.changes.find((c) => c.path === path || c.origPath === path)
+  if (change === undefined) return { status: 'not-changed', payload: null, statusSha: sha }
+
+  const absolute = await resolveInsideRepo(workspace.dir, path, { allowSymlink: false })
+  if (absolute === null) return { status: 'outside', payload: null, statusSha: sha }
+
+  const payload = await fileDiffOf(workspace.dir, absolute, {
+    // A tracked path with no diff means "nothing changed", not "new file".
+    allowAddedFallback: change.untracked === true,
+    displayPath: path,
+  })
+  if (payload === null || payload.diff.length === 0) return { status: 'not-changed', payload: null, statusSha: sha }
+  return { status: 'ok', payload, statusSha: sha }
+}
+
+/**
+ * Backwards-compatible wrapper: the diff payload, or null when the path may
+ * not be read or has no diff.
+ * @param {object} opts same options as `getSnapshot`
+ * @param {string} path repo-relative path
+ */
+export async function getDiff(opts = {}, path) {
+  const result = await getDiffResult(opts, path)
+  return result.status === 'ok' ? result.payload : null
 }

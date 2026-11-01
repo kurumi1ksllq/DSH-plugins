@@ -78,6 +78,19 @@ function walk(node, out, depth) {
     return
   }
   walk(node.children, out, depth + 1)
+  // Props carry rendered text as well (`sub`, `badges`, `title`, `right`).
+  // Walking only `children` is why a prop-level regression (a "current" badge
+  // applied to the wrong branch) could never fail a text assertion.
+  walkProps(node.props, out, depth + 1)
+}
+
+function walkProps(props, out, depth) {
+  if (props === null || typeof props !== 'object' || depth > MAX_DEPTH) return
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'children' || key === 'style' || key === 'key') continue
+    if (typeof value === 'string' || typeof value === 'number') out.push(String(value))
+    else if (value !== null && typeof value === 'object') walk(value, out, depth + 1)
+  }
 }
 
 
@@ -103,6 +116,12 @@ function findAll(node, typeName, out = []) {
     return out
   }
   findAll(node.children, typeName, out)
+  if (node.props && typeof node.props === 'object') {
+    for (const [key, value] of Object.entries(node.props)) {
+      if (key === 'children' || key === 'style' || key === 'key') continue
+      if (value !== null && typeof value === 'object') findAll(value, typeName, out)
+    }
+  }
   return out
 }
 
@@ -229,4 +248,130 @@ test('panel renders conflict banner, file list, stash, ahead and copy controls',
 
   assert.match(text, /复制/, 'copy affordance exists')
   assert.match(text, /查看 diff/, 'diff toggle exists')
+})
+// ---- prop-level regressions (review of PR #23) -----------------------------
+
+/**
+ * Expand the rendered tree: every element whose `type` is a component is run
+ * with its props, exactly like React does at render time.
+ */
+function expand(node, depth = 0) {
+  if (depth > MAX_DEPTH || node === null || typeof node !== 'object') return []
+  if (Array.isArray(node)) return node.flatMap((child) => expand(child, depth))
+  if (typeof node.type === 'function') return expand(node.type(node.props), depth + 1)
+  return [{ type: node.type, props: node.props }].concat(expand(node.children, depth + 1))
+}
+
+/**
+ * Find every element of a COMPONENT type by its name, expanding components as
+ * it walks. The stubbed `createElement` stores children in `props.children`,
+ * so that is the branch to follow.
+ */
+function findByTypeName(node, name, out = [], depth = 0) {
+  if (depth > MAX_DEPTH || node === null || typeof node !== 'object') return out
+  if (Array.isArray(node)) {
+    for (const child of node) findByTypeName(child, name, out, depth)
+    return out
+  }
+  if (typeof node.type === 'function') {
+    if (node.type.name === name) out.push(node)
+    else findByTypeName(node.type(node.props), name, out, depth + 1)
+    return out
+  }
+  const children = node.props?.children ?? node.children
+  for (const child of Array.isArray(children) ? children : [children]) {
+    findByTypeName(child, name, out, depth + 1)
+  }
+  return out
+}
+
+/** Rendered rows with their prop-level badges (branch rows in this panel). */
+function branchRows(snap) {
+  return findByTypeName(renderPanel(snap), 'Row').map((el) => ({
+    text: textOf({ type: el.type, props: el.props, children: el.props.children }),
+    badges: (el.props.badges ?? []).map((b) => b.text),
+  }))
+}
+
+/** Rows of the Branches card, in render order, as `{ text, badges }`. */
+
+test('P0-3 the "current" marker stays on the current branch, not on a list index', () => {
+  const snap = structuredClone(SNAP)
+  snap.git.branches = [
+    { name: 'feat/x', current: false, remote: false, upstream: 'origin/feat/x', ahead: 1, behind: 0, gone: false, lastCommitDate: null, lastCommitSubject: null },
+    { name: 'main', current: true, remote: false, upstream: 'origin/main', ahead: 0, behind: 0, gone: false, lastCommitDate: null, lastCommitSubject: null },
+    { name: 'old', current: false, remote: false, upstream: null, ahead: null, behind: null, gone: false, lastCommitDate: null, lastCommitSubject: null },
+  ]
+  const rows = branchRows(snap)
+  // Branch rows render both halves of the name (the label above the copy
+  // button); the repo card's own row only mentions the current branch once.
+  // The repo card also names the current branch, so match the row that ends
+  // with the branch's own GitHub link (the per-branch affordance).
+  const rowFor = (name) => rows.find((r) => r.text.includes(`/tree/${name.replace('/', '%2F')}`) || r.text.includes(`/tree/${name} `))
+  const byName = { 'feat/x': rowFor('feat/x'), main: rowFor('main'), old: rowFor('old') }
+  assert.ok(byName['feat/x'], 'feat/x row found')
+  assert.ok(byName.main, 'main row found')
+  // Arrays are built inside the vm sandbox, so they are not deepEqual to a
+  // host-realm [] — compare their contents.
+  assert.equal(byName['feat/x'].badges.length, 0, 'no badge on a non-current branch')
+  assert.equal(byName.main.badges.length, 0, 'the current marker is not a list badge any more')
+  assert.match(byName.main.text, /当前/, 'the current marker is rendered on the main row')
+  assert.doesNotMatch(byName['feat/x'].text, /当前/)
+  assert.doesNotMatch(byName.old.text, /当前/)
+})
+
+test('P0-3 a branch in sync with its upstream is not "no upstream"', () => {
+  const snap = structuredClone(SNAP)
+  snap.git.branches = [
+    { name: 'feat/x', current: true, remote: false, upstream: 'origin/feat/x', ahead: 0, behind: 0, gone: false, lastCommitDate: null, lastCommitSubject: null },
+    { name: 'lonely', current: false, remote: false, upstream: null, ahead: null, behind: null, gone: false, lastCommitDate: null, lastCommitSubject: null },
+  ]
+  const rows = branchRows(snap)
+  const isBranchRow = (name) => (r) => r.text.includes(`/tree/${name.replace('/', '%2F')}`)
+  const feat = rows.find(isBranchRow('feat/x')).text
+  const lonely = rows.find(isBranchRow('lonely')).text
+  assert.match(feat, /origin\/feat\/x/, 'the upstream name is shown')
+  assert.doesNotMatch(feat, /未设置上游/, 'in sync with upstream is not "no upstream"')
+  assert.match(lonely, /未设置上游/, 'a branch with no upstream still says so')
+})
+
+test('a remote URL carrying a token is never rendered verbatim', () => {
+  const snap = structuredClone(SNAP)
+  snap.git.remotes = [{ name: 'origin', url: 'https://user:ghp_S3CRET@github.com/me/repo.git' }]
+  const text = textOf(renderPanel(snap))
+  assert.equal(text.includes('ghp_S3CRET'), false, 'the token must not reach the DOM')
+  assert.match(text, /github\.com\/me\/repo\.git/, 'the repository is still identifiable')
+})
+
+test('gh.source is rendered when the host reports it (issue #16)', () => {
+  const snap = structuredClone(SNAP)
+  // The PR card only renders once the forge gate is open.
+  snap.gh = { available: true, loggedIn: true, reason: null, source: 'gh_token' }
+  snap.forgeHint = null
+  snap.prs = [{
+    number: 23, title: 'feat: panel', author: { login: 'me' }, headRefName: 'feat/x',
+    baseRefName: 'main', isDraft: false, mergeable: 'MERGEABLE', url: 'https://github.com/me/repo/pull/23',
+  }]
+  const text = textOf(renderPanel(snap))
+  assert.match(text, /已认证/, 'the authentication source is shown')
+  assert.match(text, /gh_token/)
+  assert.match(text, /#23 feat: panel/, 'PRs still render next to it')
+})
+
+test('a non-GitHub repo gets no GitHub links at all', () => {
+  const snap = structuredClone(SNAP)
+  snap.repoSlug = null
+  const hrefs = findAll(renderPanel(snap), 'a').map((a) => a.props.href).filter(Boolean)
+  assert.deepEqual(hrefs.filter((h) => h.includes('github.com')), [], 'no github.com deep links without a slug')
+})
+
+test('the diff preview asks for the rendered status hash', () => {
+  const snap = structuredClone(SNAP)
+  snap.git.statusSha = 'sha-of-the-list'
+  const panel = renderPanel(snap)
+  const diffViews = findAll(panel, 'DiffView')
+  assert.equal(diffViews.length, 0, 'diffs stay collapsed until a row is opened')
+  const clickable = findAll(panel, 'div').filter((d) => typeof d.props.onClick === 'function')
+  assert.ok(clickable.length >= 4, 'changed-file rows are clickable')
+  assert.ok(textOf(panel).includes('loose.txt'))
 })

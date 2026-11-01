@@ -51,14 +51,19 @@ test('#22 fileDiffOf shows a staged change', async () => {
 test('#22 fileDiffOf shows an untracked file as additions', async () => {
   const dir = initRepo('gs-diff-new-')
   writeFileSync(join(dir, 'brand-new.txt'), 'fresh line\n')
-  const out = await fileDiffOf(dir, 'brand-new.txt')
+  // The contents fallback is opt-in: without it an empty diff is "nothing
+  // changed", which is what keeps committed files out of the route.
+  assert.equal((await fileDiffOf(dir, 'brand-new.txt')).diff, '', 'no fallback unless the caller says untracked')
+  const out = await fileDiffOf(dir, 'brand-new.txt', { allowAddedFallback: true })
   assert.match(out.diff, /fresh line/)
+  assert.equal(out.path, 'brand-new.txt')
 })
 
 test('#22 fileDiffOf truncates oversized diffs', async () => {
   const dir = initRepo('gs-diff-big-')
   writeFileSync(join(dir, 'a.txt'), `${'x'.repeat(500)}\n`)
-  const out = await fileDiffOf(dir, 'a.txt', { maxBytes: 50 })
+  // The untracked-file fallback is what makes this diff large; it is opt-in.
+  const out = await fileDiffOf(dir, 'a.txt', { maxBytes: 50, allowAddedFallback: true })
   assert.equal(out.truncated, true)
   assert.ok(out.diff.length <= 50)
 })

@@ -9,12 +9,22 @@
 
 import { runCommand } from './run.js'
 
-/** Derive `owner/repo` from a git remote URL (ssh or https). */
+/**
+ * Derive `owner/repo` from a GITHUB remote URL (ssh or https).
+ *
+ * Only github.com counts. `git@gitlab.com:me/repo.git` has exactly the same
+ * `user@host:owner/repo` shape, and returning `me/repo` for it built a
+ * github.com/<me>/<repo> link — someone else's repository, opened in the
+ * panel's "open on GitHub" affordance (the forge is not GitHub at all).
+ * @returns {string|null}
+ */
 export function slugFromRemoteUrl(url) {
   if (typeof url !== 'string' || url.length === 0) return null
-  const ssh = /^git@[^:]+:([^/]+)\/(.+?)(?:\.git)?$/.exec(url)
+  const scp = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
+  if (scp) return `${scp[1]}/${scp[2]}`
+  const ssh = /^ssh:\/\/git@github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (ssh) return `${ssh[1]}/${ssh[2]}`
-  const https = /github\.com[/:]([^/]+)\/(.+?)(?:\.git)?$/i.exec(url)
+  const https = /^(?:https?:\/\/)?(?:[^/@\s]+@)?(?:www\.)?github\.com[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (https) return `${https[1]}/${https[2]}`
   return null
 }

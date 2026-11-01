@@ -101,10 +101,15 @@ test('#18 statusOf lists changed paths with staged/unstaged state', async () => 
 test('#18 a rename keeps both the new and the original path', async () => {
   const dir = initRepo('gs-rename-')
   git(dir, 'mv', 'b.txt', 'renamed.txt')
+  // `--no-renames` reports the pair as D b.txt + A renamed.txt, so both names
+  // are in the list and each one is diffable on its own.
   const status = await statusOf(dir)
-  const entry = status.changes.find((c) => c.path === 'renamed.txt')
-  assert.ok(entry, 'renamed path is listed')
-  assert.equal(entry.origPath, 'b.txt')
+  const added = status.changes.find((c) => c.path === 'renamed.txt')
+  const deleted = status.changes.find((c) => c.path === 'b.txt')
+  assert.ok(added, 'renamed path is listed')
+  assert.ok(deleted, 'the original path is listed too')
+  assert.equal(added.kind, 'staged')
+  assert.equal(deleted.index, 'D')
 })
 
 test('#18 the change list is capped and reports truncation', async () => {

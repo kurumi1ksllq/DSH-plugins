@@ -21,7 +21,7 @@
  */
 
 import { isForbiddenOrigin } from './lib/http-guard.js'
-import { getDiff, getSnapshot, invalidateSnapshot } from './lib/snapshot.js'
+import { getDiffResult, getSnapshot } from './lib/snapshot.js'
 
 export const name = 'dsh-git-status'
 
@@ -122,10 +122,12 @@ export function apply(ctx) {
         }
         let sessionId = ''
         let path = ''
+        let statusSha = ''
         try {
           const url = new URL(req.url ?? '/', 'http://127.0.0.1')
           sessionId = url.searchParams.get('sessionId') ?? ''
           path = url.searchParams.get('path') ?? ''
+          statusSha = url.searchParams.get('statusSha') ?? ''
         } catch {
           path = ''
         }
@@ -134,19 +136,24 @@ export function apply(ctx) {
           return
         }
         try {
-          const payload = await getDiff(
+          const result = await getDiffResult(
             {
               sessionId,
+              statusSha,
               sessions: ctx.get('sessions'),
               sessionPersistence: ctx.get('sessionPersistence'),
             },
             path,
           )
-          if (payload === null) {
-            sendJson(res, 404, { error: 'no-diff', path })
-            return
+          // A path is readable only when `git status` currently lists it AND it
+          // resolves inside the worktree; everything else is "no diff", never a
+          // file read. The reason is named so a stale panel can refresh instead
+          // of silently showing nothing.
+          if (result.status === 'ok') {
+            sendJson(res, 200, result.payload)
+          } else {
+            sendJson(res, 404, { error: 'no-diff', path, reason: result.status })
           }
-          sendJson(res, 200, payload)
         } catch (error) {
           sendJson(res, 500, {
             error: 'diff-failed',
