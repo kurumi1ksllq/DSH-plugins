@@ -338,11 +338,13 @@ export async function fileDiffOf(repoDir, path, opts = {}) {
       // killed once it would exceed this, instead of buffering a whole file.
       { allowFailure: true, maxBuffer: maxBytes * 4 },
     )
-    if (typeof out === 'string' && out.trim().length > 0) parts.push(out)
+    // Trimmed so the unstaged and staged halves join without a blank line
+    // between them: each `git diff` output ends with a newline of its own.
+    if (typeof out === 'string' && out.trim().length > 0) parts.push(out.trimEnd())
   }
   if (parts.length === 0 && opts.allowAddedFallback === true) {
     const added = await addedFileHunkOf(repoDir, path, maxBytes)
-    if (added !== null) parts.push(added)
+    if (added !== null) parts.push(added.trimEnd())
   }
   const diff = parts.join('\n')
   const truncated = diff.length > maxBytes

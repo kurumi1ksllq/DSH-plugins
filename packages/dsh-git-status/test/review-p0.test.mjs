@@ -19,7 +19,7 @@ import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 import { apply, SNAPSHOT_ROUTE, DIFF_ROUTE } from '../index.js'
-import { statusOf } from '../lib/git-info.js'
+import { fileDiffOf, statusOf } from '../lib/git-info.js'
 import { getDiff, getDiffResult, invalidateSnapshot, statusShaOf } from '../lib/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
@@ -183,4 +183,46 @@ test('both routes answer 405, 403, 400 and 404 before any file is read', async (
   const missing = await callRoute(diff, { url: DIFF_ROUTE, headers: {} })
   assert.equal(missing.status, 400)
   assert.equal(missing.json.error, 'missing-path')
+})
+
+// ---- follow-ups from the second review ------------------------------------
+
+test('N2 a deleted tracked file still has a diff', async () => {
+  const dir = initRepo('gs-p2del-')
+  execFileSync(GIT, ['rm', '-q', 'a.txt'], { cwd: dir })
+  const result = await getDiffResult({ sessionCwd: dir, env: {} }, 'a.txt')
+  assert.equal(result.status, 'ok', 'the file is gone, its diff is not')
+  assert.match(result.payload.diff, /deleted file mode/)
+  // Containment still applies to a deleted path's location.
+  assert.equal(await getDiff({ sessionCwd: dir, env: {} }, 'escape/gone.txt'), null)
+})
+
+test('N1 a path past the change-list cap is reported as truncated', async () => {
+  const dir = initRepo('gs-p2cap-')
+  for (let i = 0; i < 205; i += 1) writeFileSync(join(dir, `c${String(i).padStart(3, '0')}.txt`), 'x\n')
+  const status = await statusOf(dir)
+  assert.equal(status.changesTruncated, true)
+  assert.equal(status.changes.length, 200)
+  const past = await getDiffResult({ sessionCwd: dir, env: {} }, 'c204.txt')
+  if (status.changes.some((c) => c.path === 'c204.txt')) {
+    assert.equal(past.status, 'ok', 'still inside the cap → normal diff')
+  } else {
+    assert.equal(past.status, 'truncated', 'past the cap is not "no diff"')
+  }
+  // A path nobody ever listed is still plain "not-changed".
+  const bogus = await getDiffResult({ sessionCwd: dir, env: {} }, 'nope.txt')
+  assert.equal(bogus.status, 'truncated')
+})
+
+test('N4 a file staged and then edited joins its halves without a blank line', async () => {
+  const dir = initRepo('gs-p2hunks-')
+  writeFileSync(join(dir, 'a.txt'), 'staged line\n')
+  execFileSync(GIT, ['add', 'a.txt'], { cwd: dir })
+  writeFileSync(join(dir, 'a.txt'), 'staged line\nunstaged line\n')
+  const out = await fileDiffOf(dir, 'a.txt')
+  const diff = out.diff
+  assert.match(diff, /staged line/)
+  assert.match(diff, /unstaged line/)
+  assert.equal(/\n\n/.test(diff), false, 'no stray blank line between the two hunks')
+  assert.equal(/\n\n/.test(diff.split('\n@@')[0]), false)
 })

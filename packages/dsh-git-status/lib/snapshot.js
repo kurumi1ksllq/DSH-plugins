@@ -224,7 +224,7 @@ export function statusShaOf(changes) {
  *
  * @param {object} opts same options as `getSnapshot` (+ `statusSha`)
  * @param {string} path repo-relative path
- * @returns {Promise<{status:'ok'|'missing'|'not-changed'|'outside',payload:object|null,statusSha:string|null}>}
+ * @returns {Promise<{status:'ok'|'missing'|'not-changed'|'truncated'|'outside',payload:object|null,statusSha:string|null}>}
  */
 export async function getDiffResult(options = {}, path) {
   const opts = options ?? {}
@@ -242,9 +242,17 @@ export async function getDiffResult(options = {}, path) {
     return { status: 'not-changed', payload: null, statusSha: sha }
   }
   const change = status.changes.find((c) => c.path === path || c.origPath === path)
-  if (change === undefined) return { status: 'not-changed', payload: null, statusSha: sha }
+  if (change === undefined) {
+    // `git status` carries only MAX_CHANGES entries: a path past the cap is
+    // counted but not listed. Say so instead of pretending it has no diff.
+    if (status.changesTruncated) return { status: 'truncated', payload: null, statusSha: sha }
+    return { status: 'not-changed', payload: null, statusSha: sha }
+  }
 
-  const absolute = await resolveInsideRepo(workspace.dir, path, { allowSymlink: false })
+  // A deleted path has no file left to resolve, yet its diff is a real diff of
+  // this repo; the containment (and symlink) checks run on the location.
+  const deleted = change.worktree === 'D' || change.index === 'D'
+  const absolute = await resolveInsideRepo(workspace.dir, path, { allowSymlink: false, allowMissing: deleted })
   if (absolute === null) return { status: 'outside', payload: null, statusSha: sha }
 
   const payload = await fileDiffOf(workspace.dir, absolute, {
