@@ -26,7 +26,7 @@ export { API_BASE }
 export const TOOL_NAME = 'credential'
 
 /** Cordis service dependencies. */
-export const inject = ['tools', 'webServer']
+export const inject = ['tools', 'webServer', 'systemPrompt']
 
 /** Directory holding master.key / vault.json / audit.log. */
 export function defaultVaultDir() {
