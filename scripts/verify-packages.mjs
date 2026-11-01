@@ -29,6 +29,7 @@ const EXPECTED = [
   ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
   ['dsh-inventory', 'dsh-inventory'],
   ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
+  ['dev-flow-skill', 'dev-flow-skill'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
 ]
 
