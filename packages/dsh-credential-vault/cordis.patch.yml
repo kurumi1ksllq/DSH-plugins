@@ -1,13 +1,10 @@
 # Bundle patch layer for dsh-credential-vault.
 #
-# Two host-side rows:
-#   credential-vault       — encrypted store, HTTP API and the `credential` tool
-#   credential-vault-hint  — system-prompt section teaching the model how to ask
-#                            for credentials (names only, never values)
+# One host-side row: the encrypted store, the HTTP API and the `credential`
+# tool. The system-prompt section is pinned inside index.js (HINT_SECTION,
+# order 160) — a second row named 'dsh-credential-vault/hint' would make cordis
+# import subpath './hint', which the package does not export, and a `config`
+# on a row without an exported Config schema fails validation at load.
 - insert:
     - id: credential-vault
       name: 'dsh-credential-vault'
-    - id: credential-vault-hint
-      name: 'dsh-credential-vault/hint'
-      config:
-        sectionOrder: 160
