@@ -37,6 +37,9 @@ export function isPlausibleRepoPath(path) {
  * @param {boolean} [opts.allowSymlink] false (default): the final component
  *   must not be a symlink; directories along the path are always resolved and
  *   checked against the root.
+ * @param {boolean} [opts.allowMissing] true for a path `git status` reports as
+ *   deleted: the file is gone, but its diff is still a diff of this repo. The
+ *   containment and symlink checks still run on the location itself.
  * @returns {Promise<string|null>} absolute real path inside the root, or null
  *   when the path is malformed, missing, outside the worktree, or a symlink.
  */
@@ -50,6 +53,13 @@ export async function resolveInsideRepo(repoDir, path, opts = {}) {
   }
   const candidate = resolve(root, path)
   if (!isInsideRoot(root, candidate)) return null
+  if (opts.allowMissing === true) {
+    // The nearest EXISTING ancestor decides where this location really points
+    // (a symlinked directory still escapes the root), then the leaf is added
+    // back. Nothing is read from a missing file — only `git diff` is.
+    const dir = await realpathInside(root, dirnameOf(candidate))
+    return dir === null ? null : join(dir, basenameOf(candidate))
+  }
   let real
   try {
     // realpath resolves every symlinked component, so `escape/secret.txt`
@@ -70,6 +80,31 @@ export async function resolveInsideRepo(repoDir, path, opts = {}) {
     return null
   }
   return real
+}
+
+/** Real path of the nearest existing ancestor of `dir`, when inside the root. */
+async function realpathInside(root, dir) {
+  let current = dir
+  for (;;) {
+    if (!isInsideRoot(root, current)) return null
+    try {
+      const real = await realpath(current)
+      return isInsideRoot(root, real) ? real : null
+    } catch {
+      const parent = dirnameOf(current)
+      if (parent === current) return null
+      current = parent
+    }
+  }
+}
+
+function dirnameOf(path) {
+  const at = path.lastIndexOf(sep)
+  return at > 0 ? path.slice(0, at) : sep
+}
+
+function basenameOf(path) {
+  return path.slice(path.lastIndexOf(sep) + 1)
 }
 
 async function lstatSafe(path) {

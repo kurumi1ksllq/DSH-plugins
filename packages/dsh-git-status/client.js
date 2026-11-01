@@ -80,6 +80,7 @@ window.__ModuleLoader__.load({
       diffLoading: '正在读取 diff…',
       diffFailed: '读取 diff 失败',
       diffEmpty: '这个文件没有可显示的 diff',
+      diffTruncated: '改动文件太多,这个文件超出了面板列出的范围,没有可显示的 diff',
       copy: '复制',
       copied: '已复制',
       copyFailed: '复制失败,请手动选中',
@@ -143,6 +144,7 @@ window.__ModuleLoader__.load({
       diffLoading: 'Loading diff…',
       diffFailed: 'Failed to load diff',
       diffEmpty: 'No diff to show for this file',
+      diffTruncated: 'Too many changed files — this one is past the list the panel shows',
       copy: 'Copy',
       copied: 'Copied',
       copyFailed: 'Copy failed — select it manually',
@@ -352,15 +354,24 @@ function DiffView({ t, sessionId, path, statusSha }) {
     // panel rendered; the hash proves both sides describe the same list.
     if (statusSha) query.push(`statusSha=${encodeURIComponent(statusSha)}`)
     fetch(`${DIFF_ROUTE}?${query.join('&')}`, { method: 'GET' })
-      .then((res) => {
-        // 404 = no diff for this path right now (reverted, resolved, stale
-        // list). That is an empty preview, not a failure.
-        if (res.status === 404) return { diff: '', truncated: false }
-        return res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))
+      .then(async (res) => {
+        if (res.ok) return res.json()
+        // A 404 is not a failure: it names WHY this path has nothing to show
+        // (reverted, resolved, stale list, or past the change-list cap).
+        if (res.status === 404) {
+          const body = await res.json().catch(() => ({}))
+          return { diff: '', truncated: false, reason: body?.reason ?? 'not-changed' }
+        }
+        throw new Error(`HTTP ${res.status}`)
       })
       .then((body) => {
         if (!alive) return
-        setState({ status: 'ready', diff: body?.diff ?? '', truncated: body?.truncated === true })
+        setState({
+          status: 'ready',
+          diff: body?.diff ?? '',
+          truncated: body?.truncated === true,
+          reason: body?.reason ?? null,
+        })
       })
       .catch((e) => {
         if (alive) setState({ status: 'error', diff: String(e?.message ?? e), truncated: false })
@@ -370,7 +381,11 @@ function DiffView({ t, sessionId, path, statusSha }) {
 
   if (state.status === 'loading') return h('div', { style: S.hint }, t('diffLoading'))
   if (state.status === 'error') return h('div', { style: S.hint }, `${t('diffFailed')}: ${state.diff}`)
-  if (state.diff.length === 0) return h('div', { style: S.hint }, t('diffEmpty'))
+  if (state.diff.length === 0) {
+    // "No diff" and "this file is past the change-list cap" are different
+    // answers for the user, and the host knows which one it gave.
+    return h('div', { style: S.hint }, state.reason === 'truncated' ? t('diffTruncated') : t('diffEmpty'))
+  }
   const lines = state.diff.split('\n').map((line, i) => {
     const tone =
       line.startsWith('+++') || line.startsWith('---') ? S.diffMeta
@@ -431,9 +446,12 @@ function DiffView({ t, sessionId, path, statusSha }) {
             ? h('div', { style: S.rowTitle }, branchName)
             : h(Copyable, { t, value: status.branch ?? branchName }),
           sub: ab,
+          // One badge, one fact: the conflict count and the dirty count each
+          // render once here (the "未提交改动" row below breaks dirty further
+          // down), so no digit appears twice in a row.
           badges: [
             ...(conflictCount > 0 ? [{ text: `${t('conflicts')} ${conflictCount}`, tone: 'warn' }] : []),
-            ...(status.dirty > 0 ? [{ text: String(status.dirty), tone: 'warn' }] : []),
+            ...(status.dirty > 0 ? [{ text: `${t('dirty')} ${status.dirty}`, tone: 'warn' }] : []),
           ],
         }),
       )
