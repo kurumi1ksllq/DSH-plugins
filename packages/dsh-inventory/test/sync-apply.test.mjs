@@ -112,17 +112,20 @@ test('applyItems reports per-item failures without aborting the batch', async ()
   assert.equal(result.failed, 2)
 })
 
-test('applyItems writes dependencies before attempting install', async () => {
+test('applyItems rolls back dependencies when install fails (issue #8)', async () => {
   const profileDir = makeProfile()
   const repoRoot = makeRepo({ 'dsh-ctx-guard': 'dsh-ctx-guard' })
-  await applyItems([{ kind: 'plugin', name: 'dsh-ctx-guard', source: 'repo' }], {
+  const result = await applyItems([{ kind: 'plugin', name: 'dsh-ctx-guard', source: 'repo' }], {
     profileDir,
     repoRoot,
     pnpmBin: 'definitely-not-pnpm',
   })
-  // The declaration survives even though the install failed.
+  assert.equal(result.ok, false)
+  // The failed install must NOT leave a rewritten package.json behind: a
+  // `link:` dependency on a path that was never installed can break the next
+  // DSH startup without the user knowing why.
   const written = JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8'))
-  assert.equal(written.dependencies['dsh-ctx-guard'].startsWith('link:'), true)
+  assert.equal(written.dependencies['dsh-ctx-guard'], undefined)
 })
 
 test('applyItems rejects an unusable profile directory', async () => {

@@ -60,6 +60,9 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
 
   const capabilities = options.capabilities ?? probeCapabilities(options)
   const rows = diffManifest(parsedManifest.manifest, snapshot, { capabilities })
+  // A successful read of a usable manifest is a pull, even if nothing was
+  // installed — otherwise the panel's lastPullAt stays 0 forever.
+  writeState({ lastPullAt: options.now ?? Date.now() })
   return {
     ...base,
     via: fetched.via,
@@ -184,6 +187,7 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
     pnpmBin: options.pnpmBin,
     installTimeoutMs: options.installTimeoutMs,
   })
+  if (applied.ok === true) writeState({ lastPullAt: Date.now() })
 
   const results = [...applied.results, ...refused].sort((a, b) => a.key.localeCompare(b.key))
   const failed = results.filter((r) => r.ok !== true)

@@ -113,11 +113,29 @@ export function diffManifest(manifest, snapshot, options = {}) {
     const present = lookupInstalled(entry, { installedPlugins, installedMcp, installedSkills })
 
     if (present === null) {
+      // MCP servers have no install path in `applyItems`, so they must never
+      // surface as `missing` — a selectable row that always fails on apply is
+      // worse than an honest `blocked` up front.
+      const noInstaller = entry.kind === 'mcp'
       rows.push({
         ...row(entry, key),
-        status: entry.self === true ? 'skip' : eligibility.ok ? 'missing' : 'blocked',
-        reason: eligibility.reason,
+        status: entry.self === true ? 'skip'
+          : noInstaller ? 'blocked'
+          : eligibility.ok ? 'missing' : 'blocked',
+        reason: noInstaller
+          ? 'MCP 暂不支持自动安装'
+          : eligibility.reason,
       })
+      continue
+    }
+
+    // Installed but not eligible here: wrong platform or a missing external
+    // dependency. This outranks version comparison — a Windows-only plugin
+    // carried along by the profile on a Linux host is `blocked`, never
+    // `current`, or the panel would hide a problem the user cannot fix by
+    // "updating". `self` stays `skip`: the sync plugin itself is out of scope.
+    if (entry.self !== true && eligibility.ok !== true) {
+      rows.push({ ...row(entry, key), status: 'blocked', reason: eligibility.reason })
       continue
     }
 
@@ -150,6 +168,23 @@ export function diffManifest(manifest, snapshot, options = {}) {
       key,
       version: typeof pkg.version === 'string' ? pkg.version : undefined,
       source: 'local',
+      platform: 'any',
+      requires: [],
+      self: false,
+      status: 'local-only',
+      reason: '本机有，清单没有',
+    })
+  }
+
+  // Present here, absent from the manifest — MCP servers too, so a machine can
+  // discover its own un-published servers and publish them.
+  for (const [name, server] of installedMcp) {
+    const key = `mcp:${name}`
+    if (seen.has(key)) continue
+    rows.push({
+      kind: 'mcp',
+      name,
+      key,
       platform: 'any',
       requires: [],
       self: false,
