@@ -1,0 +1,13 @@
+# Bundle patch layer for dsh-credential-vault.
+#
+# Two host-side rows:
+#   credential-vault       — encrypted store, HTTP API and the `credential` tool
+#   credential-vault-hint  — system-prompt section teaching the model how to ask
+#                            for credentials (names only, never values)
+- insert:
+    - id: credential-vault
+      name: 'dsh-credential-vault'
+    - id: credential-vault-hint
+      name: 'dsh-credential-vault/hint'
+      config:
+        sectionOrder: 160
