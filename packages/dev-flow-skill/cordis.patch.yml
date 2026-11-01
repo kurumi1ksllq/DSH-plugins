@@ -1,0 +1,14 @@
+# Bundle patch layer for dev-flow-skill.
+#
+# The skill itself is a directory shipped by this package (`SKILL.md` plus the
+# contract linter in lib/). The patch installs a single host-side row that
+# exposes the skill directory location through config, so a profile can point
+# DSH's skill loader at the bundled SKILL.md without copying it by hand.
+# Config keys are intentionally minimal; a profile patch overrides them the
+# same shallow way as the other bundles in this workspace.
+- insert:
+    - id: dev-flow-skill
+      name: "dev-flow-skill"
+      config:
+        skillName: dev-flow
+        skillPath: SKILL.md

@@ -1,0 +1,130 @@
+---
+name: dev-flow
+description: 完整工程开发流程 skill：确认仓库 → 提交 issue → 建分支 → TDD 开发 → push → 开 PR → 查 CI → review → merge。任何改代码的请求（"帮我改""修个 bug""加个功能""开发…"）先调本 skill；出现 dev-flow、issue、分支、PR、CI、review、merge 等词必然触发。
+---
+
+# dev-flow：issue → branch → TDD → PR → CI → review → merge
+
+单人文档化工程流程。只有 **3 个实质停点**，其余阶段自动推进。文件（spec/tickets）是唯一状态源，阶段边界即新会话边界：上下文吃紧时把状态写盘，用新会话接着跑。
+
+## 适用范围
+
+只要本次请求会导致仓库文件内容变化——包括"只改一行""小修小补""格式微调"——**必须进入本流程**。改动大小不影响是否进流程，只影响分级。禁止以"改动太小"为由不走流程：trivial 档仍然要过 issue / 分支 / PR / CI 全链路，只是方案确认和 review 可依规则裁剪。
+
+## 前置自检
+
+动手前一次性执行并核对输出：
+
+```
+gh --version && gh auth status && git remote -v
+```
+
+- 任一失败 → **停下来报告**，不带着假设往下走。
+- `gh` 未认证 → `gh auth login` 是交互式的，会卡死 bash 工具；**输出命令让用户自己在终端执行**，确认后再继续。
+- `git remote -v` 为空 → 与用户确认目标仓库（已有远程 or `gh repo create`），确认后再继续。
+
+## 停点
+
+### 停点1 意图 + 路径分级
+
+向用户声明两件事，等确认（用户可否决）：
+
+1. **意图**：一句话说清要做什么；需求有歧义就在这里追问（grill 并入本停点，不单设停点）。
+2. **分级**：`trivial` 或 `standard`。
+   - **trivial 硬标准**（三者同时满足，缺一即 standard）：≤1 个文件 且 ≤30 行变更 且 无接口变更。
+   - trivial 必须用户明示；模型只有建议权，不得自行降档。
+
+**裁剪反滥用**（全流程唯一由模型自由裁量的开关，重点防守）：
+
+- 想跳过任何阶段（含 issue、TDD、review）→ 先写明"**依据规则 X 跳过 Y**"并给出理由给用户看，点头才跳。理由没写出来 = 没跳过。
+- 模糊任务不得凭感觉判 trivial；拿不准就 standard。
+- **分级在停点1、基于对计划变更的预估作出**。先实现后分级、或以"实际 diff 很小"追认 trivial，均无效。对"优化 / 重构 / 清理"类请求，因通常触及接口或多文件，默认按 standard 走。
+
+### 停点2 方案确认
+
+- `trivial`：一句话方案确认即可。
+- `standard`：给出 **spec**（目标、边界、验收）+ **tickets**（有序任务清单，可带依赖），落盘为文件（建议 `docs/specs/<topic>.md`，放仓库或 `$DSH_HOME` 下，按用户偏好）。文件是唯一状态源。
+- 用户确认后自动推进，不再停：`gh issue create`（正文引用 spec 路径与要点）→ `git switch -c issue-<n>-<简述>`。这两个是机械动作，不配停点。
+
+### 停点3 review + merge
+
+- push 前明确声明："**我将 push 到 origin/<branch> 并开 PR**"。
+- push → `gh pr create`（正文带 `Closes #<n>`）→ **查 CI 一次**（`gh pr checks` 或 `gh run list`；禁用 `--watch`，占住会话无意义）。
+
+#### CI 三态（显式区分，绝不把"无 CI"当"CI 绿"）
+
+| 状态 | 行为 |
+|---|---|
+| **无 CI**（仓库无 .github/workflows） | 停下来问用户：是否引导生成最小 workflow（如 test+verify），还是本次直接进 review。**报告原话：本仓库当前没有 CI。** |
+| **绿** | 直接进 review。 |
+| **红** | 自修重推，最多 **2 轮**。一轮 = 一次"读取失败日志 → 修改 → commit → push → 查 CI"；每完成一轮在状态行写明"CI 自修第 N/2 轮"。第 2 轮查完仍红即停，禁止第 3 次重推，禁止静默放弃 → 升级用户，附失败日志要点。 |
+
+#### 双轴 code review
+
+- 两个子代理，用下面的**固定 prompt 模板**（不得即兴改写），输入只给客观材料：**spec/issue 原文 + 完整 diff**（不是只有 diff）。
+- 模板要求："列出至少 3 个问题；确实找不到就明确写'未发现问题'。"
+- 轴1：对 spec——实现是否符合 spec 与验收标准；轴2：对规范——仓库惯例、测试质量、安全隐患。
+- review **只报告不改码**；用户裁决后再动。
+- 单人裁剪：用户明示 trivial 时，双轴 review 可由用户点头跳过（依据规则"trivial 裁剪"声明后执行）。
+
+#### merge 闸
+
+- merge 需要用户给出**具体口令**：说出"merge"或点名 PR 号（如"merge #5"）。
+- **"嗯 / 好 / 继续 / 行 / 通过"都不算 merge 授权**——它们只代表对上一个问题的回答。
+- 若用户说"直接 merge 吧"但未点名 PR，列出待 merge 的 PR 编号请用户点名。
+- merge 定位为**降低误判**：真正的硬闸是 GitHub 分支保护（见下"给用户的分支保护"）。
+- merge 动作：squash merge（若仓库开启）→ 删除远程分支 → 关联 issue 自动关闭（`Closes #n`）。
+
+## TDD
+
+trivial 档若无既有测试可免新增测试，但该裁剪仍须按"依据规则 X 跳过 Y"声明并获点头；有测试仓时仍须跑全量测试。standard 档的每个 ticket 按红绿循环在主上下文执行（不派子代理写码）：
+
+1. **红**：先写一个会失败的测试，运行它，**确认它红对原因**（失败信息指向要实现的行为，而不是语法错误/导入错误）。
+2. **绿**：最小实现让测试通过。禁止在测试红之前写实现。
+3. 对下一个 ticket 重复。
+4. **禁测私有函数**：不 import 内部私有符号、不断言调用次数与内部调用顺序；只测公开行为与输出。
+
+完工验收四件套（全绿才算 ticket 完成）：
+
+```
+全量测试（node --test packages/*/test/*.mjs 或包内等价命令）
+typecheck（如仓库有）
+lint（如仓库有）
+build（如仓库有）
+```
+
+## 硬规则
+
+- **禁止直接改 main**：任何代码改动都在 `issue-<n>-<desc>` 分支上，经 PR 进入 main。
+- **禁止测试私有函数 / 调用次数 / 内部顺序**（见 TDD 节）。
+- **裁剪必须声明**："依据规则 X 跳过 Y" + 理由展示给用户 + 用户点头，三步缺一不可。
+- **trivial 硬标准**不可放宽：≤1 文件 且 ≤30 行 且 无接口变更。
+- commit/push 只在流程节点（停点3 声明后、CI 自修重推）执行；其他时候等用户明确要求。
+- 提交后回复末行加状态行（branch / PR / CI 状态）。
+
+## 给用户的分支保护（用户自己执行）
+
+仓库落地后建议开启分支保护，merge 闸才有硬约束。命令由**用户本人**在终端执行（需要 admin scope）：
+
+```bash
+gh api repos/{owner}/{repo}/branches/main/protection -X PUT \
+  -H "Accept: application/vnd.github+json" \
+  --input - <<'EOF'
+{"required_status_checks":{"strict":true,"contexts":["test"]},"enforce_admins":false,"required_pull_request_reviews":{"required_approving_review_count":1},"restrictions":null}
+EOF
+```
+
+（`contexts` 按仓库实际 CI job 名调整。）
+
+## 明确不做（v2 候选）
+
+- 并行 worktree + 每 ticket 全新子代理（ticket≥3 且无依赖时再评估）。
+- 每任务 review 循环（改为完工后一次双轴 review）。
+- `--watch` 式 CI 等待。
+- 三档路径制（保留 trivial / standard 两档）。
+
+## AGENTS.md 路由提示
+
+在项目 AGENTS.md 中加一行，保证改代码请求先路由到本 skill：
+
+> 任何改代码的请求，先调用 dev-flow skill，再谈实现。

@@ -1,0 +1,29 @@
+{
+  "name": "dev-flow-skill",
+  "version": "0.1.0",
+  "description": "dev-flow skill bundle for DeepSeek Harness: issue → branch → TDD → PR → CI → review → merge, with 3 stop-points and anti-bypass hard rules. Ships SKILL.md plus a contract linter that keeps the skill's gates intact under edits.",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/lint.mjs",
+  "exports": {
+    ".": "./lib/lint.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "SKILL.md",
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
