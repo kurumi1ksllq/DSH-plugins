@@ -137,6 +137,17 @@ export async function fetchManifestText(parsed, options = {}) {
         attempts.push('raw: 空文件')
       } else {
         attempts.push(`raw: HTTP ${response.status}`)
+        // 404 on the configured ref usually means the default branch is not
+        // `main`. Probe the repository's real default branch and retry once
+        // before giving up — `parseRepoUrl`'s `/tree/<ref>/` escape hatch
+        // exists, but nobody reads docs to fix a 404.
+        if (response.status === 404 && ref === 'main') {
+          const defaulted = await fetchViaDefaultBranch(parsed, { path, token, timeoutMs, fetchImpl })
+          if (defaulted.text !== undefined) return defaulted
+          if (defaulted.defaultBranch !== null) {
+            attempts.push(`默认分支是 ${defaulted.defaultBranch}，重试失败`)
+          }
+        }
       }
     } catch (error) {
       attempts.push(`raw: ${error?.message ?? error}`)
@@ -167,7 +178,47 @@ export async function fetchManifestText(parsed, options = {}) {
   if (cloned.text !== undefined) return { text: cloned.text, via: 'git' }
   attempts.push(`git: ${cloned.error}`)
 
-  return { error: `无法读取清单（${attempts.join('；')}）` }
+  return { error: `无法读取清单（${attempts.join('；')}）。若仓库默认分支不是 main，请在同步配置里把 ref 改成实际分支，或用仓库地址加 /tree/<分支>/ 后缀。` }
+}
+
+/**
+ * Ask GitHub which branch the repository actually defaults to, then fetch the
+ * manifest from it.
+ *
+ * Returns `{ text, via, defaultBranch }` on success, `{ defaultBranch }` when
+ * the branch was learned but the fetch still failed, or `{ defaultBranch: null }`
+ * when even the probe failed (offline, private repo without token).
+ */
+async function fetchViaDefaultBranch(parsed, { path, token, timeoutMs, fetchImpl }) {
+  let defaultBranch = null
+  try {
+    const headers = { Accept: 'application/vnd.github+json' }
+    if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
+    const response = await withTimeout(
+      fetchImpl(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, { headers }),
+      timeoutMs,
+    )
+    if (response.ok) {
+      const payload = await response.json()
+      if (typeof payload?.default_branch === 'string' && payload.default_branch.length > 0) {
+        defaultBranch = payload.default_branch
+      }
+    }
+  } catch {
+    return { defaultBranch: null }
+  }
+  if (defaultBranch === null || defaultBranch === 'main') return { defaultBranch }
+
+  try {
+    const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref: defaultBranch, path })), timeoutMs)
+    if (response.ok) {
+      const text = await response.text()
+      if (text.length > 0) return { text, via: 'raw', defaultBranch }
+    }
+  } catch {
+    // fall through
+  }
+  return { defaultBranch }
 }
 
 /** `git clone --depth 1` into a temp dir, read one file, always clean up. */

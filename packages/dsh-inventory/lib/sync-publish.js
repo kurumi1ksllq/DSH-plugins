@@ -118,7 +118,10 @@ export async function publishManifest(options) {
   if (existing.error !== undefined) return { error: existing.error, report: prepared.report }
 
   // Nothing to publish: an unchanged manifest must not produce a commit.
-  if (!force && existing.sha !== null && existing.text !== null && existing.text.trim() === prepared.text.trim()) {
+  // `generatedAt` changes on every build by design, so the comparison ignores
+  // it — the semantic content is what decides whether history gets noise.
+  if (!force && existing.sha !== null && existing.text !== null
+    && stripGeneratedAt(existing.text) === stripGeneratedAt(prepared.text)) {
     return {
       ok: true,
       created: false,
@@ -192,4 +195,18 @@ function withTimeout(promise, timeoutMs) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(`超时 ${timeoutMs}ms`)), timeoutMs)),
   ])
+}
+
+/**
+ * Manifest text with the `generatedAt` line removed.
+ *
+ * Only used for the unchanged check: it must tolerate a malformed timestamp
+ * rather than crash the publish path, and it never feeds the write itself.
+ */
+function stripGeneratedAt(text) {
+  return text
+    .split('\n')
+    .filter((line) => !/"generatedAt"\s*:/.test(line))
+    .join('\n')
+    .trim()
 }

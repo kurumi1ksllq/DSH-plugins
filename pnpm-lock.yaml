@@ -8,6 +8,8 @@ importers:
 
   .: {}
 
+  packages/dev-flow-skill: {}
+
   packages/dsh-ctx-guard: {}
 
   packages/dsh-git-bash-tool: {}

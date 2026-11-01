@@ -20,10 +20,11 @@
  */
 
 import { execFile } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
+import { dshHome } from './dsh-home.js'
 import { SKILL_NAME } from './scan-skills.js'
 
 const run = promisify(execFile)
@@ -157,6 +158,14 @@ export async function applyItems(entries, options = {}) {
       }
     } else {
       const installed = await runPnpmInstall(profileDir, options)
+      if (installed.ok !== true && written.changed.length > 0) {
+        // The install failed after `package.json` was already rewritten. The
+        // written file may reference `link:` paths that do not exist here, and
+        // DSH reads it at startup — leaving it broken silently is worse than
+        // admitting the batch failed. Restore the exact prior content.
+        const rolledBack = restorePackageJson(profileDir, written)
+        if (rolledBack) installed.error = `${installed.error}（已回滚 package.json 改动）`
+      }
       for (const item of plugins) {
         results.push({
           key: entryKeyOf(item.entry),
@@ -193,6 +202,21 @@ function entryKeyOf(entry) {
 }
 
 /**
+ * Restore `package.json` to the content captured before the batch wrote it.
+ * Best effort: a failed rollback is reported, not thrown — the pnpm error the
+ * user needs to see must not be swallowed by a secondary failure.
+ */
+function restorePackageJson(profileDir, written) {
+  if (typeof written.previousContent !== 'string') return false
+  try {
+    writeFileSync(join(profileDir, 'package.json'), written.previousContent)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Write the selected plugins into `package.json` dependencies.
  *
  * Returns the names that actually changed — a plugin already at the same spec
@@ -217,13 +241,15 @@ export function writePluginDependencies(profileDir, items) {
     changed.push(item.entry.name)
   }
   if (changed.length === 0) return { changed }
+  const before = readFileSync(file, 'utf8')
   profile.dependencies = dependencies
   try {
     writeFileSync(file, `${JSON.stringify(profile, null, 2)}\n`)
   } catch (error) {
     return { error: `写入 profile package.json 失败：${error?.message ?? error}` }
   }
-  return { changed }
+  // Kept for rollback if the subsequent `pnpm install` fails (see applyItems).
+  return { changed, previousContent: before }
 }
 
 /** Run one pnpm install for the batch. */
@@ -245,11 +271,17 @@ export async function runPnpmInstall(profileDir, options = {}) {
 }
 
 /**
- * Copy a skill into the vault.
+ * Copy a skill into the vault and link it into the user skill root.
  *
  * The manifest names the skill; the content comes from the source repository's
  * `skills/<name>/` directory. A skill whose files are absent is an error the
  * user sees per item, not a silent skip.
+ *
+ * Copying alone would leave the skill vaulted — registered but never scanned
+ * by any skill root — and the next diff would report it `current`, telling the
+ * user the install worked when the model cannot invoke it. The copy is
+ * therefore followed by a link into `$DSH_HOME/skills` so the skill is active
+ * immediately, matching what the module header promises.
  */
 export function copySkill(entry, options = {}) {
   const repoRoot = options.repoRoot ?? defaultRepoRoot()
@@ -264,8 +296,40 @@ export function copySkill(entry, options = {}) {
   try {
     mkdirSync(dirname(target), { recursive: true })
     cpSync(source, target, { recursive: true })
-    return { ok: true, path: target }
   } catch (error) {
     return { ok: false, error: `复制 skill 失败：${error?.message ?? error}` }
+  }
+
+  // Link into the user skill root so the skill is model-invocable, not just
+  // vaulted. A link that already exists (or a previous copy of the skill on
+  // the root) is not an error: the skill is active either way.
+  const linked = linkSkillToRoot(target, options)
+  return { ok: true, path: target, linked: linked.ok, ...(linked.ok ? {} : { linkError: linked.error }) }
+}
+
+/**
+ * Link one vaulted skill into `$DSH_HOME/skills`.
+ *
+ * `target` may be a directory (`<name>/SKILL.md`) or a single file. Symlink
+ * where the platform allows it, fall back to a recursive copy — the skill
+ * staying usable matters more than the deduplication a symlink buys.
+ */
+function linkSkillToRoot(target, options) {
+  const root = options.skillRoot ?? join(dshHome(), 'skills')
+  const name = basename(target)
+  const linkPath = join(root, name)
+  try {
+    mkdirSync(root, { recursive: true })
+    if (existsSync(linkPath)) return { ok: true, path: linkPath }
+    symlinkSync(target, linkPath, 'dir')
+    return { ok: true, path: linkPath }
+  } catch (error) {
+    // Common failure: no symlink privilege on Windows without developer mode.
+    try {
+      cpSync(target, linkPath, { recursive: true })
+      return { ok: true, path: linkPath, fallback: 'copy' }
+    } catch {
+      return { ok: false, error: `链接技能到技能根失败：${error?.message ?? error}` }
+    }
   }
 }

@@ -46,7 +46,15 @@ const SECRET_KEYS = new Set([
   'token',
   'accesstoken',
   'access_token',
+  'refreshtoken',
+  'refresh_token',
   'secret',
+  'secretkey',
+  'secret_key',
+  'clientsecret',
+  'client_secret',
+  'privatekey',
+  'private_key',
   'password',
   'passwd',
   'authorization',
@@ -57,6 +65,20 @@ const SECRET_KEYS = new Set([
 
 /** A key whose name marks it as an *indirection* to a secret, not the secret. */
 const ENV_KEY_HINTS = /(?:apikeyenv|api_key_env|tokenenv|envkey)$/i
+
+/**
+ * A key that names a whole environment block. MCP server configs put their
+ * credentials under `env`, and the key names inside (`GITHUB_TOKEN`,
+ * `PRIVATE_KEY`) are arbitrary — so every value inside an env-like object is
+ * treated as a credential unless it is clearly not one.
+ */
+const ENV_BLOCK_KEY = /^(?:env|environment|environmentvariables)$/i
+
+/** Values that never look like a credential: URLs, flags, short or plain words. */
+const SAFE_ENV_VALUE = /^(?:https?:\/\/|\$\{|\d+|true$|false$|0$|1$|[a-z][a-z0-9._-]{0,15}$)/i
+
+/** Something that looks like a real credential: long mixed token material. */
+const SECRET_LIKE_VALUE = /^(?:[A-Za-z0-9._~+/=-]{20,}|-----BEGIN [A-Z ]+-----)/
 
 /** Replace every recognised credential shape inside a string. */
 export function redactString(text) {
@@ -82,19 +104,31 @@ export function isSecretKey(key) {
  * Walks objects and arrays, replacing credential-keyed values wholesale and
  * scrubbing credential shapes out of every other string. Returns a new
  * structure; the input is never mutated.
+ *
+ * @param {string} [key] - the object key this value sits under, so an
+ *   `env`-style block can be recognized and scanned more aggressively.
  */
-export function redactValue(value, depth = 0) {
+export function redactValue(value, depth = 0, key) {
   if (depth > 12) return value
   if (typeof value === 'string') return redactString(value)
   if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1))
   if (value !== null && typeof value === 'object') {
+    const envBlock = ENV_BLOCK_KEY.test(key ?? '')
     const out = {}
-    for (const [key, item] of Object.entries(value)) {
-      if (isSecretKey(key) && item !== null && item !== undefined && item !== '') {
-        out[key] = REDACTED
+    for (const [entryKey, item] of Object.entries(value)) {
+      if (isSecretKey(entryKey) && item !== null && item !== undefined && item !== '') {
+        out[entryKey] = REDACTED
         continue
       }
-      out[key] = redactValue(item, depth + 1)
+      // Inside an env block the key names are arbitrary, so credential-shaped
+      // string values are redacted on sight — a `GH_TOKEN` spelled any way
+      // still holds a token.
+      if (envBlock && typeof item === 'string' && item.length > 0
+        && SECRET_LIKE_VALUE.test(item) && !SAFE_ENV_VALUE.test(item)) {
+        out[entryKey] = REDACTED
+        continue
+      }
+      out[entryKey] = redactValue(item, depth + 1, entryKey)
     }
     return out
   }

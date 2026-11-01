@@ -1088,10 +1088,11 @@ async function assignForWorkspace(ctx, req) {
 
 // ---- /inventory/sync/* --------------------------------------------------
 //
-// The sync half of this plugin. Every handler reads the cached snapshot rather
-// than rebuilding one: publishing a manifest from a stale snapshot is no worse
-// than from a fresh one (the user reviews the diff either way), while a full
-// rebuild costs seconds and can race a write in flight.
+// The sync half of this plugin. The sync handlers deliberately force a full
+// snapshot rebuild (`refresh: true`): the manifest diff is only meaningful if
+// the "what this machine has" side is fresh — a stale snapshot would report
+// rows the user cannot act on. Concurrent refreshes share one in-flight
+// rebuild (see `getSnapshot`), so a burst of panel requests costs one rebuild.
 
 /** Where a pulled plugin repository lives on this machine. */
 function pluginRepoRoot(ctx) {
