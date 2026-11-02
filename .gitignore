@@ -19,3 +19,8 @@ Thumbs.db
 
 # transient snapshot dumps
 scripts/.inv*.json
+
+# --- DSH session scratch -----------------------------------------------------
+# Handoff notes and per-session state are local working material, not shipped
+# source: they name session ids and go stale. Never commit them.
+.dsh/

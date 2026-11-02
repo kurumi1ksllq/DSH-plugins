@@ -8,6 +8,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { makeProbeBundle } from './probe-bundle.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -19,13 +20,10 @@ async function ok(name, fn) {
   console.log(`PASS ${name}`)
 }
 
-// Keep the bundle self-contained the same way scripts/build-plugin.mjs will.
-const bundleLib = path.join(repoRoot, 'plugin', 'lib')
-fs.mkdirSync(bundleLib, { recursive: true })
-for (const name of ['core.mjs', 'runtime.mjs', 'balance.mjs', 'api.mjs', 'http.mjs']) {
-  const source = path.join(repoRoot, 'lib', name)
-  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(bundleLib, name))
-}
+// Keep the bundle self-contained the same way scripts/build-plugin.mjs will —
+// but assemble it in a probe directory, never in the checkout: writing
+// plugin/lib/ here would repair the artifact under test and hide a stale build.
+const probe = makeProbeBundle(repoRoot)
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-http-'))
 const configPath = path.join(tempRoot, 'providers.json')
@@ -76,7 +74,7 @@ const ctx = {
   logger: { info() {}, warn() {}, error() {} },
 }
 
-const plugin = await import(`${pathToFileURL(path.join(repoRoot, 'plugin', 'index.js')).href}?http=1`)
+const plugin = await import(`${probe.url}?http=1`)
 await plugin.apply(ctx, { configPath, runtimePath, statePath, logPath })
 
 const handler = routes[0].handler
@@ -170,4 +168,5 @@ try {
   globalThis.fetch = realFetch
 }
 
+probe.cleanup()
 console.log(`\n${pass} PASS — live HTTP integration holds`)

@@ -24,7 +24,8 @@
     "handoff"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "dsh": "^0.2.0"
   },
   "repository": {
     "type": "git",

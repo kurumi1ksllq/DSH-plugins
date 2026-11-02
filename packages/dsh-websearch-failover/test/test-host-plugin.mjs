@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { makeProbeBundle } from './probe-bundle.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -18,16 +19,10 @@ async function ok(name, fn) {
   console.log(`PASS ${name}`)
 }
 
-/** Generated bundle lib: plugin/index.js imports ./lib/*.mjs, so mirror the sources. */
-function syncBundleLib() {
-  const target = path.join(repoRoot, 'plugin', 'lib')
-  fs.mkdirSync(target, { recursive: true })
-  for (const name of ['core.mjs', 'runtime.mjs', 'balance.mjs', 'api.mjs', 'http.mjs']) {
-    const source = path.join(repoRoot, 'lib', name)
-    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(target, name))
-  }
-}
-syncBundleLib()
+/** Generated bundle lib: plugin/index.js imports ./lib/*.mjs, so mirror the
+ *  sources into a probe directory outside the checkout. Writing them into
+ *  plugin/lib/ here would repair the artifact under test and hide a stale build. */
+const probe = makeProbeBundle(repoRoot)
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-plugin-'))
 const configPath = path.join(tempRoot, 'providers.json')
@@ -100,8 +95,7 @@ globalThis.fetch = async (url, init = {}) => {
 }
 
 async function loadPlugin(cacheBust) {
-  const url = `${pathToFileURL(path.join(repoRoot, 'plugin', 'index.js')).href}?v=${cacheBust}`
-  return import(url)
+  return import(`${probe.url}?v=${cacheBust}`)
 }
 
 const plugin = await loadPlugin('a')
@@ -367,4 +361,5 @@ function makeRes() {
   }
 }
 
+probe.cleanup()
 console.log(`\n${pass} PASS — host plugin contract holds`)
