@@ -116,6 +116,7 @@ function mergeState(raw) {
     lastPullAt: typeof raw.lastPullAt === 'number' ? raw.lastPullAt : 0,
     lastPushAt: typeof raw.lastPushAt === 'number' ? raw.lastPushAt : 0,
     machineId: typeof raw.machineId === 'string' ? normalizeMachineId(raw.machineId) : STATE_DEFAULTS.machineId,
+    repoUrl: typeof raw.repoUrl === 'string' ? raw.repoUrl : STATE_DEFAULTS.repoUrl,
   }
 }
 
