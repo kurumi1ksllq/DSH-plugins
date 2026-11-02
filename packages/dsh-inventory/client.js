@@ -210,6 +210,8 @@ window.__ModuleLoader__.load({
       syncNo: '不可用',
       syncManifestMeta: '清单',
       syncGeneratedAt: '清单生成于',
+      syncFleet: '舰队清单：{count} 台机器 · 本机 {machine}',
+      syncFleetSelf: '本机清单（舰队格式升级将在下次发布时完成）',
       syncViaRaw: 'raw.githubusercontent',
       syncViaApi: 'GitHub API',
       syncViaGit: 'git clone',
@@ -227,7 +229,7 @@ window.__ModuleLoader__.load({
       syncInstalling: '正在安装…',
       syncInstalled: '已安装 {count} 项',
       syncInstallFailed: '安装失败',
-      syncPublish: '发布本机清单',
+      syncPublish: '发布本机清单（合并入舰队）',
       syncPublishing: '正在发布…',
       syncPublished: '已发布',
       syncPublishUnchanged: '内容没变，未产生提交',
@@ -408,6 +410,8 @@ window.__ModuleLoader__.load({
       syncNo: 'unavailable',
       syncManifestMeta: 'Manifest',
       syncGeneratedAt: 'Manifest generated',
+      syncFleet: 'Fleet manifest: {count} machines · this machine {machine}',
+      syncFleetSelf: 'Local manifest (fleet format migrates on next publish)',
       syncViaRaw: 'raw.githubusercontent',
       syncViaApi: 'GitHub API',
       syncViaGit: 'git clone',
@@ -425,7 +429,7 @@ window.__ModuleLoader__.load({
       syncInstalling: 'Installing…',
       syncInstalled: 'Installed {count}',
       syncInstallFailed: 'Install failed',
-      syncPublish: 'Publish this machine',
+      syncPublish: 'Publish (merge into fleet)',
       syncPublishing: 'Publishing…',
       syncPublished: 'Published',
       syncPublishUnchanged: 'No change, no commit created',
@@ -1766,6 +1770,20 @@ window.__ModuleLoader__.load({
       const capabilities = payload?.capabilities ?? {}
       const configured = typeof state.repo === 'string' && state.repo.length > 0
 
+      // One line about the fleet: how many machines share the manifest, which
+      // one this panel is, and whether this machine has published at all.
+      const manifestInfo = payload?.manifest ?? null
+      const fleetCount = typeof manifestInfo?.fleetMachines === 'number' ? manifestInfo.fleetMachines : 0
+      const selfPublished = manifestInfo?.publishedByThisMachine === true
+      const fleetLine = fleetCount > 0
+        ? t('syncFleet')
+            .replace('{count}', String(fleetCount))
+            .replace('{machine}', typeof state.machineId === 'string' && state.machineId.length > 0 ? state.machineId : '—')
+            + (selfPublished ? '' : '')
+        : manifestInfo !== null
+          ? t('syncFleetSelf')
+          : ''
+
       const field = (label, value, onChange, placeholder, isSecret) =>
         h(
           'label',
@@ -1864,6 +1882,7 @@ window.__ModuleLoader__.load({
           h('span', { style: S.rowSub },
             `${t('syncCanPull')}: ${capabilities.canPull === true ? '✓' : t('syncNo')} · ${t('syncCanPublish')}: ${capabilities.canPublish === true ? '✓' : t('syncNo')}`),
         ),
+        h('span', { style: S.rowSub }, fleetLine),
         error.length > 0 ? h('div', { style: S.rowSub, role: 'alert' }, `${t('syncErrorTitle')}: ${error}`) : null,
         notice.length > 0 ? h('div', { style: S.rowSub, role: 'status' }, notice) : null,
       )

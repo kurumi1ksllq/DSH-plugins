@@ -310,6 +310,37 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 - 清单顶层可选 `repoUrl`(插件仓库地址,在面板「插件仓库地址」里填):新机器上 `repo` 来源的插件需要仓库副本(`~/.dsh/plugin-repo` 或 `$DSH_PLUGIN_REPO`),没有副本时会用这个地址自动 `git clone --depth 1` 一次;克隆失败给出可操作的错误,不会静默重试。
 - 发布前照例过脱敏(secret / 绝对路径),清单本身可以公开存放。
 
+### 多台机器同时发布(舰队清单 v2)
+
+从 0.3.0 起,清单文件升级为「舰队文档」:每台机器把自己的清单写进**以 machineId 命名的分节**,不再整文件覆盖。
+
+```json
+{
+  "fleetVersion": 2,
+  "generatedAt": 1730000000000,
+  "machines": {
+    "host-a-1a2b": { "manifestVersion": 1, "generatedAt": 1730000001000, "plugins": [/* host-a 的清单 */], "mcp": [], "skills": [] },
+    "host-b-3c4d": { "manifestVersion": 1, "generatedAt": 1730000002000, "plugins": [/* host-b 的清单 */], "mcp": [], "skills": [] }
+  }
+}
+```
+
+**两台机器同时发布会怎样?** 发布循环是「读 → 合并 → 条件写」,谁也不会吃掉谁:
+
+1. **读**:拉取当前远端文档,解析出所有机器分节;
+2. **合并**:只替换**自己 machineId** 那一节,其他机器的分节原样保留;
+3. **条件写**:
+   - `github`/`gitee`:contents API 带 sha 更新,别人先写过则 sha 过期 → 409/422 → 重读重合重试(最多 3 次);
+   - `http`:PUT 带 `If-Match: <etag>`;若端点忽略 If-Match(nginx dav 就忽略),PUT 成功后再 GET 校验自己的分节是否真的落地,没落地就重读重合重试;
+4. **拉取方看到的视图**:各分节按条目合并——同一条目(`kind:name`)以 `generatedAt` 最新的机器为准,所以每台机器发布自己的真实状态,安装对比时两边清单都可见。
+
+补充规则:
+
+- `machineId` = `主机名-4位hex`,首次使用时铸造并持久化在 `~/.dsh/plugin-sync.json`,可用环境变量 `DSH_MACHINE_ID` 覆盖;
+- 旧版(0.2.x)单机清单文档仍可读取,解析为一个 `default` 分节;首次发布新格式时该分节被本机接管,不会留下幽灵条目;
+- 舰队最多 **32** 台机器,满了会明确报错而不是挤掉别人;
+- 面板状态卡显示「舰队清单:N 台机器 · 本机 <machineId>」;发布按钮文案为「发布本机清单(合并入舰队)」。
+
 ## 已知限制
 
 - 工具归属是推断：`mcp__<server>__*` 确定；`BUILTIN_TOOLS` 只收 DSH 本体注册的工具（把它写成插件工具会导致归属错判，且扫描会跳过内置名）；其余通过扫描插件包 JS 里的工具名字面量判定，找不到就标「未识别」。
