@@ -9,6 +9,7 @@ test('parses the bare owner/repo form people actually type', () => {
     repo: 'dsh-manager',
     ref: null,
     path: null,
+    host: 'github.com',
   })
 })
 

@@ -54,7 +54,7 @@ test('publishManifest refuses without a token', async () => {
     manifest: manifest(),
     fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({}) }),
   })
-  assert.match(result.error, /没有配置 GitHub token/)
+  assert.match(result.error, /没有配置.*token/)
 })
 
 test('publishManifest creates the file when it does not exist', async () => {

@@ -12,9 +12,16 @@ import {
   statePath,
   writeState,
 } from '../lib/sync-state.js'
+import { LEGACY_ID } from '../lib/fleet.js'
 
 function scratchHome() {
   return mkdtempSync(join(tmpdir(), 'dsh-state-'))
+}
+
+/** `STATE_DEFAULTS` minus the fields a read is allowed to fill in for us. */
+function withoutMachineId(defaults) {
+  const { machineId, ...rest } = defaults
+  return rest
 }
 
 test('dshHome honours DSH_HOME and falls back to ~/.dsh', () => {
@@ -28,16 +35,35 @@ test('dshHome honours DSH_HOME and falls back to ~/.dsh', () => {
   assert.equal(resolved.endsWith(join('.dsh')), true)
 })
 
-test('readState returns defaults when the file is absent', () => {
+test('readState mints a machineId when the file is absent', () => {
   const env = { DSH_HOME: scratchHome() }
-  assert.deepEqual(readState(env), { ...STATE_DEFAULTS })
+  const state = readState(env)
+  // Everything except the minted id is still the documented default.
+  const { machineId, ...rest } = state
+  assert.deepEqual(rest, withoutMachineId({ ...STATE_DEFAULTS }))
+  assert.equal(typeof machineId, 'string')
+  assert.equal(machineId.length > 0, true)
+  assert.notEqual(machineId, LEGACY_ID)
+  // Minted once and persisted: a second read returns the same id.
+  assert.equal(readState(env).machineId, machineId)
 })
 
-test('readState returns defaults when the file is garbage', () => {
+test('readState mints a machineId when the file is garbage', () => {
   const home = scratchHome()
   const env = { DSH_HOME: home }
   writeFileSync(statePath(env), 'not json')
-  assert.deepEqual(readState(env), { ...STATE_DEFAULTS })
+  const state = readState(env)
+  const { machineId, ...rest } = state
+  assert.deepEqual(rest, withoutMachineId({ ...STATE_DEFAULTS }))
+  assert.equal(typeof machineId, 'string')
+  assert.equal(machineId.length > 0, true)
+})
+
+test('readState keeps an existing machineId across reads', () => {
+  const home = scratchHome()
+  const env = { DSH_HOME: home }
+  writeFileSync(statePath(env), JSON.stringify({ repo: 'o/r', machineId: 'box-a' }))
+  assert.equal(readState(env).machineId, 'box-a')
 })
 
 test('writeState persists and merges partial updates', async () => {

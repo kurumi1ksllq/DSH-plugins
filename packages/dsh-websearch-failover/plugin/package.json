@@ -38,7 +38,11 @@
     }
   },
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "^0.2.0"
+  },
+  "scripts": {
+    "test": "node ../test/test-host-plugin.mjs && node ../test/test-integration.mjs"
   },
   "keywords": [
     "deepseek-harness",

@@ -294,6 +294,22 @@ node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照�
 - **仓库移动**：rename 立即生效——移进仓库的技能立刻从全局根消失（不再进任何会话的技能目录），移出同理；移动后登记工作区里指向旧路径的链接会被改指新路径。**按工作区启用/停用**要等下一个会话（gate 与技能发现都在 agent 创建时读一次）。
 - 加载失败最多让这一行 fiber 变 `failed`，不会阻止 DSH 启动；去掉 `cordis.patch.yml` 里的 `- insert: inventory` 即可回滚（回滚不会撤销已经分配出去的 `.dsh/mcp.json`、技能链接、仓库移动，或全局开关写下的 `disabled: true` / `disable-model-invocation: true`，需要的话手动改回）。
 
+## 跨机同步(三种直连方式)
+
+同步=把本机插件/MCP/技能清单发布成一个 JSON 文件(`dsh-manifest.json`),另一台机器拉回来对比、挑选安装。清单文件放哪里,由「同步方式」决定:
+
+| 方式 | 适用 | 地址格式 | 鉴权 |
+| --- | --- | --- | --- |
+| `github` | 海外机器 / 默认 | `owner/repo` 或 GitHub URL | GitHub token(Bearer) |
+| `gitee` | 国内机器,国内直连 | `owner/repo` 或 Gitee URL | Gitee token(`access_token` 查询参数) |
+| `http` | 自建直连,不走任何 Git 托管 | 完整 `http(s)://…/dsh-manifest.json` 直链 | `Authorization: Bearer <token>` |
+
+- `github` / `gitee` 共用同一套读取顺序:raw → contents API → `git clone` 兜底;发布走各家的 contents API(GitHub 用 sha 更新,Gitee v5 用 `branch` 字段)。
+- `http` 模式:GET 读、PUT 发布,请求头带 `Authorization: Bearer <token>`;404 视为「远端还没有清单」,第一次发布即创建。服务器上现成的端点:`http://103.236.71.248:10100/dsh-sync/dsh-manifest.json`(nginx dav 写入 `/var/www/dsh-sync/`,token 在服务器 `/root/.dsh-sync-endpoint-token`)。国内机器连 GitHub 不稳时,推荐用这一条,或把清单镜像到 Gitee 仓库。
+- 面板「同步方式」下拉切换;`mode` 与 `repoUrl` 持久化在 `~/.dsh/plugin-sync.json`。
+- 清单顶层可选 `repoUrl`(插件仓库地址,在面板「插件仓库地址」里填):新机器上 `repo` 来源的插件需要仓库副本(`~/.dsh/plugin-repo` 或 `$DSH_PLUGIN_REPO`),没有副本时会用这个地址自动 `git clone --depth 1` 一次;克隆失败给出可操作的错误,不会静默重试。
+- 发布前照例过脱敏(secret / 绝对路径),清单本身可以公开存放。
+
 ## 已知限制
 
 - 工具归属是推断：`mcp__<server>__*` 确定；`BUILTIN_TOOLS` 只收 DSH 本体注册的工具（把它写成插件工具会导致归属错判，且扫描会跳过内置名）；其余通过扫描插件包 JS 里的工具名字面量判定，找不到就标「未识别」。

@@ -92,13 +92,33 @@ test('syncStatus diffs the manifest against the snapshot', async () => {
   assert.equal(status.counts.blocked, 1)
 })
 
-test('syncStatus surfaces a fetch failure instead of an empty diff', async () => {
+test('syncStatus reports a never-published remote as an empty fleet', async () => {
+  // A 404 from every transport is the first-run state, not a fetch failure:
+  // the panel must render an empty fleet instead of an error banner.
   const status = await syncStatus({
     snapshot: SNAPSHOT,
     state: state({ repo: 'o/r' }),
     options: {
       capabilities: caps(),
       fetchImpl: async () => ({ ok: false, status: 404, text: async () => '', json: async () => ({}) }),
+      gitBin: 'nope',
+    },
+  })
+  assert.equal(status.fetchError, undefined)
+  assert.equal(status.empty, true)
+  assert.equal(status.manifest.generatedAt, null)
+  assert.equal(status.manifest.fleetMachines, 0)
+  assert.deepEqual(status.rows, [])
+})
+
+test('syncStatus surfaces a transport failure instead of an empty diff', async () => {
+  // Only a real failure (500, not "file absent") earns a fetchError.
+  const status = await syncStatus({
+    snapshot: SNAPSHOT,
+    state: state({ repo: 'o/r' }),
+    options: {
+      capabilities: caps(),
+      fetchImpl: async () => ({ ok: false, status: 500, text: async () => '', json: async () => ({}) }),
       gitBin: 'nope',
     },
   })
@@ -139,7 +159,7 @@ test('syncPreview applies annotations from state', () => {
 test('syncPublish refuses without a token or repository', async () => {
   assert.match((await syncPublish({ snapshot: SNAPSHOT, state: state() })).error, /为空|无法解析/)
   const noToken = await syncPublish({ snapshot: SNAPSHOT, state: state({ repo: 'o/r' }) })
-  assert.match(noToken.error, /还没有配置 GitHub token/)
+  assert.match(noToken.error, /还没有配置.*token/)
 })
 
 test('syncPublish records the push time only on a real change', async () => {

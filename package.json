@@ -16,6 +16,10 @@
     "test:dev-flow": "node --test packages/dev-flow-skill/test/*.test.mjs",
     "build:websearch": "pnpm --filter websearch-dsh-plugin run build",
     "check:websearch": "pnpm --filter websearch-dsh-plugin run build:check",
-    "verify": "node scripts/verify-packages.mjs"
+    "check:artifacts": "node scripts/check-artifacts.mjs",
+    "verify": "node scripts/verify-packages.mjs && node scripts/check-artifacts.mjs && node scripts/check-profile.mjs && node scripts/check-bundle-versions.mjs",
+    "gate": "pnpm verify && pnpm test",
+    "check:profile": "node scripts/check-profile.mjs",
+    "check:versions": "node scripts/check-bundle-versions.mjs"
   }
 }

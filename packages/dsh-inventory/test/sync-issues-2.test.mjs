@@ -58,10 +58,25 @@ test('#7 fetchManifestText retries the probed default branch after a 404 on main
   assert.equal(calls.some((u) => u.includes('/master/')), true)
 })
 
-test('#7 error message mentions the ref when all fetch paths fail', async () => {
+test('#7 an all-404 fetch reports "not published yet", not a ref error', async () => {
+  // Every transport says 404: the manifest file simply is not there. That is
+  // the normal state before a first publish, so it must be flagged `notFound`
+  // rather than surfacing the scary "check your ref" message.
   const fetchImpl = async () => ({ ok: false, status: 404, text: async () => '' })
   const result = await fetchManifestText({ owner: 'o', repo: 'r' }, { ref: 'main', fetchImpl, gitBin: 'definitely-not-git' })
   assert.equal(result.text, undefined)
+  assert.equal(result.notFound, true)
+  assert.equal(result.missing, true)
+  assert.doesNotMatch(result.error, /无法读取清单/)
+})
+
+test('#7 a non-404 failure still reports the ref', async () => {
+  // The ref hint is still the right advice when the transport failed for any
+  // reason *other* than 404 — that case must not be downgraded to notFound.
+  const fetchImpl = async () => ({ ok: false, status: 500, text: async () => '' })
+  const result = await fetchManifestText({ owner: 'o', repo: 'r' }, { ref: 'main', fetchImpl, gitBin: 'definitely-not-git' })
+  assert.equal(result.text, undefined)
+  assert.notEqual(result.notFound, true)
   assert.match(result.error, /ref/)
 })
 

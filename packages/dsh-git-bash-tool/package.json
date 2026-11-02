@@ -4,6 +4,9 @@
   "private": true,
   "description": "Replaces the Windows pwsh shell tool with the stock bash tool driven by Git Bash through an absolute path, so every command runs in bash instead of PowerShell.",
   "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "main": "index.js",
   "exports": {
     ".": "./index.js"
@@ -19,5 +22,8 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "engines": {
+    "dsh": "^0.2.0"
   }
 }
