@@ -24,6 +24,15 @@ export const MANIFEST_COMMIT_MESSAGE = 'chore(dsh-manifest): update capability m
 /** GitHub API base, overridable so tests never touch the network. */
 export const API_BASE = 'https://api.github.com'
 
+/** Gitee v5 contents endpoint; the token travels as a query parameter. */
+export function giteeContentsUrl(owner, repo, path, token) {
+  const clean = String(path).replace(/^\/+/, '')
+  const base = `https://gitee.com/api/v5/repos/${owner}/${repo}/contents/${clean}`
+  return typeof token === 'string' && token.length > 0
+    ? `${base}?access_token=${encodeURIComponent(token)}`
+    : base
+}
+
 function authHeaders(token) {
   return {
     Accept: 'application/vnd.github+json',
@@ -32,6 +41,10 @@ function authHeaders(token) {
     'Content-Type': 'application/json',
     'User-Agent': 'dsh-inventory',
   }
+}
+
+function giteeHeaders() {
+  return { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'dsh-inventory' }
 }
 
 /**
@@ -64,14 +77,17 @@ export function prepareManifestText(manifest) {
  * `{ error }` when the lookup itself failed for a reason the caller must see
  * (bad token, wrong repository) rather than silently treat as "create new".
  */
-export async function lookupFile({ owner, repo, path, ref, token, fetchImpl = globalThis.fetch, apiBase = API_BASE, timeoutMs = 15000 }) {
+export async function lookupFile({ owner, repo, path, ref, token, host = 'github.com', fetchImpl = globalThis.fetch, apiBase = API_BASE, timeoutMs = 15000 }) {
   if (typeof token !== 'string' || token.length === 0) {
-    return { error: '没有配置 GitHub token，无法写入仓库' }
+    return { error: '没有配置写入用的 token，无法写仓库' }
   }
-  const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`
+  const isGitee = host === 'gitee.com'
+  const url = isGitee
+    ? `${giteeContentsUrl(owner, repo, path, token)}&ref=${encodeURIComponent(ref)}`
+    : `${apiBase}/repos/${owner}/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`
   let response
   try {
-    response = await withTimeout(fetchImpl(url, { headers: authHeaders(token) }), timeoutMs)
+    response = await withTimeout(fetchImpl(url, { headers: isGitee ? giteeHeaders() : authHeaders(token) }), timeoutMs)
   } catch (error) {
     return { error: `读取仓库文件失败：${error?.message ?? error}` }
   }
@@ -107,6 +123,7 @@ export async function publishManifest(options) {
     manifest,
     message = MANIFEST_COMMIT_MESSAGE,
     force = false,
+    host = 'github.com',
     fetchImpl = globalThis.fetch,
     apiBase = API_BASE,
     timeoutMs = 20000,
@@ -114,7 +131,7 @@ export async function publishManifest(options) {
 
   const prepared = prepareManifestText(manifest)
 
-  const existing = await lookupFile({ owner, repo, path, ref, token, fetchImpl, apiBase, timeoutMs })
+  const existing = await lookupFile({ owner, repo, path, ref, token, host, fetchImpl, apiBase, timeoutMs })
   if (existing.error !== undefined) return { error: existing.error, report: prepared.report }
 
   // Nothing to publish: an unchanged manifest must not produce a commit.
@@ -141,11 +158,16 @@ export async function publishManifest(options) {
   }
   if (existing.sha !== null) body.sha = existing.sha
 
-  const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}`
+  const isGitee = host === 'gitee.com'
+  const url = isGitee ? giteeContentsUrl(owner, repo, path, token) : `${apiBase}/repos/${owner}/${repo}/contents/${path}`
   let response
   try {
     response = await withTimeout(
-      fetchImpl(url, { method: 'PUT', headers: authHeaders(token), body: JSON.stringify(body) }),
+      fetchImpl(url, {
+        method: 'PUT',
+        headers: isGitee ? giteeHeaders() : authHeaders(token),
+        body: JSON.stringify(body),
+      }),
       timeoutMs,
     )
   } catch (error) {
@@ -167,6 +189,40 @@ export async function publishManifest(options) {
     sha: typeof payload?.content?.sha === 'string' ? payload.content.sha : undefined,
     report: prepared.report,
   }
+}
+
+/**
+ * Publish to a self-hosted HTTP endpoint: one PUT with the manifest as body.
+ *
+ * The endpoint owns its own auth (`Authorization: Bearer <token>`) and is
+ * expected to store the body verbatim, so a later GET returns the same JSON.
+ * There is no create/update split, no sha, and no commit history — the file is
+ * the state. `ETag`-style precondition headers are deliberately not sent: the
+ * operator's endpoint is usually nginx dav, which ignores them anyway.
+ *
+ * Returns the same shape as `publishManifest` so the service layer can treat
+ * the two transports uniformly; `created`/`unchanged` have no meaning here.
+ */
+export async function publishHttp({ url, token, manifest, fetchImpl = globalThis.fetch, timeoutMs = 20000 }) {
+  const prepared = prepareManifestText(manifest)
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url.trim())) {
+    return { error: `HTTP 模式需要完整的 http(s) 直链：${url}`, report: prepared.report }
+  }
+  const headers = { 'Content-Type': 'application/json' }
+  if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
+  let response
+  try {
+    response = await withTimeout(
+      fetchImpl(url.trim(), { method: 'PUT', headers, body: prepared.text }),
+      timeoutMs,
+    )
+  } catch (error) {
+    return { error: `写入直链失败：${error?.message ?? error}`, report: prepared.report }
+  }
+  if (!response.ok) {
+    return { error: `写入直链失败：HTTP ${response.status}`, report: prepared.report }
+  }
+  return { ok: true, created: false, unchanged: false, report: prepared.report }
 }
 
 /**

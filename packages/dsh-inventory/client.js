@@ -184,8 +184,16 @@ window.__ModuleLoader__.load({
       syncTitle: '跨机同步',
       syncSubtitle: '从清单仓库看差异，勾哪项装哪项。发布时只上传插件/MCP/skill 清单，密钥与本机路径会被脱掉。',
       syncNotConfigured: '还没配置清单仓库。填入 owner/repo 或仓库地址，保存后再刷新。',
+      syncMode: '同步方式',
+      syncModeGithub: 'GitHub（直连，海外稳定）',
+      syncModeGitee: 'Gitee（国内直连）',
+      syncModeHttp: '自建直连（http 直链）',
+      syncModeHttpHint: '填一个可直连的 http(s) 文件地址：GET 读取清单，PUT 发布清单（Bearer token 鉴权）。',
       syncRepo: '清单仓库',
       syncRepoPlaceholder: 'owner/repo 或 https://github.com/owner/repo',
+      syncRepoPlaceholderHttp: 'http://服务器地址/manifests/dsh-manifest.json',
+      syncRepoUrl: '插件仓库地址（可选）',
+      syncRepoUrlPlaceholder: 'https://gitee.com/you/DSH-plugins.git（新机器自动克隆用）',
       syncRef: '分支',
       syncPath: '清单文件路径',
       syncToken: 'GitHub token',
@@ -374,8 +382,16 @@ window.__ModuleLoader__.load({
       syncTitle: 'Cross-machine sync',
       syncSubtitle: 'Diff against the manifest repository and install only what you tick. Publishing uploads the plugin/MCP/skill list; secrets and host paths are stripped.',
       syncNotConfigured: 'No manifest repository configured yet. Enter owner/repo or a repository URL, save, then reload.',
+      syncMode: 'Transport',
+      syncModeGithub: 'GitHub (direct, stable abroad)',
+      syncModeGitee: 'Gitee (mainland direct)',
+      syncModeHttp: 'Self-hosted (http URL)',
+      syncModeHttpHint: 'A directly reachable http(s) file URL: GET reads the manifest, PUT publishes it (Bearer token auth).',
       syncRepo: 'Manifest repository',
       syncRepoPlaceholder: 'owner/repo or https://github.com/owner/repo',
+      syncRepoPlaceholderHttp: 'http://server/manifests/dsh-manifest.json',
+      syncRepoUrl: 'Plugin repository URL (optional)',
+      syncRepoUrlPlaceholder: 'https://gitee.com/you/DSH-plugins.git (auto-clone on new machines)',
       syncRef: 'Branch',
       syncPath: 'Manifest path',
       syncToken: 'GitHub token',
@@ -1605,6 +1621,8 @@ window.__ModuleLoader__.load({
       const [selection, setSelection] = React.useState([])
       const [preview, setPreview] = React.useState(null)
       const [repo, setRepo] = React.useState('')
+      const [repoUrl, setRepoUrl] = React.useState('')
+      const [mode, setMode] = React.useState('github')
       const [ref, setRef] = React.useState('main')
       const [path, setPath] = React.useState('dsh-manifest.json')
       const [token, setToken] = React.useState('')
@@ -1621,6 +1639,8 @@ window.__ModuleLoader__.load({
           setPayload(data)
           if (seeded.current !== true && data !== null && typeof data.state === 'object') {
             setRepo(data.state.repo ?? '')
+            setRepoUrl(data.state.repoUrl ?? '')
+            setMode(['github', 'gitee', 'http'].includes(data.state.mode) ? data.state.mode : 'github')
             setRef(data.state.ref ?? 'main')
             setPath(data.state.path ?? 'dsh-manifest.json')
             seeded.current = true
@@ -1656,7 +1676,7 @@ window.__ModuleLoader__.load({
         setError('')
         setNotice('')
         try {
-          const body = { repo, ref, path }
+          const body = { repo, mode, ref, path, repoUrl }
           // Only send the token when the user typed one: an empty field means
           // "leave the stored token alone", not "erase it".
           if (token.length > 0) body.token = token
@@ -1675,7 +1695,7 @@ window.__ModuleLoader__.load({
         } finally {
           setBusy('')
         }
-      }, [repo, ref, path, token, load, t])
+      }, [repo, repoUrl, mode, ref, path, token, load, t])
 
       /** POST a body to the apply route and re-read both views afterwards. */
       const runApply = React.useCallback(
@@ -1767,18 +1787,55 @@ window.__ModuleLoader__.load({
           ? null
           : h('div', { style: S.rowSub }, t('syncNotConfigured')),
         h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
-          field(t('syncRepo'), repo, setRepo, t('syncRepoPlaceholder')),
-          field(t('syncRef'), ref, setRef, 'main'),
+          h(
+            'label',
+            { style: { display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 auto', minWidth: 0 } },
+            h('span', { style: S.rowSub }, t('syncMode')),
+            h(
+              'select',
+              {
+                style: { ...S.search, height: '34px', padding: '0 10px', borderRadius: '9px', background: C.fill, fontSize: '14px' },
+                value: mode,
+                onChange: (event) => setMode(event.target.value),
+              },
+              h('option', { value: 'github' }, t('syncModeGithub')),
+              h('option', { value: 'gitee' }, t('syncModeGitee')),
+              h('option', { value: 'http' }, t('syncModeHttp')),
+            ),
+          ),
         ),
         h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
-          field(t('syncPath'), path, setPath, 'dsh-manifest.json'),
-          field(
-            t('syncToken'),
-            token,
-            setToken,
-            state.hasToken === true ? t('syncTokenSet') : t('syncTokenPlaceholder'),
-            true,
-          ),
+          field(t('syncRepo'), repo, setRepo, mode === 'http' ? t('syncRepoPlaceholderHttp') : t('syncRepoPlaceholder')),
+          mode === 'http'
+            ? h('span', { style: { flex: '1 1 auto', minWidth: 0 } })
+            : field(t('syncRef'), ref, setRef, 'main'),
+        ),
+        h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
+          field(t('syncRepoUrl'), repoUrl, setRepoUrl, t('syncRepoUrlPlaceholder')),
+        ),
+        mode === 'http' ? h('div', { style: S.rowSub }, t('syncModeHttpHint')) : null,
+        mode === 'http'
+          ? null
+          : h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
+              field(t('syncPath'), path, setPath, 'dsh-manifest.json'),
+              field(
+                t('syncToken'),
+                token,
+                setToken,
+                state.hasToken === true ? t('syncTokenSet') : t('syncTokenPlaceholder'),
+                true,
+              ),
+            ),
+        h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
+          mode === 'http'
+            ? field(
+                t('syncToken'),
+                token,
+                setToken,
+                state.hasToken === true ? t('syncTokenSet') : t('syncTokenPlaceholder'),
+                true,
+              )
+            : h('span', { style: { display: 'none' } }),
         ),
         h('div', { style: S.rowSub }, t('syncTokenHint')),
         h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },

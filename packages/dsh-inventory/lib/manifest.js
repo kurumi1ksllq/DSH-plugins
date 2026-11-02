@@ -76,6 +76,12 @@ export function buildManifest(snapshot, options = {}) {
   const now = options.now ?? Date.now()
   const repo = typeof options.repo === 'string' ? options.repo : ''
   const ref = typeof options.ref === 'string' ? options.ref : 'main'
+  // Where the *plugin repository* lives. The manifest repository (above) only
+  // carries this file; repo-source plugins are installed from a local clone of
+  // the plugin repository, and a fresh machine needs its address to make one.
+  const repoUrl = typeof options.repoUrl === 'string' && options.repoUrl.trim().length > 0
+    ? options.repoUrl.trim()
+    : ''
 
   const plugins = []
   for (const pkg of snapshot?.packages ?? []) {
@@ -131,6 +137,7 @@ export function buildManifest(snapshot, options = {}) {
     generatedAt: now,
     repo,
     ref,
+    ...(repoUrl.length > 0 ? { repoUrl } : {}),
     plugins: plugins.sort(byName),
     mcp: mcp.sort(byName),
     skills: skills.sort(byName),
@@ -182,6 +189,7 @@ export function parseManifest(text) {
       generatedAt: typeof raw.generatedAt === 'number' ? raw.generatedAt : 0,
       repo: typeof raw.repo === 'string' ? raw.repo : '',
       ref: typeof raw.ref === 'string' ? raw.ref : 'main',
+      repoUrl: typeof raw.repoUrl === 'string' ? raw.repoUrl : '',
       plugins: list(raw.plugins).map(normalizeEntry),
       mcp: list(raw.mcp).map(normalizeEntry),
       skills: list(raw.skills).map(normalizeEntry),

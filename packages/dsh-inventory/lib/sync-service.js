@@ -14,10 +14,62 @@
 
 import { buildManifest, entriesOf, parseManifest } from './manifest.js'
 import { diffManifest, probeCapabilities, summarizeDiff } from './sync-diff.js'
-import { fetchManifestText, parseRepoUrl, repoSlug } from './sync-remote.js'
+import { fetchHttpText, fetchManifestText, parseRepoUrl, repoSlug } from './sync-remote.js'
 import { publicState, readState, writeState } from './sync-state.js'
-import { prepareManifestText, publishManifest } from './sync-publish.js'
+import { prepareManifestText, publishHttp, publishManifest } from './sync-publish.js'
 import { applyItems } from './sync-apply.js'
+
+/**
+ * Resolve the transport for the configured mode.
+ *
+ *   github / gitee  A git host; returns a parsed `owner/repo` reference.
+ *   http            A self-hosted direct URL; `repo` must be a full
+ *                   `http(s)://…` link to the manifest file itself.
+ *
+ * Returns `{ kind: 'git-host', parsed }` or `{ kind: 'http', url }`; an
+ * unparseable configuration comes back as `{ error }` so every caller can
+ * fail with the same message the panel would have shown.
+ */
+export function resolveTransport(state) {
+  const mode = state?.mode ?? 'github'
+  if (mode === 'http') {
+    if (typeof state.repo !== 'string' || !/^https?:\/\//.test(state.repo.trim())) {
+      return { error: 'HTTP 模式的仓库地址应填写完整的 http(s) 直链，例如 http://服务器/manifests/dsh-manifest.json' }
+    }
+    return { kind: 'http', url: state.repo.trim() }
+  }
+  const host = mode === 'gitee' ? 'gitee.com' : 'github.com'
+  const parsed = parseRepoUrl(state.repo, { host })
+  if (parsed.error !== undefined) return { error: parsed.error }
+  return { kind: 'git-host', parsed }
+}
+
+/** Read the manifest over the configured transport. */
+async function fetchManifest(state, { fetchImpl, timeoutMs }) {
+  const transport = resolveTransport(state)
+  if (transport.error !== undefined) return { error: transport.error }
+  if (transport.kind === 'http') {
+    const fetched = await fetchHttpText(transport.url, {
+      token: state.token,
+      timeoutMs,
+      fetchImpl,
+    })
+    // A 404 from the direct endpoint means "nothing published yet", which is a
+    // normal first-run state — surface it as empty, not as an error.
+    if (fetched.notFound === true) {
+      return { text: JSON.stringify({ manifestVersion: 1, generatedAt: 0, repo: '', ref: state.ref, plugins: [], mcp: [], skills: [] }), via: 'http', empty: true }
+    }
+    if (fetched.error !== undefined) return { error: fetched.error }
+    return { text: fetched.text, via: 'http' }
+  }
+  return fetchManifestText(transport.parsed, {
+    ref: state.ref,
+    path: state.path,
+    token: state.token,
+    fetchImpl,
+    timeoutMs,
+  })
+}
 
 /**
  * Build the status payload.
@@ -28,26 +80,23 @@ import { applyItems } from './sync-apply.js'
 export async function syncStatus({ snapshot, state = readState(), options = {} } = {}) {
   // `options.now` lets a caller inject the clock, so the recorded pull time is
   // deterministic under test instead of being whatever the host clock said.
-  const parsed = parseRepoUrl(state.repo)
+  const transport = resolveTransport(state)
   const base = {
     state: publicState(state),
     capabilities: {
-      canPublish: typeof state.token === 'string' && state.token.length > 0 && parsed.error === undefined,
-      canPull: parsed.error === undefined,
-      reason: parsed.error ?? null,
+      canPublish: typeof state.token === 'string' && state.token.length > 0 && transport.error === undefined,
+      canPull: transport.error === undefined,
+      reason: transport.error ?? null,
     },
   }
 
   // No repository configured yet: that is a normal first-run state, not an
   // error. Report the local side so the panel can still show what exists.
-  if (parsed.error !== undefined) {
+  if (transport.error !== undefined) {
     return { ...base, manifest: null, rows: [], counts: summarizeDiff([]) }
   }
 
-  const fetched = await fetchManifestText(parsed, {
-    ref: state.ref,
-    path: state.path,
-    token: state.token,
+  const fetched = await fetchManifest(state, {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
   })
@@ -70,7 +119,7 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
     ...base,
     via: fetched.via,
     manifest: {
-      repo: repoSlug(parsed),
+      repo: transport.kind === 'http' ? transport.url : repoSlug(transport.parsed),
       ref: parsedManifest.manifest.ref ?? state.ref,
       generatedAt: parsedManifest.manifest.generatedAt ?? null,
       counts: {
@@ -89,6 +138,7 @@ export function syncPreview({ snapshot, state = readState(), now = Date.now() })
   const manifest = buildManifest(snapshot, {
     annotations: state.annotations,
     now,
+    repoUrl: state.repoUrl,
     repo: repoSlug(parseRepoUrl(state.repo)),
     ref: state.ref,
   })
@@ -105,28 +155,39 @@ export function syncPreview({ snapshot, state = readState(), now = Date.now() })
 
 /** Publish this machine's manifest to the configured repository. */
 export async function syncPublish({ snapshot, state = readState(), options = {}, now = Date.now() }) {
-  const parsed = parseRepoUrl(state.repo)
-  if (parsed.error !== undefined) return { ok: false, error: parsed.error }
+  const transport = resolveTransport(state)
+  if (transport.error !== undefined) return { ok: false, error: transport.error }
   if (typeof state.token !== 'string' || state.token.length === 0) {
-    return { ok: false, error: '还没有配置 GitHub token' }
+    return { ok: false, error: '还没有配置写入用的 token' }
   }
   const manifest = buildManifest(snapshot, {
     annotations: state.annotations,
     now,
-    repo: repoSlug(parsed),
+    repoUrl: state.repoUrl,
+    repo: transport.kind === 'http' ? transport.url : repoSlug(transport.parsed),
     ref: state.ref,
+    repoUrl: state.repoUrl,
   })
-  const result = await publishManifest({
-    owner: parsed.owner,
-    repo: parsed.repo,
-    path: parsed.path ?? state.path,
-    ref: state.ref,
-    token: state.token,
-    manifest,
-    force: options.force === true,
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-  })
+  const result = transport.kind === 'http'
+    ? await publishHttp({
+        url: transport.url,
+        token: state.token,
+        manifest,
+        fetchImpl: options.fetchImpl,
+        timeoutMs: options.timeoutMs,
+      })
+    : await publishManifest({
+        owner: transport.parsed.owner,
+        repo: transport.parsed.repo,
+        path: transport.parsed.path ?? state.path,
+        ref: state.ref,
+        token: state.token,
+        manifest,
+        force: options.force === true,
+        host: transport.parsed.host,
+        fetchImpl: options.fetchImpl,
+        timeoutMs: options.timeoutMs,
+      })
   // An unchanged publish wrote nothing, so it is not a push: bumping
   // `lastPushAt` there would make the panel claim a commit that never
   // happened, and hide the real age of the last one. Skipped publishes also
@@ -152,13 +213,10 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
   const keys = Array.isArray(selection) ? selection.filter((k) => typeof k === 'string') : []
   if (keys.length === 0) return { ok: false, error: '没有选中任何项', results: [] }
 
-  const parsed = parseRepoUrl(state.repo)
-  if (parsed.error !== undefined) return { ok: false, error: parsed.error, results: [] }
+  const transport = resolveTransport(state)
+  if (transport.error !== undefined) return { ok: false, error: transport.error, results: [] }
 
-  const fetched = await fetchManifestText(parsed, {
-    ref: state.ref,
-    path: state.path,
-    token: state.token,
+  const fetched = await fetchManifest(state, {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
   })
@@ -196,6 +254,10 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
     vaultDir: options.vaultDir,
     pnpmBin: options.pnpmBin,
     installTimeoutMs: options.installTimeoutMs,
+    // From the remote manifest: a fresh machine bootstraps its plugin
+    // repository clone from this instead of dead-ending on repo sources.
+    repoUrl: parsedManifest.manifest.repoUrl,
+    gitBin: options.gitBin,
   })
   if (applied.ok === true) writeState({ lastPullAt: options.now ?? Date.now() })
 
@@ -214,6 +276,8 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
 export function syncConfigure(patch) {
   const next = {}
   if (typeof patch?.repo === 'string') next.repo = patch.repo.trim()
+  if (['github', 'gitee', 'http'].includes(patch?.mode)) next.mode = patch.mode
+  if (typeof patch?.repoUrl === 'string') next.repoUrl = patch.repoUrl.trim()
   if (typeof patch?.ref === 'string' && patch.ref.trim().length > 0) next.ref = patch.ref.trim()
   if (typeof patch?.path === 'string' && patch.path.trim().length > 0) next.path = patch.path.trim()
   // An explicit empty string clears the token; `undefined` leaves it alone.

@@ -21,6 +21,21 @@ export const STATE_DEFAULTS = {
   repo: '',
   ref: 'main',
   path: 'dsh-manifest.json',
+  /**
+   * Transport mode:
+   *   'github' — GitHub raw/contents API + git clone (default, unchanged).
+   *   'gitee'  — same manifest file on gitee.com, read over raw/gitee API.
+   *   'http'   — self-hosted direct endpoint (e.g. this server's nginx),
+   *              `GET {url}` reads and `PUT {url}` publishes a JSON body.
+   *              No GitHub involved at all; auth is `Authorization: Bearer <token>`.
+   */
+  mode: 'github',
+  /**
+   * Plugin repository address (not the manifest repository). Published inside
+   * the manifest as `repoUrl` so a fresh machine can bootstrap a local clone
+   * for repo-source plugins. Optional; empty means the manifest omits it.
+   */
+  repoUrl: '',
   /** GitHub token, stored here and nowhere else. */
   token: '',
   /**
@@ -61,6 +76,7 @@ function mergeState(raw) {
     repo: typeof raw.repo === 'string' ? raw.repo : STATE_DEFAULTS.repo,
     ref: typeof raw.ref === 'string' && raw.ref.length > 0 ? raw.ref : STATE_DEFAULTS.ref,
     path: typeof raw.path === 'string' && raw.path.length > 0 ? raw.path : STATE_DEFAULTS.path,
+    mode: ['github', 'gitee', 'http'].includes(raw.mode) ? raw.mode : STATE_DEFAULTS.mode,
     token: typeof raw.token === 'string' ? raw.token : STATE_DEFAULTS.token,
     annotations: raw.annotations !== null && typeof raw.annotations === 'object' && !Array.isArray(raw.annotations)
       ? raw.annotations
@@ -114,6 +130,7 @@ export function publicState(state) {
     repo: state.repo,
     ref: state.ref,
     path: state.path,
+    mode: state.mode,
     hasToken: typeof state.token === 'string' && state.token.length > 0,
     annotations: state.annotations,
     lastPullAt: state.lastPullAt,

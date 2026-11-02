@@ -139,7 +139,7 @@ test('syncPreview applies annotations from state', () => {
 test('syncPublish refuses without a token or repository', async () => {
   assert.match((await syncPublish({ snapshot: SNAPSHOT, state: state() })).error, /为空|无法解析/)
   const noToken = await syncPublish({ snapshot: SNAPSHOT, state: state({ repo: 'o/r' }) })
-  assert.match(noToken.error, /还没有配置 GitHub token/)
+  assert.match(noToken.error, /还没有配置.*token/)
 })
 
 test('syncPublish records the push time only on a real change', async () => {

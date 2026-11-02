@@ -20,7 +20,7 @@
  */
 
 import { execFile } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { promisify } from 'node:util'
@@ -49,7 +49,13 @@ export function resolveSpec(entry, options = {}) {
   const repoRoot = options.repoRoot ?? defaultRepoRoot()
   if (entry.source === 'repo') {
     if (repoRoot === null || !existsSync(repoRoot)) {
-      return { error: `没有找到插件仓库副本（${repoRoot ?? '未配置 DSH_PLUGIN_REPO'}）` }
+      return {
+        error: `没有找到插件仓库副本（${repoRoot ?? '未配置 DSH_PLUGIN_REPO'}）`,
+        // A fresh machine can bootstrap itself: the manifest carries the
+        // plugin repository address, so the caller may offer one shallow
+        // clone instead of dead-ending.
+        cloneHint: typeof options.repoUrl === 'string' && options.repoUrl.length > 0 ? options.repoUrl : null,
+      }
     }
     const local = findPackageDir(repoRoot, entry.name)
     if (local === null) return { error: `插件仓库里没有 ${entry.name}` }
@@ -126,6 +132,23 @@ export async function applyItems(entries, options = {}) {
   const plugins = []
   const skills = []
   const results = []
+
+  // A fresh machine has no plugin repository clone. When the manifest tells us
+  // where the repository lives, one shallow clone turns every repo-source entry
+  // from a dead end into an installable row. Attempted at most once, and only
+  // when at least one entry actually needs it.
+  const needsClone = entries.some(
+    (entry) => entry.kind === 'plugin' && entry.source === 'repo' && resolveNeedsClone(entry, options),
+  )
+  if (needsClone === true) {
+    const bootstrapped = await bootstrapRepoClone(options)
+    if (bootstrapped.ok !== true) {
+      for (const entry of entries) {
+        if (entry.kind !== 'plugin' || entry.source !== 'repo') continue
+        results.push({ key: entryKeyOf(entry), ok: false, error: bootstrapped.error })
+      }
+    }
+  }
 
   for (const entry of entries) {
     if (entry.kind === 'plugin') {
@@ -281,6 +304,62 @@ export async function runPnpmInstall(profileDir, options = {}) {
     return { ok: true }
   } catch (error) {
     return { ok: false, error: `pnpm install 失败：${describeInstallFailure(error, timeout)}` }
+  }
+}
+
+/**
+ * Explain a failed `git clone` in terms the user can act on.
+ */
+function describeCloneFailure(error) {
+  const code = error?.code
+  if (code === 'ENOENT') return '找不到 git 可执行文件'
+  if (error?.killed === true || code === 'ETIMEDOUT') return '克隆超时'
+  const message = String(error?.stderr ?? error?.message ?? error).split('\n').filter(Boolean).slice(-3).join(' ')
+  return typeof code === 'number' ? `退出码 ${code}：${message}` : message
+}
+
+
+/**
+ * Does this entry need a plugin repository clone that is not there yet?
+ * Cheap, side-effect free: reuses resolveSpec's repo branch without doing work.
+ */
+function resolveNeedsClone(entry, options) {
+  const repoRoot = options.repoRoot ?? defaultRepoRoot()
+  if (repoRoot === null || !existsSync(repoRoot)) {
+    return typeof options.repoUrl === 'string' && options.repoUrl.length > 0
+  }
+  return false
+}
+
+/**
+ * One `git clone --depth 1` of the plugin repository into the default
+ * repo root. Never overwrites an existing clone; failures are per-batch
+ * errors, not crashes.
+ */
+export async function bootstrapRepoClone(options = {}) {
+  const repoUrl = typeof options.repoUrl === 'string' ? options.repoUrl.trim() : ''
+  if (repoUrl.length === 0) {
+    return { ok: false, error: '清单里没有 repoUrl，无法自动获取插件仓库' }
+  }
+  const repoRoot = options.repoRoot ?? defaultRepoRoot()
+  if (repoRoot === null) return { ok: false, error: '无法确定插件仓库目录' }
+  if (existsSync(repoRoot)) return { ok: true, cloned: false }
+  const gitBin = typeof options.gitBin === 'string' && options.gitBin.length > 0 ? options.gitBin : 'git'
+  try {
+    await mkdir(repoRoot, { recursive: true })
+    await run(gitBin, ['clone', '--depth', '1', '--quiet', repoUrl, repoRoot], {
+      timeout: options.timeoutMs ?? 120000,
+      windowsHide: true,
+    })
+    return { ok: true, cloned: true }
+  } catch (error) {
+    // Leave a clean slate so a later retry starts from "no clone".
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      // best effort
+    }
+    return { ok: false, error: `克隆插件仓库失败：${explainError(error)}` }
   }
 }
 
