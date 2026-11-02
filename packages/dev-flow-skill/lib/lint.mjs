@@ -27,6 +27,7 @@ export const LINT_RULES = [
   { id: 'ci-three-states', type: 'required-section', heading: 'CI 三态', fix: '加 "## CI 三态" 章节：无 CI / 绿 / 红（自修≤2轮）' },
   { id: 'merge-gate', type: 'required-section', heading: 'merge 闸', fix: '加 "## merge 闸" 章节：具体 merge 口令，"嗯/好/继续"不算' },
   { id: 'tdd', type: 'required-section', heading: 'TDD', fix: '加 "## TDD" 章节：红-确认红对原因-绿-最小实现循环' },
+  { id: 'flow-state', type: 'required-section', heading: '任务状态文件', fix: '加 "## 任务状态文件" 章节：每过一个节点写 docs/specs/.flow/<issue>.json，让任务板能显示 TDD/CI/review 的真实进度' },
 ]
 
 /** Words that must appear in the description for routing to fire. */

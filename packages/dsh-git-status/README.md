@@ -1,80 +1,123 @@
 # dsh-git-status
 
-DeepSeek Harness 插件:当前工作区是 git 项目时,侧栏多一个 **Git** 面板,一屏看清仓库现状。
+DeepSeek Harness 插件：当前工作区是 git 项目时，侧栏多一个 **Git** 面板，把它变成一个 **dev-flow 任务板**——一屏看清有哪些 issue 没处理、每个任务到了哪一步、哪些在等你出手。
 
-**只读。** 插件对仓库只执行 `git` / `gh` 的只读子命令,没有任何写路由,不改动任何文件。
+**只读。** 插件对仓库只执行 `git` / `gh` 的只读子命令，不写任何仓库文件；唯一的写入口是 `dev-flow` skill 自己维护的状态文件（见下）。
 
-## 看什么
+## 任务板布局
 
-| 卡片 | 内容 |
+一张卡 = 一个 issue；一列 = `dev-flow` 的一个节点。列顺序就是流程顺序：
+
+| # | 列 | 含义 |
+| --- | --- | --- |
+| 1 | 待处理 | 停点1：意图与分级待确认 |
+| 2 | 方案中 | 停点2：spec + tickets 待核 |
+| 3 | 开发中 | TDD 红绿循环 |
+| 4 | 待 PR | 有未推送提交 |
+| 5 | CI | 三态（绿 / 红 / 无 CI） |
+| 6 | 待 review | 双轴 review 待裁决 |
+| 7 | 待 merge | 停点3：等你点名 merge |
+| 8 | 已完成 | 已合并 |
+
+除八列外，面板还有两个特殊区：
+
+- **需要你出手**（顶部）：只挂 `dev-flow` 里真正需要你输入的四件事——停点1 待确认、本仓库无 CI、CI 红到第 2 轮升级、merge 待口令。最多 3 条，阻塞项优先。
+- **未进流程**（红色横幅）：当前分支上的改动既无 issue、也不在 `issue-<n>-*` 分支上，即「直接改主干」。这是唯一能暴露「偷偷没走流程」的位置。
+
+空列不留白，而是显示「下一步在等什么」（如待 merge 列空 → 「没有 PR 等口令」），面板本身就是流程说明书。
+
+### 卡片
+
+```
+#26 [git-status] 面板改造为 dev-flow 任务板      standard
+●●◐○○○○○                         ← 八个进度点，实心 = 已过
+issue-26-task-board · ↑1 · PR #31 · CI 红 · CI 1/2 · ticket 2/7
+```
+
+四行固定结构：标题行（issue 号 + 标题 + 分级）、进度点、证据行（分支 / ahead / PR / CI / ticket 计数）、行动行（仅需你出手时出现）。
+
+## 状态文件：`docs/specs/.flow/<issue>.json`
+
+Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到哪个 ticket、CI 自修到第几轮、review 报告是否在等你裁决。这些由 `dev-flow` skill 在每个流程节点写入同一个文件：
+
+```json
+{
+  "issue": 26,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-03T06:00:00+08:00",
+  "tickets": [{ "id": 1, "title": "建表", "state": "done" }],
+  "ci": { "run": 1, "max": 2, "status": "red" }
+}
+```
+
+- `stage` 取值就是八列：`intake` / `spec` / `dev` / `pr` / `ci` / `review` / `merge` / `done`
+- `tickets[].state`：`todo` / `red` / `green` / `done`
+- `ci.status`：`green` / `red` / `none` / `unknown`
+- `review.state`：`not-started` / `running` / `pending-decision` / `done`
+
+文件缺失、JSON 写坏、枚举越界，一律当作「没有记录」降级处理，不会报错也不会谎报进度。
+
+### 冲突时以仓库实况为准
+
+状态文件的 `stage` 与分支/PR/CI 实况不一致时，面板按**实况**放卡，并在卡片上标一条「状态过期」——所以漏写只会让卡停在更早的列，不会把任务谎报成已完成。
+
+## 数据来源
+
+| 字段 | 来源 |
 | --- | --- |
-| 当前仓库 | 当前分支(可复制)、领先/落后、已跟踪改动 / 未跟踪 / **冲突**三个独立计数、最近提交(可复制 hash)、远程列表 |
-| 改动文件 | 按 **冲突 / 已暂存 / 未暂存 / 未跟踪** 分组列出实际路径,点击展开只读 diff(最多 200 项,超出会标注总数) |
-| 领先上游的提交 | `@{u}..HEAD` 里还没推上去的 commit 标题 |
-| Stash | 每个 stash 的 `stash@{n}`、时间、说明(不只一个数字) |
-| 分支 | 本地分支(标当前、标"上游已删除"、ahead/behind)+ 最近一次提交的「时间 · 说明」,另有远程跟踪分支 |
-| 未合并 PR | 打开中的 PR(草稿/冲突标记、head→base、外链)+ 最近已合并(提示本地分支可能可清理) |
-| Issue | 打开中的 issue(外链) |
+| issue 列表 | `gh issue list` |
+| 分支 ↔ issue 映射 | 分支名 `^issue-(\d+)-` |
+| 改动文件 / 行数 | `git status --porcelain=v2` + `git diff --shortstat` |
+| 未推送提交 | `git rev-list --count @{u}..HEAD` |
+| PR 状态 | `gh pr list` |
+| CI 三态 | `gh pr checks <n> --json state`（每 PR 一次，失败降级 `unknown`） |
+| TDD / CI 轮次 / review / merge 口令 | `docs/specs/.flow/<issue>.json` |
 
-### 冲突是独立状态
+### gh 不可用时
 
-`git status --porcelain=v2` 里 `? ` 是**未跟踪**、`u ` 是**未解决冲突**。两者后续动作完全相反(前者不该提交,后者必须先解决),所以快照里分成 `untracked` 与 `conflicts` 两个字段;冲突数 > 0 时面板顶部给出醒目横幅。
+卡片仍会从 git 证据生成（分支名里的 issue 号不依赖 gh），只是没有 PR / CI / issue 标题。面板会给出具体原因：
 
-### 可操作入口
-
-- 分支名、commit hash、stash ref 点击即复制(`navigator.clipboard`,失败回退 `execCommand`);
-- 分支 / commit / ahead commit 右侧有 GitHub 深链(`owner/repo` 由 remote URL 推出);
-- 任一改动文件点开即可看只读 diff,不需要自己打开编辑器。
-
-## PR / issue 数据从哪来
-
-只用 **gh CLI**,认证按两路独立判断:
-
-- `gh auth status` 成功(CLI 登录会话),**或**
-- 进程环境里有 `GH_TOKEN` / `GITHUB_TOKEN`(例如 systemd 里配的 `Environment=GH_TOKEN=...`)
-
-任一满足就查询 PR / issue。插件不读、不存任何 token,只用 `gh` 的默认凭据链。
-
-卡片为空时会给出**具体原因**(`forgeHint`),不再笼统说"gh 查询失败":
-
-| 原因 | 面板提示 |
+| 原因 | 提示 |
 | --- | --- |
 | `not-installed` | 未检测到 gh CLI |
 | `not-logged-in` | gh 已安装但未认证 |
-| `no-remote` | 仓库没有配置 remote,没有 PR / issue 可查 |
-| `not-github` | 远程不是 GitHub,不适用 GitHub 口径的查询 |
+| `no-remote` | 仓库没有配置 remote |
+| `not-github` | 远程不是 GitHub |
+
+## 仓库实况（折叠）
+
+任务板下面是可折叠的「仓库实况」：当前仓库信息、改动文件（点开看只读 diff）、领先上游的提交、stash、分支、PR、issue。这些是任务板的证据层，平时收起。
 
 ## 路由
 
 | 路由 | 方法 | 作用 |
 | --- | --- | --- |
-| `/git-status/snapshot?sessionId=<id>` | GET | 全部信息一次返回;`?refresh=1` 绕过缓存 |
-| `/git-status/diff?sessionId=<id>&path=<仓库相对路径>` | GET | 单个改动文件的只读 diff;路径越出工作区直接 404 |
+| `/git-status/snapshot?sessionId=<id>` | GET | 全部信息一次返回；`?refresh=1` 绕过缓存 |
+| `/git-status/diff?sessionId=<id>&path=<仓库相对路径>` | GET | 单个改动文件的只读 diff；路径越出工作区直接 404 |
 
-两者都只接受 GET,跨源请求返回 403,响应 `cache-control: no-store`。
+两者都只接受 GET，跨源请求返回 403，响应 `cache-control: no-store`。
 
 ## 工作区判定
 
-面板跟随**当前会话**:前端把会话 id 带上,后端读该会话 header 里的 `cwd`(先查活动会话,再查会话持久化),从那里往上找最近的 `.git` 祖先。
+面板跟随**当前会话**：前端把会话 id 带上，后端读该会话 header 里的 `cwd`（先查活动会话，再查会话持久化），从那里往上找最近的 `.git` 祖先。
 
-- 会话 `cwd` 不在 git 仓库里 → 显示空态,**不会**回退去读别的目录的仓库。
-- 拿不到会话 id 时(直接 curl、非会话场景)才退回 `$DSH_WORKSPACE` / `$DSH_CWD` / 进程 cwd。
-
-> 注意:web 服务进程自身的 cwd 通常是启动目录(如默认工作区),和用户正在看的仓库无关——这正是之前"识别不到当前仓库"的原因。
+- 会话 `cwd` 不在 git 仓库里 → 显示空态，**不会**回退去读别的目录的仓库。
+- 拿不到会话 id 时（直接 curl、非会话场景）才退回 `$DSH_WORKSPACE` / `$DSH_CWD` / 进程 cwd。
 
 ### 缓存键 = 会话 + 工作区
 
-快照缓存 30 秒,键是 `会话 id + 解析出的仓库根`。只按会话 id 分键时,在同一会话里 `cd` 到另一个仓库(或新建 worktree)后会继续显示上一个仓库最长 30 秒;加上工作区后,换目录立即重建,停在同一个仓库时仍然命中缓存。
+快照缓存 30 秒，键是 `会话 id + 解析出的仓库根`。在同一会话里 `cd` 到另一个仓库（或新建 worktree）后立即重建，停在同一个仓库时仍然命中。
 
 ## 安装
 
-profile 的 `package.json` 加一行:
+profile 的 `package.json` 加一行：
 
 ```json
 "dsh-git-status": "link:../../packages/dsh-git-status"
 ```
 
-然后 `pnpm install`,重启 DSH。
+然后 `pnpm install`，重启 DSH。
 
 ## 测试
 
@@ -82,6 +125,12 @@ profile 的 `package.json` 加一行:
 pnpm --filter dsh-git-status test
 ```
 
-覆盖:porcelain v2 解析(含 rename 的原始路径、冲突、截断)、stash / 分支 tip / ahead 提交、
-缓存键与换目录、diff(未暂存 / 已暂存 / 未跟踪 / 越界拒绝),以及前端面板在真实快照下的渲染
-(冲突横幅、文件分组、外链 URL、复制入口)。
+覆盖：
+
+- **任务板**：八列顺序、空列提示、issue→列映射、冲突仲裁（实况优先 + 状态过期标）、未进流程识别、需要你出手的四种触发与上限、进度点
+- **状态文件**：合法解析、缺失降级、坏 JSON、枚举越界、issue 号越界拒绝
+- **CI 三态**：全绿 / 有失败 / 全空 / 进行中标 unknown / 失败优先于进行中
+- **快照**：无 gh 权限时仍产出 flowStates 与 checks，非 git 工作区字段稳定
+- **渲染**：列头、卡片四行、分级徽章、过期标、需要你出手区、未进流程横幅
+- **既有能力**：porcelain v2 解析（rename 原始路径、冲突、截断）、stash、diff 越界拒绝、会话+工作区缓存键
+- **README**：文档与实现一致（八列名称、状态文件路径、实况优先）
