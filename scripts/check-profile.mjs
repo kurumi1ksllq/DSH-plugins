@@ -38,7 +38,6 @@ const REPO = resolve(HERE, '..')
 
 /** Bundles this repository ships, as `<name>` -> checkout-relative directory. */
 const SHIPPED = new Map([
-  ['dsh-ctx-guard', 'packages/dsh-ctx-guard'],
   ['dsh-credential-vault', 'packages/dsh-credential-vault'],
   ['dsh-git-bash-tool', 'packages/dsh-git-bash-tool'],
   ['dsh-git-status', 'packages/dsh-git-status'],

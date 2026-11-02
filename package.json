@@ -9,7 +9,6 @@
   },
   "scripts": {
     "test": "pnpm -r --if-present run test",
-    "test:ctx-guard": "pnpm --filter dsh-ctx-guard run test",
     "test:inventory": "pnpm --filter dsh-inventory run test",
     "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
     "test:prompt-inject": "node --test packages/dsh-prompt-inject/test/*.test.mjs",

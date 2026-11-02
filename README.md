@@ -6,7 +6,6 @@
 
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
-| [`packages/dsh-ctx-guard`](packages/dsh-ctx-guard) | `dsh-ctx-guard` | 上下文预算硬闸：拒绝超大 write/edit/命令载荷，超过 token 水位冻结扩张类工具，附 `/handoff` 交接命令 |
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），附侧栏管理面板 |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-git-status`](packages/dsh-git-status) | `dsh-git-status` | 只读 Git 概览：分支与最近提交、改动文件列表与只读 diff、stash 内容、冲突独立计数；装了 gh CLI 时还有未合并 PR 和 issue，分支名/commit 可复制可跳 GitHub |
@@ -23,7 +22,6 @@ profile 的 `package.json` 里逐个 link，包名不需要改：
 ```json
 "dependencies": {
   "@local/dsh-prompt-inject": "link:../../packages/dsh-prompt-inject",
-  "dsh-ctx-guard": "link:../../packages/dsh-ctx-guard",
   "dsh-git-bash-tool": "link:../../packages/dsh-git-bash-tool",
   "dsh-inventory": "link:../../packages/dsh-inventory",
   "dsh-websearch-failover": "link:../../packages/dsh-websearch-failover/plugin"
@@ -40,7 +38,7 @@ pnpm test             # 五个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
-单包：`pnpm --filter dsh-inventory test`、`pnpm --filter dsh-ctx-guard test`。
+单包：`pnpm --filter dsh-inventory test`。
 
 ## 边界
 
