@@ -17,6 +17,7 @@
  *                         commit to the history.
  */
 
+import { flattenFleet } from './fleet.js'
 import { redactForTransport, scanForPaths, scanForSecrets } from './redact.js'
 
 export const MANIFEST_COMMIT_MESSAGE = 'chore(dsh-manifest): update capability manifest'
@@ -174,7 +175,15 @@ export async function publishManifest(options) {
     return { error: `写入仓库失败：${error?.message ?? error}`, report: prepared.report }
   }
   if (!response.ok) {
-    return { error: await describeHttpError(response, `写入 ${path}`), report: prepared.report }
+    const error = await describeHttpError(response, `写入 ${path}`)
+    // 409/422 with our sha attached means the file moved between the lookup
+    // and the write — exactly the concurrent-publish race. Flagged so the
+    // caller re-reads the winner's document and re-merges, instead of giving
+    // up or blind-overwriting.
+    const conflict = response.status === 409 || response.status === 422
+    return conflict
+      ? { ok: false, conflict: true, error, report: prepared.report }
+      : { error, report: prepared.report }
   }
   let payload
   try {
@@ -203,13 +212,18 @@ export async function publishManifest(options) {
  * Returns the same shape as `publishManifest` so the service layer can treat
  * the two transports uniformly; `created`/`unchanged` have no meaning here.
  */
-export async function publishHttp({ url, token, manifest, fetchImpl = globalThis.fetch, timeoutMs = 20000 }) {
+export async function publishHttp({ url, token, manifest, etag = null, fetchImpl = globalThis.fetch, timeoutMs = 20000 }) {
   const prepared = prepareManifestText(manifest)
   if (typeof url !== 'string' || !/^https?:\/\//.test(url.trim())) {
     return { error: `HTTP 模式需要完整的 http(s) 直链：${url}`, report: prepared.report }
   }
   const headers = { 'Content-Type': 'application/json' }
   if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
+  // Conditional write: only land the document if the remote is still the one we
+  // read. 412 means another machine published first — reported as `conflict`
+  // so the caller can re-read, re-merge and retry instead of clobbering it.
+  // No ETag available (endpoint does not emit one): fall back to last write.
+  if (typeof etag === 'string' && etag.length > 0) headers['If-Match'] = etag
   let response
   try {
     response = await withTimeout(
@@ -218,6 +232,9 @@ export async function publishHttp({ url, token, manifest, fetchImpl = globalThis
     )
   } catch (error) {
     return { error: `写入直链失败：${error?.message ?? error}`, report: prepared.report }
+  }
+  if (response.status === 412 || response.status === 409) {
+    return { ok: false, conflict: true, error: `远端已被其他机器更新（HTTP ${response.status}）`, report: prepared.report }
   }
   if (!response.ok) {
     return { error: `写入直链失败：HTTP ${response.status}`, report: prepared.report }
@@ -298,16 +315,39 @@ function withoutIgnored(value) {
  * edit — can produce, and it also ignores key order, because values are
  * compared rather than text — `withoutIgnored` sorts object keys.
  *
+ * Fleet documents (v2) are compared through `flattenFleet`, so a stored v1
+ * file and a fleet document whose single section matches it compare EQUAL —
+ * otherwise the first publish after this plugin ships would always rewrite
+ * the file just to change the envelope, and two machines publishing against
+ * a legacy remote would each fight the other's envelope, not their content.
+ *
  * Returns `true`/`false`, or `null` when either document does not parse; the
  * caller treats `null` as "cannot prove unchanged" and rewrites the file.
  */
 export function sameManifest(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return null
   try {
-    const left = JSON.parse(a)
-    const right = JSON.parse(b)
-    return JSON.stringify(withoutIgnored(left)) === JSON.stringify(withoutIgnored(right))
+    return sameJson(asComparableManifest(JSON.parse(a)), asComparableManifest(JSON.parse(b)))
   } catch {
     return null
   }
+}
+
+function asComparableManifest(value) {
+  if (value !== null && typeof value === 'object' && !Array.isArray(value) && value.fleetVersion === 2) {
+    // Flatten instead of comparing envelopes: sections keyed by machine id and
+    // the wrapper's volatile fields do not decide "did the content change".
+    const flattened = flattenFleet(value)
+    if (flattened !== null) {
+      // A v1 file never carries `repoUrl`; dropping the empty default keeps a
+      // legacy document and its own fleet rendering comparable.
+      if (flattened.repoUrl === '') delete flattened.repoUrl
+      return flattened
+    }
+  }
+  return value
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(withoutIgnored(left)) === JSON.stringify(withoutIgnored(right))
 }

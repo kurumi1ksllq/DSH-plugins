@@ -104,17 +104,31 @@ test('#7 git clone falls back to the probed default branch', async () => {
 // ---- probe failure --------------------------------------------------------
 
 test('#7 a failing probe leaves the original behaviour intact', async () => {
-  // Probe network error, raw 404, API 404: the old error path must still run
-  // and must still mention the ref, and only one probe is attempted.
+  // Probe network error, raw 404, API 404. The probe failure must not itself
+  // force a "read failed" verdict: a 404 from every transport means the file
+  // is not published yet, and only ONE probe is attempted.
   const { fetchImpl, calls } = githubStub({ probeThrows: true })
   const result = await fetchManifestText(
     { owner: 'o', repo: 'r' },
     { ref: 'main', fetchImpl, gitBin: 'definitely-not-git' },
   )
   assert.equal(result.text, undefined)
-  assert.match(result.error, /ref/)
-  assert.match(result.error, /无法读取清单/)
+  assert.equal(result.notFound, true)
   assert.equal(calls.filter((u) => /^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+$/.test(u)).length, 1)
+})
+
+test('#7 a transport crash is never reported as "not published"', async () => {
+  // A crashing transport is not evidence the file is missing — claiming it is
+  // would make the panel silently show an empty fleet for a broken network.
+  const fetchImpl = async () => {
+    throw new Error('network down')
+  }
+  const result = await fetchManifestText(
+    { owner: 'o', repo: 'r' },
+    { ref: 'main', fetchImpl, gitBin: 'definitely-not-git' },
+  )
+  assert.notEqual(result.notFound, true)
+  assert.match(result.error, /无法读取清单/)
 })
 
 test('#7 the probe never breaks the happy path', async () => {

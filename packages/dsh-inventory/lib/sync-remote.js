@@ -177,6 +177,11 @@ export async function fetchManifestText(parsed, options = {}) {
   const timeoutMs = options.timeoutMs ?? 15000
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   const attempts = []
+  // Set only while a transport is reporting "this file does not exist", and
+  // cleared by anything that finds actual content: when it survives to the
+  // end, every transport agreed the manifest is simply not there yet — the
+  // normal state before a fleet's first publish, not an error.
+  let missingFile = false
 
   // Lazily learned default branch, memoized for this call only. `undefined`
   // means "not probed yet"; `null` means "probed and learned nothing", which
@@ -222,6 +227,8 @@ export async function fetchManifestText(parsed, options = {}) {
         attempts.push('raw: 空文件')
       } else {
         attempts.push(`raw: HTTP ${response.status}`)
+        if (response.status === 404) missingFile = true
+        else missingFile = false
         // 404 on the configured ref usually means the default branch is not
         // `main`. Probe the repository's real default branch and retry once
         // before giving up — `parseRepoUrl`'s `/tree/<ref>/` escape hatch
@@ -237,6 +244,7 @@ export async function fetchManifestText(parsed, options = {}) {
       }
     } catch (error) {
       attempts.push(`raw: ${error?.message ?? error}`)
+      missingFile = false
     }
 
     // 2. Contents API (private repos, and better error reporting). A 404 here
@@ -247,6 +255,7 @@ export async function fetchManifestText(parsed, options = {}) {
       const first = await readContents(ref, { parsed, path, token, timeoutMs, fetchImpl })
       if (first.text !== undefined) return first
       attempts.push(`api: ${first.error}`)
+      missingFile = first.notFound === true
       if (first.notFound === true) {
         const retryRef = await fallbackRef(ref)
         if (retryRef !== null) {
@@ -257,6 +266,9 @@ export async function fetchManifestText(parsed, options = {}) {
       }
     } catch (error) {
       attempts.push(`api: ${error?.message ?? error}`)
+      // A transport crash is not evidence that the file is missing: only an
+      // explicit 404 from every transport may claim "not published".
+      missingFile = false
     }
   } else {
     attempts.push('无 fetch 实现')
@@ -286,16 +298,24 @@ export async function fetchManifestText(parsed, options = {}) {
     attempts.push(`git(${defaultBranch}): ${retried.error}`)
   }
 
+  if (missingFile === true) {
+    // raw and the contents API both said 404, and the clone found no file
+    // either (or no clone could happen). The manifest itself does not exist
+    // on this ref — the normal state before a fleet's first publish. Report
+    // that as "not published" instead of the scary generic read failure.
+    return { notFound: true, error: '清单尚未发布（文件不存在）', missing: true }
+  }
+
   return {
     error: `无法读取清单（${attempts.join('；')}）。若仓库默认分支不是 main，请在同步配置里把 ref 改成实际分支，或用仓库地址加 /tree/<分支>/ 后缀。`,
   }
 }
 
-/** One raw-content attempt. Returns `{ text, via }` or `{ error }`. */
+/** One raw-content attempt. Returns `{ text, via }` or `{ error, notFound }`. */
 async function readRaw(ref, { parsed, path, timeoutMs, fetchImpl }) {
   try {
     const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref, path })), timeoutMs)
-    if (!response.ok) return { error: `HTTP ${response.status}` }
+    if (!response.ok) return { error: `HTTP ${response.status}`, notFound: response.status === 404 }
     const text = await response.text()
     if (text.length === 0) return { error: '空文件' }
     return { text, via: 'raw' }
@@ -398,7 +418,12 @@ export async function fetchHttpText(url, options = {}) {
     if (!response.ok) return { error: `HTTP ${response.status}` }
     const text = await response.text()
     if (text.length === 0) return { error: '响应为空' }
-    return { text }
+    // The entity tag is the writer's concurrency guard: a conditional PUT with
+    // `If-Match: <etag>` fails with 412 when another machine wrote in between.
+    // Absent on endpoints that do not emit one — publishing then simply cannot
+    // take the optimistic path and falls back to last-write-wins.
+    const etag = typeof response.headers?.get === 'function' ? response.headers.get('etag') : null
+    return { text, ...(typeof etag === 'string' && etag.length > 0 ? { etag } : {}) }
   } catch (error) {
     return { error: String(error?.message ?? error) }
   }
