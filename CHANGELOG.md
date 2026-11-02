@@ -36,6 +36,24 @@ A bundle whose directory has changes after its version tag fails the gate.
   skip it in silence.
 - `pnpm verify` now runs four gates (packages, artifacts, profile, versions);
   `pnpm gate` = `verify` + `test`.
+- **Transactional updater (L2).** New `scripts/update.mjs` (+ `scripts/update/`)
+  implements the plan → fetch/stage → verify → swap → observe → rollback
+  pipeline from `docs/update-scheme.md` §4.2. Deliberately **not** wired into
+  `pnpm gate`: it mutates a live profile, so it is an operator tool, not a check.
+  Highlights:
+  - planning is per **link target**, not per repository — a profile can mix two
+    checkouts of one monorepo (the live one does), so "the repo" is not a
+    well-defined update unit;
+  - verification runs entirely against the **staged** tree (bundle contract,
+    generated-artifact freshness, entry importability, dependency additions,
+    `dsh --dump-config` with empty stderr); nothing touches live code;
+  - the swap is a single `renameat2(RENAME_EXCHANGE)` syscall, so no reader ever
+    sees a missing package and the previous generation lands at the staging
+    path as a free rollback copy;
+  - `swap`/`rollback` are dry runs without `--confirm`, and a `restart required:`
+    verdict is reported to the operator — the tool never restarts DSH;
+  - `rollback` only exchanges a tree the journal proves holds the previous
+    generation, and refuses once that exchange has already been undone.
 
 ### dsh-inventory — 0.2.1 (unreleased)
 

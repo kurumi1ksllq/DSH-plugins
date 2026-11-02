@@ -1,9 +1,20 @@
-# DSH-plugins 插件可靠更新方案(提案)
+# DSH-plugins 插件可靠更新方案
 
-- 状态:**提案,未实施**。本文只描述方案与证据,不改动任何现有行为。
+- 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 未做**。
 - 范围:`/root/DSH-plugins` 的 8 个 bundle + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
+
+> **L2 实现位置**:`scripts/update.mjs` + `scripts/update/`(见 §4.2)。用法:
+> ```bash
+> node scripts/update.mjs plan    [--profile-dir DIR] [--target REF] [--json]
+> node scripts/update.mjs fetch   [--profile-dir DIR] [--package NAME]
+> node scripts/update.mjs stage   [--profile-dir DIR] [--package NAME] [--gates ...]
+> node scripts/update.mjs swap    [--profile-dir DIR] [--package NAME] --confirm
+> node scripts/update.mjs rollback[--profile-dir DIR] [--package NAME] --confirm
+> node scripts/update.mjs observe [--profile-dir DIR]
+> ```
+> `swap`/`rollback` 默认 dry-run;`--state-dir` 指定 journal/锁位置(默认 `$DSH_HOME/update`)。
 
 ---
 
