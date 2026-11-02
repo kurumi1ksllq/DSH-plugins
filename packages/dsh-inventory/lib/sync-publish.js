@@ -120,8 +120,11 @@ export async function publishManifest(options) {
   // Nothing to publish: an unchanged manifest must not produce a commit.
   // `generatedAt` changes on every build by design, so the comparison ignores
   // it — the semantic content is what decides whether history gets noise.
-  if (!force && existing.sha !== null && existing.text !== null
-    && stripGeneratedAt(existing.text) === stripGeneratedAt(prepared.text)) {
+  //
+  // `sameManifest` answers `null` when either side is not a usable JSON
+  // document: an unparsable stored file is never "the same", so it gets
+  // overwritten instead of silently skipped.
+  if (!force && existing.sha !== null && sameManifest(existing.text, prepared.text) === true) {
     return {
       ok: true,
       created: false,
@@ -198,15 +201,57 @@ function withTimeout(promise, timeoutMs) {
 }
 
 /**
- * Manifest text with the `generatedAt` line removed.
+ * Fields that differ on every build and carry no meaning for a consumer.
  *
- * Only used for the unchanged check: it must tolerate a malformed timestamp
- * rather than crash the publish path, and it never feeds the write itself.
+ * `generatedAt` is the timestamp of the local build, not content: keeping it in
+ * the comparison would make every publish create a commit. `report` is the
+ * redaction report of the document that produced this file — a record of what
+ * was stripped from *that* machine's snapshot — so a machine that happened to
+ * hold one more host path must not be told its manifest "changed" and commit
+ * again.
  */
-function stripGeneratedAt(text) {
-  return text
-    .split('\n')
-    .filter((line) => !/"generatedAt"\s*:/.test(line))
-    .join('\n')
-    .trim()
+const IGNORED_KEYS = new Set(['generatedAt', 'report'])
+
+/**
+ * Deep copy of `value` with every `IGNORED_KEYS` member dropped, keys sorted.
+ *
+ * Sorting is what makes the comparison order-blind: a stored file whose keys
+ * were written in a different order (an older publisher, a hand edit, a
+ * formatter) is the same manifest and must not produce a commit. Arrays keep
+ * their order — that order is content.
+ */
+function withoutIgnored(value) {
+  if (Array.isArray(value)) return value.map((item) => withoutIgnored(item))
+  if (value === null || typeof value !== 'object') return value
+  const out = {}
+  for (const key of Object.keys(value).sort()) {
+    if (IGNORED_KEYS.has(key)) continue
+    out[key] = withoutIgnored(value[key])
+  }
+  return out
+}
+
+/**
+ * Semantic comparison of two manifest documents.
+ *
+ * Stripping the `"generatedAt":` line out of the text was not enough: a stored
+ * file written with different indentation, CRLF line endings, a trailing
+ * newline, or with `generatedAt` moved to another position still compared as
+ * "different" and produced a noise commit. Comparing the parsed JSON with the
+ * volatile keys dropped tolerates every formatting the publisher — or a hand
+ * edit — can produce, and it also ignores key order, because values are
+ * compared rather than text — `withoutIgnored` sorts object keys.
+ *
+ * Returns `true`/`false`, or `null` when either document does not parse; the
+ * caller treats `null` as "cannot prove unchanged" and rewrites the file.
+ */
+export function sameManifest(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return null
+  try {
+    const left = JSON.parse(a)
+    const right = JSON.parse(b)
+    return JSON.stringify(withoutIgnored(left)) === JSON.stringify(withoutIgnored(right))
+  } catch {
+    return null
+  }
 }

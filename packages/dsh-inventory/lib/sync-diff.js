@@ -115,16 +115,30 @@ export function diffManifest(manifest, snapshot, options = {}) {
     if (present === null) {
       // MCP servers have no install path in `applyItems`, so they must never
       // surface as `missing` — a selectable row that always fails on apply is
-      // worse than an honest `blocked` up front.
-      const noInstaller = entry.kind === 'mcp'
+      // worse than an honest `blocked` up front. This is a property of the
+      // kind, not of the entry: no platform, no `requires` and no eligibility
+      // outcome may turn it selectable.
+      //
+      // `self` is the one exception, and it wins: the sync plugin is out of
+      // scope on every machine, so an MCP entry flagged `self` is `skip` like
+      // any other self entry (the publisher never emits one anyway). For MCP
+      // eligibility otherwise gets no say: its reasons ("platform", "missing
+      // command") would point at a dependency that does not matter while the
+      // real blocker is that there is no install path at all. The reason shown
+      // is therefore the one the user can act on — add the server by hand.
+      if (entry.kind === 'mcp') {
+        const self = entry.self === true
+        rows.push({
+          ...row(entry, key),
+          status: self ? 'skip' : 'blocked',
+          reason: self ? '同步插件自身，不在同步范围内' : 'MCP 暂不支持自动安装，请手动添加服务器',
+        })
+        continue
+      }
       rows.push({
         ...row(entry, key),
-        status: entry.self === true ? 'skip'
-          : noInstaller ? 'blocked'
-          : eligibility.ok ? 'missing' : 'blocked',
-        reason: noInstaller
-          ? 'MCP 暂不支持自动安装'
-          : eligibility.reason,
+        status: entry.self === true ? 'skip' : eligibility.ok ? 'missing' : 'blocked',
+        reason: entry.self === true ? '同步插件自身，不在同步范围内' : eligibility.reason,
       })
       continue
     }
@@ -177,7 +191,17 @@ export function diffManifest(manifest, snapshot, options = {}) {
   }
 
   // Present here, absent from the manifest — MCP servers too, so a machine can
-  // discover its own un-published servers and publish them.
+  // discover its own un-published servers and publish them. Without this pass a
+  // locally configured server could never surface as `local-only`, and no
+  // machine could ever publish one.
+  //
+  // The row mirrors the manifest-side rows field for field. `source` stays
+  // undefined because `buildManifest` never emits one for MCP; `version` is
+  // carried only when the snapshot happens to have one, so a server without a
+  // version still yields a complete row instead of an invented number. The map
+  // key is the server name (`snapshot.mcp[i].server`) — exactly what the
+  // manifest names — so `seen` already holds the same `mcp:<name>` key the
+  // forward pass recorded and no server is reported twice.
   for (const [name, server] of installedMcp) {
     const key = `mcp:${name}`
     if (seen.has(key)) continue
@@ -185,6 +209,8 @@ export function diffManifest(manifest, snapshot, options = {}) {
       kind: 'mcp',
       name,
       key,
+      version: typeof server?.version === 'string' ? server.version : undefined,
+      source: undefined,
       platform: 'any',
       requires: [],
       self: false,

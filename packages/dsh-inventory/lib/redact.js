@@ -20,10 +20,37 @@
 export const REDACTED = '<REDACTED>'
 
 /**
+ * A PEM private-key block, header through matching footer, redacted whole.
+ *
+ * The base64 body is the secret; scrubbing one line of a multi-line block used
+ * to publish a fully usable key that merely looked marked. `[\s\S]*?` stops at
+ * the first footer so two keys in one document stay two matches, and Keychain /
+ * OpenSSH / PKCS8 spellings all end in `PRIVATE KEY`.
+ */
+const PEM_PRIVATE_KEY = /-----BEGIN[A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z0-9 ]*PRIVATE KEY-----/g
+
+/**
+ * An `Authorization: <scheme> <credential>` line, whatever the surrounding
+ * header quoting looks like.
+ *
+ * Bearer is matched with any token material (a JWT has dots, a base64 blob has
+ * padding). Basic is matched when its base64 material is long enough to carry
+ * real `user:password`: the matcher counts instead of decoding, because the
+ * base64 of even a one-character pair is 4 characters while `Basic realm`
+ * style prose sits below the threshold, and no client actually sends fewer than
+ * 18 base64 characters of credentials.
+ */
+const AUTH_SCHEME_LINE = /\b(?:authorization\s*[:=]\s*["']?\s*)?(?:bearer\s*[A-Za-z0-9._~+/-]{8,}={0,2}|basic\s*[A-Za-z0-9+/]{18,}={0,2})/gi
+
+/**
  * Known credential shapes. Ordered most-specific first so a `ctx7sk-` key is
  * not also matched by the generic long-token rule.
  */
 const SECRET_PATTERNS = [
+  // Multi-character shapes first: a later single-token rule firing inside a PEM
+  // body or a bearer line would leave the rest half-intact.
+  PEM_PRIVATE_KEY,
+  AUTH_SCHEME_LINE,
   // context7 service keys
   /ctx7sk-[A-Za-z0-9-]{10,}/g,
   // GitHub tokens
@@ -32,10 +59,18 @@ const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9-]{16,}/g,
   // AWS access key ids
   /AKIA[0-9A-Z]{16}/g,
-  // Bearer tokens in a literal
-  /Bearer\s+[A-Za-z0-9._~+/=-]{20,}/g,
+  // Bearer tokens in a literal. Case-insensitive: a hand-written lowercase
+  // `bearer` is the same credential.
+  /Bearer\s+[A-Za-z0-9._~+/=-]{20,}/gi,
   // Google API keys
   /AIza[A-Za-z0-9_-]{30,}/g,
+  // A bare JWT — three base64url segments, the first being a JSON header. Two
+  // long segments are required so `eyWords.eyMore` style prose stays intact.
+  /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_-]{4,})?/g,
+  // GitLab personal access tokens
+  /glpat-[A-Za-z0-9_-]{20,}/g,
+  // Slack tokens
+  /xox[baprs]-[A-Za-z0-9-]{10,}/g,
 ]
 
 /** Object keys whose value is always a credential, whatever it looks like. */
@@ -61,10 +96,92 @@ const SECRET_KEYS = new Set([
   'auth',
   'credential',
   'credentials',
+  // Compound spellings seen on real MCP/plugin configs: the concatenated form
+  // of an obvious secret name with a trailing noun (`clientSecretValue`,
+  // `refreshTokenValue`, `secretKeyValue`) is still the secret itself.
+  'clientsecretvalue',
+  'clientsecretkey',
+  'refreshtokenvalue',
+  'accesstokenvalue',
+  'apikeyvalue',
+  'authtokenvalue',
+  'secretvalue',
+  'tokenvalue',
+  // …as is an explicitly named key, passphrase or session credential.
+  'secretkeyvalue',
+  'privatekeypem',
+  'privatekeyvalue',
+  'privatekeydata',
+  'privatekeycontent',
+  'accesskey',
+  'access_key',
+  'accesskeyid',
+  'secretaccesskey',
+  'awssecretaccesskey',
+  'aws_access_key_id',
+  'aws_secret_access_key',
+  'authtoken',
+  'auth_token',
+  'apitoken',
+  'api_token',
+  'gbtoken',
+  'ghtoken',
+  'githubtoken',
+  'github_token',
+  'oauthtoken',
+  'oauth_token',
+  'idtoken',
+  'id_token',
+  'sastoken',
+  'sas_token',
+  'bearer',
+  'bearertoken',
+  'bearer_token',
+  'xapikey',
+  'jwt',
+  'jwttoken',
+  'signingkey',
+  'signing_key',
+  'privatekeypassphrase',
+  'passphrase',
+  'mnemonic',
+  'seedphrase',
+  'cookie',
+  'setcookie',
+  'connectionstring',
+  'dbpassword',
+  'db_password',
+  'webhooksecret',
+  'encryptionkey',
+  'encryption_key',
+  'masterkey',
+  'master_key',
+  'sessiontoken',
+  'session_token',
 ])
 
 /** A key whose name marks it as an *indirection* to a secret, not the secret. */
 const ENV_KEY_HINTS = /(?:apikeyenv|api_key_env|tokenenv|envkey)$/i
+
+/**
+ * The same indirection rule, generalised to the names added for #12.
+ *
+ * `privateKeyPath` names where the key lives and `privateKeyFile` which file
+ * holds it; freezing either would break a working config and teach nothing.
+ * `privateKeyPem` / `privateKeyValue` carry the key itself and stay secrets.
+ */
+const INDIRECTION_SUFFIX = /(?:env|environ|environment)$|(?:env|envvar|envname|envkey|path|file|filename|filepath|name)$/i
+
+/**
+ * Key names that are never compared with SECRET_KEYS.
+ *
+ * The `auth` family is why this list exists: `baseURL` → `baseurl` and
+ * `author` → `author` both end in `auth` once the lookup strips a trailing
+ * noun, so a bare `auth` in the set would redact every base URL in a document.
+ * Only the spellings that really hold a token are listed explicitly instead.
+ * Likewise an MCP `session` id is routing state, and `keys` is a list of names.
+ */
+const NOT_SECRET_NAMES = new Set(['auth', 'session', 'keys'])
 
 /**
  * A key that names a whole environment block. MCP server configs put their
@@ -72,13 +189,27 @@ const ENV_KEY_HINTS = /(?:apikeyenv|api_key_env|tokenenv|envkey)$/i
  * `PRIVATE_KEY`) are arbitrary — so every value inside an env-like object is
  * treated as a credential unless it is clearly not one.
  */
-const ENV_BLOCK_KEY = /^(?:env|environment|environmentvariables)$/i
+const ENV_BLOCK_KEY = /^(?:env|environment)(?:[-_]?(?:vars?|variables?|values?|entries))?$/i
 
 /** Values that never look like a credential: URLs, flags, short or plain words. */
-const SAFE_ENV_VALUE = /^(?:https?:\/\/|\$\{|\d+|true$|false$|0$|1$|[a-z][a-z0-9._-]{0,15}$)/i
+const SAFE_ENV_VALUE = /^(?:https?:\/\/\S*|\$(?:\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*)(?:[\/][^\s]*)?|\d+(?:\.\d+)*|true|false|yes|no|on|off|null|none|[a-z][a-z0-9_-]{0,15})$/i
 
-/** Something that looks like a real credential: long mixed token material. */
-const SECRET_LIKE_VALUE = /^(?:[A-Za-z0-9._~+/=-]{20,}|-----BEGIN [A-Z ]+-----)/
+/**
+ * Something that looks like a real credential.
+ *
+ * Long opaque material and PEM headers are the obvious case. The rest exists
+ * because a *short* secret (under 20 characters) used to slip through: a value
+ * counts as credential-like when
+ *   - it is built like a password — punctuation, or `user:pass` with a colon; or
+ *   - it mixes letters and digits (`s3cr3t`, `p4ssw0rd`); or
+ *   - it is a bare hex/base64 digest long enough to be key material.
+ * Plain words, plain numbers, booleans, URLs and shell interpolations are not
+ * credential-like, so `DEBUG=true`, `PORT=8080`, `CMD=node` stay readable.
+ *
+ * The mixed-case rule is deliberately absent: `production` is not a secret and
+ * `PRODUCTION` is very often an ordinary mode switch.
+ */
+const SECRET_LIKE_VALUE = /^(?:[A-Za-z0-9._~+/=:,!$%^*(){}[\]<>?|-]{20,}|-----BEGIN [A-Z ]+-----$|(?=[A-Za-z0-9+/=]*[0-9+/=])[A-Za-z0-9+/=]{12,}$|.*\S:[^\s]*|(?=.*\d)(?=.*[a-z]).*|.*[!,@#%^&*()>|~`].*[!,@#%^&*()>|~`].*)$/
 
 /** Replace every recognised credential shape inside a string. */
 export function redactString(text) {
@@ -90,12 +221,39 @@ export function redactString(text) {
   return out
 }
 
+/**
+ * Normalised key names worth testing: the name itself, then the name minus one
+ * trailing word (`clientSecretValue` → `clientsecret`, `session_token_v2` →
+ * `session_token`).
+ *
+ * The exact-match rule alone missed every `<secretName><Noun>` spelling, so
+ * the lookup now tolerates one suffix word that names the *role* of the value
+ * rather than changing what it is. Two levels are not followed: `value` of
+ * `value` is not a thing, and the deeper the strip the likelier a false
+ * positive on an ordinary field.
+ */
+function keyNameCandidates(lower) {
+  const candidates = [lower]
+  const trimmed = lower.replace(/[-_]?[a-z]{2,12}$/, (suffix) => (suffix === lower ? suffix : ''))
+  if (trimmed.length > 0 && trimmed !== lower) candidates.push(trimmed.replace(/[-_]$/, ''))
+  return candidates
+}
+
 /** True when a key name says "this value is a credential". */
 export function isSecretKey(key) {
   if (typeof key !== 'string') return false
-  const lower = key.toLowerCase().replace(/[^a-z0-9_-]/g, '')
-  if (ENV_KEY_HINTS.test(lower)) return false
-  return SECRET_KEYS.has(lower)
+  const lower = key.toLowerCase().replace(/[^a-z0-9_-]/g, '').replace(/_/g, '-')
+  if (ENV_KEY_HINTS.test(lower) || INDIRECTION_SUFFIX.test(lower)) return false
+  for (const candidate of keyNameCandidates(lower)) {
+    // Underscore and hyphen spellings of the same name are one name:
+    // `secret_key` and `secret-key` never mean different things.
+    const forms = [candidate, candidate.replace(/-/g, '_'), candidate.replace(/[-_]/g, '')]
+    for (const form of forms) {
+      if (NOT_SECRET_NAMES.has(form)) return false
+      if (SECRET_KEYS.has(form)) return true
+    }
+  }
+  return false
 }
 
 /**
@@ -107,13 +265,15 @@ export function isSecretKey(key) {
  *
  * @param {string} [key] - the object key this value sits under, so an
  *   `env`-style block can be recognized and scanned more aggressively.
+ * @param {boolean} [inEnvBlock] - set while walking the inside of such a block,
+ *   so nested objects stay under the same rule.
  */
-export function redactValue(value, depth = 0, key) {
+export function redactValue(value, depth = 0, key, inEnvBlock) {
   if (depth > 12) return value
   if (typeof value === 'string') return redactString(value)
   if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1))
   if (value !== null && typeof value === 'object') {
-    const envBlock = ENV_BLOCK_KEY.test(key ?? '')
+    const envBlock = inEnvBlock === true || ENV_BLOCK_KEY.test(key ?? '')
     const out = {}
     for (const [entryKey, item] of Object.entries(value)) {
       if (isSecretKey(entryKey) && item !== null && item !== undefined && item !== '') {
@@ -128,7 +288,9 @@ export function redactValue(value, depth = 0, key) {
         out[entryKey] = REDACTED
         continue
       }
-      out[entryKey] = redactValue(item, depth + 1, entryKey)
+      // An env block propagates into its nested objects: a credential nested one
+      // level deeper is not less of a credential.
+      out[entryKey] = redactValue(item, depth + 1, entryKey, envBlock)
     }
     return out
   }
@@ -238,17 +400,22 @@ function redactPathsDeep(value, depth = 0) {
  *
  * The panel shows this before a publish: "3 secrets will be stripped" is a
  * decision the user gets to make, not something to discover afterwards.
+ *
+ * @param {true} [inEnvBlock] - private recursion flag: the current object is an
+ *   `env`-style block, so the env-block rule applies to its string values.
  */
-export function scanForSecrets(value, path = '', found = []) {
+export function scanForSecrets(value, path = '', found = [], inEnvBlock) {
   if (typeof value === 'string') {
-    for (const pattern of SECRET_PATTERNS) {
-      // Fresh lastIndex: the patterns are /g and are shared across calls.
-      pattern.lastIndex = 0
-      const match = pattern.exec(value)
-      if (match !== null) {
-        found.push({ path, kind: 'literal', preview: maskPreview(match[0]) })
-        break
-      }
+    const hit = firstSecretMatch(value)
+    if (hit !== null) {
+      found.push({ path, kind: 'literal', preview: maskPreview(hit) })
+      return found
+    }
+    // A short secret caught only by the env-block rule still counts, or the
+    // panel would promise "nothing to redact" over a document that changes.
+    if (inEnvBlock === true && value.length > 0
+      && SECRET_LIKE_VALUE.test(value) && !SAFE_ENV_VALUE.test(value)) {
+      found.push({ path, kind: 'keyed', preview: maskPreview(value) })
     }
     return found
   }
@@ -257,16 +424,28 @@ export function scanForSecrets(value, path = '', found = []) {
     return found
   }
   if (value !== null && typeof value === 'object') {
-    for (const [key, item] of Object.entries(value)) {
-      const next = path.length === 0 ? key : `${path}.${key}`
-      if (isSecretKey(key) && item !== null && item !== undefined && item !== '') {
+    for (const [entryKey, item] of Object.entries(value)) {
+      const next = path.length === 0 ? entryKey : `${path}.${entryKey}`
+      if (isSecretKey(entryKey) && item !== null && item !== undefined && item !== '') {
         found.push({ path: next, kind: 'keyed', preview: maskPreview(String(item)) })
         continue
       }
-      scanForSecrets(item, next, found)
+      const childEnv = ENV_BLOCK_KEY.test(entryKey)
+      scanForSecrets(item, next, found, childEnv ? true : undefined)
     }
   }
   return found
+}
+
+/** The first credential shape in a string, or null. Shared with the scanner. */
+function firstSecretMatch(value) {
+  for (const pattern of SECRET_PATTERNS) {
+    // Fresh lastIndex: the patterns are /g and are shared across calls.
+    pattern.lastIndex = 0
+    const match = pattern.exec(value)
+    if (match !== null) return match[0]
+  }
+  return null
 }
 
 /** Show enough of a secret to recognise it, never enough to use it. */

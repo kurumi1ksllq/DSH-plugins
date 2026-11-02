@@ -21,7 +21,8 @@
 
 import { execFile } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { homedir } from 'node:os'
+import { basename, delimiter, dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { dshHome } from './dsh-home.js'
@@ -164,7 +165,11 @@ export async function applyItems(entries, options = {}) {
         // DSH reads it at startup — leaving it broken silently is worse than
         // admitting the batch failed. Restore the exact prior content.
         const rolledBack = restorePackageJson(profileDir, written)
-        if (rolledBack) installed.error = `${installed.error}（已回滚 package.json 改动）`
+        // Both outcomes are reported: a silently failed rollback would leave
+        // the user believing package.json was restored when it was not.
+        installed.error = rolledBack.ok
+          ? `${installed.error}（已回滚 package.json 改动）`
+          : `${installed.error}（${rolledBack.error}）`
       }
       for (const item of plugins) {
         results.push({
@@ -180,10 +185,16 @@ export async function applyItems(entries, options = {}) {
   // Skills are file copies, independent of pnpm.
   for (const entry of skills) {
     const copied = copySkill(entry, options)
+    // A copy that reached the vault but could not be linked is NOT a success:
+    // no skill root scans the vault, so the skill stays inactive while the item
+    // claims `ok` and the next diff would call it `current`. Surface the link
+    // failure instead — the rest of the batch is still unaffected.
+    const linkFailed = copied.ok === true && copied.linked === false
     results.push({
       key: entryKeyOf(entry),
-      ok: copied.ok,
-      ...(copied.ok ? {} : { error: copied.error }),
+      ok: copied.ok === true && !linkFailed,
+      ...(copied.ok === true ? {} : { error: copied.error }),
+      ...(linkFailed ? { error: copied.linkError, linked: false } : {}),
     })
   }
 
@@ -207,12 +218,16 @@ function entryKeyOf(entry) {
  * user needs to see must not be swallowed by a secondary failure.
  */
 function restorePackageJson(profileDir, written) {
-  if (typeof written.previousContent !== 'string') return false
+  if (typeof written.previousContent !== 'string') {
+    return { ok: false, error: '回滚 package.json 失败：没有保存原始内容' }
+  }
   try {
+    // The exact prior bytes, not a re-serialised approximation: DSH reads this
+    // file at startup and the user may keep their own formatting in it.
     writeFileSync(join(profileDir, 'package.json'), written.previousContent)
-    return true
-  } catch {
-    return false
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: `回滚 package.json 失败：${error?.message ?? error}` }
   }
 }
 
@@ -265,9 +280,23 @@ export async function runPnpmInstall(profileDir, options = {}) {
     })
     return { ok: true }
   } catch (error) {
-    const message = String(error?.stderr ?? error?.message ?? error).split('\n').filter(Boolean).slice(-3).join(' ')
-    return { ok: false, error: `pnpm install 失败：${message}` }
+    return { ok: false, error: `pnpm install 失败：${describeInstallFailure(error, timeout)}` }
   }
+}
+
+/**
+ * Explain an `execFile` rejection in terms the user can act on.
+ *
+ * A missing binary, a timeout and a non-zero exit each need a different fix
+ * (install pnpm / retry / read the log), so they must not collapse into one
+ * opaque message.
+ */
+function describeInstallFailure(error, timeout) {
+  const code = error?.code
+  if (code === 'ENOENT') return '找不到 pnpm 可执行文件'
+  if (error?.killed === true || code === 'ETIMEDOUT') return `执行超时（${timeout} 毫秒）`
+  const message = String(error?.stderr ?? error?.message ?? error).split('\n').filter(Boolean).slice(-3).join(' ')
+  return typeof code === 'number' ? `退出码 ${code}：${message}` : message
 }
 
 /**
@@ -315,11 +344,14 @@ export function copySkill(entry, options = {}) {
  * staying usable matters more than the deduplication a symlink buys.
  */
 function linkSkillToRoot(target, options) {
-  const root = options.skillRoot ?? join(dshHome(), 'skills')
+  const root = skillRootOf(options)
   const name = basename(target)
   const linkPath = join(root, name)
   try {
     mkdirSync(root, { recursive: true })
+    // A path already occupied by an earlier copy or link is not a failure: the
+    // skill is reachable from the root either way, and replacing it could
+    // clobber a directory the user manages by hand.
     if (existsSync(linkPath)) return { ok: true, path: linkPath }
     symlinkSync(target, linkPath, 'dir')
     return { ok: true, path: linkPath }
@@ -328,8 +360,35 @@ function linkSkillToRoot(target, options) {
     try {
       cpSync(target, linkPath, { recursive: true })
       return { ok: true, path: linkPath, fallback: 'copy' }
-    } catch {
-      return { ok: false, error: `链接技能到技能根失败：${error?.message ?? error}` }
+    } catch (copyError) {
+      return { ok: false, error: `链接技能到技能根失败：${copyError?.message ?? error?.message ?? error}` }
     }
   }
+}
+
+/**
+ * The skill root a pulled skill is linked into.
+ *
+ * The profile's own root wins when the caller knows one (`options.skillRoot`).
+ * Otherwise fall back to a root DSH actually scans, mirroring
+ * `globalSkillRoots` in index.js: `$DSH_HOME/skills`, then the shared
+ * `~/.agents/skills`, then `DSH_CUSTOM_SKILL_DIRS`. Linking into a directory no
+ * root scans would leave the skill vaulted-only again — the bug this path
+ * exists to fix.
+ */
+export function skillRootOf(options = {}) {
+  const explicit = options.skillRoot
+  if (typeof explicit === 'string' && explicit.length > 0) return explicit
+  const env = options.env ?? process.env
+  const first = join(dshHome(env), 'skills')
+  const agentsHome =
+    typeof env.DSH_AGENTS_HOME === 'string' && env.DSH_AGENTS_HOME.length > 0
+      ? env.DSH_AGENTS_HOME
+      : join(homedir(), '.agents')
+  const candidates = [first, join(agentsHome, 'skills')]
+  for (const dir of String(env.DSH_CUSTOM_SKILL_DIRS ?? '').split(delimiter)) {
+    if (dir.length > 0) candidates.push(dir)
+  }
+  // An existing root wins; otherwise the DSH home root is created on demand.
+  return candidates.find((candidate) => existsSync(candidate)) ?? first
 }
