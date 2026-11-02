@@ -541,8 +541,19 @@ async function loadSnapshot(ctx) {
 let snapshotRefresh = null
 
 async function getSnapshot(ctx, { refresh = false } = {}) {
-  const now = Date.now()
-  if (!refresh && cache.payload !== null && now - cache.at < CACHE_MS) return cache.payload
+  // `refresh: false` takes the cache when it is warm: the sync status route
+  // polls, and a rebuild per poll means rescanning every session and skill
+  // root each time. Writes that make the cache a lie drop it explicitly (see
+  // `invalidateSnapshot`), so a warm entry is already the post-write truth.
+  //
+  // `refresh: true` always rebuilds. The cache is keyed on nothing, so a warm
+  // entry may describe a different profile, home or environment — and the
+  // paths that ask for a forced rebuild (publish, preview, the panel's
+  // refresh=1) are exactly the ones that must describe the disk as it is now.
+  if (!refresh) {
+    const warm = cachedSnapshot()
+    if (warm !== null) return warm
+  }
   if (refresh && snapshotRefresh !== null) return snapshotRefresh
   const rebuild = (async () => {
     const payload = await loadSnapshot(ctx)
@@ -559,6 +570,12 @@ async function getSnapshot(ctx, { refresh = false } = {}) {
     }
   }
   return rebuild
+}
+
+/** The cached snapshot while it is still fresh, otherwise null. */
+function cachedSnapshot() {
+  if (cache.payload === null) return null
+  return Date.now() - cache.at < CACHE_MS ? cache.payload : null
 }
 
 /** A write makes the cached snapshot a lie; drop it instead of serving stale state. */
@@ -1088,11 +1105,14 @@ async function assignForWorkspace(ctx, req) {
 
 // ---- /inventory/sync/* --------------------------------------------------
 //
-// The sync half of this plugin. The sync handlers deliberately force a full
-// snapshot rebuild (`refresh: true`): the manifest diff is only meaningful if
-// the "what this machine has" side is fresh — a stale snapshot would report
-// rows the user cannot act on. Concurrent refreshes share one in-flight
-// rebuild (see `getSnapshot`), so a burst of panel requests costs one rebuild.
+// The sync half of this plugin. Every handler reads the cached snapshot
+// rather than rebuilding one: the cache is invalidated explicitly by each
+// write that changes what is installed (assign, global toggle, vault, apply),
+// so a warm cache is already the truth — and a pull repeats on every panel
+// poll, which must not cost a full scan of every session and skill root each
+// time. The publish path alone asks for a forced rebuild, because what it
+// writes to the repository is a durable claim about this machine and has to
+// reflect the disk at that moment.
 
 /** Where a pulled plugin repository lives on this machine. */
 function pluginRepoRoot(ctx) {
@@ -1113,7 +1133,11 @@ function installContext(ctx) {
 async function handleSync(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'GET') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
-  const snapshot = await getSnapshot(ctx, { refresh: true })
+  // The panel polls this route; a rebuild per poll is the cost the cache exists
+  // to avoid. `?refresh=1` is the escape hatch when the user knows the disk
+  // changed behind this plugin's back.
+  const query = new URL(req.url ?? '/', 'http://localhost').searchParams
+  const snapshot = await getSnapshot(ctx, { refresh: query.get('refresh') === '1' })
   const status = await syncStatus({ snapshot })
   return { status: 200, payload: status }
 }
@@ -1140,6 +1164,8 @@ async function handleSyncConfig(ctx, req) {
 }
 
 async function handleSyncPreview(ctx) {
+  // A preview is what a publish WOULD write, so it must describe the disk as it
+  // is now, not as the cache remembers it.
   const snapshot = await getSnapshot(ctx, { refresh: true })
   return { status: 200, payload: { ok: true, ...syncPreview({ snapshot }) } }
 }
@@ -1157,11 +1183,17 @@ async function handleSyncApply(ctx, req) {
   }
   // `publish` and `apply` share this route: the body says which.
   if (parsed?.action === 'publish') {
+    // Publishing states a durable fact about this machine in a shared
+    // repository, so it always reads the disk — the one path that keeps the
+    // forced rebuild.
     const snapshot = await getSnapshot(ctx, { refresh: true })
     const result = await syncPublish({ snapshot, options: { force: parsed.force === true } })
     return { status: result.ok === true ? 200 : 400, payload: result }
   }
-  const snapshot = await getSnapshot(ctx, { refresh: true })
+  // Applying only reads the local side to diff against the manifest; the cache
+  // is invalidated below when anything was actually installed, and `applyItems`
+  // runs an install that would dominate a cache miss anyway.
+  const snapshot = await getSnapshot(ctx)
   const result = await syncApply({
     snapshot,
     selection: parsed?.selection,

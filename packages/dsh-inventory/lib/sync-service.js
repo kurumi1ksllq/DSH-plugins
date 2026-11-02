@@ -26,6 +26,8 @@ import { applyItems } from './sync-apply.js'
  * machine has. It is never written to here.
  */
 export async function syncStatus({ snapshot, state = readState(), options = {} } = {}) {
+  // `options.now` lets a caller inject the clock, so the recorded pull time is
+  // deterministic under test instead of being whatever the host clock said.
   const parsed = parseRepoUrl(state.repo)
   const base = {
     state: publicState(state),
@@ -62,7 +64,8 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
   const rows = diffManifest(parsedManifest.manifest, snapshot, { capabilities })
   // A successful read of a usable manifest is a pull, even if nothing was
   // installed — otherwise the panel's lastPullAt stays 0 forever.
-  writeState({ lastPullAt: options.now ?? Date.now() })
+  const pulledAt = options.now ?? Date.now()
+  writeState({ lastPullAt: pulledAt })
   return {
     ...base,
     via: fetched.via,
@@ -124,10 +127,15 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
   })
+  // An unchanged publish wrote nothing, so it is not a push: bumping
+  // `lastPushAt` there would make the panel claim a commit that never
+  // happened, and hide the real age of the last one. Skipped publishes also
+  // carry `generatedAt` so the panel can say *what* it found already up there.
   if (result.ok === true && result.unchanged !== true) {
     writeState({ lastPushAt: now })
+    return result
   }
-  return result
+  return result.ok === true ? { ...result, generatedAt: manifest.generatedAt } : result
 }
 
 /**
@@ -139,6 +147,8 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
  * install something this host cannot run.
  */
 export async function syncApply({ snapshot, state = readState(), selection, options = {} }) {
+  // `options.now` mirrors `syncStatus`: an injected clock keeps the recorded
+  // pull time deterministic instead of a hidden `Date.now()` here.
   const keys = Array.isArray(selection) ? selection.filter((k) => typeof k === 'string') : []
   if (keys.length === 0) return { ok: false, error: '没有选中任何项', results: [] }
 
@@ -187,7 +197,7 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
     pnpmBin: options.pnpmBin,
     installTimeoutMs: options.installTimeoutMs,
   })
-  if (applied.ok === true) writeState({ lastPullAt: Date.now() })
+  if (applied.ok === true) writeState({ lastPullAt: options.now ?? Date.now() })
 
   const results = [...applied.results, ...refused].sort((a, b) => a.key.localeCompare(b.key))
   const failed = results.filter((r) => r.ok !== true)

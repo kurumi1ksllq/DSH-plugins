@@ -118,6 +118,12 @@ function decodeContents(payload) {
  *
  * Never throws: returns `{ text }` or `{ error }` so a caller can render "the
  * repository has no manifest" as a state rather than a crash.
+ *
+ * All three transports share one ref, so a repository whose default branch is
+ * `master` used to fail all three when that ref is the default `main`. The real
+ * default branch is therefore learned at most once per call (one probe, one
+ * retry, no loops) and reused by the raw, contents-API and git paths alike. The
+ * probe is best-effort: when it fails the fetch behaves exactly as before.
  */
 export async function fetchManifestText(parsed, options = {}) {
   const ref = options.ref ?? 'main'
@@ -126,6 +132,41 @@ export async function fetchManifestText(parsed, options = {}) {
   const timeoutMs = options.timeoutMs ?? 15000
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   const attempts = []
+
+  // Lazily learned default branch, memoized for this call only. `undefined`
+  // means "not probed yet"; `null` means "probed and learned nothing", which
+  // must not be probed a second time by a later path.
+  let defaultBranch
+  const learnDefaultBranch = async () => {
+    if (defaultBranch !== undefined) return defaultBranch
+    defaultBranch = null
+    if (typeof fetchImpl !== 'function') return defaultBranch
+    try {
+      const headers = { Accept: 'application/vnd.github+json' }
+      if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
+      const response = await withTimeout(
+        fetchImpl(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, { headers }),
+        timeoutMs,
+      )
+      if (response.ok) {
+        const payload = await response.json()
+        if (typeof payload?.default_branch === 'string' && payload.default_branch.length > 0) {
+          defaultBranch = payload.default_branch
+        }
+      }
+    } catch {
+      // Offline or private repo without a token: stay silent and non-fatal, the
+      // caller still has its configured ref and the remaining transports.
+      defaultBranch = null
+    }
+    return defaultBranch
+  }
+  // The branch to retry with after `asRef` failed; `null` when probing cannot
+  // help (nothing learned, or the learned branch is the one that just failed).
+  const fallbackRef = async (asRef) => {
+    const learned = await learnDefaultBranch()
+    return learned !== null && learned !== asRef ? learned : null
+  }
 
   if (typeof fetchImpl === 'function') {
     // 1. raw.githubusercontent.com
@@ -141,11 +182,12 @@ export async function fetchManifestText(parsed, options = {}) {
         // `main`. Probe the repository's real default branch and retry once
         // before giving up — `parseRepoUrl`'s `/tree/<ref>/` escape hatch
         // exists, but nobody reads docs to fix a 404.
-        if (response.status === 404 && ref === 'main') {
-          const defaulted = await fetchViaDefaultBranch(parsed, { path, token, timeoutMs, fetchImpl })
-          if (defaulted.text !== undefined) return defaulted
-          if (defaulted.defaultBranch !== null) {
-            attempts.push(`默认分支是 ${defaulted.defaultBranch}，重试失败`)
+        if (response.status === 404) {
+          const retryRef = await fallbackRef(ref)
+          if (retryRef !== null) {
+            const retried = await readRaw(retryRef, { parsed, path, timeoutMs, fetchImpl })
+            if (retried.text !== undefined) return retried
+            attempts.push(`raw(${retryRef}): ${retried.error}`)
           }
         }
       }
@@ -153,18 +195,21 @@ export async function fetchManifestText(parsed, options = {}) {
       attempts.push(`raw: ${error?.message ?? error}`)
     }
 
-    // 2. Contents API (private repos, and better error reporting)
+    // 2. Contents API (private repos, and better error reporting). A 404 here
+    // is as likely to be a wrong ref as a missing file, so the same single
+    // retry applies: a private repository has no usable raw path at all, and
+    // this is the only transport that can work for it.
     try {
-      const headers = { Accept: 'application/vnd.github+json' }
-      if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
-      const response = await withTimeout(fetchImpl(apiUrl(parsed, { ref, path }), { headers }), timeoutMs)
-      if (response.ok) {
-        const payload = await response.json()
-        const text = decodeContents(payload)
-        if (typeof text === 'string' && text.length > 0) return { text, via: 'api' }
-        attempts.push('api: 内容为空')
-      } else {
-        attempts.push(`api: HTTP ${response.status}`)
+      const first = await readContents(ref, { parsed, path, token, timeoutMs, fetchImpl })
+      if (first.text !== undefined) return first
+      attempts.push(`api: ${first.error}`)
+      if (first.notFound === true) {
+        const retryRef = await fallbackRef(ref)
+        if (retryRef !== null) {
+          const retried = await readContents(retryRef, { parsed, path, token, timeoutMs, fetchImpl })
+          if (retried.text !== undefined) return retried
+          attempts.push(`api(${retryRef}): ${retried.error}`)
+        }
       }
     } catch (error) {
       attempts.push(`api: ${error?.message ?? error}`)
@@ -173,68 +218,93 @@ export async function fetchManifestText(parsed, options = {}) {
     attempts.push('无 fetch 实现')
   }
 
-  // 3. git clone, last resort.
-  const cloned = await fetchViaClone(parsed, { ref, path, timeoutMs, gitBin: options.gitBin })
+  // 3. git clone, last resort. When the default branch was learned and the
+  // configured ref fails to clone *because that branch does not exist*, clone
+  // the learned branch instead: a repo reachable only over git still has a
+  // default branch we may know about.
+  const cloned = await fetchViaClone(parsed, { ref, path, timeoutMs, gitBin: options.gitBin, clone: options.clone })
   if (cloned.text !== undefined) return { text: cloned.text, via: 'git' }
   attempts.push(`git: ${cloned.error}`)
+  if (
+    cloned.branchMissing === true &&
+    defaultBranch !== undefined &&
+    defaultBranch !== null &&
+    defaultBranch !== ref
+  ) {
+    const retried = await fetchViaClone(parsed, {
+      ref: defaultBranch,
+      path,
+      timeoutMs,
+      gitBin: options.gitBin,
+      clone: options.clone,
+    })
+    if (retried.text !== undefined) return { text: retried.text, via: 'git' }
+    attempts.push(`git(${defaultBranch}): ${retried.error}`)
+  }
 
-  return { error: `无法读取清单（${attempts.join('；')}）。若仓库默认分支不是 main，请在同步配置里把 ref 改成实际分支，或用仓库地址加 /tree/<分支>/ 后缀。` }
+  return {
+    error: `无法读取清单（${attempts.join('；')}）。若仓库默认分支不是 main，请在同步配置里把 ref 改成实际分支，或用仓库地址加 /tree/<分支>/ 后缀。`,
+  }
+}
+
+/** One raw-content attempt. Returns `{ text, via }` or `{ error }`. */
+async function readRaw(ref, { parsed, path, timeoutMs, fetchImpl }) {
+  try {
+    const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref, path })), timeoutMs)
+    if (!response.ok) return { error: `HTTP ${response.status}` }
+    const text = await response.text()
+    if (text.length === 0) return { error: '空文件' }
+    return { text, via: 'raw' }
+  } catch (error) {
+    return { error: String(error?.message ?? error) }
+  }
 }
 
 /**
- * Ask GitHub which branch the repository actually defaults to, then fetch the
- * manifest from it.
- *
- * Returns `{ text, via, defaultBranch }` on success, `{ defaultBranch }` when
- * the branch was learned but the fetch still failed, or `{ defaultBranch: null }`
- * when even the probe failed (offline, private repo without token).
+ * One contents-API attempt. Returns `{ text, via }` or `{ error, notFound }`;
+ * `notFound` lets the caller decide whether a ref retry is worthwhile.
  */
-async function fetchViaDefaultBranch(parsed, { path, token, timeoutMs, fetchImpl }) {
-  let defaultBranch = null
+async function readContents(ref, { parsed, path, token, timeoutMs, fetchImpl }) {
   try {
     const headers = { Accept: 'application/vnd.github+json' }
     if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
-    const response = await withTimeout(
-      fetchImpl(`https://api.github.com/repos/${parsed.owner}/${parsed.repo}`, { headers }),
-      timeoutMs,
-    )
-    if (response.ok) {
-      const payload = await response.json()
-      if (typeof payload?.default_branch === 'string' && payload.default_branch.length > 0) {
-        defaultBranch = payload.default_branch
-      }
-    }
-  } catch {
-    return { defaultBranch: null }
+    const response = await withTimeout(fetchImpl(apiUrl(parsed, { ref, path }), { headers }), timeoutMs)
+    if (!response.ok) return { error: `HTTP ${response.status}`, notFound: response.status === 404 }
+    const payload = await response.json()
+    const text = decodeContents(payload)
+    if (typeof text !== 'string' || text.length === 0) return { error: '内容为空' }
+    return { text, via: 'api' }
+  } catch (error) {
+    return { error: String(error?.message ?? error) }
   }
-  if (defaultBranch === null || defaultBranch === 'main') return { defaultBranch }
-
-  try {
-    const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref: defaultBranch, path })), timeoutMs)
-    if (response.ok) {
-      const text = await response.text()
-      if (text.length > 0) return { text, via: 'raw', defaultBranch }
-    }
-  } catch {
-    // fall through
-  }
-  return { defaultBranch }
 }
 
-/** `git clone --depth 1` into a temp dir, read one file, always clean up. */
-async function fetchViaClone(parsed, { ref, path, timeoutMs, gitBin }) {
+/**
+ * `git clone --depth 1` into a temp dir, read one file, always clean up.
+ *
+ * `clone` is an injectable seam: it receives the argument list plus options and
+ * rejects like the real runner, so unit tests can exercise the branch logic
+ * without a network clone.
+ *
+ * Returns `{ text }`, or `{ error, branchMissing }` where `branchMissing` is
+ * true only when the failure clearly says the branch does not exist — a second
+ * clone with another branch would otherwise just burn a network round-trip.
+ */
+async function fetchViaClone(parsed, { ref, path, timeoutMs, gitBin, clone }) {
   const git = typeof gitBin === 'string' && gitBin.length > 0 ? gitBin : 'git'
+  const runner = typeof clone === 'function' ? clone : (args, opts) => run(git, args, opts)
   const url = `https://github.com/${parsed.owner}/${parsed.repo}.git`
   let dir = null
   try {
     dir = mkdtempSync(join(tmpdir(), 'dsh-sync-'))
-    await run(git, ['clone', '--depth', '1', '--branch', ref, '--single-branch', '--quiet', url, dir], {
+    await runner(['clone', '--depth', '1', '--branch', ref, '--single-branch', '--quiet', url, dir], {
       timeout: timeoutMs,
       windowsHide: true,
     })
     return { text: readFileSync(join(dir, path), 'utf8') }
   } catch (error) {
-    return { error: String(error?.message ?? error).split('\n')[0] }
+    const message = String(error?.message ?? error).split('\n')[0]
+    return { error: message, branchMissing: looksLikeMissingRef(`${message}\n${error?.stderr ?? ''}`) }
   } finally {
     if (dir !== null) {
       try {
@@ -244,6 +314,16 @@ async function fetchViaClone(parsed, { ref, path, timeoutMs, gitBin }) {
       }
     }
   }
+}
+
+/**
+ * Did `git clone --branch X` fail because X does not exist? Only then is a
+ * second clone with the probed default branch worth the network round-trip.
+ */
+function looksLikeMissingRef(text) {
+  return /remote branch .* not found|couldn't find remote ref|could not find remote branch|not found in upstream/i.test(
+    text,
+  )
 }
 
 function withTimeout(promise, timeoutMs) {
