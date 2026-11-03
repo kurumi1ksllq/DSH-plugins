@@ -3,7 +3,7 @@
 - 分级:`standard`
 - 关联:issue #39(第一部分已在 #40 合并,`6ec6c14`)
 - 本阶段**会**动:`pnpm-lock.yaml`、`.github/workflows/ci.yml`、`packages/dsh-git-status/*`、`docs/update-scheme.md`
-- 本阶段**不做**:T4(`scripts/check-profile.mjs` 按 realpath 校验生成物 + 报死链)—— 它改 profile 侧行为,单独开 issue
+- 本阶段**不做**:T4(`scripts/check-profile.mjs` 按 realpath 校验生成物 + 报死链 + 干净验证路径)—— **移交 #43**,原验收条件见下(T4 行)
 - 需要你点头的唯一一件仓库外操作:删 profile 里 `dsh-ctx-guard` 的死链(`/root/.dsh/profiles/web/node_modules/`,不重启 DSH)
 
 ## 1. 实测现状(每条都有命令)
@@ -25,7 +25,7 @@
 | T1 | 修 `pnpm-lock.yaml`:重生成 importers 与 `packages/` 一一对应(补两个真包、去掉 ctx-guard) | `node scripts/check-bundle-versions.mjs` 与契约绿;`pnpm install --frozen-lockfile` 不再改写 lockfile |
 | T2 | CI 加 lockfile 守卫 | `pnpm install --frozen-lockfile` 之后 `git diff --exit-code pnpm-lock.yaml` 必须为 0(把「exit 0 却偷偷改写」变成红灯) |
 | T3 | `remotesOf` 改读 `git config --get-regexp '^remote\..*\.url$'`(原样 URL,不吃 insteadOf) | 现有测试在**有**全局 insteadOf 的机器上也能绿;新增一条:即使 `url.*.insteadof` 存在,面板拿到的仍是原始 URL,且能解析出 `owner/repo` |
-| T4 | **移交后续 issue**(本阶段不做):`check-profile.mjs` 对**实际加载的** bundle 校验生成物新鲜度,并报告 profile 死链 | 见移交的 issue |
+| T4 | **移交 #43**(本阶段不做):`check-profile.mjs` 对**实际加载的** bundle 校验生成物新鲜度,并报告 profile 死链 | 原验收:造「工作树新鲜 / 另一棵树陈旧」两个临时目录,断言只认 `realpath` 那棵;死链测试用临时 profile 目录(不碰 `/root/.dsh`) |
 | T5 | 文档:lockfile 修好后 P1-6 三处必须改「已修」(契约强制),并把 T2 的守卫写进 update-scheme | `docs-contract` 绿(漂移解除后它会反过来要求「已修」) |
 | T6 | 版本纪律:`dsh-git-status` 0.2.1 → 0.2.2 | `pnpm verify` 绿;合并后打 `dsh-git-status@0.2.2` |
 
@@ -33,7 +33,7 @@
 
 - 不动 `packages/` 以外的插件代码,只改 `dsh-git-status` 的 remote 解析与其测试。
 - 不重启 DSH;不改 profile 的 `package.json` / `bundles`(只删死链,若你批准)。
-- `scripts/verify-clean.mjs` 暂不做:先把「干净验证」写成 `AGENTS.md` 的一行(多会话共用 checkout 时用临时 worktree + `HOME` 隔离),真做脚本等它被用第二次再说。
+- `scripts/verify-clean.mjs` 与 `AGENTS.md` 的「干净验证」一行**移交 #43**(与本阶段无关,避免在本 PR 里夹带文档承诺)。
 
 ## 4. 风险
 

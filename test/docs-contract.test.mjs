@@ -461,5 +461,27 @@ test('CI compares the lockfile after install, in a way that can fail', () => {
 
   const guard = steps[guardAt].run
   assert.match(guard, /^git diff --exit-code (?:-- )?pnpm-lock\.yaml$/, `unexpected guard command: ${guard}`)
+
+  // A guard that cannot fail is not a guard: `continue-on-error: true` and
+  // `if: false` both leave the command text intact while neutering it, and the
+  // step-order check above cannot see them.
+  const block = ci.slice(ci.indexOf('- name:', ci.indexOf(steps[guardAt].name) - 200))
+  const guardBlock = block.slice(0, block.indexOf('- name:', 1))
+  const neutered = guardBlock.split('\n').filter((line) => /continue-on-error|^\s+if:/.test(line))
+  assert.deepEqual(neutered, [], `the lockfile guard must be able to fail: ${neutered.join(' / ')}`)
+})
+
+test('the CHANGELOG header states the bundle count packages/ actually holds', () => {
+  // The header drifted to "eight" while the workspace held seven, and nothing
+  // covered CHANGELOG at all.
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+  const words = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight' }
+  const claimed = changelog.match(/One repository, ([a-z]+) independently versioned bundles/)
+  assert.ok(claimed, 'CHANGELOG must state how many bundles the repository holds')
+  assert.equal(
+    claimed[1],
+    words[packageDirs().length],
+    `CHANGELOG says ${claimed[1]} bundles but packages/ holds ${packageDirs().length}`,
+  )
 })
 
