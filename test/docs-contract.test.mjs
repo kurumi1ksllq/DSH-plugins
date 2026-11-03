@@ -441,3 +441,15 @@ test('every P1-10 line cites evidence that covers the claim', () => {
   assert.deepEqual(bad, [], `P1-10 evidence must name the CI workflow: ${bad.join(' / ')}`)
   assert.ok(existsSync(join(ROOT, '.github/workflows/ci.yml')), 'the CI workflow the docs cite must exist')
 })
+
+test('CI fails when pnpm install rewrites the committed lockfile', () => {
+  // `pnpm install --frozen-lockfile` exits 0 *and* rewrites pnpm-lock.yaml when
+  // its importers are out of step — which is exactly how the drift in P1-6
+  // survived: nothing compared the file before and after. The workflow must.
+  const ci = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')
+  assert.match(
+    ci,
+    /git diff --exit-code -- pnpm-lock\.yaml/,
+    'ci.yml must assert the lockfile is unchanged after install',
+  )
+})

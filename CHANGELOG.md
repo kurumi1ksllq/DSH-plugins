@@ -12,6 +12,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-git-status 0.2.2 — remotes survive a mirror
+
+- **面板的仓库链接不再被 `insteadOf` 破坏。** `remotesOf` 原来读 `git remote -v`,那条
+  命令输出的是 `url.<base>.insteadOf` **改写后**的地址:配了镜像的机器上,面板收到
+  `https://mirror/…/https://github.com/me/repo.git`,解析不出 `owner/repo`,GitHub 链接
+  因此失效(本机 `~/.gitconfig` 就踩到了,连测试都跟着假红)。现在改读
+  `git config --get-regexp '^remote\..*\.url$'`,拿仓库里真正写的值。
+- 测试:`url.<x>.insteadOf` 存在时仍然返回原始 URL,且 `slugFromRemoteUrl` 能得到
+  `me/repo`;把实现退回 `git remote -v` 即红。
+
 ### dev-flow-skill 0.2.1 — the dual-axis review prompt now actually ships
 
 - **停点3 的双轴 review 有了可复制的模板。** 原文写「用下面的**固定 prompt 模板**」,

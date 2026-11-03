@@ -34,6 +34,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # `--frozen-lockfile` exits 0 and still rewrites pnpm-lock.yaml when the
+      # importers are out of step, so the file has to be compared before/after.
+      - name: Lockfile unchanged by install
+        run: git diff --exit-code -- pnpm-lock.yaml
+
       - name: Verify packaging (whole workspace)
         run: pnpm verify
 

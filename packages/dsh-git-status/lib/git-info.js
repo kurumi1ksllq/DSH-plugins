@@ -260,17 +260,22 @@ export function redactRemoteUrl(url) {
 
 /**
  * Configured remotes: [{ name, url }] (fetch URL only), credential-free.
- * Output shape is `name<TAB>url (fetch)`, i.e. the URL and the suffix share a
- * SPACE — matching a `\t` before `(fetch)` never matched anything, so every
- * snapshot carried `remotes: []` and the panel lost its repo slug and its
- * forge hint along with it.
+ *
+ * Read from `git config` rather than `git remote -v`: the latter prints the URL
+ * *after* `url.<base>.insteadOf` rewriting, so on a machine configured with a
+ * mirror the panel received `https://mirror/…/https://github.com/me/repo.git`
+ * and could no longer parse owner/repo for its GitHub links. `git config` reports
+ * what the repository actually says.
  */
 export async function remotesOf(repoDir) {
-  const out = await runCommand('git', ['-C', repoDir, 'remote', '-v'], { allowFailure: true })
+  const out = await runCommand('git', ['-C', repoDir, 'config', '--get-regexp', '^remote\..*\.url$'], {
+    allowFailure: true,
+  })
   if (typeof out !== 'string') return []
   const seen = new Map()
   for (const line of out.split('\n')) {
-    const match = /^(\S+)\t(\S+) \((fetch)\)$/.exec(line.trim())
+    // `remote.<name>.url <url>`; the name may itself contain dots.
+    const match = /^remote\.(.+)\.url (.+)$/.exec(line.trim())
     if (match) seen.set(match[1], redactRemoteUrl(match[2]))
   }
   return [...seen].map(([name, url]) => ({ name, url }))

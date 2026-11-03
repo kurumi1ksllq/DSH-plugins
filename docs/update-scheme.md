@@ -9,7 +9,7 @@
 > | P0-2 被加载代码依赖 gitignore 生成物 | ⚠️ 本机已构建(`plugin/lib` up to date);**fresh clone 必须先 `pnpm build:websearch`**,clone 里没有生成物 | `pnpm check:websearch` |
 > | P0-3 运行 commit 不在任何 tag/分支上 | ✅ 已收口进 `main`,tag 齐全 | `git tag` |
 > | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` + `ls .github/workflows/ci.yml` |
-> | P1-6 `pnpm-lock.yaml` importers 漂移 | ⬜ **仍未修,见 #39** | 见 §2 表后复核段 |
+> | P1-6 `pnpm-lock.yaml` importers 漂移 | ✅ 已修(2026-11-04;CI 同时加了「install 后 lockfile 不许变」的守卫) | 见 §2 表后复核段 |
 > | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
 > | 本仓库 bundle 数 | 由 8 变 **7**(`dsh-ctx-guard` 已退役) | `ls packages` |
 >
@@ -118,7 +118,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 | --- | --- | --- |
 | P1-4 | `pnpm check:websearch` 默认查 A 的工作树,而线上 link 的是 B → **在 A 里永远绿** | 用 profile 里 bundle 的 `realpath` 当 `--root` |
 | P1-5 | profile 接线零校验(曾经的 `scripts/probe-profile.mjs` 已被删除) | 恢复只读 `check-profile.mjs` 并接进 `pnpm verify` |
-| P1-6 | `pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault`/`dsh-git-status`;`--frozen-lockfile` 实测仍会改写 lockfile(**仍未修,见 #39**) | 补一次 install 提交 lockfile + CI 加 `--frozen-lockfile` |
+| P1-6 | `pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault`/`dsh-git-status`;`--frozen-lockfile` 实测仍会改写 lockfile(**2026-11-04 已修,见复核段**) | 补一次 install 提交 lockfile + CI 断言 install 不改 lockfile |
 | P1-7 | 版本无纪律:全历史仅 1 次 bump;`plugin/` 0.2.0 与仓库根 `websearch-dsh-plugin` 0.3.0 是同一个东西的两个版本号 | 定「改代码必须 bump」+ 自动检查 |
 | P1-8 | `dsh-git-bash-tool` 无 test、无 scripts 块,`pnpm -r --if-present` 静默跳过 | 补最小 test + verify 断言每包必须有 `scripts.test` |
 | P1-9 | 当时 8 个包都没有 `engines.dsh`/DSH peer → 版本兼容检查**从不触发**,没有保护 | 补 `engines.dsh`;当前运行时是 `0.2.1-rc.5` |
@@ -132,7 +132,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 - ✅ **P1-8** 每个包都有 `scripts.test`(7/7),`pnpm -r --if-present` 不再静默跳过。
 - ✅ **P1-9** 每个包都有 `engines.dsh: ^0.2.0`(7/7)。
 - ✅ **P1-10** `ls .github/workflows/ci.yml` 存在(CI 只看文件在不在,`pnpm verify` 不覆盖这条);README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
-- ⬜ **P1-6 仍未修**:`pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault` / `dsh-git-status`,还残留已删除的 `packages/dsh-ctx-guard`。见 **#39**,不要把它当成已完成。
+- ✅ **P1-6 已修**(2026-11-04):importers 补齐 `dsh-credential-vault` / `dsh-git-status`、去掉已删除的 `packages/dsh-ctx-guard`;CI 加了一道 `git diff --exit-code -- pnpm-lock.yaml`,因为 `pnpm install --frozen-lockfile` 会 **exit 0 却改写** lockfile,单靠它守不住。
 - ⬜ **P1-4** 未复核:`pnpm check:websearch` 是否以 profile 里 bundle 的 `realpath` 为根,本次未验证。
 
 

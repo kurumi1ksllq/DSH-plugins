@@ -92,6 +92,36 @@ test('remotesOf parses `git remote -v` (space before the (fetch) suffix)', async
   ], 'a strict tab-(fetch) regex matched nothing, so every snapshot had remotes: []')
 })
 
+test('remotesOf reports the configured URL even when url.<x>.insteadOf rewrites it', async () => {
+  // A machine-level `insteadOf` (mirrors do this) made `git remote -v` print the
+  // rewritten URL, so the panel showed `https://mirror/.../https://github.com/...`
+  // and could not parse owner/repo out of it. The configured value is the truth.
+  const dir = initRepo('gs-remote-insteadof-')
+  git(dir, 'remote', 'add', 'origin', 'https://github.com/me/repo.git')
+
+  const config = join(mkdtempSync(join(tmpdir(), 'gs-gitcfg-')), 'gitconfig')
+  writeFileSync(
+    config,
+    '[url "https://mirror.example/https://github.com/"]\n\tinsteadOf = https://github.com/\n',
+  )
+
+  const previous = process.env.GIT_CONFIG_GLOBAL
+  process.env.GIT_CONFIG_GLOBAL = config
+  try {
+    const remotes = await remotesOf(dir)
+    assert.equal(remotes.length, 1)
+    assert.equal(
+      remotes[0].url,
+      'https://github.com/me/repo.git',
+      'a rewritten fetch URL loses the repository the panel links to',
+    )
+    assert.equal(slugFromRemoteUrl(remotes[0].url), 'me/repo')
+  } finally {
+    if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
+    else process.env.GIT_CONFIG_GLOBAL = previous
+  }
+})
+
 test('remotesOf never hands a token to the panel', async () => {
   const dir = initRepo('gs-remote-token-')
   git(dir, 'remote', 'add', 'origin', 'https://user:ghp_S3CRET@github.com/me/repo.git')

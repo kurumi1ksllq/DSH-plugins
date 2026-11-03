@@ -1,48 +1,48 @@
 {
   "issue": 39,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-04T03:55:42+08:00",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T04:18:53+08:00",
   "tickets": [
     {
       "id": 1,
-      "title": "契约:P1-6 守卫 + lockfile 互锁",
+      "title": "修 pnpm-lock.yaml importers(补两真包、去 ctx-guard)",
       "state": "done"
     },
     {
       "id": 2,
-      "title": "契约:校准块日期与 commit 真实性",
+      "title": "CI 守卫:install 后 lockfile 不许变",
       "state": "done"
     },
     {
       "id": 3,
-      "title": "契约:待批准认全/半角冒号 + 正向要求已执行完成",
+      "title": "remotesOf 改读 git config(insteadOf 免疫)",
       "state": "done"
     },
     {
       "id": 4,
-      "title": "契约:安装片段放宽为「提及 + 正确路径」",
-      "state": "done"
+      "title": "check-profile:按 realpath 校验生成物 + 报告死链",
+      "state": "todo"
     },
     {
       "id": 5,
-      "title": "文档:引 #39、6→5、P1-10 证据、docs-drift 状态、.flow/37 收尾",
+      "title": "文档 P1-6 改「已修」+ 写守卫",
       "state": "done"
     },
     {
       "id": 6,
-      "title": "dev-flow-skill 补双轴 review 模板 + 0.2.1",
+      "title": "dsh-git-status 0.2.2",
       "state": "done"
     }
   ],
   "ci": {
-    "run": 3,
-    "max": 3,
-    "status": "green"
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
   },
   "review": {
-    "state": "pending-decision",
-    "axes": 3
+    "state": "not-started",
+    "axes": 2
   },
   "merge": {
     "authorized": false
