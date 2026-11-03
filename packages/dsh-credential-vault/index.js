@@ -12,7 +12,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { appendFileSync } from 'node:fs'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { resolveDefineTool } from './lib/define-tool.js'
 import { createVaultStore } from './lib/vault-store.js' // STARTUP-MARKER
 import { appendAudit, readAudit } from './lib/audit.js'
 import { API_BASE, createApiHandler } from './lib/api.mjs'
@@ -66,6 +66,10 @@ export function apply(ctx, config = {}) {
     schema: { type: 'object', additionalProperties: true },
     render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
   }
+  // Resolved lazily: the runtime provides `@deepseek-ai/dsh-tools`, but it is not
+  // installed in every environment (CI, bare checkouts), and a top-level import
+  // made the whole plugin unloadable there (issue #28).
+  const defineTool = resolveDefineTool()
   ctx.effect(() => {
     try {
       return ctx.tools.register(defineTool({
