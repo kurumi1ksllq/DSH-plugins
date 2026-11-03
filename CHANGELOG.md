@@ -12,7 +12,20 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
-### dsh-credential-vault 0.2.0 / dsh-inventory 0.4.1 — vault joins the Tools page
+### dsh-credential-vault 0.2.0 / dsh-inventory 0.5.0 — vault joins the Tools page
+
+- **"Leave empty to keep the stored secret" now actually works.** The editor always
+  sent an empty secret when only metadata changed, and the host rejected it with
+  400. `/set` now keeps the sealed value for an existing entry, and still refuses
+  to create one without a secret.
+- **Cancelling a delete or rotation is a no-op again.** The confirmation ran inside
+  the busy wrapper, so cancelling still reloaded the panel and cleared the error
+  message the user was reading.
+- **Error responses never forward `error.message`.** A future throw that
+  interpolated secret material would have gone straight onto the wire.
+- The three bundle client halves are now dictionary-only: the migrated sidebar
+  panels (Icon/Page/styles, ~860 lines total) are deleted rather than left behind
+  as a second, unowned copy of the same UI.
 
 - The credential manager moved into `dsh-inventory`'s 工具管理 panel, right next
   to the `credential` tool it backs: a 「凭据保险库」 segmented tab plus a

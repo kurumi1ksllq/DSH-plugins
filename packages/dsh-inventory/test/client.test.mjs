@@ -1470,6 +1470,8 @@ async function bootProviders(state) {
 }
 
 /** Same boot, but for the prompt editor: the live route answers with `text`. */
+let promptBootCount = 0
+
 async function bootPrompt(initial) {
   let text = initial
   const calls = []
@@ -1477,7 +1479,11 @@ async function bootPrompt(initial) {
 
   const { React, render } = makeReactRuntime()
   globalThis.window = { __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) } }
-  await import(new URL('../client.js?v=prompt-case', import.meta.url).href)
+  // Each boot needs a fresh module instance: a fixed query hits the ES module
+  // cache on the second call, leaving `window.loaded` unset from the previous
+  // boot's window object.
+  promptBootCount += 1
+  await import(new URL(`../client.js?v=prompt-case-${promptBootCount}`, import.meta.url).href)
   const module = globalThis.window.loaded.factory(() => React)
   const registrations = []
   module.apply({
@@ -1602,6 +1608,57 @@ test('the prompt section loads, saves and rejects an empty injection', async () 
  * masked list, the detail card, the add form and the audit log from the vault's
  * own routes — never from the inventory snapshot.
  */
+test('pressing Enter in the prompt editor inserts a newline instead of submitting', async () => {
+  // The editor must never treat Enter as "save": a system prompt is multi-line,
+  // and saving on Enter would silently truncate it. (This behaviour used to be
+  // asserted against the old sidebar panel; it moved here with the component.)
+  const { calls, open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  assert.ok(textarea, 'prompt textarea is not on the tools page')
+
+  const before = calls.filter((call) => call.method === 'POST').length
+  // A textarea without an onKeyDown handler lets the browser insert the newline;
+  // if one is ever added it must not submit.
+  const handler = textarea.props.onKeyDown
+  if (typeof handler === 'function') {
+    let prevented = false
+    handler({ key: 'Enter', shiftKey: false, preventDefault() { prevented = true }, stopPropagation() {} })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(prevented, false, 'Enter must not be swallowed')
+  }
+  const after = calls.filter((call) => call.method === 'POST').length
+  assert.equal(after, before, 'Enter must not submit the prompt')
+})
+
+test('the prompt editor rejects an empty text locally, without a request', async () => {
+  const { calls, open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  textarea.props.onChange({ target: { value: '   ' } })
+  const before = calls.filter((call) => call.method === 'POST').length
+
+  const save = findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词')
+  assert.ok(save, 'save button missing')
+  save.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const after = calls.filter((call) => call.method === 'POST').length
+  assert.equal(after, before, 'whitespace-only text must not reach the host')
+})
+
+test('the prompt editor disables saving while a save is in flight', async () => {
+  const { open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  textarea.props.onChange({ target: { value: '新的注入文本' } })
+
+  const save = findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词')
+  assert.ok(save, 'save button missing')
+  save.props.onClick()
+  // The button must refuse a second click before the first POST settles.
+  const during = findNode(open(), (node) => node.type === 'button' && /保存/.test(textOf(node)))
+  assert.ok(during.props.disabled === true, 'a second save must be blocked while one is in flight')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
+
 test('the credential vault lists masked entries, saves a new one and records the audit', async () => {
   const { calls, open } = await bootCredentialVault()
   const text = textOf(open())
@@ -1742,4 +1799,43 @@ test('cancelling the delete confirmation sends no request and keeps the error st
   const after = calls.slice(before)
   assert.deepEqual(after, [], 'a cancelled delete must not touch the network')
   assert.match(textOf(open()), /gho_…un/, 'the entry must still be listed')
+})
+
+test('the dictionary carries no keys the panel never reads', async () => {
+  // Dead copy rots: translators keep it alive, and a later "fix" of a key nobody
+  // renders is pure noise. Every key must be reached by some t('...') call.
+  const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../client.js', import.meta.url), 'utf8'))
+
+  const zhStart = source.indexOf("    const zh = {")
+  const enStart = source.indexOf("    const en = {")
+  assert.ok(zhStart > 0 && enStart > zhStart, 'dictionaries not found')
+  const zhBlock = source.slice(zhStart, enStart)
+  const enBlock = source.slice(enStart)
+  const enEnd = enBlock.indexOf("\n    }\n")
+  const enText = enBlock.slice(0, enEnd)
+
+  const keysOf = (block) => {
+    const keys = new Set()
+    for (const match of block.matchAll(/^\s{6}([A-Za-z_][A-Za-z0-9_]*):/gm)) keys.add(match[1])
+    return keys
+  }
+  const zhKeys = keysOf(zhBlock)
+  const enKeys = keysOf(enText)
+  assert.deepEqual([...zhKeys].sort(), [...enKeys].sort(), 'zh and en must carry the same keys')
+
+  // Anything outside the dictionary blocks that mentions the key as a literal.
+  const usage = source.slice(0, zhStart) + source.slice(enStart + enText.length)
+  const dead = [...zhKeys].filter((key) => !new RegExp(`['\"\`]${key}['\"\`]`).test(usage))
+
+  // A handful of keys predate the Tools page and are tracked separately; this
+  // list may only shrink. Adding a NEW unused key fails the test.
+  const KNOWN_DEAD = new Set([
+    'tab', 'counts', 'declaresBundle', 'enabled', 'runtimeSnap', 'config', 'noConfig',
+    'noSkillRefs', 'clickExpand', 'clickCollapse', 'wsCount', 'wsDeclaredCount',
+    'wsEnabledCount', 'globalToggling', 'toggleSuccess', 'syncSaveFailed', 'syncLoading',
+    'syncManifestMeta', 'syncGeneratedAt', 'syncViaRaw', 'syncViaApi', 'syncViaGit',
+    'syncSelectable', 'syncInstallFailed', 'syncPublishFailed',
+  ])
+  const newDead = dead.filter((key) => !KNOWN_DEAD.has(key))
+  assert.deepEqual(newDead, [], `new dictionary keys nobody reads: ${newDead.join(', ')}`)
 })

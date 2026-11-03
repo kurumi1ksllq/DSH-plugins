@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "提示词注入 (dsh-prompt-inject)",
-    "description": "DSH bundle：向所有 Agent 的系统提示词注入一段可编辑的中英双语演示段落，并提供侧边栏面板用于实时编辑与保存。"
+    "description": "DSH bundle：向所有 Agent 的系统提示词注入一段可编辑的中英双语演示段落，编辑界面位于「工具管理」页，与 Web 搜索提供方放在一起。"
   }
 }

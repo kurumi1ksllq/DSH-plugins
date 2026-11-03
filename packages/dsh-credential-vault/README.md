@@ -48,7 +48,7 @@ profile 的 `package.json` 里加一行：
 
 ## 安全边界
 
-- 明文只存在于进程内存和 `credential` 工具的返回值里；侧栏 HTTP API 的任何响应
+- 明文只存在于进程内存和 `credential` 工具的返回值里；HTTP API 的任何响应
   都不含密钥值（测试覆盖了这一点）。
 - 审计日志只记名称、结果（ok / missing / rejected）、来源和时间，不记值。
 - 凭据名不允许路径分隔符和控制字符；密钥与 vault 文件均为 0600，写入走临时文件
