@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { readFlowState, flowStatePath, STAGES, GRADES, TICKET_STATES, CI_STATUSES, REVIEW_STATES } from '../lib/flow-state.js'
+import { readFlowState, STAGES, GRADES, TICKET_STATES, CI_STATUSES, REVIEW_STATES } from '../lib/flow-state.js'
 
 function repoWith(issueNumber, payload) {
   const dir = mkdtempSync(join(tmpdir(), 'flow-state-'))
@@ -29,14 +29,18 @@ const valid = {
 }
 
 /**
- * A negative case is only meaningful when the SAME input succeeds on the happy
- * path: otherwise a stub that always answers null would "pass" every rejection
- * test and hide a missing implementation.
+ * Prove a rejection on the SAME file that just succeeded.
+ *
+ * A stub that always answers null would "pass" every negative test, so each case
+ * writes a valid file, confirms the reader accepts it, then overwrites that very
+ * same file with the suspect content and confirms the reader refuses it. Only the
+ * bytes changed — the directory, the reader and the issue number are identical.
  */
-function rejectsBecauseMalformed(dir) {
-  return readFlowState(dir, 26).then((state) => {
-    assert.equal(state, null)
-  })
+async function rejectsAfterAccepting(payload) {
+  const dir = repoWith(26, valid)
+  assert.notEqual(await readFlowState(dir, 26), null, 'the happy path must work in this same directory')
+  writeFileSync(join(dir, 'docs', 'specs', '.flow', '26.json'), typeof payload === 'string' ? payload : JSON.stringify(payload))
+  assert.equal(await readFlowState(dir, 26), null, 'the suspect content must be refused')
 }
 
 test('enum sets are the dev-flow stages in order', () => {
@@ -47,8 +51,19 @@ test('enum sets are the dev-flow stages in order', () => {
   assert.deepEqual(REVIEW_STATES, ['not-started', 'running', 'pending-decision', 'done'])
 })
 
-test('flowStatePath points at docs/specs/.flow/<issue>.json under the repo', () => {
-  assert.equal(flowStatePath('/tmp/repo', 26), join('/tmp/repo', 'docs', 'specs', '.flow', '26.json'))
+test('the reader finds the flow file at docs/specs/.flow/<issue>.json', async () => {
+  // The directory layout is an implementation detail, so it is asserted through
+  // behaviour: the file is found where the dev-flow contract puts it, and a file
+  // anywhere else is not picked up. Spelling the path out in the test would
+  // break on any refactor while the real behaviour stayed correct.
+  const dir = repoWith(26, valid)
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null, 'a file at docs/specs/.flow/26.json must be read')
+
+  // Same payload, wrong location: the reader must not go hunting for it.
+  const misplaced = mkdtempSync(join(tmpdir(), 'flow-state-misplaced-'))
+  writeFileSync(join(misplaced, '26.json'), JSON.stringify(valid))
+  assert.equal(await readFlowState(misplaced, 26), null, 'the file must live under docs/specs/.flow/')
 })
 
 test('readFlowState parses a valid file', async () => {
@@ -74,39 +89,31 @@ test('readFlowState returns null when the file is missing (and the happy path st
 })
 
 test('readFlowState returns null on malformed JSON without throwing', async () => {
-  const dir = repoWith(26, '{ not json')
-  await rejectsBecauseMalformed(dir)
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting('{ not json')
 })
 
 test('readFlowState rejects an unknown stage', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, stage: 'shipped' }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, stage: 'shipped' })
 })
 
 test('readFlowState rejects an unknown grade', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, grade: 'medium' }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, grade: 'medium' })
 })
 
 test('readFlowState rejects an unknown ticket state', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, tickets: [{ id: 1, title: 'x', state: 'blocked' }] }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, tickets: [{ id: 1, title: 'x', state: 'blocked' }] })
 })
 
 test('readFlowState rejects a non-integer issue', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, issue: '26' }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, issue: '26' })
 })
 
 test('readFlowState rejects an unknown CI status', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, ci: { run: 1, max: 2, status: 'flaky' } }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, ci: { run: 1, max: 2, status: 'flaky' } })
 })
 
 test('readFlowState rejects an unknown review state', async () => {
-  await rejectsBecauseMalformed(repoWith(26, { ...valid, review: { state: 'shrug', axes: 2 } }))
-  assert.notEqual(await readFlowState(repoWith(26, valid), 26), null)
+  await rejectsAfterAccepting({ ...valid, review: { state: 'shrug', axes: 2 } })
 })
 
 test('readFlowState rejects a request whose issue escapes the flow directory', async () => {

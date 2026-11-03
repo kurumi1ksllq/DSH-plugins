@@ -40,9 +40,11 @@ const FLOW_DIR = ['docs', 'specs', '.flow']
  * Absolute path of one issue's flow file inside a repo.
  * The number is validated by callers; this is the single place that spells the
  * directory out, so the reader and any future writer cannot drift apart.
+ * Deliberately NOT exported: the directory layout is an implementation detail.
+ * Callers prove the location by reading through `readFlowState`.
  * @returns {string}
  */
-export function flowStatePath(repoDir, issue) {
+function flowStatePath(repoDir, issue) {
   return join(repoDir, ...FLOW_DIR, `${issue}.json`)
 }
 
