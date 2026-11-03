@@ -74,6 +74,26 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 技能一多，列表就不适合一眼看完。每行右侧有个眼睛按钮：点一下，只藏这一条——分区和其他行照旧，工作区详情里的同名技能一起藏。隐藏集合按名字记在 `localStorage` 的 `dsh-inventory:hidden-skills`，重开面板也不会自己回来；工具栏的 **显示已隐藏 N** 按钮把藏起来的行放出来（变暗显示），行尾的眼睛再点一次就取消隐藏。隐藏只影响列表，不改变技能是否被模型加载。
 
+## 工具管理页与其它 bundle 的关系
+
+「工具管理」页不只渲染本插件自己的数据：几个分段标签的内容，实际调用的是**另外三个
+bundle 的宿主路由**。
+
+| 分段 | 调用的路由前缀 | 由谁注册 |
+| --- | --- | --- |
+| 凭据保险库 | `/credential-vault/api/*` | `dsh-credential-vault` |
+| Web 搜索提供方 | `/websearch-failover/api/*` | `dsh-websearch-failover` |
+| 提示词注入 | `/prompt-inject/*` | `@local/dsh-prompt-inject` |
+
+这三个 bundle 在 `package.json` 里**没有声明为本插件的依赖**（DSH 的 bundle 之间没有
+依赖机制，profile 决定谁被加载）。所以：
+
+- profile 里**同时启用**这四个 bundle 时，整页可用；
+- 只启用 `dsh-inventory` 时，这三个分段会显示「操作失败 (HTTP 404)」——不是 bug，
+  是宿主路由确实不存在；
+- `scripts/check-profile.mjs` 会对这种「inventory 在、分段 bundle 不在」的组合给出
+  **告警**（不是错误），帮你发现漏装。
+
 ## 技能 → 资产依赖图
 
 技能发现是 **depth 1**（`<root>/<name>/SKILL.md`），和 DSH 的发现规则一致。所以「路由 skill + `refs/` 附属资源」这种结构里，`refs/` 下的文件对扫描器是**不存在的**——面板上看不到谁依赖谁，也看不到引用有没有断。
