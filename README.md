@@ -1,17 +1,17 @@
 # DSH-plugins
 
-一个仓库，六个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
+一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
 **这个仓库只放插件。** 服务器怎么配 DSH、profile 怎么接、密钥怎么管，都不在这里。
 
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
-| [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），附侧栏管理面板 |
+| [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-git-status`](packages/dsh-git-status) | `dsh-git-status` | 只读 Git 概览：分支与最近提交、改动文件列表与只读 diff、stash 内容、冲突独立计数；装了 gh CLI 时还有未合并 PR 和 issue，分支名/commit 可复制可跳 GitHub |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行） |
-| [`packages/dsh-prompt-inject`](packages/dsh-prompt-inject) | `@local/dsh-prompt-inject` | 往所有 Agent 系统提示词注入一段可编辑文本，带侧栏编辑器 |
-| [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移 + 侧栏余额管理器 |
+| [`packages/dsh-prompt-inject`](packages/dsh-prompt-inject) | `@local/dsh-prompt-inject` | 往所有 Agent 系统提示词注入一段可编辑文本，编辑器在 dsh-inventory 的工具管理页 |
+| [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 
 `packages/dsh-websearch-failover` 是 websearch 的仓库根（含 `lib/`、`scripts/`、`test/`），真正装进 DSH 的 bundle 是它下面的 [`plugin/`](packages/dsh-websearch-failover/plugin)。
 
@@ -34,11 +34,20 @@ profile 的 `package.json` 里逐个 link，包名不需要改：
 
 ```bash
 pnpm install          # 一次装齐 workspace 依赖
-pnpm test             # 五个包全部测试
+pnpm test             # 七个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
 单包：`pnpm --filter dsh-inventory test`。
+
+### 改代码前先读 `AGENTS.md`
+
+**本仓库有强制的开发流程。** 任何会改动文件内容的请求——包括“只改一行”——
+都要先调用 `dev-flow` skill：`issue → 分支 → TDD → PR → CI → 双轴 review → merge`。
+
+规则入口见 [`AGENTS.md`](AGENTS.md)，完整规则在
+[`packages/dev-flow-skill/SKILL.md`](packages/dev-flow-skill/SKILL.md)。
+禁止直接改 `main`；merge 需要用户明确说出 `merge #<PR 号>`。
 
 ## 边界
 

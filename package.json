@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "pnpm -r --if-present run test",
+    "test": "pnpm -r --if-present run test && node --test test/*.test.mjs",
     "test:inventory": "pnpm --filter dsh-inventory run test",
     "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
     "test:prompt-inject": "node --test packages/dsh-prompt-inject/test/*.test.mjs",
@@ -19,6 +19,7 @@
     "verify": "node scripts/verify-packages.mjs && node scripts/check-artifacts.mjs && node scripts/check-profile.mjs && node scripts/check-bundle-versions.mjs",
     "gate": "pnpm verify && pnpm test",
     "check:profile": "node scripts/check-profile.mjs",
-    "check:versions": "node scripts/check-bundle-versions.mjs"
+    "check:versions": "node scripts/check-bundle-versions.mjs",
+    "test:docs": "node --test test/*.test.mjs"
   }
 }
