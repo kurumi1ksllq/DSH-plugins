@@ -227,10 +227,17 @@ test('client registers a sidebar entry plus a main panel and renders both states
 
   // A sidebar entry and its main panel, keyed together so selecting one routes
   // the shell to the other.
-  assert.equal(injections.length, 2)
-  assert.deepEqual(injections.map((injection) => injection.name), ['sidebar.panellist', 'main'])
+  // Two for this panel's own UI, two for the Plugins page's detail slots
+  // (issue #45): the update button and its "update available" tag.
+  assert.equal(injections.length, 4)
+  assert.deepEqual(injections.map((injection) => injection.name), [
+    'sidebar.panellist',
+    'main',
+    'plugins.detail.actions',
+    'plugins.detail.badge',
+  ])
   for (const injection of injections) injection.factory()
-  assert.equal(registrations.length, 2)
+  assert.equal(registrations.length, 4)
 
   const sidebar = registrations.find((entry) => entry.spec.name === 'sidebar.panellist')
   const main = registrations.find((entry) => entry.spec.name === 'main')
@@ -1923,4 +1930,34 @@ test('the credential editor offers database, service, aliases and a slug preview
   const detailText = textOf(open())
   assert.match(detailText, /github/, 'the detail card must show the service')
   assert.match(detailText, /GitHub_Token/, 'the detail card must show the alias chips')
+})
+
+test('the update slots stay silent for a package this checkout does not carry', async () => {
+  // Both entries render null unless the subject is one of our bundles. That is
+  // what keeps every other plugin's page pixel-identical.
+  const { React } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL(`../client.js?v=update-filter`, import.meta.url).href)
+  const plugin = loaded.factory(() => React)
+  const updateRowFor = plugin.__updateRowFor
+  assert.equal(typeof updateRowFor, 'function', 'the update slots must expose their filter')
+
+  const state = {
+    ok: true,
+    bundles: [
+      { name: 'dsh-inventory', version: '0.6.0', nextVersion: '0.7.0', updatable: true },
+      { name: 'dsh-git-status', version: '0.2.2', nextVersion: '0.2.2', updatable: false },
+    ],
+  }
+
+  assert.deepEqual(updateRowFor(state, { kind: 'bundle', pkg: { name: 'dsh-inventory' } }), state.bundles[0])
+  assert.equal(updateRowFor(state, { kind: 'bundle', pkg: { name: '@deepseek-ai/dsh-base' } }), null)
+  assert.equal(updateRowFor(state, { kind: 'item', id: 'settings' }), null)
+  assert.equal(
+    updateRowFor(state, { kind: 'row', pkg: { name: 'dsh-inventory' }, row: { rowId: 'x', moduleName: 'y', enabled: true } }),
+    null,
+  )
+  assert.equal(updateRowFor(null, { kind: 'bundle', pkg: { name: 'dsh-inventory' } }), null)
+  assert.equal(updateRowFor({ ok: false, error: 'boom' }, { kind: 'bundle', pkg: { name: 'dsh-inventory' } }), null)
 })

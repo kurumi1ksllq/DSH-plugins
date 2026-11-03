@@ -41,6 +41,16 @@ import { setSkillEnabled } from './lib/skill-toggle.js'
 import { writePatchEnabled } from './lib/global-patch.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
+import {
+  checkUpdatable,
+  gitIn,
+  localBundles,
+  moveCheckout,
+  readCheckoutState,
+  relationTo,
+  remoteVersionsAt,
+  runUpdate,
+} from './lib/plugin-update.js'
 import { syncApply, syncConfigure, syncPreview, syncPublish, syncStatus } from './lib/sync-service.js'
 
 export const name = 'dsh-inventory'
@@ -56,6 +66,8 @@ export const SYNC_ROUTE = '/inventory/sync'
 export const SYNC_CONFIG_ROUTE = '/inventory/sync/config'
 export const SYNC_PREVIEW_ROUTE = '/inventory/sync/preview'
 export const SYNC_APPLY_ROUTE = '/inventory/sync/apply'
+export const PLUGIN_UPDATE_ROUTE = '/inventory/plugin-update'
+export const PLUGIN_UPDATE_APPLY_ROUTE = '/inventory/plugin-update/apply'
 
 const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 
@@ -1170,6 +1182,131 @@ async function handleSyncPreview(ctx) {
   return { status: 200, payload: { ok: true, ...syncPreview({ snapshot }) } }
 }
 
+/**
+ * The checkout this plugin is running from.
+ *
+ * Not `pluginRepoRoot()`: that one is where the *sync* lane clones a repository
+ * into (`$DSH_HOME/plugin-repo`). The update button has to move the tree the
+ * profile actually loads, so it asks git for the top level above this file.
+ *
+ * @returns {string|null} absolute path, or null when this install is not a git
+ *   checkout (a copied bundle inside a profile has no history to update from).
+ */
+function pluginCheckoutRoot() {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const top = gitIn(here, ['rev-parse', '--show-toplevel'])
+  return top.ok === true && top.stdout.trim().length > 0 ? top.stdout.trim() : null
+}
+
+/** Outcome of the last update attempt; the panel polls GET to read it. */
+let lastUpdate = null
+
+/** The remote-tracking ref the update follows. */
+const UPDATE_TARGET = 'origin/main'
+
+async function handlePluginUpdate(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'GET') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  const repo = pluginCheckoutRoot()
+  if (repo === null) {
+    return {
+      status: 200,
+      payload: {
+        ok: false,
+        error: 'this plugin is not running from a git checkout, so there is nothing to update from',
+        last: lastUpdate,
+      },
+    }
+  }
+
+  // Reading the remote needs a fetch. A failure here still leaves the local side
+  // worth reporting: the panel shows the checkout's state and says why the remote
+  // side is unknown.
+  const fetched = gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
+  const state = readCheckoutState(repo)
+  const { relation, ahead, behind } = relationTo(repo, UPDATE_TARGET)
+  const local = localBundles(repo)
+  const remote = fetched.ok === true ? remoteVersionsAt(repo, UPDATE_TARGET) : {}
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      repo,
+      branch: state.branch ?? null,
+      head: state.head ?? null,
+      clean: state.clean === true,
+      dirty: state.dirty ?? [],
+      relation,
+      ahead,
+      behind,
+      ...(fetched.ok === true ? {} : { fetchError: fetched.error }),
+      bundles: local.map((item) => ({
+        name: item.name,
+        version: item.version,
+        nextVersion: remote[item.name] ?? null,
+        updatable: typeof remote[item.name] === 'string' && remote[item.name] !== item.version,
+      })),
+      last: lastUpdate,
+    },
+  }
+}
+
+async function handlePluginUpdateApply(ctx, req, res) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  const repo = pluginCheckoutRoot()
+  if (repo === null) {
+    return { status: 400, payload: { ok: false, error: 'this plugin is not running from a git checkout' } }
+  }
+
+  const fetched = gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
+  if (fetched.ok !== true) {
+    return { status: 400, payload: { ok: false, reason: 'fetch-failed', detail: fetched.error } }
+  }
+
+  const target = gitIn(repo, ['rev-parse', UPDATE_TARGET])
+  if (target.ok !== true) {
+    return { status: 400, payload: { ok: false, reason: 'no-target', detail: target.error } }
+  }
+
+  const facts = {
+    state: readCheckoutState(repo),
+    local: localBundles(repo),
+    remote: remoteVersionsAt(repo, UPDATE_TARGET),
+    targetHead: target.stdout.trim(),
+    relation: relationTo(repo, UPDATE_TARGET).relation,
+  }
+  const gate = checkUpdatable(facts)
+
+  const hmr = ctx.get('hmr')
+  const reconcilable =
+    hmr !== undefined && typeof hmr?.runExclusive === 'function' ? () => hmr.runExclusive(() => hmr.reconcileProfile()) : undefined
+
+  const result = await runUpdate({
+    gate,
+    moveCheckout: () => moveCheckout(repo, { remote: 'origin', ref: 'main' }),
+    // Answer first: the bundle being updated may be this one, and a
+    // recomposition stops it before it could write a response.
+    respond: () => {
+      sendJson(res, 200, {
+        ok: gate.ok === true,
+        accepted: gate.ok === true,
+        changed: gate.changed ?? [],
+        ...(gate.ok === true ? {} : { reason: gate.reason, detail: gate.detail }),
+      })
+      lastUpdate = { at: Date.now(), outcome: gate.ok === true ? 'running' : 'refused', gate }
+    },
+    reconcile: reconcilable,
+  })
+
+  lastUpdate = { at: Date.now(), ...result }
+  invalidateSnapshot()
+  return { status: 200, payload: result }
+}
+
 async function handleSyncApply(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
@@ -1291,6 +1428,35 @@ export function apply(ctx) {
       },
     }),
   )
+
+  const updateRoutes = [
+    { path: PLUGIN_UPDATE_ROUTE, handler: handlePluginUpdate, label: '插件更新检查' },
+    { path: PLUGIN_UPDATE_APPLY_ROUTE, handler: handlePluginUpdateApply, label: '插件更新' },
+  ]
+  for (const route of updateRoutes) {
+    ctx.effect(() =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: route.path,
+        handler: async (req, res) => {
+          try {
+            if (isForbiddenOrigin(req)) {
+              sendJson(res, 403, { ok: false, error: 'forbidden-origin' })
+              return
+            }
+            const { status, payload } = await route.handler(ctx, req, res)
+            // A handler that already answered (the update path) must not be
+            // written to twice.
+            if (res.writableEnded !== true) sendJson(res, status, payload)
+          } catch (error) {
+            if (res.writableEnded !== true) {
+              sendJson(res, 500, { ok: false, error: `${route.label}失败：${error?.message ?? error}` })
+            }
+          }
+        },
+      }),
+    )
+  }
 
   const syncRoutes = [
     { path: SYNC_ROUTE, handler: handleSync, label: '同步状态' },

@@ -10,7 +10,7 @@
 | [`packages/dev-flow-skill`](packages/dev-flow-skill) | `dev-flow-skill` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge，含 3 个停点与反绕过硬规则；装上去只注册 skill，不占工具位 |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-git-status`](packages/dsh-git-status) | `dsh-git-status` | 只读 Git 概览：分支与最近提交、改动文件列表与只读 diff、stash 内容、冲突独立计数；装了 gh CLI 时还有未合并 PR 和 issue，分支名/commit 可复制可跳 GitHub |
-| [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行） |
+| [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
 | [`packages/dsh-prompt-inject`](packages/dsh-prompt-inject) | `@local/dsh-prompt-inject` | 往所有 Agent 系统提示词注入一段可编辑文本，编辑器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 

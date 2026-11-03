@@ -45,6 +45,42 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 这段进每个请求，约 150 token。它注册在 `webServer` 守卫之前，所以没有 Web 服务器的 profile（headless / ACP）里模型同样能看到。
 
+## Plugins-page update button (0.7.0)
+
+`dsh-inventory` contributes two cells to the Plugins page's own slot contract —
+nothing in the host package is patched:
+
+| Slot | What it draws |
+| --- | --- |
+| `plugins.detail.actions` | 「更新到 x.y.z」at the head of a bundle's detail page |
+| `plugins.detail.badge` | 「可更新 a → b」next to the version |
+
+Both render `null` unless the subject's package name is a bundle **in the
+checkout this plugin runs from**, so every other plugin's page is untouched.
+
+Clicking one advances that whole checkout (`git fetch` + `git merge --ff-only`)
+and then asks for one recomposition:
+
+```js
+ctx.get('hmr').runExclusive(() => ctx.get('hmr').reconcileProfile())
+```
+
+That is the `dsh-hmr` public API and the path `dsh-plugin-manager` itself uses,
+so a successful update needs **no restart**. A profile without `hmr`
+(headless/SDK) gets an honest `restart-required / no-hmr` instead, and this
+plugin never restarts anything.
+
+Two rules the implementation must keep, both from `dsh-hmr`'s "the old version is
+not restored":
+
+1. every refusal (dirty tree, detached HEAD, not fast-forwardable, already up to
+   date) happens **before** a single file moves;
+2. the caller is answered **before** the recomposition, because the bundle being
+   updated may be this one and a recomposition stops it.
+
+Routes: `GET /inventory/plugin-update` (state + per-bundle versions) and
+`POST /inventory/plugin-update/apply`.
+
 ## 显示什么
 
 | 分区 | 数据源 | 说明 |

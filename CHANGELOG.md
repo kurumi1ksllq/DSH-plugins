@@ -12,6 +12,24 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.7.0 — 插件页上的「更新」按钮
+
+- **DSH 的插件页现在能直接更新本仓库的插件。** 每个 bundle 的详情页头部多一个
+  「更新到 x.y.z」按钮,标题旁多一个「可更新 a → b」标签 —— 两个都是插件页自己的 slot
+  (`plugins.detail.actions` / `plugins.detail.badge`),宿主包一行没改。不是本仓库的包
+  → 两个 slot 都渲染 `null`,别的插件页零变化。
+- **免重启生效**:更新后调 `ctx.get('hmr').runExclusive(() => hmr.reconcileProfile())`
+  —— 这是 `dsh-hmr` 的 public API,也是 plugin-manager 自己用的那条路
+  (`dsh-plugin-manager/lib/index.js:2366`)。没有 hmr 的 profile(headless/SDK)会如实报
+  `restart-required/no-hmr`,不会自动重启。
+- **点一个 = 整个 checkout 前进**(7 个 bundle 同处一个仓库),结果里列出所有变了的插件,
+  不让用户以为只动了一个。
+- **拒绝先于动手**:工作树脏 / HEAD 不在分支上 / 无法 ff-only / 已经是最新 —— 四种情况都在
+  动任何文件之前拒绝,因为重组合不是事务,失败不恢复。
+- **先说后重组合**:更新的可能就是本插件,它会被重组合停掉,所以响应必须先在 `res.end()`
+  里发出去。
+- 新增路由 `/inventory/plugin-update`(GET 状态)与 `/inventory/plugin-update/apply`(POST)。
+
 ### Workspace / tooling — lockfile 与 CI 守卫
 
 - **`pnpm-lock.yaml` 的 importers 与 `packages/` 重新对齐**:补上 `dsh-credential-vault`、

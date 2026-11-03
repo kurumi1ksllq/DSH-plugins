@@ -11,6 +11,8 @@ import {
   ASSIGN_ROUTE,
   GLOBAL_ROUTE,
   SNAPSHOT_ROUTE,
+  PLUGIN_UPDATE_APPLY_ROUTE,
+  PLUGIN_UPDATE_ROUTE,
   SYNC_APPLY_ROUTE,
   SYNC_CONFIG_ROUTE,
   SYNC_PREVIEW_ROUTE,
@@ -74,6 +76,8 @@ test('registers one exact route per surface', () => {
       SYNC_PREVIEW_ROUTE,
       SYNC_ROUTE,
       VAULT_ROUTE,
+      PLUGIN_UPDATE_ROUTE,
+      PLUGIN_UPDATE_APPLY_ROUTE,
     ].sort(),
   )
   for (const route of ctx.routes) assert.equal(route.kind, 'exact')
@@ -85,6 +89,8 @@ test('registers one exact route per surface', () => {
   assert.equal(SYNC_CONFIG_ROUTE, '/inventory/sync/config')
   assert.equal(SYNC_PREVIEW_ROUTE, '/inventory/sync/preview')
   assert.equal(SYNC_APPLY_ROUTE, '/inventory/sync/apply')
+  assert.equal(PLUGIN_UPDATE_ROUTE, '/inventory/plugin-update')
+  assert.equal(PLUGIN_UPDATE_APPLY_ROUTE, '/inventory/plugin-update/apply')
 })
 
 test('rejects non-GET methods with 405', async () => {

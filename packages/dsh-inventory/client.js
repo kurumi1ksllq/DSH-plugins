@@ -180,6 +180,12 @@ window.__ModuleLoader__.load({
       vaultedNote: '仓库内技能只在启用的工作区里加载',
       vaultFailed: '仓库操作失败',
       vaultDone: '已移动 {count} 个',
+      updateBadge: '可更新',
+      updateTo: '更新到 {version}',
+      updateConfirm: '更新会推进整份插件仓库并立即重新加载，确定继续？',
+      updateRunning: '正在更新…',
+      updateDone: '已更新',
+      updateFailed: '更新失败',
       syncView: '同步',
       syncTitle: '跨机同步',
       syncSubtitle: '从清单仓库看差异，勾哪项装哪项。发布时只上传插件/MCP/skill 清单，密钥与本机路径会被脱掉。',
@@ -479,6 +485,12 @@ window.__ModuleLoader__.load({
       vaultedNote: 'Vaulted skills load only where enabled',
       vaultFailed: 'Vault action failed',
       vaultDone: 'Moved {count}',
+      updateBadge: 'update available',
+      updateTo: 'Update to {version}',
+      updateConfirm: 'This advances the whole plugin checkout and reloads it now. Continue?',
+      updateRunning: 'Updating…',
+      updateDone: 'Updated',
+      updateFailed: 'Update failed',
       syncView: 'Sync',
       syncTitle: 'Cross-machine sync',
       syncSubtitle: 'Diff against the manifest repository and install only what you tick. Publishing uploads the plugin/MCP/skill list; secrets and host paths are stripped.',
@@ -4369,6 +4381,143 @@ window.__ModuleLoader__.load({
           InventoryPanel,
         ),
       )
+
+      // The Plugins page's own slots: a button at the head of a bundle's detail
+      // page and a tag beside its version. Both filter on this checkout's bundle
+      // list, so a foreign package renders nothing.
+      ctx.slots.inject('plugins.detail.actions', () =>
+        ctx.slots.register(
+          { name: 'plugins.detail.actions', id: 'inventory-update', order: 10, locale: NS, inject: () => ({ t }) },
+          PluginUpdateAction,
+        ),
+      )
+      ctx.slots.inject('plugins.detail.badge', () =>
+        ctx.slots.register(
+          { name: 'plugins.detail.badge', id: 'inventory-update-badge', order: 10, locale: NS, inject: () => ({ t }) },
+          PluginUpdateBadge,
+        ),
+      )
+    }
+
+    /**
+     * The update affordances on the Plugins page (issue #45).
+     *
+     * Two slots, one source of truth: `plugins.detail.actions` draws the button,
+     * `plugins.detail.badge` the tag beside the version. Both render `null` for
+     * any package that is not in this checkout's bundle list, so every other
+     * plugin page on the page looks exactly as it did before.
+     *
+     * A recomposition cannot be rolled back, so the click asks first and the
+     * request itself is what decides whether an update may start — the browser
+     * never decides that.
+     */
+    const UPDATE_ROUTE = '/inventory/plugin-update'
+    const UPDATE_APPLY_ROUTE = '/inventory/plugin-update/apply'
+
+    function useUpdateState() {
+      const [state, setState] = React.useState(null)
+      const load = React.useCallback(async () => {
+        try {
+          const response = await fetch(UPDATE_ROUTE, { headers: { accept: 'application/json' } })
+          setState(await response.json())
+        } catch (error) {
+          setState({ ok: false, error: String(error?.message ?? error) })
+        }
+      }, [])
+      React.useEffect(() => {
+        load()
+      }, [load])
+      return { state, reload: load }
+    }
+
+    /** The row for one bundle in the status payload, or null when it is not ours. */
+    function updateRowFor(state, subject) {
+      if (state?.ok !== true || Array.isArray(state.bundles) !== true) return null
+      if (subject?.kind !== 'bundle') return null
+      const name = subject.pkg?.name
+      return state.bundles.find((row) => row.name === name) ?? null
+    }
+
+    function PluginUpdateBadge({ subject, t }) {
+      const { state } = useUpdateState()
+      const row = updateRowFor(state, subject)
+      if (row === null || row.updatable !== true) return null
+      return h(
+        'span',
+        {
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            height: '20px',
+            padding: '0 8px',
+            borderRadius: '999px',
+            background: C.fill,
+            color: C.secondary,
+            fontSize: '11px',
+            fontWeight: 600,
+          },
+        },
+        `${t('updateBadge')} ${row.version} → ${row.nextVersion}`,
+      )
+    }
+
+    function PluginUpdateAction({ subject, t }) {
+      const { state, reload } = useUpdateState()
+      const [busy, setBusy] = React.useState(false)
+      const [note, setNote] = React.useState(null)
+      const row = updateRowFor(state, subject)
+      if (row === null) return null
+      if (row.updatable !== true) return null
+
+      const run = async () => {
+        setBusy(true)
+        setNote(t('updateRunning'))
+        try {
+          const response = await fetch(UPDATE_APPLY_ROUTE, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: row.name }),
+          })
+          const payload = await response.json()
+          if (payload?.ok === true && payload.accepted === true) {
+            // The recomposition may stop this very page's plugin; the honest
+            // report is written by the host and read back on the next load.
+            setNote(t('updateDone'))
+          } else {
+            setNote(payload?.detail ?? payload?.error ?? t('updateFailed'))
+          }
+        } catch (error) {
+          setNote(String(error?.message ?? error))
+        } finally {
+          setBusy(false)
+          setTimeout(() => reload(), 1500)
+        }
+      }
+
+      // Confirm BEFORE the request: a busy panel wipes the error the user is
+      // reading (same rule as the credential vault's delete).
+      const confirm = typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm.bind(window) : () => true
+      const onClick = () => {
+        if (!confirm(t('updateConfirm'))) return
+        run()
+      }
+
+      return h(
+        'div',
+        { style: { display: 'inline-flex', alignItems: 'center', gap: '8px' } },
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'inv-seg-btn',
+            style: { ...S.primary, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
+            disabled: busy,
+            onClick: busy ? undefined : onClick,
+          },
+          t('updateTo').replace('{version}', String(row.nextVersion ?? '')),
+        ),
+        note === null ? null : h('span', { style: { ...T.caption, color: C.secondary } }, note),
+      )
     }
 
     return {
@@ -4380,6 +4529,9 @@ window.__ModuleLoader__.load({
       __webSearchProviders: WebSearchProviders,
       __promptInjector: PromptInjector,
       __credentialVault: CredentialVault,
+      __pluginUpdateAction: PluginUpdateAction,
+      __pluginUpdateBadge: PluginUpdateBadge,
+      __updateRowFor: updateRowFor,
     }
   },
 })
