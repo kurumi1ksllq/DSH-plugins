@@ -6,13 +6,17 @@ import { randomBytes } from 'node:crypto'
 import { copyFileSync, mkdirSync, openSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import {
   KINDS,
+  VAULT_VERSION,
   isValidName,
   loadOrCreateMasterKey,
   maskSecret,
   masterKeyPath,
+  normalizeAliases,
+  normalizeKey,
   openSecret,
   readVault,
   sealSecret,
+  slugOf,
   vaultFilePath,
   writeVault,
 } from './store.js'
@@ -44,18 +48,85 @@ export function createVaultStore(dir) {
     return found === undefined ? null : { name, ...found }
   }
 
+  /**
+   * Reject a write whose name folds to the same slug as a DIFFERENT existing
+   * credential. `github token` and `github-token` would otherwise both exist and
+   * silently shadow each other in alias/slug lookups, so the store refuses the
+   * second one and names the occupant to the caller.
+   */
+  function assertNoSlugCollision(vault, name) {
+    const slug = slugOf(name)
+    for (const existing of Object.keys(vault.entries)) {
+      if (existing === name) continue
+      if (slugOf(existing) === slug) {
+        throw new Error(
+          `credential name "${name}" collides with the existing credential "${existing}" ` +
+            `(both normalize to "${slug}"); rename one of them`,
+        )
+      }
+    }
+  }
+
   return {
     dir,
 
-    /** List entries without returning secret material. */
+    /**
+     * List entries with a masked preview, without ever returning secret material.
+     *
+     * One damaged entry (a rotated-away key, a half-written rotate) must not take
+     * the whole panel down: its preview degrades to null and it is flagged
+     * `corrupt`, while every healthy entry keeps its preview.
+     */
     list() {
+      const vault = readVault(dir)
+      return Object.entries(vault.entries)
+        .map(([name, value]) => {
+          const hasSecret = typeof value.secret === 'string' && value.secret.length > 0
+          let preview = null
+          let corrupt = false
+          if (hasSecret) {
+            try {
+              preview = maskSecret(openSecret(key, value.secret))
+            } catch {
+              corrupt = true
+            }
+          }
+          return {
+            name,
+            slug: slugOf(name),
+            kind: value.kind ?? 'other',
+            service: value.service ?? null,
+            aliases: normalizeAliases(value.aliases),
+            hasSecret,
+            preview,
+            corrupt,
+            username: value.username ?? null,
+            url: value.url ?? null,
+            note: value.note ?? null,
+            createdAt: value.createdAt ?? null,
+            updatedAt: value.updatedAt ?? null,
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+
+    /**
+     * List entries using METADATA ONLY — never decrypts a single value.
+     *
+     * Callers that do not display a preview (the prompt index, name resolution)
+     * must use this: `list()` decrypts every entry to build its preview, so one
+     * damaged entry used to break prompt assembly and every lookup in the store.
+     */
+    listMeta() {
       const vault = readVault(dir)
       return Object.entries(vault.entries)
         .map(([name, value]) => ({
           name,
+          slug: slugOf(name),
           kind: value.kind ?? 'other',
+          service: value.service ?? null,
+          aliases: normalizeAliases(value.aliases),
           hasSecret: typeof value.secret === 'string' && value.secret.length > 0,
-          preview: value.secret ? maskSecret(openSecret(key, value.secret)) : null,
           username: value.username ?? null,
           url: value.url ?? null,
           note: value.note ?? null,
@@ -72,17 +143,23 @@ export function createVaultStore(dir) {
       const { secret, ...rest } = found
       return {
         ...rest,
+        slug: slugOf(name),
+        kind: rest.kind ?? 'other',
+        service: rest.service ?? null,
+        aliases: normalizeAliases(rest.aliases),
         hasSecret: typeof secret === 'string' && secret.length > 0,
         preview: secret ? maskSecret(openSecret(key, secret)) : null,
       }
     },
 
     /** Create or overwrite one credential. */
-    set(name, { kind = 'other', secret, username = null, url = null, note = null } = {}) {
+    set(name, { kind = 'other', secret, username = null, url = null, note = null, service = null, aliases = [] } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
       const vault = readVault(dir)
+      assertNoSlugCollision(vault, name)
+      vault.version = VAULT_VERSION
       const now = new Date().toISOString()
       const previous = vault.entries[name]
       vault.entries[name] = {
@@ -91,6 +168,8 @@ export function createVaultStore(dir) {
         username: username || null,
         url: url || null,
         note: note || null,
+        service: service || null,
+        aliases: normalizeAliases(aliases),
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
       }
@@ -107,19 +186,22 @@ export function createVaultStore(dir) {
      * false when the name is unknown — the caller decides what that means; it
      * must never silently create a secret-less entry.
      */
-    update(name, { kind, username, url, note } = {}) {
+    update(name, { kind, username, url, note, service, aliases } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       const vault = readVault(dir)
       const previous = vault.entries[name]
       if (previous === undefined) return false
       const nextKind = kind === undefined ? (previous.kind ?? 'other') : kind
       if (!KINDS.includes(nextKind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
+      vault.version = VAULT_VERSION
       vault.entries[name] = {
         ...previous,
         kind: nextKind,
         username: username === undefined ? (previous.username ?? null) : username || null,
         url: url === undefined ? (previous.url ?? null) : url || null,
         note: note === undefined ? (previous.note ?? null) : note || null,
+        service: service === undefined ? (previous.service ?? null) : service || null,
+        aliases: aliases === undefined ? normalizeAliases(previous.aliases) : normalizeAliases(aliases),
         updatedAt: new Date().toISOString(),
       }
       writeVault(dir, vault)

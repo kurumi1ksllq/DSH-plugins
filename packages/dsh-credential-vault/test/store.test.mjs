@@ -7,6 +7,7 @@ import { join } from 'node:path'
 
 import {
   KINDS,
+  VAULT_VERSION,
   isValidName,
   loadOrCreateMasterKey,
   maskSecret,
@@ -78,7 +79,7 @@ test('vault file is 0600 and round-trips', () => {
 test('readVault on a missing file returns an empty vault', () => {
   const dir = tempDir()
   try {
-    assert.deepEqual(readVault(dir), { version: 1, entries: {} })
+    assert.deepEqual(readVault(dir), { version: VAULT_VERSION, entries: {} })
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -94,5 +95,5 @@ test('isValidName rejects separators, control chars and empties', () => {
 })
 
 test('KINDS covers the documented credential types', () => {
-  assert.deepEqual(KINDS, ['password', 'token', 'api-key', 'ssh-key', 'other'])
+  assert.deepEqual(KINDS, ['password', 'token', 'api-key', 'ssh-key', 'database', 'other'])
 })

@@ -71,7 +71,7 @@ test('list action returns names and kinds but never secrets', async () => {
     assert.equal(result.entries[0].name, 'github-token')
     assert.equal(result.entries[0].kind, 'token')
     assert.equal(JSON.stringify(result).includes('ghp_supersecret'), false)
-    assert.match(result.note, /reveal/)
+    assert.match(result.note, /use/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -119,7 +119,7 @@ test('unknown name throws and audits missing; bad action and bad name rejected',
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
     const tool = ctx.registered.tools[0]
-    await assert.rejects(() => tool.execute({ action: 'reveal', name: 'ghost' }), /no credential named/)
+    await assert.rejects(() => tool.execute({ action: 'reveal', name: 'ghost' }), /no credential matches/)
     await assert.rejects(() => tool.execute({ action: 'get', name: 'a/b' }), /name.*required/)
     await assert.rejects(() => tool.execute({ action: 'explode' }), /action must be/)
     await assert.rejects(() => tool.execute({}), /missing required property "action"/)

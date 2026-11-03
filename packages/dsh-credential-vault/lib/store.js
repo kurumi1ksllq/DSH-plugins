@@ -14,9 +14,60 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEq
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const VAULT_VERSION = 1
-export const KINDS = ['password', 'token', 'api-key', 'ssh-key', 'other']
+export const VAULT_VERSION = 2
+export const KINDS = ['password', 'token', 'api-key', 'ssh-key', 'database', 'other']
 const MASTER_KEY_BYTES = 32
+
+/**
+ * Fold one credential key (a name, alias or service) into a comparable form:
+ * lower-cased, with every run of non-alphanumeric characters collapsed to a
+ * single `-` and the ends trimmed. Non-ASCII letters survive, so a Chinese name
+ * stays usable; only punctuation and whitespace are folded.
+ *
+ * This is the single normalizer for slugs, aliases and search queries, so
+ * `github token`, `github-token` and `GitHub_Token` all compare equal.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeKey(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+/**
+ * The canonical identifier derived from a credential's display name. Deliberately
+ * NOT stored: the name is the single source of truth, and the slug is recomputed
+ * on every read so it can never drift from it.
+ * @param {string} name
+ * @returns {string}
+ */
+export function slugOf(name) {
+  return normalizeKey(name)
+}
+
+/**
+ * Normalize a user-maintained alias list: keep only non-empty strings, trim
+ * them, and drop entries that fold to the same key (first spelling wins).
+ * @param {unknown} aliases
+ * @returns {string[]}
+ */
+export function normalizeAliases(aliases) {
+  if (!Array.isArray(aliases)) return []
+  const seen = new Set()
+  const result = []
+  for (const raw of aliases) {
+    if (typeof raw !== 'string') continue
+    const value = raw.trim()
+    if (value.length === 0) continue
+    const key = normalizeKey(value)
+    if (key.length === 0 || seen.has(key)) continue
+    seen.add(key)
+    result.push(value)
+  }
+  return result
+}
 
 /** Master key file path. */
 export function masterKeyPath(dir) {

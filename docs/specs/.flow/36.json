@@ -1,0 +1,65 @@
+{
+  "issue": 36,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-03T20:47:07.504Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "数据模型规范化",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "resolveName 五级 + action:search",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "动态提示词",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "action:use + shellEnv 注入",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "审计强化",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "面板字段",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "历史明文清理脚本",
+      "state": "done"
+    },
+    {
+      "id": 8,
+      "title": "文档与威胁模型",
+      "state": "done"
+    },
+    {
+      "id": 9,
+      "title": "review 修复轮(P0-1/2/3,P1-1~4,P2)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
