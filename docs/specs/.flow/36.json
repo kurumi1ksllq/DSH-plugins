@@ -1,8 +1,8 @@
 {
   "issue": 36,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-03T19:31:05.805Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-03T20:41:54.091Z",
   "tickets": [
     {
       "id": 1,
@@ -43,15 +43,20 @@
       "id": 8,
       "title": "文档与威胁模型",
       "state": "done"
+    },
+    {
+      "id": 9,
+      "title": "review 修复轮(P0-1/2/3,P1-1~4,P2)",
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
     "status": "unknown"
   },
   "review": {
-    "state": "not-started",
+    "state": "done",
     "axes": 2
   },
   "merge": {

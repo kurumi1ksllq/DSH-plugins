@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { copyFileSync, mkdirSync, openSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import {
   KINDS,
+  VAULT_VERSION,
   isValidName,
   loadOrCreateMasterKey,
   maskSecret,
@@ -69,8 +70,54 @@ export function createVaultStore(dir) {
   return {
     dir,
 
-    /** List entries without returning secret material. */
+    /**
+     * List entries with a masked preview, without ever returning secret material.
+     *
+     * One damaged entry (a rotated-away key, a half-written rotate) must not take
+     * the whole panel down: its preview degrades to null and it is flagged
+     * `corrupt`, while every healthy entry keeps its preview.
+     */
     list() {
+      const vault = readVault(dir)
+      return Object.entries(vault.entries)
+        .map(([name, value]) => {
+          const hasSecret = typeof value.secret === 'string' && value.secret.length > 0
+          let preview = null
+          let corrupt = false
+          if (hasSecret) {
+            try {
+              preview = maskSecret(openSecret(key, value.secret))
+            } catch {
+              corrupt = true
+            }
+          }
+          return {
+            name,
+            slug: slugOf(name),
+            kind: value.kind ?? 'other',
+            service: value.service ?? null,
+            aliases: normalizeAliases(value.aliases),
+            hasSecret,
+            preview,
+            corrupt,
+            username: value.username ?? null,
+            url: value.url ?? null,
+            note: value.note ?? null,
+            createdAt: value.createdAt ?? null,
+            updatedAt: value.updatedAt ?? null,
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+
+    /**
+     * List entries using METADATA ONLY — never decrypts a single value.
+     *
+     * Callers that do not display a preview (the prompt index, name resolution)
+     * must use this: `list()` decrypts every entry to build its preview, so one
+     * damaged entry used to break prompt assembly and every lookup in the store.
+     */
+    listMeta() {
       const vault = readVault(dir)
       return Object.entries(vault.entries)
         .map(([name, value]) => ({
@@ -80,7 +127,6 @@ export function createVaultStore(dir) {
           service: value.service ?? null,
           aliases: normalizeAliases(value.aliases),
           hasSecret: typeof value.secret === 'string' && value.secret.length > 0,
-          preview: value.secret ? maskSecret(openSecret(key, value.secret)) : null,
           username: value.username ?? null,
           url: value.url ?? null,
           note: value.note ?? null,
@@ -113,6 +159,7 @@ export function createVaultStore(dir) {
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
       const vault = readVault(dir)
       assertNoSlugCollision(vault, name)
+      vault.version = VAULT_VERSION
       const now = new Date().toISOString()
       const previous = vault.entries[name]
       vault.entries[name] = {
@@ -146,6 +193,7 @@ export function createVaultStore(dir) {
       if (previous === undefined) return false
       const nextKind = kind === undefined ? (previous.kind ?? 'other') : kind
       if (!KINDS.includes(nextKind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
+      vault.version = VAULT_VERSION
       vault.entries[name] = {
         ...previous,
         kind: nextKind,

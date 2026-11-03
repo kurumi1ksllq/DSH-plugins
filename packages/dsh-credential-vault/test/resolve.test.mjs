@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { resolveName, searchEntries } from '../lib/resolve.js'
+import { matchedBy, resolveName, searchEntries } from '../lib/resolve.js'
 import { apply, TOOL_NAME } from '../index.js'
 import { createVaultStore } from '../lib/vault-store.js'
 import { readAudit } from '../lib/audit.js'
@@ -241,4 +241,36 @@ test('list exposes the normalized metadata for every entry', async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ---- review round: P2-1 (cross-entry rule priority must be pinned) ----
+
+test('an alias beats a service that matches another credential', () => {
+  // A is reachable by the alias `shared`; B owns the service `shared`.
+  // alias (rule 3) is stronger than service (rule 4), so A must win — this is
+  // the only way to catch the two rules being swapped.
+  const entries = [
+    { name: 'bank token', slug: 'bank-token', kind: 'token', service: 'bank', aliases: ['shared'], url: null, note: null },
+    { name: 'shared service key', slug: 'shared-service-key', kind: 'api-key', service: 'shared', aliases: [], url: null, note: null },
+  ]
+  const result = resolveName(entries, 'shared')
+  assert.equal(result.status, 'resolved')
+  assert.equal(result.name, 'bank token')
+  assert.equal(result.resolvedBy, 'alias')
+})
+
+test('a slug hit stops the cascade before aliases are considered', () => {
+  const entries = [
+    { name: 'github-token', slug: 'github-token', kind: 'token', service: null, aliases: [], url: null, note: null },
+    { name: 'other thing', slug: 'other-thing', kind: 'token', service: null, aliases: ['github token'], url: null, note: null },
+  ]
+  const result = resolveName(entries, 'github token')
+  assert.equal(result.resolvedBy, 'slug')
+  assert.equal(result.name, 'github-token')
+})
+
+test('search reports the rule that produced the matches', () => {
+  assert.equal(matchedBy(entries(), 'gh'), 'alias')
+  assert.equal(matchedBy(entries(), 'openai'), 'service')
+  assert.equal(matchedBy(entries(), 'zzz'), null)
 })

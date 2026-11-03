@@ -1743,7 +1743,15 @@ async function bootCredentialVault() {
     if (path === '/credential-vault/api/audit') return json({ ok: true, records: [{ at: '2026-11-02T19:00:00.000Z', name: 'github-token', outcome: 'revealed', source: 'tool' }] })
     if (path === '/credential-vault/api/set') {
       const body = JSON.parse(options.body)
-      entries.push({ name: body.name, kind: body.kind, hasSecret: true, preview: 'ghp_…alue', updatedAt: '2026-11-03T00:00:00.000Z' })
+      entries.push({
+        name: body.name,
+        kind: body.kind,
+        service: body.service || null,
+        aliases: body.aliases ?? [],
+        hasSecret: true,
+        preview: 'ghp_…alue',
+        updatedAt: '2026-11-03T00:00:00.000Z',
+      })
       return json({ ok: true, name: body.name, created: true })
     }
     return json({ ok: true })
@@ -1903,4 +1911,16 @@ test('the credential editor offers database, service, aliases and a slug preview
   assert.equal(body.service, 'github')
   assert.deepEqual(body.aliases, ['gh', 'git', 'GitHub_Token'])
   assert.equal(body.kind, 'other')
+
+  // The saved metadata must come back on screen: the list row shows the service,
+  // and the detail card shows the service plus one chip per alias.
+  const listText = textOf(open())
+  assert.match(listText, /github/, 'the row subtitle must show the service')
+  const row = findNode(open(), (node) => node.props?.['aria-pressed'] !== undefined && node.props?.role === 'button')
+  assert.ok(row, 'credential row missing')
+  row.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const detailText = textOf(open())
+  assert.match(detailText, /github/, 'the detail card must show the service')
+  assert.match(detailText, /GitHub_Token/, 'the detail card must show the alias chips')
 })

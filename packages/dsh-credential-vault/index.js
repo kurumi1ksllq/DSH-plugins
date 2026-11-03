@@ -1,12 +1,22 @@
 // dsh-credential-vault — host half.
 //
-// Stores credentials (server passwords, GitHub tokens, API keys, …) AES-256-GCM
-// encrypted under `$DSH_HOME/credential-vault/` and exposes:
-//   - one `credential` tool the model calls with `action: list|get|reveal`,
-//     where only `reveal` returns the secret and every reveal is audited;
-//   - a system-prompt section telling the model this tool exists and that it
-//     must ask before using a credential it has not been told to use;
-//   - the HTTP API behind the sidebar manager (masked entries only).
+// Stores credentials (server passwords, GitHub tokens, API keys, database
+// secrets, …) AES-256-GCM encrypted under `$DSH_HOME/credential-vault/` and
+// exposes one `credential` tool with five actions:
+//
+//   list    names + normalized metadata, never a value
+//   search  five-step lookup (exact → slug → alias → service → keyword)
+//   get     masked metadata for one credential
+//   use     the DEFAULT path: returns only a DSH_CRED_* variable name, whose
+//           value `dsh-shell-env` injects into each shell call, so the secret
+//           never enters the conversation or the session log
+//   reveal  the audited escape hatch: returns plaintext, only when the user
+//           explicitly asks to see the value
+//
+// It also registers a system-prompt section that is re-evaluated on every
+// assembly, listing what is stored and telling the model to check the vault
+// BEFORE asking the user for any secret. The HTTP API behind the "工具管理"
+// panel never returns secret material.
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -69,15 +79,17 @@ export function apply(ctx, config = {}) {
     envBridge.sync()
   }
 
-  if (ctx.shellEnv !== undefined) {
-    ctx.effect(() => {
-      attachShellEnv(ctx.shellEnv)
-      return () => envBridge.dispose()
-    })
-  } else if (typeof ctx.inject === 'function') {
-    // Optional dependency: a composition without `dsh-shell-env` must still load
-    // this plugin — `use` then fails loudly instead of leaking a value.
-    ctx.effect(() => ctx.inject(['shellEnv'], (inner) => attachShellEnv(inner.shellEnv)))
+  if (typeof ctx.inject === 'function') {
+    // Optional dependency. Never touch `ctx.shellEnv` directly: cordis' proxy
+    // THROWS on an undeclared service property, which would fail plugin load.
+    // A composition without `dsh-shell-env` keeps working — `use` then fails
+    // loudly instead of silently leaking a value.
+    ctx.effect(() =>
+      ctx.inject(['shellEnv'], (inner) => {
+        attachShellEnv(inner.shellEnv)
+        return () => envBridge.dispose()
+      }),
+    )
   }
 
   const outputSpec = {
@@ -116,7 +128,7 @@ export function apply(ctx, config = {}) {
       execute(args, exec) {
         const action = typeof args?.action === 'string' ? args.action : ''
         if (action === 'list') {
-          const entries = store.list().map(({ preview, ...rest }) => rest)
+          const entries = store.listMeta()
           return {
             action,
             count: entries.length,
@@ -139,7 +151,7 @@ export function apply(ctx, config = {}) {
             })
             throw new Error('credential: "query" is required for action "search"')
           }
-          const entries = store.list()
+          const entries = store.listMeta()
           const matches = searchEntries(entries, query)
           const resolvedBy = matchedBy(entries, query)
           const status = matches.length === 0 ? 'missing' : matches.length === 1 ? 'resolved' : 'ambiguous'
@@ -165,7 +177,7 @@ export function apply(ctx, config = {}) {
             })
             throw new Error('credential: "name" is required and must be a plain name (see action "list")')
           }
-          const resolved = resolveName(store.list(), credName)
+          const resolved = resolveName(store.listMeta(), credName)
           if (resolved.status === 'missing') {
             appendAudit(dir, {
               name: credName,
@@ -227,6 +239,21 @@ export function apply(ctx, config = {}) {
             }
             envBridge.sync()
             const envVar = envVarFor(resolved.name)
+            const collides = envBridge.collisionFor(envVar)
+            if (collides !== null) {
+              appendAudit(dir, {
+                name: resolved.name,
+                outcome: 'rejected',
+                source: 'tool',
+                action,
+                sessionId: sessionIdOf(exec),
+                reason: `variable collision: ${collides.join(', ')}`,
+              })
+              throw new Error(
+                `credential: ${collides.join(' and ')} would share the environment variable ${envVar}, so ` +
+                  '"use" cannot inject either safely — rename one of them in the panel and try again',
+              )
+            }
             if (!envBridge.declared().includes(envVar)) {
               throw new Error(`credential: "use" could not declare ${envVar} with the shell environment`)
             }

@@ -58,11 +58,27 @@ export function buildHintText(entries) {
   ].join('\n')
 }
 
-/** The section definition registered with `ctx.systemPrompt.section()`. */
+/**
+ * The section definition registered with `ctx.systemPrompt.section()`.
+ *
+ * The index reads metadata only (never decrypts), and any failure degrades to a
+ * one-line fallback: a prompt that throws would break every request in the
+ * session, which is far worse than an index that says "use the tool instead".
+ */
 export function hintSection(store) {
   return {
     name: HINT_SECTION_NAME,
     order: 160,
-    text: () => buildHintText(store.list()),
+    text: () => {
+      try {
+        return buildHintText(store.listMeta())
+      } catch {
+        return (
+          'Credential vault (dsh-credential-vault): the credential index could not be read right now. ' +
+          'Use the `credential` tool with action:"list" or action:"search" to see what is stored, and still ' +
+          'check it BEFORE asking the user for any password, token or connection secret.'
+        )
+      }
+    },
   }
 }

@@ -89,7 +89,8 @@ README 现有表述「明文只存在于进程内存和 `credential` 工具的�
 ### 3.3 向后兼容
 
 `readVault` 读到旧条目（`version: 1`、无 `service`/`aliases`）时按 `null` / `[]` 处理；
-`set` 写入时统一升到 `version: 2`。不批量迁移、不改动 `secret`，任何读路径对老条目行为不变。
+`set`/`update` 写入时统一把文档 `version` 升到 2（`vault.version = VAULT_VERSION`），**不重新加密既有条目**。
+不批量迁移、不改动 `secret`，任何读路径对老条目行为不变。
 
 ### 3.4 slug 撞名校验
 
@@ -120,9 +121,9 @@ README 现有表述「明文只存在于进程内存和 `credential` 工具的�
 | action | 参数 | 返回 | 审计 |
 | --- | --- | --- | --- |
 | `list` | — | `{ count, entries }`，每条含 `name/slug/kind/service/aliases/username/url/note/updatedAt`，**无值** | 不写 |
-| `search` | `query`（必填） | `{ query, status, matches: [{name,slug,kind,service,aliases,preview}] }`，**无值** | 不写 |
+| `search` | `query`（必填） | `{ action, query, status, resolvedBy, matches: [{name,slug,kind,service,aliases,…}] }`，**无值**（`publicFields` 主动剥掉 `preview` 与 `hasSecret`） | 不写 |
 | `get` | `name` | 掩码元数据，走 `resolveName` | 写 `ok`/`missing` |
-| `use` | `name` | `{ ok, name, envVar, expiresAt }`，**不含 secret** | 写 `use` |
+| `use` | `name` | `{ action, name, resolvedBy, envVar, expiresAt, note }`，**不含 secret**（内部经 `store.reveal` 取单条值，但不外泄） | 写 `use` |
 | `reveal` | `name` | 明文 + 元数据（逃生门） | 写 `reveal`，`source` 标记 |
 
 - `get`/`use`/`reveal` 的 `name` 全部走 `resolveName`；`ambiguous` 时抛错并**列出候选名**，
@@ -206,15 +207,23 @@ README 现有表述「明文只存在于进程内存和 `credential` 工具的�
 ## 10. 历史明文清理脚本 `scripts/scrub-session-secrets.mjs`
 
 - 默认 **dry-run**：只报告"哪些文件含当前 vault 中的值"，不打印值。
-- `--apply`：先备份（`<file>.bak-<ts>`）再就地遮蔽为 `***`，`zstd` 文件解压→替换→重压缩。
-- 拒绝在检测到活动 session（`session.lock` 存在且最近修改）时对 `sessions/` 执行 `--apply`。
-- 退出码：0 无命中，1 有命中（dry-run），2 执行错误。
+- 默认扫描根：`$DSH_HOME/sessions` 与 `$DSH_HOME/storages`。实测泄露过的其他位置
+  （`/tmp` 下的 spill 文件、`../.git/config` 里的 remote URL）需要显式 `--roots`，脚本不替你决定。
+- `--apply`：**先备份到扫描根之外**（默认 `$DSH_HOME/scrub-backups/<ts>/`，目录 0700、文件 0600）
+  再就地遮蔽为 `***`；`--backup-dir DIR` 指定位置，`--no-backup` 不留副本。
+  **备份本身仍是明文**，确认结果后应删除——README 必须写明这一点。
+- **活动会话判定按 `session.lock` 的新鲜度（默认 60 秒内），不是仅仅"文件存在"**：
+  POSIX flock 释放后不会删除该文件，本机实测 100+ 个残留锁。只看存在性会让 `--apply`
+  跳过它唯一要清理的那批文件。
+- 只搜索长度 ≥ 8 的值；更短的口令会全局误伤，脚本单独列出要求手工处理。
+- 含 NUL 字节的文件按二进制跳过，不做 utf8 读→写。
+- 退出码：0 无命中，1 有命中（dry-run），2 执行错误（含任意一个文件写回失败、flag 缺参数）。
 
 ## 11. 验收标准
 
 1. `pnpm test` 全绿；`pnpm verify` 全绿（含版本纪律）。
 2. `credential list` / `search` / `get` / `use` 的返回体**均不含 secret**（测试断言）。
-3. `credential use` 返回 `envVar`，且 `store.reveal` 未被调用（用 fake store 断言）。
+3. `credential use` 返回 `envVar`，且**返回值不含 secret**（`JSON.stringify(result)` 不含种下的明文）。实现内部经 `store.reveal` 取单条值用于注入，这是有意的：`reveal` 是存储层的「取一条明文」能力，`use` 是工具层的「不把明文交给模型」契约，两者不冲突。
 4. `normalizeKey` 覆盖：`github token` ≡ `github-token` ≡ `GitHub_Token`；中文名不被破坏。
 5. `resolveName` 五级顺序有测试；`ambiguous` 返回候选且**不**返回值。
 6. slug 撞名被 `set` 拒绝，错误信息含既有名称。
@@ -256,3 +265,23 @@ README 现有表述「明文只存在于进程内存和 `credential` 工具的�
 | 提示词索引过长挤压上下文 | 硬上限 50 条 + 截断提示 |
 | 票据被同一 session 的其他 agent 复用 | 票据键为 `sessionId`，同 session 内共享是有意设计（子 agent 需要同一凭据）；文档写明 |
 | 清理脚本破坏会话 | 默认 dry-run、强制备份、活动会话拒绝 `--apply` |
+
+
+## 15. review 修复轮记录（2026-11-04）
+
+双轴 review 之后追加的一轮修复，全部按 TDD 红→绿完成，ticket 编号 T9。
+
+| 编号 | 问题 | 修复 |
+| --- | --- | --- |
+| P0-1 | `ctx.shellEnv !== undefined` 在真实 cordis 下**抛错**（未 inject 的服务属性会触发代理陷阱），使"缺失时降级仍可加载"成为死代码 | 删掉直接探测，统一走 `ctx.inject(['shellEnv'], …)`；新增**镜像 cordis 代理陷阱**的测试 ctx，避免再用普通对象掩盖 |
+| P0-2 | 非 ASCII 名生成 `DSH_CRED_数据库密码` → `shellEnv.register()` 抛错 → 插件启动即崩；且两个不同 slug 可折叠成同一变量名，导致 `use` 注入**另一条**凭据的值 | `envVarFor` 做 ASCII 化 + 折叠时补 6 位稳定哈希；`declarationsFor` 检测撞名并**拒绝声明**，`use` 抛错点名两条凭据 |
+| P1-4 | `set` 未把文档升到 `version: 2`（§3.3 违规） | `set`/`update` 写入前设 `vault.version = VAULT_VERSION`，并补 v1 → 升级且既有 `secret` 不变的回归测试 |
+| P1-5 | `store.list()` 为算 `preview` 解密全库，任一条目损坏即让**每轮** prompt 组装抛错 | 新增 `listMeta()`（不解密）供提示词与命中解析使用；`list()` 对单条解密 try/catch，坏条目降级 `preview: null` + `corrupt: true`；`text()` 兜底降级 |
+| P1-3 | 验收 #3 与实现冲突 | 修 spec（见上），不是改实现 |
+| P2-6 | 面板未显示 `service` / 别名 chips | 列表行副标题与详情卡都渲染，测试断言保存后可见 |
+| P2-7 | 清理脚本三处偏离 §10 | 见 §10 新契约（备份外置、mtime 判活、失败退出 2、默认根扩大、短值/二进制防护） |
+| P2-8 | `search` 返回体与 §5 表格不符 | 修 spec（实现更安全：剥掉 `preview`） |
+
+另记一处**有意收紧**的外部契约：`POST /set` 收到不在 `KINDS` 里的 `kind` 时返回
+`400 invalid-kind`，不再静默降级为 `other`。原行为会让面板/脚本的拼写错误变成一个
+错误分类的凭据，故保留收紧。

@@ -17,37 +17,73 @@
 // not stop deliberate exfiltration by an agent running as the same OS user —
 // that needs an external KMS or a separate low-privilege user.
 
+import { createHash } from 'node:crypto'
+
 import { normalizeKey } from './store.js'
 
 /** How long a `use` grant stays valid, in milliseconds. */
 export const DEFAULT_GRANT_TTL_MS = 10 * 60 * 1000
 
 /**
- * The environment variable that carries one credential. Uppercased slug with
- * dashes turned into underscores, because `dsh-shell-env` requires an all-caps
- * `DSH_*` key with underscores.
+ * The environment variable that carries one credential.
+ *
+ * `dsh-shell-env` validates the part after `DSH_` against `/^[A-Z][A-Z0-9_]*$/`,
+ * so a Chinese or otherwise non-ASCII name CANNOT be used verbatim — a single
+ * such name used to make `register()` throw during `apply()` and take the whole
+ * plugin down. The key is therefore derived:
+ *
+ *   - ASCII letters/digits survive, other runs become one underscore
+ *     (`github-token` → `DSH_CRED_GITHUB_TOKEN`, unchanged and readable);
+ *   - a name that lost characters to that folding (or that starts with a digit,
+ *     or is empty) gets a short stable hash suffix, so `阿里云 ECS 密码` and
+ *     `阿里云 RDS 密码` stay distinct.
+ *
+ * The mapping is deterministic: the same name always yields the same key, and
+ * `use` reports the exact key, so the model never has to guess it.
  * @param {string} name
  * @returns {string}
  */
 export function envVarFor(name) {
-  const slug = normalizeKey(name).toUpperCase().replace(/-/g, '_')
-  return `DSH_CRED_${slug}`
+  const slug = normalizeKey(name)
+  const ascii = slug.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  const folded = ascii.replace(/_/g, '').length !== slug.replace(/-/g, '').length
+  const needsHash = folded || ascii.length === 0 || /^[0-9]/.test(ascii)
+  const base = ascii.length === 0 ? 'CRED' : /^[0-9]/.test(ascii) ? `CRED_${ascii}` : ascii
+  const suffix = needsHash ? `_${createHash('sha256').update(slug).digest('hex').slice(0, 6).toUpperCase()}` : ''
+  return `DSH_CRED_${base}${suffix}`
 }
 
 /**
  * The declaration set for `shellEnv.register()`: one entry per credential.
  * Only names and descriptions — the resolver supplies values per execution.
+ *
+ * Two credentials that would fold to the SAME variable name are never declared:
+ * silently keeping the first one meant `use` handed back a variable holding a
+ * different credential's value. Such keys are reported as `collisions` so the
+ * caller can refuse them loudly instead.
  * @param {Array<object>} entries
- * @returns {Record<string, {description: string}>}
+ * @returns {{variables: Record<string, {description: string}>, collisions: Array<{key: string, names: string[]}>}}
  */
 export function declarationsFor(entries) {
-  const variables = {}
+  const owners = new Map()
   for (const entry of entries) {
     const key = envVarFor(entry.name)
-    if (Object.hasOwn(variables, key)) continue
-    variables[key] = { description: `Value of the "${entry.name}" credential from the credential vault.` }
+    const names = owners.get(key) ?? []
+    names.push(entry.name)
+    owners.set(key, names)
   }
-  return variables
+  const variables = {}
+  const collisions = []
+  const keys = [...owners.keys()].sort()
+  for (const key of keys) {
+    const names = owners.get(key)
+    if (names.length > 1) {
+      collisions.push({ key, names })
+      continue
+    }
+    variables[key] = { description: `Value of the "${names[0]}" credential from the credential vault.` }
+  }
+  return { variables, collisions }
 }
 
 /** The session id a tool execution or shell execution belongs to, or null. */
@@ -123,6 +159,7 @@ export function createEnvBridge({ store, grants, register }) {
   let disposer = null
   let declaredSignature = null
   let ready = false
+  let collisions = []
 
   function resolveWith(variables) {
     return (execution) => {
@@ -147,16 +184,29 @@ export function createEnvBridge({ store, grants, register }) {
     /** Re-register when the credential name set changed; idempotent otherwise. */
     sync() {
       if (typeof register !== 'function') return false
-      const entries = store.list()
-      const variables = declarationsFor(entries)
+      const entries = store.listMeta()
+      const declared = declarationsFor(entries)
+      const variables = declared.variables
+      collisions = declared.collisions
       const signature = Object.keys(variables).sort().join(',')
       if (signature === declaredSignature && ready) return true
       if (typeof disposer === 'function') disposer()
-      disposer = register({
-        name: 'credential-vault',
-        variables,
-        resolve: resolveWith(variables),
-      }) ?? null
+      let next = null
+      try {
+        next = register({
+          name: 'credential-vault',
+          variables,
+          resolve: resolveWith(variables),
+        }) ?? null
+      } catch {
+        // A rejected declaration must degrade to "the safe path is unavailable"
+        // — `use` then fails loudly — instead of failing plugin load.
+        ready = false
+        declaredSignature = null
+        disposer = null
+        return false
+      }
+      disposer = next
       declaredSignature = signature
       ready = true
       return true
@@ -165,6 +215,12 @@ export function createEnvBridge({ store, grants, register }) {
     /** The currently declared variable names. */
     declared() {
       return declaredSignature === null ? [] : declaredSignature.split(',').filter(Boolean)
+    },
+
+    /** The credential names sharing one variable name, when that happens. */
+    collisionFor(envVar) {
+      const hit = collisions.find((entry) => entry.key === envVar)
+      return hit === undefined ? null : [...hit.names]
     },
 
     dispose() {

@@ -2588,7 +2588,17 @@ window.__ModuleLoader__.load({
                     'div',
                     { style: S.rowMain },
                     h('span', { style: S.rowTitleMono }, entry.name),
-                    h('span', { style: S.rowSub }, credentialKindLabel(t, entry.kind)),
+                    h(
+                      'span',
+                      { style: S.rowSub },
+                      [
+                        credentialKindLabel(t, entry.kind),
+                        entry.service,
+                        Array.isArray(entry.aliases) && entry.aliases.length > 0 ? entry.aliases.join(', ') : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · '),
+                    ),
                   ),
                   h(Badge, { label: entry.preview || '***' }),
                   h(Icon, { name: 'chevronRight', size: 16, style: S.chevronMuted }),
@@ -2618,6 +2628,19 @@ window.__ModuleLoader__.load({
                   selected.hasSecret === true ? h(Badge, { label: t('credentialHasSecret'), tone: 'success', dot: true }) : null,
                 ),
                 CredentialField({ label: t('credentialMasked'), value: selected.preview || '***' }),
+                selected.service ? CredentialField({ label: t('credentialService'), value: selected.service }) : null,
+                Array.isArray(selected.aliases) && selected.aliases.length > 0
+                  ? h(
+                      'div',
+                      { style: { display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' } },
+                      h('span', { style: { ...T.caption, color: C.secondary, flex: '0 0 88px' } }, t('credentialAliases')),
+                      h(
+                        'div',
+                        { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+                        ...selected.aliases.map((alias) => h(Badge, { key: alias, label: alias })),
+                      ),
+                    )
+                  : null,
                 selected.username ? CredentialField({ label: t('credentialUsername'), value: selected.username }) : null,
                 selected.url ? CredentialField({ label: t('credentialUrl'), value: selected.url }) : null,
                 selected.note ? CredentialField({ label: t('credentialNote'), value: selected.note }) : null,

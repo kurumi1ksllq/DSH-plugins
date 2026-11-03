@@ -209,3 +209,71 @@ test('writeVault/readVault round-trip the normalized metadata', () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// ---- review round: P1-4 (a write must upgrade an old document) ----
+
+test('set() upgrades a version 1 document to the current version', () => {
+  const dir = tempDir()
+  try {
+    const seeded = createVaultStore(dir)
+    seeded.set('legacy', { kind: 'token', secret: 'legacy-value' })
+    const doc = JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8'))
+    doc.version = 1
+    const legacySecret = doc.entries.legacy.secret
+    writeFileSync(join(dir, 'vault.json'), JSON.stringify(doc))
+
+    const store = createVaultStore(dir)
+    store.set('fresh', { kind: 'token', secret: 'fresh-value' })
+
+    const after = JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8'))
+    assert.equal(after.version, VAULT_VERSION)
+    assert.equal(after.entries.legacy.secret, legacySecret, 'an upgrade must not re-seal existing entries')
+    assert.equal(store.reveal('legacy').secret, 'legacy-value')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('update() also upgrades the document version', () => {
+  const dir = tempDir()
+  try {
+    const seeded = createVaultStore(dir)
+    seeded.set('legacy', { kind: 'token', secret: 'v' })
+    const doc = JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8'))
+    doc.version = 1
+    writeFileSync(join(dir, 'vault.json'), JSON.stringify(doc))
+
+    const store = createVaultStore(dir)
+    assert.equal(store.update('legacy', { note: 'touched' }), true)
+    assert.equal(JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8')).version, VAULT_VERSION)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---- review round: P1-5 (one damaged entry must not break the listing) ----
+
+test('list() degrades a damaged entry instead of throwing, and keeps the rest', () => {
+  const dir = tempDir()
+  try {
+    const store = createVaultStore(dir)
+    store.set('good', { kind: 'token', secret: 'ghp_good' })
+    store.set('damaged', { kind: 'token', secret: 'v' })
+    const file = join(dir, 'vault.json')
+    const doc = JSON.parse(readFileSync(file, 'utf8'))
+    doc.entries.damaged.secret = Buffer.from('broken-ciphertext-here').toString('base64')
+    writeFileSync(file, JSON.stringify(doc))
+
+    const listed = store.list()
+    assert.equal(listed.length, 2)
+    const good = listed.find((entry) => entry.name === 'good')
+    const damaged = listed.find((entry) => entry.name === 'damaged')
+    assert.equal(good.preview.includes('ghp_good'), false)
+    assert.ok(good.preview)
+    assert.equal(damaged.preview, null)
+    assert.equal(damaged.corrupt, true)
+    assert.equal(damaged.hasSecret, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

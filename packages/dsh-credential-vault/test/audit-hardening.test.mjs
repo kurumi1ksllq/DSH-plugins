@@ -20,17 +20,21 @@ function tempDir() {
 
 function fakeContext() {
   const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const shellEnv = {
+    register(contributor) {
+      registered.contributors.push(contributor)
+      return () => {}
+    },
+  }
   return {
     registered,
     systemPrompt: { section: (section) => registered.sections.push(section) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },
-    shellEnv: {
-      register(contributor) {
-        registered.contributors.push(contributor)
-        return () => {}
-      },
+    // The optional service arrives through `inject`, as cordis delivers it.
+    inject(names, callback) {
+      return names.includes('shellEnv') ? callback({ shellEnv }) : () => {}
     },
   }
 }
