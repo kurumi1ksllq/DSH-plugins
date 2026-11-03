@@ -1,0 +1,40 @@
+{
+  "issue": 34,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-03T23:10:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "新建仓库根 AGENTS.md(强制 dev-flow 路由)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "README 开发章节补流程指引",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "修正 README 3 处陈旧陈述",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档防漂移测试 + 接入 pnpm test",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
