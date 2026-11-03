@@ -29,7 +29,7 @@
  * docs/update-scheme.md), one profile legitimately spans two checkouts.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -134,6 +134,37 @@ function entryProblem(dir, manifest) {
   if (!existsSync(resolve(dir, main))) return `entry point missing: ${main}`
   return null
 }
+/**
+ * Every symlink the profile's `node_modules` carries, one `@scope/` level deep.
+ *
+ * Dot entries are skipped on purpose: `.bin`, `.pnpm` and `.modules.yaml` are
+ * pnpm's own bookkeeping. A dangling executable in `.bin` (a pruned optional
+ * dependency) is not a wiring problem for this repository, and reporting it
+ * would bury the signal.
+ */
+function nodeModulesLinks(profileDir) {
+  const links = []
+  const walk = (dir, scope) => {
+    for (const name of readDirNames(dir)) {
+      if (name.startsWith('.')) continue
+      const path = join(dir, name)
+      let stat = null
+      try {
+        stat = lstatSync(path)
+      } catch {
+        continue
+      }
+      if (!stat.isSymbolicLink()) {
+        if (scope === null && name.startsWith('@')) walk(path, name)
+        continue
+      }
+      links.push({ name: scope === null ? name : `${scope}/${name}`, path, target: readlinkSync(path) })
+    }
+  }
+  walk(join(profileDir, 'node_modules'), null)
+  return links
+}
+
 const options = parseArgs(process.argv.slice(2))
 const profileDir = resolveProfileDir(options.profile)
 
@@ -216,6 +247,32 @@ for (const name of [...SHIPPED.keys()].sort()) {
   }
 }
 
+// Everything above only walks `SHIPPED`, and only for names the manifest
+// declares. That leaves the exact shape that shipped on this machine: a bundle
+// removed from the repository while pnpm kept its symlink behind. The host
+// ignores it, this script never looked at it, and the only symptom was a
+// `pnpm install --frozen-lockfile` failing much later. So walk `node_modules`
+// itself: a link that resolves to nothing is broken no matter who wrote it, and
+// a link nobody declares is at least worth a warning.
+const seen = new Set(results.map((row) => row.name))
+
+for (const link of nodeModulesLinks(profileDir)) {
+  if (seen.has(link.name)) continue
+  const declared = typeof deps[link.name] === 'string'
+  let real = null
+  try {
+    real = realpathSync(link.path)
+  } catch {
+    // Declared or not, a link to a directory that does not exist is broken.
+    results.push({ name: link.name, kind: 'fail', detail: `dangling link, target missing: ${link.path} -> ${link.target}` })
+    failures += 1
+    continue
+  }
+  if (declared) continue // already reported above when it is one of ours
+  results.push({ name: link.name, kind: 'warn', detail: `stray link, not declared in the profile manifest: ${real}` })
+  warnings += 1
+}
+
 // dsh-inventory's Tools page renders sections that call the other bundles' HTTP
 // routes (vault, providers, prompt). They are not declared as dependencies, so a
 // profile that links inventory without them shows a page whose tabs all answer
@@ -250,7 +307,7 @@ if (options.json) {
     console.log('  See decision D1 in docs/update-scheme.md (unifying needs one approved restart).')
   }
   const head = failures === 0
-    ? `\nprofile ok: ${results.length} linked bundle(s) in ${profileDir}`
+    ? `\nprofile ok: ${results.filter((row) => row.kind === 'ok').length} linked bundle(s) in ${profileDir}`
     : `\n${failures} wiring problem(s) in ${profileDir}`
   console.log(head + (warnings > 0 ? ` (${warnings} warning(s))` : ''))
 }
