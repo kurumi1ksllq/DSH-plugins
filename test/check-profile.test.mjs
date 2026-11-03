@@ -30,6 +30,25 @@ function run(dir) {
   return { status: run.status, out: (run.stdout ?? '') + (run.stderr ?? ''), json: safeJson(run.stdout) }
 }
 
+/** The same profile through the human-readable path: the summary lines live here. */
+function runText(dir) {
+  const result = spawnSync(process.execPath, [SCRIPT, '--profile', dir], { encoding: 'utf8' })
+  return { status: result.status, out: (result.stdout ?? '') + (result.stderr ?? '') }
+}
+
+/** A directory that looks enough like a bundle for the declared pass to accept it. */
+function fakeBundle(parent, name, version = '9.9.9') {
+  const dir = join(parent, name)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'cordis.patch.yml'), '# fake\n')
+  writeFileSync(join(dir, 'index.js'), 'export const name = "fake"\n')
+  writeFileSync(
+    join(dir, 'package.json'),
+    JSON.stringify({ name, version, main: 'index.js', dsh: { bundle: { patch: './cordis.patch.yml' } } }),
+  )
+  return dir
+}
+
 function safeJson(text) {
   try {
     return JSON.parse(text)
@@ -127,6 +146,87 @@ test('an empty profile passes and reports zero linked bundles', () => {
     assert.equal(result.status, 0, result.out)
     assert.deepEqual(result.json?.results, [])
     assert.equal(result.json?.failures, 0)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a dot-name symlink in node_modules is pnpm's business, not ours", () => {
+  const dir = makeProfile()
+  try {
+    // `.pnpm` is a directory today, but a stale dot-name *symlink* is exactly
+    // what the guard exists for: descended into, it would manufacture failures
+    // out of pnpm's own bookkeeping.
+    symlinkSync(join(dir, 'gone-store'), join(dir, 'node_modules', '.pnpm-store'))
+    const result = run(dir)
+    assert.equal(result.status, 0, `dot entries must be skipped:\n${result.out}`)
+    assert.equal(row(result.json, '.pnpm-store'), undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a dot directory holding dangling links is not descended into', () => {
+  const dir = makeProfile()
+  try {
+    mkdirSync(join(dir, 'node_modules', '.bin'))
+    symlinkSync(join(dir, 'ghost-binary'), join(dir, 'node_modules', '.bin', 'ghost'))
+    const result = run(dir)
+    assert.equal(result.status, 0, `dot directories are pnpm's, not ours:\n${result.out}`)
+    assert.deepEqual(result.json?.results, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a declared link that is not one of ours is reported, never silently dropped', () => {
+  const dir = makeProfile({ dependencies: { 'someone-elses-bundle': 'link:./ext' } })
+  try {
+    const ext = fakeBundle(dir, 'ext', '1.2.3')
+    symlinkSync(ext, join(dir, 'node_modules', 'someone-elses-bundle'))
+    const result = run(dir)
+    assert.equal(result.status, 0, result.out)
+    const entry = row(result.json, 'someone-elses-bundle')
+    assert.ok(entry, `a declared live link must appear in the report, not vanish:\n${result.out}`)
+    assert.equal(entry.kind, 'ok')
+    assert.equal(result.json?.ok, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a stray link never claims to come from another checkout', () => {
+  const dir = makeProfile()
+  try {
+    const target = join(dir, 'unrelated')
+    mkdirSync(target)
+    symlinkSync(target, join(dir, 'node_modules', 'stray-bundle'))
+    const result = runText(dir)
+    assert.equal(result.status, 0, result.out)
+    assert.match(result.out, /stray link/)
+    assert.equal(
+      /load from another checkout/.test(result.out),
+      false,
+      `stray links must not borrow the D1 banner:\n${result.out}`,
+    )
+    assert.match(result.out, /profile ok: 0 linked bundle\(s\)/, result.out)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a bundle served from another checkout is counted as a warning, not as ok', () => {
+  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:./elsewhere' } })
+  try {
+    const elsewhere = fakeBundle(dir, 'elsewhere')
+    symlinkSync(elsewhere, join(dir, 'node_modules', 'dsh-git-status'))
+    const result = runText(dir)
+    assert.equal(result.status, 0, result.out)
+    // This is the number three docs quote as evidence, so pin what it counts:
+    // a bundle loaded from a foreign checkout is *not* one of ours.
+    assert.match(result.out, /profile ok: 0 linked bundle\(s\)/, result.out)
+    assert.match(result.out, /1 warning\(s\)/, result.out)
+    assert.match(result.out, /load from another checkout/, result.out)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

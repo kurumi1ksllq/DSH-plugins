@@ -29,7 +29,7 @@
  * docs/update-scheme.md), one profile legitimately spans two checkouts.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -141,11 +141,21 @@ function entryProblem(dir, manifest) {
  * pnpm's own bookkeeping. A dangling executable in `.bin` (a pruned optional
  * dependency) is not a wiring problem for this repository, and reporting it
  * would bury the signal.
+ *
+ * This reads with `readdirSync`, not `readDirNames`: `ls -1` hides dot entries
+ * on its own, which would make the guard below dead code and hide a real
+ * `.pnpm`-style leftover behind an accident of the lister.
  */
 function nodeModulesLinks(profileDir) {
   const links = []
   const walk = (dir, scope) => {
-    for (const name of readDirNames(dir)) {
+    let names = []
+    try {
+      names = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of names) {
       if (name.startsWith('.')) continue
       const path = join(dir, name)
       let stat = null
@@ -240,6 +250,7 @@ for (const name of [...SHIPPED.keys()].sort()) {
     results.push({
       name,
       kind: 'warn',
+      reason: 'cross-checkout',
       version: manifest.version,
       detail: `loads from a DIFFERENT checkout: ${checkout ?? real} @ ${commit ?? 'no-git'} (this repo: ${expected})`,
     })
@@ -264,12 +275,27 @@ for (const link of nodeModulesLinks(profileDir)) {
     real = realpathSync(link.path)
   } catch {
     // Declared or not, a link to a directory that does not exist is broken.
-    results.push({ name: link.name, kind: 'fail', detail: `dangling link, target missing: ${link.path} -> ${link.target}` })
+    results.push({ name: link.name, kind: 'fail', detail: `dangling link (target missing): ${link.path} -> ${link.target}` })
     failures += 1
     continue
   }
-  if (declared) continue // already reported above when it is one of ours
-  results.push({ name: link.name, kind: 'warn', detail: `stray link, not declared in the profile manifest: ${real}` })
+  if (declared) {
+    // Declared, alive, and not a bundle this repo ships: the pass above never
+    // sees it (it only walks `SHIPPED`), so report it here or it vanishes from
+    // the report entirely — which is the blindness this script exists to end.
+    results.push({
+      name: link.name,
+      kind: 'ok',
+      detail: `declared, live link (not a bundle this repo ships): ${real}`,
+    })
+    continue
+  }
+  results.push({
+    name: link.name,
+    kind: 'warn',
+    reason: 'stray',
+    detail: `stray link, not declared in the profile manifest: ${real}`,
+  })
   warnings += 1
 }
 
@@ -286,13 +312,16 @@ if (linkedNames.has('dsh-inventory')) {
     results.push({
       name: 'dsh-inventory sections',
       kind: 'warn',
+      reason: 'inventory-sections',
       detail: `the Tools page renders ${missing.join(', ')} but ${missing.length > 1 ? 'they are' : 'it is'} not linked in this profile — those tabs will answer 404`,
     })
     warnings += 1
   }
 }
 
-const branched = results.filter((row) => row.kind === 'warn')
+// Only a bundle loaded from a foreign checkout deserves the D1 banner; a stray
+// link and a half-linked inventory page are different problems with different fixes.
+const branched = results.filter((row) => row.kind === 'warn' && row.reason === 'cross-checkout')
 
 if (options.json) {
   console.log(JSON.stringify({ ok: failures === 0, profile: profileDir, failures, warnings, results }, null, 2))
