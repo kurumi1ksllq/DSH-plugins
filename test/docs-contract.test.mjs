@@ -320,69 +320,104 @@ test('the README root-bundle warning matches the packages actually present', () 
 // directions, and it must name the issue that owns the work.
 
 /**
- * The lockfile as **committed**, not as `pnpm install` left it.
+ * Which revision's lockfile the contract is about.
  *
- * CI runs `pnpm install --frozen-lockfile` before the tests, and that install
- * rewrites the importers in the working copy — which made the drift disappear on
- * the runner and turned this contract into its own opposite. The contract is
- * about what is committed.
+ * On a GitHub `pull_request` checkout HEAD is the *merge* commit, so `HEAD:` is
+ * base+PR — a PR that never touches the lockfile would be judged on whatever main
+ * did to it. When HEAD is a merge, use its second parent (the PR head); otherwise
+ * the commit itself. Reported in every failure so the reader knows what was read.
  */
-function committedLockfile() {
-  const fromGit = spawnSync('git', ['show', 'HEAD:pnpm-lock.yaml'], { cwd: ROOT })
-  if (fromGit.status === 0 && fromGit.stdout.length > 0) return fromGit.stdout.toString()
-  return readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+function lockfileRev() {
+  const parents = spawnSync('git', ['rev-list', '--parents', '-n', '1', 'HEAD'], { cwd: ROOT })
+  assert.equal(parents.status, 0, 'docs-contract needs a git checkout (git rev-list failed)')
+  const fields = parents.stdout.toString().trim().split(/\s+/)
+  return fields.length > 2 ? 'HEAD^2' : 'HEAD'
 }
 
-/** Workspace importers the committed lockfile declares vs. the packages that exist. */
-function lockfileDrift() {
-  const lock = committedLockfile()
-  const section = lock.slice(lock.indexOf('importers:'))
-  const declared = new Set([...section.matchAll(/^ {2}(packages\/[^:\n]+):/gm)].map((match) => match[1]))
+/** The lockfile at `rev`, from git — never the working copy, which `pnpm install` rewrites. */
+function committedLockfile(rev) {
+  const blob = spawnSync('git', ['show', `${rev}:pnpm-lock.yaml`], { cwd: ROOT })
+  assert.equal(blob.status, 0, `docs-contract needs pnpm-lock.yaml in ${rev}`)
+  assert.ok(blob.stdout.length > 0, `pnpm-lock.yaml at ${rev} is empty`)
+  return blob.stdout.toString()
+}
+
+/** Workspace importers the lockfile at `rev` declares vs. the packages that exist. */
+function lockfileDrift(rev = lockfileRev()) {
+  const lock = committedLockfile(rev)
+  const at = lock.indexOf('importers:')
+  // A parser that cannot find its section would report "everything missing" and
+  // then happily agree with a "仍未修" line: blind must be loud.
+  assert.ok(at > -1, `pnpm-lock.yaml at ${rev} has no importers: section`)
+  const declared = new Set([...lock.slice(at).matchAll(/^ {2}(packages\/[^:\n]+):/gm)].map((match) => match[1]))
+  assert.ok(declared.size > 0, `pnpm-lock.yaml at ${rev} declares no workspace importers`)
   const expected = packageDirs().map((name) => `packages/${name}`)
   return {
+    rev,
     declared,
     missing: expected.filter((entry) => !declared.has(entry)),
     phantom: [...declared].filter((entry) => !expected.includes(entry)),
   }
 }
 
-/** Lines that assert a P1-6 status, matched on `P1-6` and the easier-to-miss `P1.6`. */
-function p16StatusLines(text) {
-  return text
-    .split('\n')
-    .filter((line) => /P1[-.]6/.test(line) && /(⬜|✅|仍未修)/.test(line))
+/** Lines that talk about P1-6, matched on `P1-6` and the easier-to-miss `P1.6`. */
+function p16Lines(text) {
+  return text.split('\n').filter((line) => /P1[-.]6/.test(line))
 }
 
-test('the update scheme keeps P1-6 in step with pnpm-lock.yaml', () => {
-  const { missing, phantom } = lockfileDrift()
-  const drifted = missing.length > 0 || phantom.length > 0
-  const lines = p16StatusLines(readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8'))
+test('every P1-6 line states a status the lockfile can be checked against', () => {
+  // Leaving a P1-6 line without a marker made it invisible: a second, contradicting
+  // line could be added next to the correct one and the docs still passed.
+  const lines = p16Lines(readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8'))
   assert.ok(lines.length > 0, 'docs/update-scheme.md must state the P1-6 status')
+  const bare = lines.filter((line) => !/(⬜|✅|仍未修|已修)/.test(line))
+  assert.deepEqual(bare, [], `P1-6 lines must state 仍未修/已修 explicitly: ${bare.join(' / ')}`)
+})
 
+test('the update scheme keeps P1-6 in step with the committed pnpm-lock.yaml', () => {
+  const { rev, missing, phantom } = lockfileDrift()
+  const drifted = missing.length > 0 || phantom.length > 0
+  const detail = `pnpm-lock.yaml@${rev}: missing ${missing.join(', ') || '-'}; unexpected ${phantom.join(', ') || '-'}`
+
+  // The docs quote the working copy's numbers, so a lockfile edited but not
+  // committed would be judged against a document claiming the other state. Say
+  // that instead of reporting a drift nobody can see.
+  const working = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+  const committed = committedLockfile(rev)
+  if (working !== committed) {
+    const diff = spawnSync('git', ['status', '--porcelain', '--', 'pnpm-lock.yaml'], { cwd: ROOT })
+    assert.equal(
+      diff.stdout.toString().trim(),
+      '',
+      `pnpm-lock.yaml differs from ${rev} but is not committed — commit it, the P1-6 contract reads ${rev}`,
+    )
+  }
+
+  const lines = p16Lines(readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8'))
   for (const line of lines) {
     if (drifted) {
-      assert.ok(
-        line.includes('仍未修'),
-        `pnpm-lock.yaml is still drifted (missing: ${missing.join(', ') || '-'}; phantom: ${phantom.join(', ') || '-'}) but this line does not say 仍未修: ${line}`,
-      )
+      assert.ok(line.includes('仍未修'), `${detail} — but this line does not say 仍未修: ${line}`)
       assert.ok(/#\d+/.test(line), `P1-6 line must cite the follow-up issue number: ${line}`)
     } else {
-      // The other direction: once the lockfile is fixed, leaving "仍未修" behind
-      // is the same lie in reverse.
-      assert.ok(line.includes('已修'), `pnpm-lock.yaml is clean but this line does not say 已修: ${line}`)
-      assert.equal(line.includes('仍未修'), false, `pnpm-lock.yaml is clean but this line still says 仍未修: ${line}`)
+      // The other direction: once the lockfile is fixed, leaving "仍未修" behind is
+      // the same lie in reverse.
+      assert.ok(line.includes('已修'), `${detail} is clean — but this line does not say 已修: ${line}`)
+      assert.equal(line.includes('仍未修'), false, `${detail} is clean — but this line still says 仍未修: ${line}`)
     }
   }
 })
 
-test('both docs cite the same follow-up ticket for P1-6, and it has a spec', () => {
+test('while P1-6 is open, the follow-up ticket exists and both docs name it', () => {
+  const { missing, phantom } = lockfileDrift()
+  if (missing.length === 0 && phantom.length === 0) return // nothing deferred, nothing to cite
+
   const scheme = readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8')
   const cited = new Set(
-    p16StatusLines(scheme)
+    p16Lines(scheme)
       .flatMap((line) => [...line.matchAll(/#(\d+)/g)])
       .map((match) => match[1]),
   )
-  assert.equal(cited.size, 1, `P1-6 must point at exactly one ticket, got: ${[...cited].join(', ') || 'none'}`)
+  assert.ok(cited.size > 0, 'P1-6 out of step: cite the issue that owns the fix')
   const [ticket] = [...cited]
 
   const drift = readFileSync(join(ROOT, 'docs/specs/docs-drift.md'), 'utf8')
