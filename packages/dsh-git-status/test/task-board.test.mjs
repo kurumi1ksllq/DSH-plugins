@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { buildTaskBoard, issueFromBranch, stageOf, NEEDS_USER_KINDS } from '../lib/task-board.js'
+import { buildTaskBoard, issueFromBranch } from '../lib/task-board.js'
 
 /** A snapshot shaped like getSnapshot()'s `git` block plus forge data. */
 function snap(overrides = {}) {
@@ -39,22 +39,53 @@ test('issueFromBranch reads the dev-flow branch convention', () => {
   assert.equal(issueFromBranch(null), null)
 })
 
-// ---- stage derivation -------------------------------------------------------
+// ---- stage derivation (through the public board, not the internal helper) ---
+// These used to call `stageOf()` with its internal argument shape. That shape
+// differs from what `buildTaskBoard()` passes in, so a change in how the card is
+// assembled could have left every stage test green while the board moved cards
+// to the wrong column. Each case now asserts where a card LANDS.
 
-test('stageOf: branch only, nothing ahead → dev', () => {
-  assert.equal(stageOf({ hasBranch: true, ahead: 0, pr: null, checks: undefined, merged: false, flow: null }), 'dev')
+/** The column a card for `issue` ends up in, or null when it has no card. */
+function columnOf(board, issue) {
+  for (const column of board.columns) {
+    if (column.cards.some((card) => card.issue === issue)) return column.stage
+  }
+  return null
+}
+
+test('a branch with nothing ahead sits in dev', () => {
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-1-a')] },
+    issues: [issue(1)],
+  }))
+  assert.equal(columnOf(board, 1), 'dev')
 })
 
-test('stageOf: branch with unpushed commits → pr (push is next)', () => {
-  assert.equal(stageOf({ hasBranch: true, ahead: 2, pr: null, checks: undefined, merged: false, flow: null }), 'pr')
+test('unpushed commits move the card to pr, because pushing is the next step', () => {
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-1-a', { ahead: 2 })] },
+    issues: [issue(1)],
+  }))
+  assert.equal(columnOf(board, 1), 'pr')
 })
 
-test('stageOf: open PR, CI unknown → ci', () => {
-  assert.equal(stageOf({ hasBranch: true, ahead: 2, pr: pr(1, 'issue-1-a'), checks: 'unknown', merged: false, flow: null }), 'ci')
+test('an open PR with unknown CI sits in ci', () => {
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-1-a', { ahead: 2 })] },
+    issues: [issue(1)],
+    prs: [pr(1, 'issue-1-a')],
+    checks: {},
+  }))
+  assert.equal(columnOf(board, 1), 'ci')
 })
 
-test('stageOf: merged PR → done', () => {
-  assert.equal(stageOf({ hasBranch: true, ahead: 0, pr: null, checks: undefined, merged: true, flow: null }), 'done')
+test('a merged PR lands in done', () => {
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-1-a')] },
+    issues: [issue(1)],
+    mergedPrs: [pr(9, 'issue-1-a')],
+  }))
+  assert.equal(columnOf(board, 1), 'done')
 })
 
 // ---- conflict arbitration (user chose: git wins) ----------------------------
@@ -140,8 +171,48 @@ test('buildTaskBoard: a clean main workspace produces no off-flow entry', () => 
 
 // ---- needs-user区 --------------------------------------------------------
 
-test('needsUser only carries the four dev-flow user inputs', () => {
-  assert.deepEqual([...NEEDS_USER_KINDS].sort(), ['ci-red-escalated', 'intake-confirm', 'merge-gate', 'no-ci'].sort())
+test('each of the four dev-flow user inputs actually reaches needsUser', () => {
+  // Asserting the constant array only proved the array existed. What matters is
+  // that a real board produces each kind — so each case below builds the
+  // smallest snapshot that triggers exactly one of them.
+
+  // 1. intake-confirm: an issue with no branch yet (stop point 1).
+  const intake = buildTaskBoard(snap({ issues: [issue(31)] }))
+  assert.ok(intake.needsUser.some((n) => n.kind === 'intake-confirm'), 'intake-confirm never fires')
+
+  // 2. no-ci: the repo has a PR whose checks report nothing.
+  const noCi = buildTaskBoard(snap({ prs: [pr(5, 'feature/x')], checks: { 5: 'none' } }))
+  assert.ok(noCi.needsUser.some((n) => n.kind === 'no-ci'), 'no-ci never fires')
+
+  // 3. ci-red-escalated: red CI at the last self-repair round.
+  const escalated = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
+    issues: [issue(26)],
+    prs: [pr(5, 'issue-26-a')],
+    checks: { 5: 'red' },
+    flowStates: new Map([[26, {
+      issue: 26, grade: 'standard', stage: 'ci', tickets: [],
+      ci: { run: 2, max: 2, status: 'red' }, review: null, merge: null,
+    }]]),
+  }))
+  assert.ok(escalated.needsUser.some((n) => n.kind === 'ci-red-escalated'), 'ci-red-escalated never fires')
+
+  // 4. merge-gate: review done, merge not yet authorised.
+  const gate = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
+    issues: [issue(26)],
+    prs: [pr(5, 'issue-26-a')],
+    checks: { 5: 'green' },
+    flowStates: new Map([[26, {
+      issue: 26, grade: 'standard', stage: 'merge', tickets: [],
+      ci: { run: 0, max: 2, status: 'green' }, review: { state: 'done', axes: 2 }, merge: { authorized: false },
+    }]]),
+  }))
+  assert.ok(gate.needsUser.some((n) => n.kind === 'merge-gate'), 'merge-gate never fires')
+
+  // And nothing else sneaks in: the four above are the whole vocabulary.
+  const observed = new Set([...intake.needsUser, ...noCi.needsUser, ...escalated.needsUser, ...gate.needsUser].map((n) => n.kind))
+  assert.deepEqual([...observed].sort(), ['ci-red-escalated', 'intake-confirm', 'merge-gate', 'no-ci'])
 })
 
 test('buildTaskBoard: no CI repo raises exactly one no-ci item (not once per card)', () => {

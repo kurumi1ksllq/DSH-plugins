@@ -1,6 +1,6 @@
 {
   "name": "dsh-git-status",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Read-only git overview for DeepSeek Harness: branches, dirty state, recent commits, open PRs and issues (via the gh CLI when available). Adds a 'Git' tab in the sidebar. Nothing on disk is modified.",
   "type": "module",
