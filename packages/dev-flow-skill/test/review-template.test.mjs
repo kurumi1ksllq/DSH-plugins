@@ -27,19 +27,26 @@ describe('dev-flow ships the dual-axis review prompt (issue #39)', () => {
   })
 
   it('each axis demands at least three findings or an explicit "no problem"', () => {
+    // Slice per axis: slicing 轴1 to the end of the block let 轴2's wording
+    // satisfy 轴1's requirement, so deleting 轴1's ask stayed green.
     const [block] = templateBlock()
     assert.notEqual(block, undefined)
-    for (const axis of ['轴1', '轴2']) {
-      const section = block.slice(block.indexOf(axis))
+    const axes = ['轴1', '轴2']
+    for (const [index, axis] of axes.entries()) {
+      const start = block.indexOf(axis)
+      const end = index + 1 < axes.length ? block.indexOf(axes[index + 1]) : block.length
+      assert.ok(start >= 0 && end > start, `template must contain a ${axis} section`)
+      const section = block.slice(start, end)
       assert.ok(section.includes('列出至少 3 个问题'), `${axis} must demand at least three findings`)
       assert.ok(section.includes('未发现问题'), `${axis} must allow an explicit "no problem found"`)
+      assert.ok(section.includes('只报告'), `${axis} must say "report only"`)
     }
   })
 
   it('the template tells the reviewer to only report, never edit', () => {
     const [block] = templateBlock()
     assert.notEqual(block, undefined)
-    assert.match(block, /只报告/, 'the template must forbid editing')
+    assert.match(block, /不得即兴改写/, 'the template must forbid improvising it')
     assert.match(block, /spec/, '轴1 must be given the spec, not only the diff')
     assert.match(block, /diff/, 'the reviewer must be given the full diff')
   })

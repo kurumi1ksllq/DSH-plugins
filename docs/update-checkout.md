@@ -87,7 +87,7 @@ cd /root/.dsh/profiles/web && pnpm install --prefer-offline
 
 ```bash
 node scripts/check-profile.mjs     # 期望 0 warning
-node scripts/update.mjs plan       # 期望 6 包同属一个 checkout
+node scripts/update.mjs plan       # 期望 5 包同属一个 checkout
 ```
 
 再在 Web GUI 插件页确认 5 个插件都是 `active`(不是 `failed`)。

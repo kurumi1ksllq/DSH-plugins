@@ -24,14 +24,14 @@
 
 ## 3. 边界
 
-- 改:`test/docs-contract.test.mjs`、`docs/update-scheme.md`、`docs/update-checkout.md`、`docs/specs/docs-drift.md`、`docs/specs/.flow/37.json`、`packages/dev-flow-skill/SKILL.md`(+ `package.json` 版本号与 `CHANGELOG.md`)
+- 改:`test/docs-contract.test.mjs`、`docs/update-scheme.md`、`docs/update-checkout.md`、`docs/specs/docs-drift.md`、`docs/specs/issue-39-docs-contracts.md`、`docs/specs/.flow/37.json`、`docs/specs/.flow/39.json`、`packages/dev-flow-skill/{SKILL.md,package.json,test/review-template.test.mjs}`、`CHANGELOG.md`、`.github/workflows/ci.yml`(仅 `fetch-depth: 0`,让校准块的 commit 校验在 CI 有输入)
 - 不改:`pnpm-lock.yaml`、profile、任何插件代码
 - `packages/dev-flow-skill` 是 bundle,改它必须 bump:0.2.0 → 0.2.1,合并后在 main 打 `dev-flow-skill@0.2.1`
 - 不重启 DSH
 
 ## 4. 验收
 
-1. `node --test test/*.test.mjs` 全绿,新增/收紧的契约逐条反向验证(见 §1 表 A-E 全部转红)。
+1. `node --test test/*.test.mjs` 全绿;反向验证:A/B/C/E/F 改坏必须转红,**D 是由红转绿**(表 D 的设计目标就是让合法改法不再误报)。
 2. `pnpm verify` 全绿(干净环境下;本机脏工作树导致的 `check-bundle-versions` 假红不算)。
 3. 文档里每句「已修 / 未修 / 见 #NN」都能被命令或 issue 编号验证。
 
@@ -50,5 +50,10 @@
 
 | 风险 | 缓解 |
 | --- | --- |
-| 契约依赖 `git` / lockfile 内容 → 换仓库就误报 | 只在检测到矛盾时才要求「未修」;lockfile 修好后契约自动转为「必须写已修」——但这条留到 #39 第 1 条真正修完时再开 | 
+| 契约依赖 `git` / lockfile 内容 → 换仓库就误报 | 互锁做成双向:lockfile 漂移时要求「仍未修」,修好后要求「已修」,两边都写错才红 |
 | 收紧后 CI 用旧 commit 的 calibration sha | 校准块必须指向**已存在**的 commit,分支上可指向 base commit,合并后由本 PR 更新为合并前 sha 即可 |
+
+## 7. 流程说明
+
+- `.flow/37.json` 的收尾只是**手改数据**,没有契约守它(同类漂移会复发)。这是有意的:任务板状态由 `dsh-git-status` 面板按 git/GitHub 实况降级处理,用测试钉住运行时状态文件收益很低。
+- 「当时」是这些文档里唯一的历史豁免词:任何一行写了「当时」就跳过旧计数检查。它挡不住「把当前数字写错再补一个(当时)」,取舍见 §6。
