@@ -54,11 +54,11 @@ export function readCheckoutState(dir) {
 
   const dirty = status.stdout
     .split('\n')
-    .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    // Porcelain v1 is `XY <path>`; a rename shows `XY <old> -> <new>` and the
-    // arrow form is what a reader needs to recognize the file.
-    .map((line) => line.slice(3).trim())
+    // Porcelain v1 is `XY <path>`: the status letters are fixed columns, and a
+    // modified-but-tracked file starts with a SPACE (` M path`). Trimming first
+    // would eat two characters of the path.
+    .map((line) => line.slice(3).replace(/\s+$/, ''))
 
   return {
     ok: true,
@@ -158,6 +158,19 @@ export function checkUpdatable(facts) {
   }
   if (relation === 'same' || state.head === targetHead) {
     return { ok: false, reason: 'up-to-date', detail: 'the checkout already is at the target' }
+  }
+  if (relation === 'ahead') {
+    // Local commits the target does not have: `merge --ff-only` would be a no-op
+    // and the recomposition it triggered would be pure cost.
+    return {
+      ok: false,
+      reason: 'ahead-of-target',
+      detail: 'the checkout has commits the target does not have; nothing to fast-forward',
+    }
+  }
+  if (relation !== 'behind') {
+    // Includes 'unknown': a relation we could not read is not permission to move.
+    return { ok: false, reason: 'unknown-relation', detail: 'cannot tell how the checkout relates to the target' }
   }
 
   const changed = []
