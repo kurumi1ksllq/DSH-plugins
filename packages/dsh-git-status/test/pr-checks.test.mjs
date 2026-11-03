@@ -51,3 +51,67 @@ test('prChecks: refuses a non-positive PR number without spawning gh', async () 
   assert.equal(await prChecks('/tmp', -3), 'unknown')
   assert.equal(await prChecks('/tmp', null), 'unknown')
 })
+
+// ---- prChecks over a fake `gh` on PATH -------------------------------------
+// The earlier cases never touched prChecks' I/O branches, so a broken `none`
+// path passed the whole suite. These run a stub `gh` so the real spawn, exit
+// code and stdout handling are exercised.
+
+import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+/** Build a dir containing a fake `gh` that prints `body` and exits `code`. */
+function fakeGhDir(body, code) {
+  const dir = mkdtempSync(join(tmpdir(), 'fake-gh-'))
+  const script = `#!/bin/sh\nprintf '%s' '${body.replace(/'/g, "'\\''")}'\nexit ${code}\n`
+  writeFileSync(join(dir, 'gh'), script)
+  chmodSync(join(dir, 'gh'), 0o755)
+  return dir
+}
+
+/** Run `fn` with `dir` prepended to PATH. */
+async function withPath(dir, fn) {
+  const previous = process.env.PATH
+  process.env.PATH = `${dir}:${previous}`
+  try {
+    return await fn()
+  } finally {
+    process.env.PATH = previous
+  }
+}
+
+test('prChecks: all checks green over a real process', async () => {
+  const dir = fakeGhDir('[{"name":"test","state":"SUCCESS"}]', 0)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'green')
+})
+
+test('prChecks: a failing check is red', async () => {
+  const dir = fakeGhDir('[{"name":"test","state":"FAILURE"}]', 1)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'red')
+})
+
+test('prChecks: gh exits 1 with "no checks reported" is none, not unknown', async () => {
+  const dir = fakeGhDir('no checks reported on the branch\n', 1)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'none')
+})
+
+test('prChecks: an empty check list is none', async () => {
+  const dir = fakeGhDir('[]', 0)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'none')
+})
+
+test('prChecks: pending checks (gh exit 8) stay unknown, never green', async () => {
+  const dir = fakeGhDir('[{"name":"test","state":"IN_PROGRESS"}]', 8)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'unknown')
+})
+
+test('prChecks: a hard failure with no output is unknown', async () => {
+  const dir = fakeGhDir('', 1)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'unknown')
+})
+
+test('prChecks: unparseable output on exit 0 is unknown', async () => {
+  const dir = fakeGhDir('not json', 0)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'unknown')
+})

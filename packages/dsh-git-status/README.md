@@ -22,7 +22,7 @@ DeepSeek Harness 插件：当前工作区是 git 项目时，侧栏多一个 **G
 除八列外，面板还有两个特殊区：
 
 - **需要你出手**（顶部）：只挂 `dev-flow` 里真正需要你输入的四件事——停点1 待确认、本仓库无 CI、CI 红到第 2 轮升级、merge 待口令。最多 3 条，阻塞项优先。
-- **未进流程**（红色横幅）：当前分支上的改动既无 issue、也不在 `issue-<n>-*` 分支上，即「直接改主干」。这是唯一能暴露「偷偷没走流程」的位置。
+- **未进流程**（红色横幅）：三种绕过流程的形态——脏 `main`、不在 `issue-<n>-*` 上的分支（**提交了也算**，不要求工作区脏）、以及 `issue-<n>-*` 但该 issue 并不存在。这是唯一能暴露「偷偷没走流程」的位置。
 
 空列不留白，而是显示「下一步在等什么」（如待 merge 列空 → 「没有 PR 等口令」），面板本身就是流程说明书。
 
@@ -30,11 +30,12 @@ DeepSeek Harness 插件：当前工作区是 git 项目时，侧栏多一个 **G
 
 ```
 #26 [git-status] 面板改造为 dev-flow 任务板      standard
-●●◐○○○○○                         ← 八个进度点，实心 = 已过
+●●◐○○○○○                         ← 八个进度点，实心 = 已到该阶段
 issue-26-task-board · ↑1 · PR #31 · CI 红 · CI 1/2 · ticket 2/7
+⚠ 需要你：PR #31(issue #26)等你点名 merge
 ```
 
-四行固定结构：标题行（issue 号 + 标题 + 分级）、进度点、证据行（分支 / ahead / PR / CI / ticket 计数）、行动行（仅需你出手时出现）。
+四行固定结构：标题行（issue 号 + 标题 + 分级）、进度点、证据行（分支 / ahead / PR / CI / ticket 计数）、**行动行**（只有这张卡需要你出手时才出现）。顶部区汇总全部待办，卡片行动行说明「这一张」在等什么。
 
 ## 状态文件：`docs/specs/.flow/<issue>.json`
 
@@ -58,6 +59,8 @@ Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到�
 
 文件缺失、JSON 写坏、枚举越界，一律当作「没有记录」降级处理，不会报错也不会谎报进度。
 
+面板拿到的 `flowStates` 是**按 issue 号索引的普通对象**（不是 `Map`）：快照要走 `JSON.stringify`，`Map` 会序列化成 `{}`，浏览器端就会丢掉全部进度。同理，任务板本身也在**宿主侧一次算好**随快照下发，浏览器只渲染，避免两端各写一份推导逻辑而逐渐分叉。
+
 ### 冲突时以仓库实况为准
 
 状态文件的 `stage` 与分支/PR/CI 实况不一致时，面板按**实况**放卡，并在卡片上标一条「状态过期」——所以漏写只会让卡停在更早的列，不会把任务谎报成已完成。
@@ -71,7 +74,7 @@ Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到�
 | 改动文件 / 行数 | `git status --porcelain=v2` + `git diff --shortstat` |
 | 未推送提交 | `git rev-list --count @{u}..HEAD` |
 | PR 状态 | `gh pr list` |
-| CI 三态 | `gh pr checks <n> --json state`（每 PR 一次，失败降级 `unknown`） |
+| CI 三态 | `gh pr checks <n> --json state`（每 PR 一次；退出码 1/8 仍保留 stdout，因为「无 CI」和「检查进行中」都靠 body 判定） |
 | TDD / CI 轮次 / review / merge 口令 | `docs/specs/.flow/<issue>.json` |
 
 ### gh 不可用时

@@ -248,3 +248,91 @@ test('buildTaskBoard: card carries an eight-slot progress index', () => {
   assert.equal(card.stageIndex, 2)
   assert.equal(card.columnCount, 8)
 })
+
+// ---- review findings: intake-confirm, off-flow, card action line -----------
+
+test('intake-confirm fires for an issue with NO branch yet, not for one already branch-ed', () => {
+  // Stop point 1 is "issue created, plan not confirmed". A branch means the plan
+  // WAS confirmed (dev-flow creates the branch only after stop point 2), so a
+  // normal in-flight task must never be reported as needing the user.
+  const withBranch = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
+    issues: [issue(26)],
+  }))
+  assert.equal(withBranch.needsUser.filter((n) => n.kind === 'intake-confirm').length, 0)
+
+  const noBranch = buildTaskBoard(snap({ issues: [issue(31)] }))
+  assert.equal(noBranch.needsUser.filter((n) => n.kind === 'intake-confirm').length, 1)
+})
+
+test('off-flow catches a committed non-issue branch even when the tree is clean', () => {
+  // The commonest way to bypass dev-flow: work on feature/x and commit it. The
+  // workspace is clean, so a dirty-only check let it vanish from the board.
+  const board = buildTaskBoard(snap({
+    git: {
+      currentBranch: 'feature/random',
+      status: { branch: 'feature/random', detached: false, dirty: 0, untracked: 0, conflicts: 0, staged: 0, unstaged: 0 },
+      branches: [branch('main'), branch('feature/random', { current: true, ahead: 2 })],
+    },
+  }))
+  assert.equal(board.offFlow.length, 1)
+  assert.equal(board.offFlow[0].branch, 'feature/random')
+  assert.equal(board.offFlow[0].reason, 'unnamed-branch')
+})
+
+test('off-flow catches an issue branch whose issue does not exist', () => {
+  // "issue-99-x" reads like dev-flow but #99 is not an issue, so nothing on the
+  // board owns it — it is bypassing the flow with a convincing name.
+  const board = buildTaskBoard(snap({
+    git: {
+      currentBranch: 'issue-99-ghost',
+      status: { branch: 'issue-99-ghost', detached: false, dirty: 0, untracked: 0, conflicts: 0, staged: 0, unstaged: 0 },
+      branches: [branch('main'), branch('issue-99-ghost', { current: true, ahead: 1 })],
+    },
+    issues: [issue(26)],
+  }))
+  assert.equal(board.offFlow.length, 1)
+  assert.equal(board.offFlow[0].reason, 'unknown-issue')
+  assert.equal(board.offFlow[0].issue, 99)
+})
+
+test('a clean main with no stray branches is never off-flow', () => {
+  assert.equal(buildTaskBoard(snap({ issues: [issue(26)] })).offFlow.length, 0)
+})
+
+test('a card carries its own action line when that issue needs the user', () => {
+  const flowStates = new Map([[26, {
+    issue: 26, grade: 'standard', stage: 'merge', tickets: [],
+    ci: { run: 0, max: 2, status: 'green' }, review: { state: 'done', axes: 2 }, merge: { authorized: false },
+  }]])
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
+    issues: [issue(26)],
+    prs: [pr(5, 'issue-26-a')],
+    checks: { 5: 'green' },
+    flowStates,
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 26)
+  assert.notEqual(card.action, null, 'the card must say what it is waiting for')
+  assert.equal(card.action.kind, 'merge-gate')
+  assert.equal(card.action.prNumber, 5)
+})
+
+test('a card with nothing pending carries no action line', () => {
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
+    issues: [issue(26)],
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 26)
+  assert.equal(card.action, null)
+})
+
+test('no-ci is a repository-level question, raised even without a matching card', () => {
+  // The repo has no CI at all: that is a property of the repository, so a PR on
+  // a branch the board cannot place must still raise the question.
+  const board = buildTaskBoard(snap({
+    prs: [pr(5, 'feature/x')],
+    checks: { 5: 'none' },
+  }))
+  assert.equal(board.needsUser.filter((n) => n.kind === 'no-ci').length, 1)
+})

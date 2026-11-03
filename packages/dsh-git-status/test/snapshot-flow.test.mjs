@@ -45,8 +45,9 @@ test('snapshot carries an empty flowStates map and checks map when nothing is re
   invalidateSnapshot()
   const snap = await getSnapshot({ ...noForge, sessionCwd: dir })
   assert.equal(snap.isGit, true)
-  assert.ok(snap.flowStates instanceof Map)
-  assert.equal(snap.flowStates.size, 0)
+  // Plain object, not a Map: the route JSON.stringify's this payload.
+  assert.equal(snap.flowStates instanceof Map, false)
+  assert.deepEqual(snap.flowStates, {})
   assert.deepEqual(snap.checks, {})
 })
 
@@ -56,7 +57,7 @@ test('snapshot reads the flow state of a branch-named issue without forge access
   invalidateSnapshot()
   const snap = await getSnapshot({ ...noForge, sessionCwd: dir })
   assert.equal(snap.isGit, true)
-  const state = snap.flowStates.get(42)
+  const state = snap.flowStates[42]
   assert.notEqual(state, undefined)
   assert.equal(state.stage, 'dev')
   assert.equal(state.grade, 'standard')
@@ -70,7 +71,7 @@ test('snapshot ignores a broken flow file instead of failing the route', async (
   invalidateSnapshot()
   const snap = await getSnapshot({ ...noForge, sessionCwd: dir })
   assert.equal(snap.isGit, true)
-  assert.equal(snap.flowStates.size, 0)
+  assert.deepEqual(snap.flowStates, {})
 })
 
 test('a non-git workspace still answers with stable empty fields', async () => {
@@ -78,6 +79,6 @@ test('a non-git workspace still answers with stable empty fields', async () => {
   invalidateSnapshot()
   const snap = await getSnapshot({ ...noForge, sessionCwd: dir })
   assert.equal(snap.isGit, false)
-  assert.ok(snap.flowStates instanceof Map)
+  assert.deepEqual(snap.flowStates, {})
   assert.deepEqual(snap.checks, {})
 })

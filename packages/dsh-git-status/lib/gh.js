@@ -156,19 +156,23 @@ export function classifyChecks(checks) {
 /**
  * CI state of one PR, for the task board's CI column.
  *
- * One `gh` call per PR, so callers run these behind a small concurrency pool and
- * treat `unknown` as "do not block the render". Exit code 1 with a parseable
- * JSON body is normal here: `gh pr checks` exits non-zero while checks are
- * failing or pending, so the body decides, not the exit status.
+ * One `gh` call per PR, so callers run these behind a small concurrency pool.
+ * Exit code 1 with a body is normal: `gh pr checks` exits non-zero while checks
+ * are failing or pending, so the BODY decides, not the exit status. That is
+ * only true because the call opts into `keepStdoutOnFailure`.
  * @returns {Promise<'green'|'red'|'none'|'unknown'>}
  */
 export async function prChecks(repoDir, prNumber) {
   if (!Number.isInteger(prNumber) || prNumber <= 0) return 'unknown'
   if (typeof repoDir !== 'string' || repoDir.length === 0) return 'unknown'
+  // `keepStdoutOnFailure` is REQUIRED here: `gh pr checks` exits 1 when it has
+  // no checks to report and 8 while checks are pending, and both cases still
+  // print to stdout. Dropping that output turned "no CI" into "unknown", so the
+  // panel never asked the user whether to create a workflow.
   const out = await runCommand(
     'gh',
     ['pr', 'checks', String(prNumber), '--json', 'state'],
-    { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
+    { cwd: repoDir, allowFailure: true, keepStdoutOnFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return 'unknown'
   const text = out.trim()

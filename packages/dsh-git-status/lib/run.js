@@ -28,6 +28,12 @@ export const DEFAULT_MAX_BUFFER = 4 * 1024 * 1024
  * @param {number} [opts.timeoutMs] kill the child after this long
  * @param {number} [opts.maxBuffer] kill the child past this many bytes of stdout
  * @param {boolean} [opts.allowFailure] resolve null on non-zero exit instead of throwing
+ * @param {boolean} [opts.keepStdoutOnFailure] with allowFailure, resolve the captured
+ *   stdout instead of null when the process exits non-zero. Needed for `gh`
+ *   subcommands whose exit code carries meaning but whose JSON body is still
+ *   valid (`gh pr checks` exits 1 with "no checks reported" and 8 while checks
+ *   are pending). An EMPTY stdout still resolves to null, so "failed with
+ *   nothing to say" stays distinguishable from "failed, here is the body".
  * @returns {Promise<string|null>} stdout, or null on failure when allowFailure
  */
 export function runCommand(file, args, opts = {}) {
@@ -69,6 +75,7 @@ export function runCommand(file, args, opts = {}) {
     child.on('error', () => finish(null))
     child.on('close', (code) => {
       if (code === 0) finish(stdout)
+      else if (opts.allowFailure && opts.keepStdoutOnFailure && stdout.length > 0) finish(stdout)
       else finish(opts.allowFailure ? null : undefined)
     })
   })

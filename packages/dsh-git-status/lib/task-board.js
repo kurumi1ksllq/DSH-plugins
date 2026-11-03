@@ -82,19 +82,40 @@ export function stageOf({ hasIssue, hasBranch, ahead, pr, checks, merged, flow }
 /**
  * Why the current workspace is outside dev-flow, or null when it is fine.
  *
- * A clean workspace is never a violation: there is nothing to route. A dirty
- * `main` is, because dev-flow forbids committing there. A dirty branch that does
- * not follow `issue-<n>-*` is also unrouted: the board cannot say what it is for.
- * @returns {{branch:string, reason:'dirty-main'|'unnamed-branch', files:number}|null}
+ * Three ways to be off-flow, checked in that order:
+ *   1. uncommitted work on the trunk — dev-flow forbids committing there at all;
+ *   2. work on a branch that does not follow `issue-<n>-*`;
+ *   3. work on an `issue-<n>-*` branch whose issue does not exist.
+ *
+ * Note (2) and (3) do NOT require a dirty tree. The commonest bypass is to
+ * branch off, commit and push: the tree is clean, yet no issue owns the work.
+ * Gating on `dirty > 0` alone hid exactly that case.
+ * @returns {{branch:string, reason:string, files:number, issue?:number}|null}
  */
-function offFlowOf(git) {
+function offFlowOf(git, knownIssues) {
   const status = git?.status ?? {}
   const dirty = Number.isInteger(status.dirty) ? status.dirty : 0
-  if (dirty <= 0) return null
   const branch = typeof status.branch === 'string' && status.branch.length > 0 ? status.branch : '(detached)'
-  if (status.detached === true) return { branch, reason: 'unnamed-branch', files: dirty }
-  if (branch === 'main' || branch === 'master') return { branch, reason: 'dirty-main', files: dirty }
-  if (issueFromBranch(branch) === null) return { branch, reason: 'unnamed-branch', files: dirty }
+  const current = git?.currentBranch ?? status.branch
+
+  if (dirty > 0 && (current === 'main' || current === 'master')) {
+    return { branch: current, reason: 'dirty-main', files: dirty }
+  }
+  if (current === null || current === undefined || status.detached === true) {
+    return dirty > 0 ? { branch, reason: 'unnamed-branch', files: dirty } : null
+  }
+  if (current === 'main' || current === 'master') return null
+
+  const issueNumber = issueFromBranch(current)
+  if (issueNumber === null) {
+    // Report it even when clean: a committed feature branch is unrouted work.
+    return { branch: current, reason: 'unnamed-branch', files: dirty }
+  }
+  // Forge data may be missing (gh down), in which case we cannot judge the
+  // issue exists — stay silent rather than cry wolf.
+  if (knownIssues !== null && !knownIssues.has(issueNumber)) {
+    return { branch: current, reason: 'unknown-issue', files: dirty, issue: issueNumber }
+  }
   return null
 }
 
@@ -184,12 +205,21 @@ export function buildTaskBoard(snapshot) {
     empty: emptyHintOf(stage),
   }))
 
-  const offFlowEntry = offFlowOf(git)
+  // `null` means "we cannot tell" (gh unavailable); a Set means we can.
+  const knownIssues = Array.isArray(snapshot?.issues) ? new Set(issues.map((i) => i?.number)) : null
+  const offFlowEntry = offFlowOf(git, knownIssues)
   const offFlow = offFlowEntry === null ? [] : [offFlowEntry]
+
+  const needsUser = buildNeedsUser({ cards, allIssues: issues, checks })
+  // Mirror the pending items onto the cards they belong to, so a card says what
+  // IT is waiting for instead of forcing a look back up at the strip.
+  for (const card of cards) {
+    card.action = needsUser.find((n) => n.issue !== null && n.issue === card.issue) ?? null
+  }
 
   return {
     columns,
-    needsUser: buildNeedsUser({ cards }),
+    needsUser,
     offFlow,
     forgeHint: snapshot?.forgeHint ?? null,
   }
@@ -216,14 +246,16 @@ function emptyHintOf(stage) {
  * Every item must map to a real dev-flow gate; anything else (a dirty file, a
  * stale branch) belongs in its own column, not here.
  */
-function buildNeedsUser({ cards }) {
+function buildNeedsUser({ cards, allIssues, checks }) {
   const blockers = []
   const infos = []
 
-  // 1. A branch exists but nothing was recorded for it: the plan was never
-  // confirmed, which is exactly stop point 1.
+  // 1. Stop point 1 is "issue created, plan not confirmed". dev-flow creates the
+  // branch only AFTER that confirmation, so the signal is an issue with NO
+  // branch — not a branch with no .flow file (that would fire on every normal
+  // in-flight task and train the user to ignore the strip).
   for (const card of cards) {
-    if (card.issue !== null && card.hasBranch && card.flowStage === null) {
+    if (card.issue !== null && !card.hasBranch && card.stage === 'intake') {
       infos.push({ kind: 'intake-confirm', issue: card.issue, prNumber: null, severity: 'info' })
     }
   }
@@ -246,8 +278,10 @@ function buildNeedsUser({ cards }) {
     blockers.push({ kind: 'merge-gate', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
   }
 
-  // 4. No CI at all: ONE question for the repo, not one per card.
-  const anyNone = cards.some((c) => c.checks === 'none')
+  // 4. No CI at all: a property of the REPOSITORY, so it is answered from the
+  // check map itself rather than from cards. A PR on an unplaceable branch would
+  // otherwise suppress the question entirely.
+  const anyNone = Object.values(checks ?? {}).some((state) => state === 'none')
   if (anyNone) infos.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
 
   return [...blockers, ...infos].slice(0, NEEDS_USER_LIMIT)

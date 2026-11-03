@@ -33,6 +33,7 @@ import { createHash } from 'node:crypto'
 
 import { resolveInsideRepo } from './path-guard.js'
 import { readFlowStates } from './flow-state.js'
+import { buildTaskBoard } from './task-board.js'
 import { pickWorkspace, sessionCwdOf } from './workspace.js'
 
 const CACHE_TTL_MS = 30_000
@@ -130,8 +131,14 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     issues: null,
     // CI state per PR number ('green'|'red'|'none'|'unknown'), filled below.
     checks: {},
-    // dev-flow task state read from docs/specs/.flow/<issue>.json, by issue.
-    flowStates: new Map(),
+    // dev-flow task state read from docs/specs/.flow/<issue>.json, keyed by
+    // issue number. A plain object, NOT a Map: the route JSON.stringify's this
+    // payload, and a Map becomes `{}` on the wire — the browser would then show
+    // every card with no progress at all.
+    flowStates: {},
+    // The board itself, computed here so the browser only renders. Re-deriving
+    // it client-side meant two implementations that drifted.
+    board: null,
     generatedAt: new Date().toISOString(),
   }
 
@@ -187,9 +194,11 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     ...(Array.isArray(issues) ? issues.map((i) => i?.number) : []),
     ...branches.map((b) => issueNumberOf(b?.name)).filter((n) => n !== null),
   ]
-  const flowStates = await readFlowStates(workspace.dir, issueNumbers)
+  const flowMap = await readFlowStates(workspace.dir, issueNumbers)
+  // Map → plain object so the state survives JSON.stringify on the way out.
+  const flowStates = Object.fromEntries(flowMap)
 
-  return {
+  const snapshot = {
     ...base,
     // The Session's own directory, which may sit below the repo root.
     sessionCwd: sessionCwd ?? null,
@@ -216,6 +225,10 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     checks,
     flowStates,
   }
+  // The board is derived on the host, once, from the same evidence the raw
+  // fields carry — so the browser cannot disagree with the API about stages.
+  snapshot.board = buildTaskBoard({ ...snapshot, flowStates: flowMap })
+  return snapshot
 }
 
 /** Small pool so a repo with many PRs cannot flood the gh CLI. */

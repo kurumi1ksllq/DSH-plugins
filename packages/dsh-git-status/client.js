@@ -92,6 +92,7 @@ window.__ModuleLoader__.load({
       offFlowTitle: '未进流程',
       'offFlow_dirty-main': (branch) => `在 ${branch} 上有未提交改动 —— dev-flow 禁止直接改主干`,
       'offFlow_unnamed-branch': (branch) => `分支 ${branch} 不叫 issue-<n>-<描述>,任务板无法判断它属于哪个任务`,
+      'offFlow_unknown-issue': (branch, n) => `分支 ${branch} 指向 issue #${n},但这个 issue 不存在`,
       offFlowFiles: (n) => `${n} 个文件`,
       column_intake: '待处理',
       column_spec: '方案中',
@@ -122,6 +123,7 @@ window.__ModuleLoader__.load({
       checks_none: '无 CI',
       checks_unknown: 'CI 未知',
       ticketsDone: (done, total) => `ticket ${done}/${total}`,
+      cardAction: '需要你',
     }
 
     const en = {
@@ -192,6 +194,7 @@ window.__ModuleLoader__.load({
       offFlowTitle: 'Off flow',
       'offFlow_dirty-main': (branch) => `Uncommitted changes on ${branch} — dev-flow forbids committing to the trunk`,
       'offFlow_unnamed-branch': (branch) => `Branch ${branch} is not named issue-<n>-<desc>, so the board cannot place it`,
+      'offFlow_unknown-issue': (branch, n) => `Branch ${branch} points at issue #${n}, which does not exist`,
       offFlowFiles: (n) => `${n} files`,
       column_intake: 'Intake',
       column_spec: 'Spec',
@@ -222,6 +225,7 @@ window.__ModuleLoader__.load({
       checks_none: 'No CI',
       checks_unknown: 'CI unknown',
       ticketsDone: (done, total) => `ticket ${done}/${total}`,
+      cardAction: 'Needs you',
     }
 // PART 2 — styles + primitives
     // ---- inline styles (Apple grouped list, same family as dsh-inventory) ----
@@ -839,9 +843,14 @@ function DiffView({ t, sessionId, path, statusSha }) {
       const prs = Array.isArray(snap?.prs) ? snap.prs : []
       const merged = Array.isArray(snap?.mergedPrs) ? snap.mergedPrs : []
       const checks = snap?.checks && typeof snap.checks === 'object' ? snap.checks : {}
-      // A Map from another realm is not `instanceof Map`; duck-type it instead.
-      const flowStates =
-        snap?.flowStates && typeof snap.flowStates.get === 'function' ? snap.flowStates : new Map()
+      // Over HTTP the state arrives as a plain object keyed by issue number; in
+      // tests it may be a Map. Accept both rather than silently reading nothing.
+      const rawStates = snap?.flowStates
+      const flowStateOf = (key) => {
+        if (!rawStates) return null
+        if (typeof rawStates.get === 'function') return rawStates.get(key) ?? null
+        return rawStates[key] ?? null
+      }
 
       const issueOf = (name) => {
         const m = /^issue-(\d+)-/.exec(typeof name === 'string' ? name : '')
@@ -866,7 +875,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         const pr = prs.find((x) => x?.headRefName === branch?.name) ?? null
         const mergedPr = pr === null ? merged.find((x) => x?.headRefName === branch?.name) ?? null : null
         const checkState = pr === null ? undefined : checks[pr.number]
-        const flow = flowStates.get(key) ?? null
+        const flow = flowStateOf(key)
         let stage
         if (mergedPr) stage = 'done'
         else if (pr) stage = checkState === 'red' || checkState === undefined || checkState === 'unknown' ? 'ci' : flow?.review?.state === 'done' ? 'merge' : 'review'
@@ -898,19 +907,28 @@ function DiffView({ t, sessionId, path, statusSha }) {
         })
       }
 
+      // Mirrors offFlowOf() in lib/task-board.js: dirty trunk, unnamed branch, or
+      // an issue-<n>-* branch whose issue does not exist. The latter two do not
+      // require a dirty tree — committed work on a stray branch is still unrouted.
       const status = git?.status ?? {}
       const dirty = Number.isInteger(status.dirty) ? status.dirty : 0
       const branchName = typeof status.branch === 'string' && status.branch.length > 0 ? status.branch : '(detached)'
+      const currentBranch = git?.currentBranch ?? status.branch
       let offFlow = []
-      if (dirty > 0) {
-        if (status.detached === true) offFlow = [{ branch: branchName, reason: 'unnamed-branch', files: dirty }]
-        else if (branchName === 'main' || branchName === 'master') offFlow = [{ branch: branchName, reason: 'dirty-main', files: dirty }]
-        else if (issueOf(branchName) === null) offFlow = [{ branch: branchName, reason: 'unnamed-branch', files: dirty }]
+      if (dirty > 0 && (currentBranch === 'main' || currentBranch === 'master')) {
+        offFlow = [{ branch: currentBranch, reason: 'dirty-main', files: dirty }]
+      } else if (currentBranch === null || currentBranch === undefined || status.detached === true) {
+        if (dirty > 0) offFlow = [{ branch: branchName, reason: 'unnamed-branch', files: dirty }]
+      } else if (currentBranch !== 'main' && currentBranch !== 'master') {
+        const n = issueOf(currentBranch)
+        const known = Array.isArray(snap?.issues) ? new Set(snap.issues.map((i) => i?.number)) : null
+        if (n === null) offFlow = [{ branch: currentBranch, reason: 'unnamed-branch', files: dirty }]
+        else if (known !== null && !known.has(n)) offFlow = [{ branch: currentBranch, reason: 'unknown-issue', files: dirty, issue: n }]
       }
 
       const needsUser = []
       for (const c of cards) {
-        if (c.issue !== null && c.hasBranch && c.flowStage === null) needsUser.push({ kind: 'intake-confirm', issue: c.issue, prNumber: null, severity: 'info' })
+        if (c.issue !== null && !c.hasBranch && c.stage === 'intake') needsUser.push({ kind: 'intake-confirm', issue: c.issue, prNumber: null, severity: 'info' })
       }
       for (const c of cards) {
         if (c.checks !== 'red') continue
@@ -922,8 +940,12 @@ function DiffView({ t, sessionId, path, statusSha }) {
         if (c.review?.state !== 'done' || c.merge?.authorized === true || c.prNumber === null) continue
         needsUser.push({ kind: 'merge-gate', issue: c.issue, prNumber: c.prNumber, severity: 'blocker' })
       }
-      if (cards.some((c) => c.checks === 'none')) needsUser.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
+      if (Object.values(checks).some((state) => state === 'none')) needsUser.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
       needsUser.sort((a, b) => (a.severity === 'blocker' ? 0 : 1) - (b.severity === 'blocker' ? 0 : 1))
+      const limited = needsUser.slice(0, 3)
+      for (const card of cards) {
+        card.action = limited.find((n) => n.issue !== null && n.issue === card.issue) ?? null
+      }
 
       return {
         columns: STAGES.map((stage) => ({
@@ -931,7 +953,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
           cards: cards.filter((c) => c.stage === stage),
           empty: emptyKeyOf(stage),
         })),
-        needsUser: needsUser.slice(0, 3),
+        needsUser: limited,
         offFlow,
         forgeHint: snap?.forgeHint ?? null,
       }
@@ -982,6 +1004,11 @@ function DiffView({ t, sessionId, path, statusSha }) {
       if (card.prDraft) badges.push(h(Badge, { key: 'd', text: t('prDraft') }))
 
       const titleText = card.issue !== null ? `#${card.issue} ${card.title}` : card.title
+      // Fourth row: only when THIS issue needs the user. The top strip lists
+      // everything pending; the card says what this one is waiting for.
+      const action = card.action
+        ? h('div', { style: S.cardAct }, `⚠ ${t('cardAction')}:${t(`need_${card.action.kind}`, card.issue, card.action.prNumber)}`)
+        : null
       return h(
         'div',
         { style: { ...S.card, ...(card.stale ? S.cardStale : {}) }, 'data-card': String(card.issue) },
@@ -990,6 +1017,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         meta.length > 0 ? h('div', { style: S.cardMeta }, meta.join(' · ')) : null,
         card.stale ? h('div', { style: S.cardMeta }, t('staleTip', card.flowStage)) : null,
         card.url ? h('a', { href: card.url, target: '_blank', rel: 'noreferrer', style: S.link }, t('openOnGithub')) : null,
+        action,
       )
     }
 
@@ -1029,7 +1057,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         h('div', { style: S.needsHead }, t('offFlowTitle')),
         entries.map((e, i) =>
           h('div', { key: `o${i}`, style: S.offFlowRow },
-            `• ${t(`offFlow_${e.reason}`, e.branch)} · ${t('offFlowFiles', e.files)}`),
+            `• ${t(`offFlow_${e.reason}`, e.branch, e.issue)} · ${t('offFlowFiles', e.files)}`),
         ),
       )
     }

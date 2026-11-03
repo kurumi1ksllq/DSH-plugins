@@ -291,3 +291,74 @@ test('a clean workspace shows eight columns and no cards', () => {
   assert.ok(out.includes('待处理'))
   assert.ok(!out.includes('#26'))
 })
+
+// ---- review findings on the render layer -----------------------------------
+
+test('a card in the merge gate renders its own action line', () => {
+  const flowStates = new Map([[26, {
+    issue: 26, grade: 'standard', stage: 'merge', tickets: [],
+    ci: { run: 0, max: 2, status: 'green' }, review: { state: 'done', axes: 2 }, merge: { authorized: false },
+  }]])
+  const s = snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
+    issues: [issue(26)],
+    prs: [pr(5, 'issue-26-a')],
+    checks: { 5: 'green' },
+    flowStates,
+  })
+  const out = textOf(s)
+  assert.ok(out.includes('需要你'), 'the card must carry its own action line')
+  assert.ok(out.includes('等你点名 merge'))
+})
+
+test('a card with nothing pending renders no action line', () => {
+  const s = snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
+    issues: [issue(26)],
+  })
+  assert.ok(!textOf(s).includes('需要你:'))
+})
+
+test('the host-provided board is what gets rendered', () => {
+  // The browser must trust the API's board instead of re-deriving a second copy.
+  const board = {
+    columns: [
+      { stage: 'intake', cards: [], empty: 'no-unconfirmed-issue' },
+      { stage: 'spec', cards: [], empty: 'no-spec-pending' },
+      { stage: 'dev', cards: [], empty: 'nothing-in-tdd' },
+      { stage: 'pr', cards: [], empty: 'no-branch-awaiting-push' },
+      {
+        stage: 'ci',
+        cards: [{
+          issue: 77, title: 'from the host', url: null, grade: 'standard', stage: 'ci',
+          stageIndex: 4, columnCount: 8, stale: false, flowStage: 'ci', hasBranch: true,
+          branchName: 'issue-77-x', ahead: 1, prNumber: 9, prUrl: null, prDraft: false,
+          checks: 'red', tickets: [], ci: { run: 2, max: 2, status: 'red' },
+          review: null, merge: null, action: { kind: 'ci-red-escalated', issue: 77, prNumber: 9 },
+        }],
+        empty: 'no-pr-in-ci',
+      },
+      { stage: 'review', cards: [], empty: 'no-review-pending' },
+      { stage: 'merge', cards: [], empty: 'no-pr-awaiting-merge' },
+      { stage: 'done', cards: [], empty: 'nothing-merged-yet' },
+    ],
+    needsUser: [{ kind: 'ci-red-escalated', issue: 77, prNumber: 9, severity: 'blocker' }],
+    offFlow: [],
+    forgeHint: null,
+  }
+  const out = textOf(snap({ board }))
+  assert.ok(out.includes('from the host'), 'must render the board it was given')
+  assert.ok(out.includes('#77'))
+  assert.ok(out.includes('CI 已红到第 2 轮' ))
+})
+
+test('flow state arriving as a plain object (the HTTP shape) is honoured', () => {
+  // Over HTTP a Map is serialised to `{}`; here the state must be read from the
+  // plain object and still drive the grade badge.
+  const s = snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
+    issues: [issue(26)],
+    flowStates: { 26: { issue: 26, grade: 'trivial', stage: 'dev', tickets: [], ci: null, review: null, merge: null } },
+  })
+  assert.ok(textOf(s).includes('trivial'))
+})
