@@ -1,0 +1,60 @@
+{
+  "issue": 30,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-03T11:20:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "P0-1 留空保留原值(store.update + /set)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "P0-2 取消确认不再刷新/清错",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "P0-3 错误信息不透传 message",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "P1-1 删三个包的死 UI 并收缩 inject",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "P1-2 测试断言搬家(余额条/拖拽/回车/空文本/保存中)",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "P1-3 文档与 locale 死引用",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "P1-4 声明 inventory 隐式依赖 + profile 告警",
+      "state": "done"
+    },
+    {
+      "id": 8,
+      "title": "P2 死字典键 + inventory 0.5.0",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
