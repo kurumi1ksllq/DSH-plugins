@@ -230,6 +230,11 @@ test('each update doc carries a dated calibration block naming a real commit', (
     )
     const [, date, sha] = block
     assert.equal(Number.isNaN(Date.parse(date)), false, `${doc}: ${date} is not a real date`)
+    // A shallow clone (some CI checkouts, `--depth 1`) genuinely cannot tell
+    // whether the sha exists; skipping beats failing for the wrong reason. CI
+    // fetches full history (ci.yml: fetch-depth 0), so the check runs there.
+    const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: ROOT })
+    if (shallow.stdout?.toString().trim() === 'true') continue
     const resolved = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: ROOT })
     assert.equal(resolved.status, 0, `${doc}: ${sha} is not a commit in this repository`)
   }
