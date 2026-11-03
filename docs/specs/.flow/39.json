@@ -1,0 +1,50 @@
+{
+  "issue": 39,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T03:23:03+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "契约:P1-6 守卫 + lockfile 互锁",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "契约:校准块日期与 commit 真实性",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "契约:待批准认全/半角冒号 + 正向要求已执行完成",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "契约:安装片段放宽为「提及 + 正确路径」",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "文档:引 #39、6→5、P1-10 证据、docs-drift 状态、.flow/37 收尾",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "dev-flow-skill 补双轴 review 模板 + 0.2.1",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
