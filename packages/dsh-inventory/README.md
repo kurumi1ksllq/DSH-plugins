@@ -1,6 +1,11 @@
 # dsh-inventory
 
-DSH 的安装清单插件。左侧栏 **「工具管理」** 面板分两层：**总览** 只列这台机器上装了什么——**插件包 / MCP 服务器 / 技能** 三块，**工作区** 先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，**一个能力只有一处开关能改结果**。
+DSH 的安装清单插件。左侧栏 **「工具管理」** 面板分两部分：
+
+- **总览**：先放三块**可改的运行时设置**——**Web 搜索提供方**（调用优先级、各家余额、冷却倒计时、启用/停用、刷新余额）、**凭据保险库**（掩码列表、新增/编辑/删除、主密钥轮换、使用日志）、**提示词注入**（注入到所有 Agent 系统提示词的文本，直接编辑保存），然后才是这台机器上装了什么：**插件包 / MCP 服务器 / 技能** 三块；
+- **工作区**：先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，**一个能力只有一处开关能改结果**。
+
+分段控件另有 **同步**。Web 搜索提供方 / 凭据保险库 / 提示词注入各有自己的分段标签，可以单独打开成大页；三者都直接读 host 的路由（`/websearch-failover/api/*`、`/credential-vault/api/*`、`/prompt-inject/state`），**不再占用侧边栏入口**（`dsh-websearch-failover`、`dsh-credential-vault`、`@local/dsh-prompt-inject` 的浏览器半区现在只注册各自的文案字典，页面由本面板渲染）。
 
 本包有**两个插件入口**：
 
@@ -44,11 +49,16 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 | 分区 | 数据源 | 说明 |
 |---|---|---|
+| **Web 搜索提供方** | `GET/POST /websearch-failover/api/*`（`dsh-websearch-failover` 的 host 半区） | 顺序即调用优先级：拖动或上/下移按钮调整；每行显示余额（按各家单位）、状态点与冷却倒计时；详情给出重置时间、密钥、本地调用统计、启用/停用、只刷新这一家。**余额只在点「刷新余额」时才请求**（接口按次计费） |
+| **凭据保险库** | `GET/POST /credential-vault/api/*`（`dsh-credential-vault` 的 host 半区） | 掩码列表 + 详情；新增/编辑（编辑时留空即保留原值）、删除、主密钥轮换、使用日志。**任何路由都不回传明文**，面板只显示 `preview` |
+| **提示词注入** | `GET/POST /prompt-inject/state`（`@local/dsh-prompt-inject` 的 host 半区） | 编辑注入到所有 Agent 系统提示词的文本；空文本本地拦截不发请求，保存后新的模型请求即生效 |
 | 插件包 | profile `package.json`（dependencies + `dsh.profile.bundles`） | 标出未安装（orphan）、已加载、声明来源 |
 | MCP 服务器 | `@deepseek-ai/dsh-mcp-client` 行 + 运行时工具前缀 | 每台的连接状态、工具数、脱敏后的 command/url；全局开关在这一行 |
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 只列磁盘上的技能：含 `disable-model-invocation` 的屏蔽桩、来源 rank；插件在运行时注册的（没有目录、没有 SKILL.md）**不列也不计数**；全局开关在这一行 |
 | **工作区 → 列表** | `ctx.workspaceRegistry.list()` | 一卡一个工作区：title、path、已声明的 MCP 数、**技能「已开启/总数」**——和详情页同一个集合（已装技能 ∪ 该工作区自己的项目根，去掉运行时注册与当前隐藏的）；整卡可点进详情 |
 | **工作区 → 详情** | 该工作区的 `.dsh/mcp.json` + 项目 skill 根 + 全局 MCP / 技能清单 | MCP 与技能各一行一条；**只给"由本工作区决定"的行开关**，全局已可用的行折叠成「全局已可用」并锁住（语义见下节）；标题的「N 项」和 hint 永远同一集合 |
+
+前两行是**可改的运行时设置**，也是原先两个独立侧边栏入口（`websearch-failover`、`prompt-inject`）搬进来的位置：它们各有分段标签，且都直接读 host 路由，不经过 `/inventory/snapshot`。它们是独立组件，只在外壳渲染时挂载一次，所以刷新清单不会打断一次正在进行的排序或编辑。
 
 工具清单与技能 → 工具依赖图不在总览页：总览回答「装了什么」，技能分区里仍能看到每个技能引用到的工具（`N 工具`、`N 条引用` 徽章与展开行），工作区详情页不再重复这两块。
 
@@ -63,6 +73,26 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 ### 单个技能可以隐藏
 
 技能一多，列表就不适合一眼看完。每行右侧有个眼睛按钮：点一下，只藏这一条——分区和其他行照旧，工作区详情里的同名技能一起藏。隐藏集合按名字记在 `localStorage` 的 `dsh-inventory:hidden-skills`，重开面板也不会自己回来；工具栏的 **显示已隐藏 N** 按钮把藏起来的行放出来（变暗显示），行尾的眼睛再点一次就取消隐藏。隐藏只影响列表，不改变技能是否被模型加载。
+
+## 工具管理页与其它 bundle 的关系
+
+「工具管理」页不只渲染本插件自己的数据：几个分段标签的内容，实际调用的是**另外三个
+bundle 的宿主路由**。
+
+| 分段 | 调用的路由前缀 | 由谁注册 |
+| --- | --- | --- |
+| 凭据保险库 | `/credential-vault/api/*` | `dsh-credential-vault` |
+| Web 搜索提供方 | `/websearch-failover/api/*` | `dsh-websearch-failover` |
+| 提示词注入 | `/prompt-inject/*` | `@local/dsh-prompt-inject` |
+
+这三个 bundle 在 `package.json` 里**没有声明为本插件的依赖**（DSH 的 bundle 之间没有
+依赖机制，profile 决定谁被加载）。所以：
+
+- profile 里**同时启用**这四个 bundle 时，整页可用；
+- 只启用 `dsh-inventory` 时，这三个分段会显示「操作失败 (HTTP 404)」——不是 bug，
+  是宿主路由确实不存在；
+- `scripts/check-profile.mjs` 会对这种「inventory 在、分段 bundle 不在」的组合给出
+  **告警**（不是错误），帮你发现漏装。
 
 ## 技能 → 资产依赖图
 

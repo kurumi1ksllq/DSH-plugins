@@ -2,7 +2,7 @@
 
 把 DeepSeek Harness 原生 `web_search` 变成**有序多提供方失败转移**：按你排的优先级从上往下依次尝试 Tavily / Exa / Firecrawl / Serper / Brave / Bocha / Jina / Parallel / SearXNG / 任意自定义 HTTP 搜索 API，一家额度耗尽、鉴权失效或报错就自动换下一家，并带配额感知冷却。
 
-同时提供一个**左侧边栏的提供方管理器**：按优先级列出所有提供方，显示各自的余额（额度 / 美元 / 百分比 / 次数 / tokens 混排也按比例画条）、冷却倒计时、本地调用统计，可拖动或按钮调整顺序（最上方最先被调用），可单独启用/停用、刷新余额。
+同时在 **工具管理（dsh-inventory）** 页里渲染一个**提供方管理器区块**：按优先级列出所有提供方，显示各自的余额（额度 / 美元 / 百分比 / 次数 / tokens 混排也按比例画条）、冷却倒计时、本地调用统计，可拖动或按钮调整顺序（最上方最先被调用），可单独启用/停用、刷新余额。
 
 - Bundle 名：`dsh-websearch-failover`；行 id：`websearch-failover`
 - Host 半区：`plugin/index.js`（注册 `ctx.web` 提供方 + 侧栏 API）
@@ -67,7 +67,7 @@ node scripts/install.mjs --uninstall     # 完全回滚
 
 Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/desktop` > `~/.dsh/profiles/desktop`；找不到带 `package.json` 的 profile 会直接报错并列出检查过的路径。
 
-**生效方式**：这个 profile 开着 HMR —— **host 半区**（provider 注册、HTTP API、运行时状态）会热生效，不需要重启 DSH；只有**浏览器半区**（侧边栏入口 + 面板）需要刷新一次页面。装完的提示行会再次提醒。
+**生效方式**：这个 profile 开着 HMR —— **host 半区**（provider 注册、HTTP API、运行时状态）会热生效，不需要重启 DSH；UI 区块由 `dsh-inventory` 的「工具管理」页渲染（分段标签「Web 搜索提供方」或总览里的同名分区），改完刷新一次页面即可。装完的提示行会再次提醒。
 
 ## 3. 配置：`providers.json`
 
@@ -132,16 +132,16 @@ Profile 解析顺序：`--profile` > `$DSH_PROFILE_DIR` > `$DSH_HOME/profiles/de
 
 `runtime.json` 里的 `order` 只给**已列出**的 id 排序，没列到的保持配置文件里的相对顺序；`disabled` 里的 id 直接从候选队列移除。
 
-## 5. 侧边栏面板
+## 5. 提供方管理界面（在「工具管理」页里）
 
-左侧边栏出现「Web 搜索提供方」入口（slot `sidebar.panellist`，order 30，中英跟随界面语言；文案来自 `plugin/locale/{zh,en}.json` 与 `client.js` 内置字典，namespace `websearch-failover`）。
+入口在 `dsh-inventory` 的**工具管理**页：分段控件上的「Web 搜索提供方」标签，或总览里的同名分区（默认展开）。本 bundle 的浏览器半区只注册 `websearch-failover` 命名空间的文案字典，**不再注册 `sidebar.panellist` / `main` 槽位**，所以侧边栏没有独立入口。
 
-- 左列：按优先级排的提供方列表，每行有序号徽标、名称、余额条、金额+单位、状态点（正常 / 冷却 / 未知，冷却时显示倒计时）。
+- 列表：按优先级排的提供方，每行有序号徽标、名称、余额条、金额+单位、状态点（正常 / 冷却 / 未知，冷却时显示倒计时），右侧是上移/下移按钮；也可以直接拖动行。
 - 余额条：host 给了 `ratio`（有 total 或 percent 时算得出）就按 `ratio` 画；只有绝对值时按「本面板内最大 remaining」做归一化；完全未知就画空轨道 + 中性提示，绝不出现 NaN 宽度。
-- 右列：选中提供方的详情 —— 余额、单位、占比、**重置时间**（`period-end` 显示具体时间+倒计时，`monthly-first` 显示每月 1 日，`monthly-allowance` 说明付费额度不重置，`none` 表示不按月）、冷却、key 是否已配置、本地调用统计（次数/成功/失败/最近调用）、启用/停用开关。
-- 排序：拖动行，或用上/下移按钮；两者都乐观更新 UI，失败回滚并提示。顺序即调用优先级，面板顶部有「自上而下依次调用，最上方优先」提示。
+- 详情：选中提供方的详情 —— 余额、单位、占比、**重置时间**（`period-end` 显示具体时间+倒计时，`monthly-first` 显示每月 1 日，`monthly-allowance` 说明付费额度不重置，`none` 表示不按月）、冷却、key 是否已配置、本地调用统计（次数/成功/失败/最近调用）、启用/停用开关。
+- 排序：拖动行，或用上/下移按钮；两者都乐观更新 UI，失败回滚并提示。顺序即调用优先级，区块顶部有「从上往下依次调用，最上方优先」提示。
 - 「刷新余额」只在你点击时请求，避免按次计费接口被轮询烧额度；只有存在冷却项时才有 1 秒计时器刷新倒计时文案。
-- 「返回对话」调用 `ctx.layout.selectPanel(null)`。
+- 「返回对话」由外壳自身提供，本 bundle 不再处理。
 
 ## 6. HTTP API
 
@@ -268,9 +268,9 @@ MIT，见 `LICENSE`。
 
 ## English (short)
 
-**dsh-websearch-failover** is a DeepSeek Harness bundle that turns the native `web_search` into an ordered multi-provider failover chain: providers are tried top-to-bottom in the user's priority order, and quota/auth/transport failures put that provider on a quota-aware cooldown instead of failing the search. It registers a single `websearch-failover` provider on `ctx.web`, so the harness never sees an ambiguous provider set, and it serves a small HTTP API behind a left-sidebar provider manager.
+**dsh-websearch-failover** is a DeepSeek Harness bundle that turns the native `web_search` into an ordered multi-provider failover chain: providers are tried top-to-bottom in the user's priority order, and quota/auth/transport failures put that provider on a quota-aware cooldown instead of failing the search. It registers a single `websearch-failover` provider on `ctx.web`, so the harness never sees an ambiguous provider set, and it serves a small HTTP API behind a provider manager that renders inside dsh-inventory's Tools page.
 
-- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer syncs the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, pins it in `dependencies` as `"link:<repo>/plugin"` (mandatory: an undeclared copy is what `pnpm install` — which the DSH plugin manager runs on every plugin change — moves to `node_modules/.ignored`, silently killing the sidebar panel), and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). The profile has HMR enabled, so the host half applies live without restarting DSH; only the browser half needs one page reload. If the bundle directory itself went missing, restore it and restart DSH — `GET /websearch-failover/api/state` returning 404 means the host half never loaded.
+- **Install:** `node scripts/build-plugin.mjs && node scripts/install.mjs` (`--dry-run` to preview, `--uninstall` to roll back byte-for-byte, `--profile <dir>` to target another profile). The installer syncs the bundle into `<profile>/node_modules/dsh-websearch-failover/`, appends `"dsh-websearch-failover"` to `dsh.profile.bundles`, pins it in `dependencies` as `"link:<repo>/plugin"` (mandatory: an undeclared copy is what `pnpm install` — which the DSH plugin manager runs on every plugin change — moves to `node_modules/.ignored`, silently killing the provider API), and adds one marked block to `<profile>/cordis.patch.yml` that pins `web.searchProvider` (plus `fetchProvider: http`, because a profile patch replaces the row's whole `config`). The profile has HMR enabled, so the host half applies live without restarting DSH; only the browser half needs one page reload. If the bundle directory itself went missing, restore it and restart DSH — `GET /websearch-failover/api/state` returning 404 means the host half never loaded.
 - **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search. Built-in balance probes (verified against the live APIs on 2026-10-24): firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits` (v1 snake_case also accepted), tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`.
 - **State:** `~/.dsh/websearch-failover/runtime.json` (order, disabled, balances, stats), `~/.dsh/websearch-failover-state.json` (cooldowns), `~/.dsh/websearch-failover/plugin.log`.
 - **API:** `/websearch-failover/api/{state,order,refresh,enable}`; POST bodies `{order:[...]}`, `{ids?:[...]}`, `{id,enabled}`. Same-origin checked, 128 KiB body cap, never returns API keys.

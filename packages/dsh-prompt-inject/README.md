@@ -1,9 +1,9 @@
 # @local/dsh-prompt-inject
 
-DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段可编辑的中英双语演示段落，并提供左侧边栏入口 + 主面板编辑器，用于读取、修改并保存注入文本。段落里带有唯一验证令牌 `DSH-INJECT-7F3A-2026`。
+DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段可编辑的中英双语演示段落，编辑界面在 **工具管理（dsh-inventory）** 页里（分段标签「提示词注入」，或总览里的同名分区），用于读取、修改并保存注入文本。段落里带有唯一验证令牌 `DSH-INJECT-7F3A-2026`。
 
 - Host 半区（`index.js`）：注册系统提示词段落 + `GET/POST /prompt-inject/state` 路由 + 本地持久化。
-- Client 半区（`client.js`）：侧边栏按钮（id `prompt-inject`）+ 主面板（key `prompt-inject`），通过上面两个 HTTP 方法读写文本。
+- Client 半区（`client.js`）：只注册 `prompt-inject` 命名空间的 zh/en 文案字典（不再占侧边栏槽位）；文本读写由 `dsh-inventory` 的工具管理页调用上面两个 HTTP 方法完成。
 
 ## 注入内容
 
@@ -23,14 +23,14 @@ DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段�
 - 声明验证令牌 `DSH-INJECT-7F3A-2026`；
 - 行为约定：用户问"注入令牌是什么 / what is the injection token"时，只逐字回答该令牌、不加解释；其余情况下不主动提及本段，也不改变其他行为。
 
-## 侧边栏编辑器
+## 编辑器位置
 
-1. 左侧边栏出现「提示词注入」按钮（`sidebar.panellist`，id `prompt-inject`，order 20，随界面语言显示中/英文）。
-2. 点击后打开主面板（`main`，key `prompt-inject`）：标题、说明、受控 textarea、底部「确定」「返回对话」按钮，以及读取/保存状态提示。
+1. 打开左侧边栏的**「工具管理」**，点分段控件上的「提示词注入」（或展开总览里的同名分区）。
+2. 面板内容：标题、说明、受控 textarea、「保存提示词」按钮，以及读取/保存状态提示。
 3. 打开面板时自动 `GET /prompt-inject/state` 回填当前文本；「确定」用 `POST` 保存，成功后提示已保存，并可在下一次模型请求中生效（Host 的 section 是 getter）。
-4. 文本为空时本地提示且不发请求；保存中按钮禁用；textarea 内回车只换行，不触发提交；「返回对话」调用 `ctx.layout.selectPanel(null)`。
+4. 文本为空时本地提示且不发请求；保存中按钮禁用；textarea 内回车只换行，不触发提交。
 
-页面文案来自 Client 内置的 zh/en 字典（namespace `prompt-inject`），不依赖任何 Harness Client 组件包，只用主题 token 着色。
+页面文案来自本 bundle 注册的 zh/en 字典（namespace `prompt-inject`）；`dsh-inventory` 用主题 token 着色，不依赖任何 Harness Client 组件包。
 
 ## HTTP 契约
 
@@ -83,7 +83,7 @@ DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段�
 ## 文件
 
 - `index.js` — Host 入口：动态 section、HTTP 路由、原子持久化
-- `client.js` — Client 入口：`window.__ModuleLoader__.load`，侧边栏按钮 + 编辑面板
+- `client.js` — Client 入口：`window.__ModuleLoader__.load`，只注册文案字典（编辑界面在工具管理页）
 - `cordis.patch.yml` — bundle patch 层，插入 `prompt-inject` 行
 - `locale/en.json`、`locale/zh.json` — 插件标题与描述（面板文案在 `client.js` 内）
 - `icon.svg` — 64×64 原创几何图标

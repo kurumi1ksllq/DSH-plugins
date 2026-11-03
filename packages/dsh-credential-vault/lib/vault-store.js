@@ -79,8 +79,8 @@ export function createVaultStore(dir) {
 
     /** Create or overwrite one credential. */
     set(name, { kind = 'other', secret, username = null, url = null, note = null } = {}) {
-      if (!isValidName(name)) throw new Error(`invalid credential name: ${JSON.stringify(name)}`)
-      if (!KINDS.includes(kind)) throw new Error(`invalid kind "${kind}", expected one of ${KINDS.join(', ')}`)
+      if (!isValidName(name)) throw new Error('invalid credential name')
+      if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
       const vault = readVault(dir)
       const now = new Date().toISOString()
@@ -96,6 +96,34 @@ export function createVaultStore(dir) {
       }
       writeVault(dir, vault)
       return { name, updated: previous !== undefined }
+    },
+
+    /**
+     * Update the metadata of an EXISTING credential without touching its secret.
+     *
+     * Editing a stored credential usually means changing where it is used, not
+     * rotating it. The panel's editor submits an empty secret for exactly that
+     * case, so this is the path that keeps the sealed value intact. Returns
+     * false when the name is unknown — the caller decides what that means; it
+     * must never silently create a secret-less entry.
+     */
+    update(name, { kind, username, url, note } = {}) {
+      if (!isValidName(name)) throw new Error('invalid credential name')
+      const vault = readVault(dir)
+      const previous = vault.entries[name]
+      if (previous === undefined) return false
+      const nextKind = kind === undefined ? (previous.kind ?? 'other') : kind
+      if (!KINDS.includes(nextKind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
+      vault.entries[name] = {
+        ...previous,
+        kind: nextKind,
+        username: username === undefined ? (previous.username ?? null) : username || null,
+        url: url === undefined ? (previous.url ?? null) : url || null,
+        note: note === undefined ? (previous.note ?? null) : note || null,
+        updatedAt: new Date().toISOString(),
+      }
+      writeVault(dir, vault)
+      return true
     },
 
     /** Delete one credential; returns whether it existed. */

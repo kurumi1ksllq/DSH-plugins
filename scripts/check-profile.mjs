@@ -216,6 +216,25 @@ for (const name of [...SHIPPED.keys()].sort()) {
   }
 }
 
+// dsh-inventory's Tools page renders sections that call the other bundles' HTTP
+// routes (vault, providers, prompt). They are not declared as dependencies, so a
+// profile that links inventory without them shows a page whose tabs all answer
+// 404. A warning, not a failure: partially linked profiles are legitimate while
+// someone is trying one bundle out.
+const INVENTORY_SECTIONS = ['dsh-credential-vault', 'dsh-websearch-failover', '@local/dsh-prompt-inject']
+const linkedNames = new Set(results.filter((row) => row.kind !== 'fail').map((row) => row.name))
+if (linkedNames.has('dsh-inventory')) {
+  const missing = INVENTORY_SECTIONS.filter((name) => !linkedNames.has(name))
+  if (missing.length > 0) {
+    results.push({
+      name: 'dsh-inventory sections',
+      kind: 'warn',
+      detail: `the Tools page renders ${missing.join(', ')} but ${missing.length > 1 ? 'they are' : 'it is'} not linked in this profile — those tabs will answer 404`,
+    })
+    warnings += 1
+  }
+}
+
 const branched = results.filter((row) => row.kind === 'warn')
 
 if (options.json) {

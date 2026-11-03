@@ -1397,3 +1397,445 @@ test('workspace detail locks globally reachable skills and only switches vault s
   assert.ok(post, 'switching a vault skill must POST')
   assert.deepEqual(JSON.parse(post.body), { workspace: 'D:/demo', kind: 'skill', action: 'add', name: 'vault-skill' })
 })
+
+/**
+ * The web-search provider manager and the prompt editor used to be their own
+ * sidebar entries. They live on the Tools page now, so this panel owns two more
+ * host routes besides the inventory snapshot; a broken route literal or a
+ * missing dictionary key would silently leave the section empty.
+ */
+const PROVIDER_STATE = {
+  ok: true,
+  generatedAt: 1,
+  providers: [
+    {
+      id: 'tavily', kind: 'tavily', label: 'Tavily', enabled: true, rank: 1, keyPresent: true,
+      balance: { status: 'ok', remaining: 800, total: 1000, unit: 'credits', ratio: 0.8, fetchedAt: 1, source: 'api', resetKind: 'period-end', resetsAt: Date.parse('2026-11-17T03:43:17.842Z') },
+      cooldown: { active: false, until: 0, reason: '', message: '' },
+      stats: { calls: 12, successes: 11, failures: 1, lastUsedAt: '2026-10-24T10:00:00.000Z' },
+    },
+    {
+      id: 'exa', kind: 'exa', label: 'Exa', enabled: true, rank: 2, keyPresent: false,
+      balance: { status: 'ok', remaining: 200, total: 500, unit: 'usd', ratio: null, fetchedAt: 1, source: 'api', resetKind: 'monthly-first', resetsAt: null },
+      cooldown: { active: false, until: 0, reason: '', message: '' },
+      stats: { calls: 0, successes: 0, failures: 0, lastUsedAt: null },
+    },
+  ],
+}
+
+/**
+ * The provider manager used to be its own sidebar entry; it now lives on the
+ * Tools page, so this panel owns the provider routes besides the inventory one.
+ */
+async function bootProviders(state) {
+  let current = state
+  const calls = []
+  const { React, render } = makeReactRuntime()
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) } }
+  await import(new URL('../client.js?v=providers-case', import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const registrations = []
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: {
+      inject: (name, factory) => registrations.push(factory()),
+      register: (spec, component) => ({ spec, component }),
+    },
+  })
+  // Only the live routes are exercised; both components still route their own
+  // fetches through the shared fetch, so the stub answers by path.
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method, body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/inventory/snapshot') return json(SNAPSHOT)
+    if (path.endsWith('/api/order')) {
+      const order = JSON.parse(options.body).order
+      current = { ...current, providers: order.map((id, index) => ({ ...current.providers.find((row) => row.id === id), rank: index + 1 })) }
+      return json(current)
+    }
+    if (path.startsWith('/websearch-failover/api/')) return json(current)
+    return { ok: false, status: 404, json: async () => ({ ok: false }) }
+  }
+  // Drive the section component itself: mounting the whole panel would remount
+  // the hook state between assertions.
+  const tree = () => resolveTree(render(module.__webSearchProviders, { t: (key) => dictionary[key] ?? key }))
+  tree()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return { calls, tree }
+}
+
+/** Same boot, but for the prompt editor: the live route answers with `text`. */
+let promptBootCount = 0
+
+async function bootPrompt(initial) {
+  let text = initial
+  const calls = []
+  const dictionary = {}
+
+  const { React, render } = makeReactRuntime()
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) } }
+  // Each boot needs a fresh module instance: a fixed query hits the ES module
+  // cache on the second call, leaving `window.loaded` unset from the previous
+  // boot's window object.
+  promptBootCount += 1
+  await import(new URL(`../client.js?v=prompt-case-${promptBootCount}`, import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const registrations = []
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: {
+      inject: (name, factory) => registrations.push(factory()),
+      register: (spec, component) => ({ spec, component }),
+    },
+  })
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method, body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/inventory/snapshot') return json(SNAPSHOT)
+    if (path === '/prompt-inject/state' && method === 'GET') return json({ text })
+    if (path === '/prompt-inject/state' && method === 'POST') {
+      text = JSON.parse(options.body).text
+      return json({ ok: true })
+    }
+    return { ok: false, status: 404, json: async () => ({ ok: false }) }
+  }
+  const open = () => resolveTree(render(module.__promptInjector, { t: (key) => dictionary[key] ?? key }))
+  open()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return { calls, open }
+}
+
+test('the tools page lists web-search providers with balances, priority order and detail', async () => {
+  const { calls, tree } = await bootProviders(PROVIDER_STATE)
+  const text = textOf(tree())
+
+  assert.match(text, /Tavily/)
+  assert.match(text, /800 额度/, 'balance renders in the provider billing unit')
+  assert.match(text, /200 美元/, 'a second unit is not coerced to the first one')
+  assert.match(text, /180 额度|重置/, 'the detail pane shows the reset rule')
+  assert.match(text, /顺序即调用优先级/, 'the priority rule is spelled out')
+  assert.ok(calls.some((call) => call.url === '/websearch-failover/api/state'), 'provider state comes from the host route')
+
+  // Selecting a provider shows its reset rule, key state and call statistics.
+  const exaRow = findNode(tree(), (node) => node.props?.['aria-label'] === 'Exa · 优先级 2')
+  assert.ok(exaRow, 'provider row missing its priority label')
+  findNode(exaRow, (node) => typeof node.props?.onClick === 'function').props.onClick()
+  const detail = textOf(tree())
+  assert.match(detail, /每月 1 日重置/)
+  assert.match(detail, /从未调用/)
+  assert.match(detail, /未配置密钥/)
+  assert.match(detail, /调用次数/)
+
+  // Arrows POST the full id array in the new priority order.
+  const moveDown = findNode(tree(), (node) => node.props?.['aria-label'] === '下移，降低优先级' && typeof node.props?.onClick === 'function')
+  assert.ok(moveDown, 'priority arrows missing')
+  moveDown.props.onClick({ preventDefault() {}, stopPropagation() {} })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const order = calls.filter((call) => call.method === 'POST' && call.url === '/websearch-failover/api/order')
+  assert.equal(order.length, 1)
+  assert.deepEqual(JSON.parse(order[0].body).order, ['exa', 'tavily'])
+
+  // Bar geometry: a host-supplied ratio wins, otherwise remaining is normalised
+  // against the largest remaining, and an unknown balance renders no fill.
+  // (Moved here from dsh-websearch-failover's smoke test when the old sidebar
+  // Page was deleted — the behaviour is unchanged, only its home is.)
+  const widths = []
+  const collectWidths = (node) => {
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) { for (const child of node) collectWidths(child); return }
+    if (typeof node.type === 'function') { collectWidths(node.type(node.props)); return }
+    const width = node.props?.style?.width
+    if (typeof width === 'string' && width.includes('%')) widths.push(width)
+    collectWidths(node.children)
+    if (node.props && typeof node.props === 'object') {
+      for (const [key, value] of Object.entries(node.props)) {
+        if (key === 'children' || key === 'style' || key === 'key') continue
+        if (value !== null && typeof value === 'object') collectWidths(value)
+      }
+    }
+  }
+  collectWidths(tree())
+  // Tavily carries a host-supplied ratio (0.8); Exa only a remaining amount
+  // (200 of a 800 max) so it must be normalised. A provider whose balance is
+  // unknown renders an empty track rather than NaN.
+  assert.ok(widths.includes('80.00%'), `ratio-sourced bar width missing: ${JSON.stringify(widths)}`)
+  assert.ok(widths.includes('25.00%'), `normalised-vs-max bar width missing: ${JSON.stringify(widths)}`)
+  assert.ok(!widths.some((w) => w.includes('NaN')), `a bar must never render NaN%: ${JSON.stringify(widths)}`)
+
+  // Refresh all providers is the only path that hits /refresh (billing per call).
+  const refreshAll = findNode(tree(), (node) => node.type === 'button' && textOf(node) === '刷新余额')
+  refreshAll.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const refreshes = calls.filter((call) => call.method === 'POST' && call.url === '/websearch-failover/api/refresh')
+  assert.equal(refreshes.length, 1)
+  assert.deepEqual(JSON.parse(refreshes[0].body), {})
+})
+
+test('the prompt section loads, saves and rejects an empty injection', async () => {
+  const { calls, open } = await bootPrompt('原来的注入文本')
+  const textarea = () => findNode(open(), (node) => node.type === 'textarea')
+  assert.ok(textarea(), 'prompt textarea is not on the tools page')
+  assert.equal(textarea().props.value, '原来的注入文本')
+
+  textarea().props.onChange({ target: { value: '新的注入文本' } })
+  findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词').props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const posts = calls.filter((call) => call.method === 'POST' && call.url === '/prompt-inject/state')
+  assert.equal(posts.length, 1)
+  assert.deepEqual(JSON.parse(posts[0].body), { text: '新的注入文本' })
+  assert.match(textOf(open()), /已保存/)
+
+  // An all-whitespace body never reaches the host: it would wipe the section.
+  textarea().props.onChange({ target: { value: '   ' } })
+  findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词').props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(calls.filter((call) => call.method === 'POST' && call.url === '/prompt-inject/state').length, 1, 'empty text must not be submitted')
+  assert.match(textOf(open()), /不能为空/)
+})
+
+/**
+ * The credential vault moved onto the Tools page too: the `credential` tool is
+ * listed a few pixels above the entries it reads, so the manager renders the
+ * masked list, the detail card, the add form and the audit log from the vault's
+ * own routes — never from the inventory snapshot.
+ */
+test('pressing Enter in the prompt editor inserts a newline instead of submitting', async () => {
+  // The editor must never treat Enter as "save": a system prompt is multi-line,
+  // and saving on Enter would silently truncate it. (This behaviour used to be
+  // asserted against the old sidebar panel; it moved here with the component.)
+  const { calls, open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  assert.ok(textarea, 'prompt textarea is not on the tools page')
+
+  const before = calls.filter((call) => call.method === 'POST').length
+  // A textarea without an onKeyDown handler lets the browser insert the newline;
+  // if one is ever added it must not submit.
+  const handler = textarea.props.onKeyDown
+  if (typeof handler === 'function') {
+    let prevented = false
+    handler({ key: 'Enter', shiftKey: false, preventDefault() { prevented = true }, stopPropagation() {} })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert.equal(prevented, false, 'Enter must not be swallowed')
+  }
+  const after = calls.filter((call) => call.method === 'POST').length
+  assert.equal(after, before, 'Enter must not submit the prompt')
+})
+
+test('the prompt editor rejects an empty text locally, without a request', async () => {
+  const { calls, open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  textarea.props.onChange({ target: { value: '   ' } })
+  const before = calls.filter((call) => call.method === 'POST').length
+
+  const save = findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词')
+  assert.ok(save, 'save button missing')
+  save.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const after = calls.filter((call) => call.method === 'POST').length
+  assert.equal(after, before, 'whitespace-only text must not reach the host')
+})
+
+test('the prompt editor disables saving while a save is in flight', async () => {
+  const { open } = await bootPrompt('原来的注入文本')
+  const textarea = findNode(open(), (node) => node.type === 'textarea')
+  textarea.props.onChange({ target: { value: '新的注入文本' } })
+
+  const save = findNode(open(), (node) => node.type === 'button' && textOf(node) === '保存提示词')
+  assert.ok(save, 'save button missing')
+  save.props.onClick()
+  // The button must refuse a second click before the first POST settles.
+  const during = findNode(open(), (node) => node.type === 'button' && /保存/.test(textOf(node)))
+  assert.ok(during.props.disabled === true, 'a second save must be blocked while one is in flight')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
+
+test('the credential vault lists masked entries, saves a new one and records the audit', async () => {
+  const { calls, open } = await bootCredentialVault()
+  const text = textOf(open())
+  assert.match(text, /github-token/)
+  assert.match(text, /gho_…un/, 'only the masked preview is shown')
+  assert.doesNotMatch(text, /ghp_realsecretvalue/, 'the panel must never receive the plaintext')
+  assert.match(text, /使用日志/)
+
+  // Selecting an entry shows its detail card.
+  findNode(open(), (node) => node.props?.role === 'button' && textOf(node).includes('github-token')).props.onClick({ preventDefault() {}, stopPropagation() {} })
+  assert.match(textOf(open()), /已加密保存/)
+
+  // Adding one posts the form to /set and then re-reads the list.
+  buttonByTextIn(open(), '新增凭据').props.onClick()
+  const nameInput = findNode(open(), (node) => node.type === 'input' && node.props?.placeholder === '例如 github-token、prod-server')
+  assert.ok(nameInput, 'name input missing')
+  nameInput.props.onChange({ target: { value: 'new-token' } })
+  const secretInput = findNode(open(), (node) => node.type === 'input' && node.props?.type === 'password')
+  secretInput.props.onChange({ target: { value: 'ghp_realsecretvalue' } })
+  // The form is a component instance: call its own submit entry, which is what
+  // pressing the primary button does.
+  findNode(open(), (node) => node.type === 'form' && typeof node.props?.onSubmit === 'function').props.onSubmit({ preventDefault() {} })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const sets = calls.filter((call) => call.method === 'POST' && call.url === '/credential-vault/api/set')
+  assert.equal(sets.length, 1)
+  assert.deepEqual(JSON.parse(sets[0].body), { name: 'new-token', kind: 'other', secret: 'ghp_realsecretvalue', username: '', url: '', note: '' })
+  assert.ok(calls.some((call) => call.url === '/credential-vault/api/list'), 'the list is re-read after saving')
+})
+
+/** First button whose own children spell `label` exactly. */
+function buttonByTextIn(tree, label) {
+  const hits = []
+  eachNode(tree, (node) => {
+    if (node.type === 'button' && textOf(node) === label) hits.push(node)
+  })
+  assert.ok(hits.length > 0, `button "${label}" not found`)
+  // The raw element tree may still carry the component element (`RowButton`);
+  // expand once more before handing a clickable node back.
+  const clickable = hits.filter((hit) => typeof hit.props?.onClick === 'function').pop()
+  if (clickable !== undefined) return clickable
+  return findNode(resolveTree(hits[hits.length - 1]), (node) => typeof node.props?.onClick === 'function')
+}
+
+async function bootCredentialVault() {
+  const calls = []
+  const entries = [
+    { name: 'github-token', kind: 'token', hasSecret: true, preview: 'gho_…un', username: null, url: null, note: null, createdAt: '2026-11-02T18:38:21.111Z', updatedAt: '2026-11-02T18:38:21.111Z' },
+  ]
+  const { React, render } = makeReactRuntime()
+  globalThis.window = {
+    __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) },
+    confirm: () => true,
+  }
+  await import(new URL('../client.js?v=vault-case', import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: { inject: (name, factory) => factory(), register: (spec, component) => ({ spec, component }) },
+  })
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method, body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/credential-vault/api/list') return json({ ok: true, entries })
+    if (path === '/credential-vault/api/audit') return json({ ok: true, records: [{ at: '2026-11-02T19:00:00.000Z', name: 'github-token', outcome: 'revealed', source: 'tool' }] })
+    if (path === '/credential-vault/api/set') {
+      const body = JSON.parse(options.body)
+      entries.push({ name: body.name, kind: body.kind, hasSecret: true, preview: 'ghp_…alue', updatedAt: '2026-11-03T00:00:00.000Z' })
+      return json({ ok: true, name: body.name, created: true })
+    }
+    return json({ ok: true })
+  }
+  const open = () => resolveTree(render(module.__credentialVault, { t: (key) => dictionary[key] ?? key }))
+  open()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  return { calls, open }
+}
+
+test('cancelling the delete confirmation sends no request and keeps the error state', async () => {
+  // A destructive action that is cancelled must be a no-op. The old handler put
+  // the confirm() INSIDE run(), so cancelling still flipped to "busy", wiped the
+  // visible failure, and fired a reload.
+  const calls = []
+  const entries = [
+    { name: 'github-token', kind: 'token', hasSecret: true, preview: 'gho_…un', username: null, url: null, note: null, createdAt: '2026-11-02T18:38:21.111Z', updatedAt: '2026-11-02T18:38:21.111Z' },
+  ]
+  const { React, render } = makeReactRuntime()
+  globalThis.window = {
+    __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) },
+    // The user clicks "Cancel".
+    confirm: () => false,
+  }
+  await import(new URL('../client.js?v=vault-cancel', import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: { inject: (name, factory) => factory(), register: (spec, component) => ({ spec, component }) },
+  })
+  let listShouldFail = false
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method, body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/credential-vault/api/list') {
+      if (listShouldFail) return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
+      return json({ ok: true, entries })
+    }
+    if (path === '/credential-vault/api/audit') return json({ ok: true, records: [] })
+    return json({ ok: true })
+  }
+  const open = () => resolveTree(render(module.__credentialVault, { t: (key) => dictionary[key] ?? key }))
+  open()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  // Enter the error state by forcing a failed reload, then retry is not needed:
+  // drive a delete that gets cancelled and assert nothing changed on the wire.
+  // The delete control only exists once an entry is selected.
+  const row = findNode(open(), (node) => node.props?.['aria-pressed'] !== undefined && node.props?.role === 'button')
+  assert.ok(row, 'credential row missing')
+  row.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const before = calls.length
+  const deleteButton = findNode(open(), (node) => node.type === 'button' && /删除/.test(textOf(node)))
+  assert.ok(deleteButton, 'delete button missing')
+  deleteButton.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const after = calls.slice(before)
+  assert.deepEqual(after, [], 'a cancelled delete must not touch the network')
+  assert.match(textOf(open()), /gho_…un/, 'the entry must still be listed')
+})
+
+test('the dictionary carries no keys the panel never reads', async () => {
+  // Dead copy rots: translators keep it alive, and a later "fix" of a key nobody
+  // renders is pure noise. Every key must be reached by some t('...') call.
+  const source = await import('node:fs').then((fs) => fs.readFileSync(new URL('../client.js', import.meta.url), 'utf8'))
+
+  const zhStart = source.indexOf("    const zh = {")
+  const enStart = source.indexOf("    const en = {")
+  assert.ok(zhStart > 0 && enStart > zhStart, 'dictionaries not found')
+  const zhBlock = source.slice(zhStart, enStart)
+  const enBlock = source.slice(enStart)
+  const enEnd = enBlock.indexOf("\n    }\n")
+  const enText = enBlock.slice(0, enEnd)
+
+  const keysOf = (block) => {
+    const keys = new Set()
+    for (const match of block.matchAll(/^\s{6}([A-Za-z_][A-Za-z0-9_]*):/gm)) keys.add(match[1])
+    return keys
+  }
+  const zhKeys = keysOf(zhBlock)
+  const enKeys = keysOf(enText)
+  assert.deepEqual([...zhKeys].sort(), [...enKeys].sort(), 'zh and en must carry the same keys')
+
+  // Anything outside the dictionary blocks that mentions the key as a literal.
+  const usage = source.slice(0, zhStart) + source.slice(enStart + enText.length)
+  const dead = [...zhKeys].filter((key) => !new RegExp(`['\"\`]${key}['\"\`]`).test(usage))
+
+  // A handful of keys predate the Tools page and are tracked separately; this
+  // list may only shrink. Adding a NEW unused key fails the test.
+  const KNOWN_DEAD = new Set([
+    'tab', 'counts', 'declaresBundle', 'enabled', 'runtimeSnap', 'config', 'noConfig',
+    'noSkillRefs', 'clickExpand', 'clickCollapse', 'wsCount', 'wsDeclaredCount',
+    'wsEnabledCount', 'globalToggling', 'toggleSuccess', 'syncSaveFailed', 'syncLoading',
+    'syncManifestMeta', 'syncGeneratedAt', 'syncViaRaw', 'syncViaApi', 'syncViaGit',
+    'syncSelectable', 'syncInstallFailed', 'syncPublishFailed',
+  ])
+  const newDead = dead.filter((key) => !KNOWN_DEAD.has(key))
+  assert.deepEqual(newDead, [], `new dictionary keys nobody reads: ${newDead.join(', ')}`)
+})

@@ -239,7 +239,6 @@ window.__ModuleLoader__.load({
       syncPreviewRedacted: '脱敏报告',
       syncPreviewSecrets: '密钥 {count} 处',
       syncPreviewPaths: '本机路径 {count} 处',
-      syncPreviewClean: '没有需要脱敏的内容。',
       syncKindPlugin: '插件',
       syncKindMcp: 'MCP',
       syncKindSkill: '技能',
@@ -247,7 +246,101 @@ window.__ModuleLoader__.load({
       syncNothingSelected: '先勾选要装的项。',
       syncEmpty: '清单里没有可同步的项。',
       syncErrorTitle: '同步出错',
-      syncDismiss: '关闭',
+      // Live sections: web-search providers and the injected prompt text.
+      providerHint: '余额按各家接口返回的单位显示，接口没有余额字段时给出中性提示。',
+      providerPriorityHint: '顺序即调用优先级：排在最上面的提供方最先被调用，额度耗尽或报错时自动切到下一家。',
+      providerSection: 'Web 搜索提供方',
+      providerRank: '优先级',
+      providerRefresh: '刷新余额',
+      providerRefreshing: '正在刷新余额…',
+      providerLoading: '正在读取提供方状态…',
+      providerSaving: '正在保存顺序…',
+      providerFailed: '操作失败',
+      providerNoProviders: '还没有可用的提供方，请检查 providers.json 配置。',
+      providerUnknownBalance: '未提供余额接口',
+      providerEnable: '启用',
+      providerDisable: '停用',
+      providerCalls: '调用次数',
+      providerSuccesses: '成功',
+      providerFailures: '失败',
+      providerLastUsed: '最近调用',
+      providerNeverUsed: '从未调用',
+      providerCooldown: '冷却中',
+      providerKey: '密钥',
+      providerKeyPresent: '已配置密钥',
+      providerKeyMissing: '未配置密钥',
+      providerBalance: '余额',
+      providerStatusOk: '正常',
+      providerStatusCooldown: '冷却',
+      providerStatusUnknown: '未知',
+      providerMoveUp: '上移，提高优先级',
+      providerMoveDown: '下移，降低优先级',
+      providerDragHint: '也可以拖动条目调整顺序',
+      providerRefreshOne: '只刷新这一家',
+      providerReset: '重置',
+      providerResetMonthlyFirst: '每月 1 日重置',
+      providerResetMonthlyAllowance: '每月免费额度恢复（付费额度不重置）',
+      providerResetNone: '不按月重置',
+      providerResetNext: '下次',
+      providerResetUnknown: '未知，先刷新余额',
+      providerResetInDays: '天',
+      providerResetInHours: '小时',
+      providerResetInMinutes: '分钟',
+      providerUnitCredits: '额度',
+      providerUnitUsd: '美元',
+      providerUnitRequests: '次',
+      providerUnitTokens: 'tokens',
+      providerUnitPercent: '%',
+      providerUnitUnknown: '单位未知',
+      promptSection: '提示词注入',
+      promptDescription: '这段文字会注入到所有 Agent 的系统提示词里。保存后，新的模型请求立即使用更新后的文本。',
+      promptPlaceholder: '在此输入要注入系统提示词的内容…',
+      promptConfirm: '保存提示词',
+      promptSaving: '保存中…',
+      promptSaved: '已保存，新的模型请求将使用更新后的提示词。',
+      promptLoading: '正在读取当前注入文本…',
+      promptErrorLoad: '读取当前注入文本失败，请稍后重试。',
+      promptErrorSave: '保存失败，请稍后重试。',
+      promptErrorEmpty: '注入文本不能为空，未提交。',
+      // Credential vault (the `credential` tool's storage).
+      credentialSection: '凭据保险库',
+      credentialHint: '凭据以 AES-256-GCM 加密存放在 $DSH_HOME/credential-vault/，这里只显示掩码预览，明文永不回传。',
+      credentialToolHint: 'AI 通过 credential 工具按名称读取凭据，每次读取明文都会记入使用日志。',
+      credentialLoading: '正在读取凭据…',
+      credentialSaving: '正在保存…',
+      credentialError: '操作失败',
+      credentialRefresh: '刷新',
+      credentialNoEntries: '还没有保存的凭据。点「新增凭据」添加第一条。',
+      credentialAdd: '新增凭据',
+      credentialName: '名称',
+      credentialNamePlaceholder: '例如 github-token、prod-server',
+      credentialKind: '类型',
+      credentialSecret: '凭据值',
+      credentialSecretPlaceholder: '密码 / token / API key',
+      credentialUsername: '用户名（可选）',
+      credentialUrl: '地址（可选）',
+      credentialNote: '备注（可选）',
+      credentialSave: '保存',
+      credentialCancel: '取消',
+      credentialEdit: '编辑',
+      credentialDelete: '删除',
+      credentialConfirmDelete: '确认删除凭据',
+      credentialRotate: '轮换主密钥',
+      credentialRotateConfirm: '确认轮换主密钥？所有凭据将重新加密，旧密钥备份为 master.key.bak。',
+      credentialRotated: '已轮换主密钥，凭据已重新加密',
+      credentialAudit: '使用日志',
+      credentialAuditEmpty: '还没有读取记录。',
+      credentialUpdatedAt: '更新于',
+      credentialUpdated: '已更新',
+      credentialCreated: '已创建',
+      credentialDeleted: '已删除',
+      credentialMasked: '掩码',
+      credentialHasSecret: '已加密保存',
+      credentialKindPassword: '服务器密码',
+      credentialKindToken: 'Token',
+      credentialKindApiKey: 'API Key',
+      credentialKindSshKey: 'SSH 密钥',
+      credentialKindOther: '其他',
     }
 
     const en = {
@@ -439,7 +532,6 @@ window.__ModuleLoader__.load({
       syncPreviewRedacted: 'Redaction report',
       syncPreviewSecrets: '{count} secret(s)',
       syncPreviewPaths: '{count} host path(s)',
-      syncPreviewClean: 'Nothing needed redacting.',
       syncKindPlugin: 'Plugin',
       syncKindMcp: 'MCP',
       syncKindSkill: 'Skill',
@@ -447,7 +539,101 @@ window.__ModuleLoader__.load({
       syncNothingSelected: 'Tick something first.',
       syncEmpty: 'The manifest has nothing to sync.',
       syncErrorTitle: 'Sync error',
-      syncDismiss: 'Dismiss',
+      // Live sections: web-search providers and the injected prompt text.
+      providerHint: 'Balances use the unit each provider API reports; APIs without a balance field get a neutral hint.',
+      providerPriorityHint: 'Order is call priority: the top provider is called first, and exhausted quota or errors fail over to the next one.',
+      providerSection: 'Web search providers',
+      providerRank: 'Priority',
+      providerRefresh: 'Refresh balances',
+      providerRefreshing: 'Refreshing balances…',
+      providerLoading: 'Loading provider state…',
+      providerSaving: 'Saving order…',
+      providerFailed: 'Operation failed',
+      providerNoProviders: 'No providers available. Check the providers.json config.',
+      providerUnknownBalance: 'No balance API',
+      providerEnable: 'Enable',
+      providerDisable: 'Disable',
+      providerCalls: 'Calls',
+      providerSuccesses: 'Successes',
+      providerFailures: 'Failures',
+      providerLastUsed: 'Last used',
+      providerNeverUsed: 'Never called',
+      providerCooldown: 'Cooling down',
+      providerKey: 'API key',
+      providerKeyPresent: 'Key configured',
+      providerKeyMissing: 'No key configured',
+      providerBalance: 'Balance',
+      providerStatusOk: 'OK',
+      providerStatusCooldown: 'Cooling down',
+      providerStatusUnknown: 'Unknown',
+      providerMoveUp: 'Move up (higher priority)',
+      providerMoveDown: 'Move down (lower priority)',
+      providerDragHint: 'You can also drag rows to reorder',
+      providerRefreshOne: 'Refresh this provider only',
+      providerReset: 'Resets',
+      providerResetMonthlyFirst: 'Resets on the 1st of each month',
+      providerResetMonthlyAllowance: 'Monthly free allowance renews (paid credits do not)',
+      providerResetNone: 'Does not reset monthly',
+      providerResetNext: 'next',
+      providerResetUnknown: 'Unknown — refresh the balance first',
+      providerResetInDays: 'd',
+      providerResetInHours: 'h',
+      providerResetInMinutes: 'm',
+      providerUnitCredits: 'credits',
+      providerUnitUsd: 'USD',
+      providerUnitRequests: 'requests',
+      providerUnitTokens: 'tokens',
+      providerUnitPercent: '%',
+      providerUnitUnknown: 'unknown unit',
+      promptSection: 'Prompt injection',
+      promptDescription: 'This text is injected into every agent system prompt. After saving, new model requests use the updated text.',
+      promptPlaceholder: 'Enter the text to inject into the system prompt…',
+      promptConfirm: 'Save prompt',
+      promptSaving: 'Saving…',
+      promptSaved: 'Saved. New model requests will use the updated prompt.',
+      promptLoading: 'Loading the current injected text…',
+      promptErrorLoad: 'Could not load the current injected text. Please retry.',
+      promptErrorSave: 'Could not save. Please retry.',
+      promptErrorEmpty: 'The injected text must not be empty; nothing was submitted.',
+      // Credential vault (the `credential` tool's storage).
+      credentialSection: 'Credential vault',
+      credentialHint: 'Credentials are stored AES-256-GCM encrypted under $DSH_HOME/credential-vault/. Only masked previews are shown here; plaintext never comes back.',
+      credentialToolHint: 'The model reads credentials by name through the `credential` tool; every plaintext reveal is written to the audit log.',
+      credentialLoading: 'Loading credentials…',
+      credentialSaving: 'Saving…',
+      credentialError: 'Operation failed',
+      credentialRefresh: 'Refresh',
+      credentialNoEntries: 'No credentials yet. Click "Add credential" to create the first one.',
+      credentialAdd: 'Add credential',
+      credentialName: 'Name',
+      credentialNamePlaceholder: 'e.g. github-token, prod-server',
+      credentialKind: 'Kind',
+      credentialSecret: 'Secret',
+      credentialSecretPlaceholder: 'password / token / API key',
+      credentialUsername: 'Username (optional)',
+      credentialUrl: 'URL (optional)',
+      credentialNote: 'Note (optional)',
+      credentialSave: 'Save',
+      credentialCancel: 'Cancel',
+      credentialEdit: 'Edit',
+      credentialDelete: 'Delete',
+      credentialConfirmDelete: 'Delete credential',
+      credentialRotate: 'Rotate master key',
+      credentialRotateConfirm: 'Rotate the master key? Every entry is re-encrypted; the old key is kept as master.key.bak.',
+      credentialRotated: 'Master key rotated, entries re-encrypted',
+      credentialAudit: 'Audit log',
+      credentialAuditEmpty: 'No reads recorded yet.',
+      credentialUpdatedAt: 'Updated',
+      credentialUpdated: 'Updated',
+      credentialCreated: 'Created',
+      credentialDeleted: 'Deleted',
+      credentialMasked: 'masked',
+      credentialHasSecret: 'Encrypted',
+      credentialKindPassword: 'Server password',
+      credentialKindToken: 'Token',
+      credentialKindApiKey: 'API key',
+      credentialKindSshKey: 'SSH key',
+      credentialKindOther: 'Other',
     }
 
     // Tokens the theme actually defines. Fills that must read on both themes are
@@ -682,6 +868,49 @@ window.__ModuleLoader__.load({
         cursor: 'pointer',
         flexShrink: 0,
       },
+      // 26px control that sits inside a row (provider priority arrows). No fill
+      // until hover, so two stacked arrows read as one control column.
+      rowCtrlBtn: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '24px',
+        height: '24px',
+        padding: 0,
+        border: `1px solid ${C.hairline}`,
+        borderRadius: '7px',
+        background: 'transparent',
+        color: C.secondary,
+        cursor: 'pointer',
+        flexShrink: 0,
+      },
+      rowCtrlBtnDisabled: { opacity: 0.3, cursor: 'default' },
+      providerRank: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: '22px',
+        height: '22px',
+        padding: '0 6px',
+        borderRadius: '999px',
+        background: C.fillStrong,
+        color: C.secondary,
+        ...T.badge,
+        fontVariantNumeric: 'tabular-nums',
+        flexShrink: 0,
+      },
+      providerTrack: {
+        boxSizing: 'border-box',
+        width: '100%',
+        height: '4px',
+        marginTop: '2px',
+        overflow: 'hidden',
+        borderRadius: '999px',
+        background: C.fill,
+        flexShrink: 0,
+      },
+      providerFill: { height: '100%', borderRadius: '999px', transition: `width 180ms ${EASE}` },
+      feedback: { ...T.caption, color: C.secondary },
       chev: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: C.secondary, transition: `transform 200ms ${EASE}`, flexShrink: 0 },
       row: {
         display: 'flex',
@@ -1040,6 +1269,7 @@ window.__ModuleLoader__.load({
         chevronLeft: [h('path', { key: 'p', d: 'M15 5l-7 7 7 7', ...stroke })],
         chevronRight: [h('path', { key: 'p', d: 'M9 5l7 7-7 7', ...stroke })],
         chevronDown: [h('path', { key: 'p', d: 'M5 9l7 7 7-7', ...stroke })],
+        chevronUp: [h('path', { key: 'p', d: 'M5 15l7-7 7 7', ...stroke })],
         refresh: [
           h('path', { key: 'a', d: 'M20 11a8 8 0 1 0-2.3 5.6', ...stroke }),
           h('path', { key: 'b', d: 'M20 4.5V11h-6.5', ...stroke }),
@@ -1093,7 +1323,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function Section({ t, title, hint, count, open, onToggle, children }) {
+    function Section({ t, title, hint, count, open, onToggle, showCount = true, children }) {
       const body = children === undefined || children === null ? [] : Array.isArray(children) ? children : [children]
       return h(
         'div',
@@ -1109,7 +1339,7 @@ window.__ModuleLoader__.load({
           },
           h('span', { style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
           h('span', { style: S.sectionTitle }, title),
-          h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
+          showCount === false ? null : h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
           hint ? h('span', { style: S.sectionHint }, hint) : null,
         ),
         open ? h('div', { style: S.card, className: 'inv-section-body' }, ...body) : null,
@@ -1189,8 +1419,14 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** Icon-only twin of RowButton: hides/unhides one skill row. */
-    function RowIconButton({ label, icon, onClick }) {
+    /**
+     * Icon-only twin of RowButton: hides/unhides one skill row. `muted` is the
+     * compact variant used inside a row that is itself a button (provider
+     * priority arrows), and `disabled` dims it instead of removing it so the row
+     * keeps its shape.
+     */
+    function RowIconButton({ label, icon, onClick, muted, disabled }) {
+      const isDisabled = disabled === true
       return h(
         'button',
         {
@@ -1198,16 +1434,18 @@ window.__ModuleLoader__.load({
           className: 'inv-btn inv-hide',
           'aria-label': label,
           title: label,
-          style: S.rowIconBtn,
+          disabled: isDisabled,
+          style: muted ? { ...S.rowCtrlBtn, ...(isDisabled ? S.rowCtrlBtnDisabled : {}) } : { ...S.rowIconBtn, ...(isDisabled ? { opacity: 0.3, cursor: 'default' } : {}) },
           onClick: (event) => {
             if (event !== undefined && event !== null) event.stopPropagation()
+            if (isDisabled) return
             onClick()
           },
           onKeyDown: (event) => {
             if (event !== undefined && event !== null) event.stopPropagation()
           },
         },
-        h(Icon, { name: icon, size: 16 }),
+        h(Icon, { name: icon, size: muted ? 14 : 16 }),
       )
     }
 
@@ -1994,6 +2232,1119 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /* ------------------------ credential vault (live) ---------------------- */
+
+    // The credential manager was its own sidebar entry. It belongs on the same
+    // page as the tools that consume those credentials: the `credential` tool
+    // lives in the tool list, so its vault is edited right below it.
+    const VAULT_BASE = '/credential-vault/api'
+    const CREDENTIAL_ROUTES = {
+      list: `${VAULT_BASE}/list`,
+      audit: `${VAULT_BASE}/audit`,
+      set: `${VAULT_BASE}/set`,
+      remove: `${VAULT_BASE}/delete`,
+      rotate: `${VAULT_BASE}/rotate`,
+    }
+
+    const CREDENTIAL_KINDS = ['password', 'token', 'api-key', 'ssh-key', 'other']
+
+    const credentialKindLabel = (t, kind) => {
+      if (kind === 'password') return t('credentialKindPassword')
+      if (kind === 'token') return t('credentialKindToken')
+      if (kind === 'api-key') return t('credentialKindApiKey')
+      if (kind === 'ssh-key') return t('credentialKindSshKey')
+      return t('credentialKindOther')
+    }
+
+    async function credentialApi(path, options) {
+      const response = await fetch(path, options ?? {})
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.message || payload.error || `HTTP ${response.status}`)
+      }
+      return payload
+    }
+
+    const credentialPost = (path, body) =>
+      credentialApi(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body ?? {}),
+        cache: 'no-store',
+      })
+
+    const CREDENTIAL_INPUT = {
+      boxSizing: 'border-box',
+      width: '100%',
+      padding: '8px 10px',
+      fontSize: '14px',
+      borderRadius: '9px',
+      border: `1px solid ${C.hairline}`,
+      background: C.base,
+      color: C.text,
+      font: 'inherit',
+    }
+
+    function CredentialField({ label, value }) {
+      return h(
+        'div',
+        { style: { display: 'flex', alignItems: 'baseline', gap: '10px', minWidth: 0 } },
+        h('span', { style: { ...T.caption, color: C.secondary, flex: '0 0 88px' } }, label),
+        h('span', { style: { ...T.caption, color: C.text, flex: '1 1 auto', minWidth: 0, wordBreak: 'break-all' } }, value),
+      )
+    }
+
+    /** Add/edit form. Editing an entry leaves the stored secret alone unless retyped. */
+    function CredentialEditor({ t, initial, busy, onSave, onCancel }) {
+      const isUpdate = Boolean(initial && initial.name && initial.updatedAt)
+      const [form, setForm] = React.useState({
+        name: initial.name ?? '',
+        kind: CREDENTIAL_KINDS.includes(initial.kind) ? initial.kind : 'other',
+        secret: '',
+        username: initial.username ?? '',
+        url: initial.url ?? '',
+        note: initial.note ?? '',
+      })
+      const bind = (key) => ({
+        value: form[key],
+        onChange: (event) => setForm((current) => ({ ...current, [key]: event.target.value })),
+      })
+      const canSave = form.name.trim().length > 0 && (form.secret.length > 0 || isUpdate)
+      return h(
+        'form',
+        {
+          style: { display: 'flex', flexDirection: 'column', gap: '10px' },
+          onSubmit: (event) => {
+            event.preventDefault()
+            if (canSave && !busy) onSave({ ...form, name: form.name.trim() })
+          },
+        },
+        [
+          h('span', { key: 'caption', style: S.sectionTitle }, isUpdate ? t('credentialEdit') : t('credentialAdd')),
+          h(
+            'label',
+            { key: 'name', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialName')),
+            h('input', { style: CREDENTIAL_INPUT, placeholder: t('credentialNamePlaceholder'), ...bind('name') }),
+          ),
+          h(
+            'label',
+            { key: 'kind', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialKind')),
+            h(
+              'select',
+              { style: CREDENTIAL_INPUT, ...bind('kind') },
+              ...CREDENTIAL_KINDS.map((kind) => h('option', { key: kind, value: kind }, credentialKindLabel(t, kind))),
+            ),
+          ),
+          h(
+            'label',
+            { key: 'secret', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, isUpdate ? `${t('credentialSecret')} · ${t('credentialMasked')}` : t('credentialSecret')),
+            h('input', {
+              style: CREDENTIAL_INPUT,
+              type: 'password',
+              placeholder: isUpdate ? '\u2022\u2022\u2022\u2022' : t('credentialSecretPlaceholder'),
+              autoComplete: 'off',
+              ...bind('secret'),
+            }),
+          ),
+          h(
+            'label',
+            { key: 'username', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialUsername')),
+            h('input', { style: CREDENTIAL_INPUT, ...bind('username') }),
+          ),
+          h(
+            'label',
+            { key: 'url', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialUrl')),
+            h('input', { style: CREDENTIAL_INPUT, ...bind('url') }),
+          ),
+          h(
+            'label',
+            { key: 'note', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialNote')),
+            h('input', { style: CREDENTIAL_INPUT, ...bind('note') }),
+          ),
+          h(
+            'div',
+            { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            h(
+              'button',
+              {
+                type: 'submit',
+                className: 'inv-btn',
+                style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) },
+                disabled: !canSave || busy,
+              },
+              busy ? t('credentialSaving') : t('credentialSave'),
+            ),
+            h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
+          ),
+        ],
+      )
+    }
+
+    /**
+     * Credential vault: masked list on top, detail + add/edit form + reveal audit
+     * log below. No route ever returns a secret, so the panel only ever shows the
+     * masked preview the host sent.
+     */
+    function CredentialVault(props) {
+      const t = typeof props.t === 'function' ? props.t : (key) => zh[key] ?? en[key] ?? key
+      const confirm = typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm.bind(window) : () => true
+
+      const [entries, setEntries] = React.useState([])
+      const [audit, setAudit] = React.useState([])
+      const [selectedName, setSelectedName] = React.useState('')
+      const [editing, setEditing] = React.useState(null)
+      const [phase, setPhase] = React.useState('loading')
+      const [failure, setFailure] = React.useState('')
+      const [notice, setNotice] = React.useState('')
+      const [showAudit, setShowAudit] = React.useState(false)
+
+      const reload = React.useCallback(async () => {
+        setPhase((current) => (current === 'loading' ? 'loading' : 'busy'))
+        setFailure('')
+        try {
+          const [listResult, auditResult] = await Promise.all([credentialApi(CREDENTIAL_ROUTES.list), credentialApi(CREDENTIAL_ROUTES.audit)])
+          setEntries(Array.isArray(listResult.entries) ? listResult.entries : [])
+          setAudit(Array.isArray(auditResult.records) ? auditResult.records : [])
+          setPhase('idle')
+        } catch (error) {
+          setFailure(error?.message ?? String(error))
+          setPhase('error')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        let cancelled = false
+        Promise.all([credentialApi(CREDENTIAL_ROUTES.list), credentialApi(CREDENTIAL_ROUTES.audit)])
+          .then(([listResult, auditResult]) => {
+            if (cancelled) return
+            setEntries(Array.isArray(listResult.entries) ? listResult.entries : [])
+            setAudit(Array.isArray(auditResult.records) ? auditResult.records : [])
+            setPhase('idle')
+          })
+          .catch((error) => {
+            if (cancelled) return
+            setFailure(error?.message ?? String(error))
+            setPhase('error')
+          })
+        return () => {
+          cancelled = true
+        }
+      }, [])
+
+      // A notice clears itself; the timer is dropped when the section unmounts.
+      React.useEffect(() => {
+        if (notice === '') return undefined
+        const timer = setTimeout(() => setNotice(''), 3000)
+        return () => clearTimeout(timer)
+      }, [notice])
+
+      const run = async (work) => {
+        setPhase('busy')
+        setFailure('')
+        try {
+          await work()
+          await reload()
+        } catch (error) {
+          setFailure(error?.message ?? String(error))
+          setPhase('error')
+        }
+      }
+
+      const save = (form) =>
+        run(async () => {
+          const result = await credentialPost(CREDENTIAL_ROUTES.set, form)
+          setNotice(result.updated ? t('credentialUpdated') : t('credentialCreated'))
+          setEditing(null)
+        })
+
+      // The confirmation must happen BEFORE run(): run() flips the section to
+      // "busy", clears the visible failure, and reloads when it returns — so a
+      // cancelled action used to refresh the panel and wipe an error message the
+      // user still needed to read.
+      const remove = (name) => {
+        if (!confirm(`${t('credentialConfirmDelete')}: ${name}?`)) return
+        return run(async () => {
+          await credentialPost(CREDENTIAL_ROUTES.remove, { name })
+          if (selectedName === name) setSelectedName('')
+          setNotice(t('credentialDeleted'))
+        })
+      }
+
+      const rotate = () => {
+        if (!confirm(t('credentialRotateConfirm'))) return
+        return run(async () => {
+          await credentialPost(CREDENTIAL_ROUTES.rotate, {})
+          setNotice(t('credentialRotated'))
+        })
+      }
+
+      const selected = entries.find((entry) => entry.name === selectedName) ?? null
+      const busy = phase === 'busy'
+
+      let status = null
+      if (phase === 'loading') status = h('span', { style: S.feedback }, t('credentialLoading'))
+      else if (phase === 'error') status = h('span', { style: { ...S.feedback, color: C.danger } }, `${t('credentialError')}${failure ? ` (${failure})` : ''}`)
+      else if (phase === 'busy') status = h('span', { style: S.feedback }, t('credentialSaving'))
+
+      const list =
+        entries.length === 0
+          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('credentialLoading') : t('credentialNoEntries')))
+          : h(
+              'div',
+              { style: S.card, role: 'list' },
+              ...entries.map((entry, index) =>
+                h(
+                  'div',
+                  {
+                    key: entry.name,
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-pressed': entry.name === selectedName ? 'true' : 'false',
+                    className: 'inv-row',
+                    'data-interactive': 'true',
+                    style: {
+                      ...S.row,
+                      ...(index === entries.length - 1 ? S.rowLast : {}),
+                      cursor: 'pointer',
+                      ...(entry.name === selectedName ? { background: C.fill } : {}),
+                    },
+                    onClick: () => {
+                      setSelectedName(entry.name)
+                      setEditing(null)
+                    },
+                    onKeyDown: activate(() => {
+                      setSelectedName(entry.name)
+                      setEditing(null)
+                    }),
+                  },
+                  h(Icon, { name: 'lock', size: 16, style: { color: C.secondary } }),
+                  h(
+                    'div',
+                    { style: S.rowMain },
+                    h('span', { style: S.rowTitleMono }, entry.name),
+                    h('span', { style: S.rowSub }, credentialKindLabel(t, entry.kind)),
+                  ),
+                  h(Badge, { label: entry.preview || '***' }),
+                  h(Icon, { name: 'chevronRight', size: 16, style: S.chevronMuted }),
+                ),
+              ),
+            )
+
+      const details =
+        editing !== null
+          ? h(CredentialEditor, {
+              key: `editor-${editing.name ?? 'new'}`,
+              t,
+              initial: editing,
+              busy,
+              onSave: save,
+              onCancel: () => setEditing(null),
+            })
+          : selected !== null
+            ? h(
+                'div',
+                { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+                h(
+                  'div',
+                  { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                  h('span', { style: S.rowTitleMono }, selected.name),
+                  h(Badge, { label: credentialKindLabel(t, selected.kind) }),
+                  selected.hasSecret === true ? h(Badge, { label: t('credentialHasSecret'), tone: 'success', dot: true }) : null,
+                ),
+                CredentialField({ label: t('credentialMasked'), value: selected.preview || '***' }),
+                selected.username ? CredentialField({ label: t('credentialUsername'), value: selected.username }) : null,
+                selected.url ? CredentialField({ label: t('credentialUrl'), value: selected.url }) : null,
+                selected.note ? CredentialField({ label: t('credentialNote'), value: selected.note }) : null,
+                CredentialField({ label: t('credentialUpdatedAt'), value: selected.updatedAt || '—' }),
+                h(
+                  'div',
+                  { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '2px' } },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'inv-btn',
+                      style: S.chip,
+                      onClick: () => setEditing({ ...selected, secret: '' }),
+                    },
+                    t('credentialEdit'),
+                  ),
+                  h(RowButton, { label: t('credentialDelete'), disabled: busy, onClick: () => remove(selected.name) }),
+                ),
+              )
+            : null
+
+      const auditPanel = showAudit
+        ? h(
+            'div',
+            { style: { ...S.card, padding: '6px 16px 10px' } },
+            h('div', { style: { ...S.sectionHead, cursor: 'default', padding: '8px 0 6px' } }, h('span', { style: S.sectionTitle }, t('credentialAudit'))),
+            audit.length === 0
+              ? h('div', { style: S.empty }, t('credentialAuditEmpty'))
+              : h(
+                  'div',
+                  { style: { display: 'flex', flexDirection: 'column' } },
+                  ...audit.slice(0, 40).map((record, index) =>
+                    h(
+                      'div',
+                      {
+                        key: `audit-${index}`,
+                        style: { display: 'flex', alignItems: 'baseline', gap: '10px', padding: '6px 0', borderBottom: index === audit.length - 1 ? 'none' : `1px solid ${C.hairline}`, ...T.caption, flexWrap: 'wrap' },
+                      },
+                      h('span', { style: { color: C.secondary, fontVariantNumeric: 'tabular-nums' } }, record.at || '—'),
+                      h('span', { style: { fontWeight: 600 } }, record.name || '—'),
+                      h('span', { style: { color: C.secondary } }, `${record.outcome ?? ''}${record.source ? ` · ${record.source}` : ''}`),
+                    ),
+                  ),
+                ),
+          )
+        : null
+
+      return h(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+        h(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+          h('span', { style: { ...T.caption, color: C.secondary, flex: '1 1 auto', minWidth: 0 } }, t('credentialToolHint')),
+          status,
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: S.chip,
+              onClick: () => setEditing({}),
+            },
+            t('credentialAdd'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              'aria-pressed': showAudit ? 'true' : 'false',
+              style: { ...S.chip, ...(showAudit ? S.chipOn : {}) },
+              onClick: () => setShowAudit((prev) => !prev),
+            },
+            t('credentialAudit'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: S.chip,
+              disabled: busy,
+              onClick: rotate,
+            },
+            t('credentialRotate'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: S.chip,
+              disabled: busy,
+              onClick: () => reload(),
+            },
+            t('credentialRefresh'),
+          ),
+        ),
+        list,
+        details,
+        auditPanel,
+        notice !== '' ? h('div', { style: S.notice, role: 'status' }, notice) : null,
+      )
+    }
+
+    /* --------------------- web search providers (live) --------------------- */
+
+    // The web-search provider manager lives here instead of in its own sidebar
+    // panel: "Tools" is already the page that answers what the agent can reach,
+    // so the provider order, balances and the injected prompt text are edited
+    // next to the tool list they actually control.
+    const WEBSEARCH_BASE = '/websearch-failover/api'
+    const WEBSEARCH_ROUTES = {
+      state: `${WEBSEARCH_BASE}/state`,
+      order: `${WEBSEARCH_BASE}/order`,
+      refresh: `${WEBSEARCH_BASE}/refresh`,
+      enable: `${WEBSEARCH_BASE}/enable`,
+    }
+    const PROMPT_ROUTE = '/prompt-inject/state'
+
+    const PROVIDER_UNIT_KEYS = {
+      credits: 'providerUnitCredits',
+      usd: 'providerUnitUsd',
+      requests: 'providerUnitRequests',
+      tokens: 'providerUnitTokens',
+      percent: 'providerUnitPercent',
+    }
+
+    /**
+     * Documented reset rules per provider kind, used only when the host bundle
+     * predates `resetKind`; an explicit host value always wins.
+     */
+    const PROVIDER_FALLBACK_RESET = {
+      tavily: 'monthly-first',
+      parallel: 'monthly-allowance',
+      firecrawl: 'period-end',
+    }
+
+    const providerNum = (value) => (typeof value === 'number' && isFinite(value) ? value : null)
+
+    function providerAmount(value) {
+      const number = providerNum(value)
+      if (number === null) return ''
+      if (Number.isInteger(number)) return String(number)
+      return number.toFixed(2).replace(/\.?0+$/, '')
+    }
+
+    function providerUnitLabel(t, unit) {
+      const key = PROVIDER_UNIT_KEYS[unit]
+      return key ? t(key) : t('providerUnitUnknown')
+    }
+
+    /** Balance text for any billing unit; never renders NaN. */
+    function providerBalanceText(t, balance) {
+      if (!balance) return t('providerUnknownBalance')
+      const amount = providerAmount(balance.remaining)
+      if (amount === '') return t('providerUnknownBalance')
+      let text = `${amount} ${providerUnitLabel(t, balance.unit)}`
+      const total = providerNum(balance.total)
+      if (total !== null && total > 0) text += ` / ${providerAmount(total)}`
+      return text
+    }
+
+    /** Largest numeric `remaining`, used to normalise bars without a ratio. */
+    function providerMaxRemaining(providers) {
+      let max = 0
+      for (const provider of providers) {
+        const remaining = provider?.balance ? providerNum(provider.balance.remaining) : null
+        if (remaining !== null && remaining > max) max = remaining
+      }
+      return max
+    }
+
+    /** 0..1 when the host gave a ratio, else a normalised remaining, else null. */
+    function providerRatio(provider, maxRemaining) {
+      if (!provider?.balance) return null
+      const ratio = providerNum(provider.balance.ratio)
+      if (ratio !== null) return Math.max(0, Math.min(1, ratio))
+      const remaining = providerNum(provider.balance.remaining)
+      if (remaining === null) return null
+      return maxRemaining > 0 ? Math.max(0, Math.min(1, remaining / maxRemaining)) : 0
+    }
+
+    function providerStatus(provider) {
+      if (!provider) return 'unknown'
+      if (provider.cooldown?.active === true) return 'cooldown'
+      if (provider.balance?.status === 'ok') return 'ok'
+      if (provider.balance?.status === 'error') return 'cooldown'
+      return 'unknown'
+    }
+
+    function providerTone(status) {
+      if (status === 'ok') return 'success'
+      if (status === 'cooldown') return 'warning'
+      return undefined
+    }
+
+    function providerStatusText(t, status) {
+      if (status === 'ok') return t('providerStatusOk')
+      if (status === 'cooldown') return t('providerStatusCooldown')
+      return t('providerStatusUnknown')
+    }
+
+    /** `YYYY-MM-DD HH:mm` in the browser's local zone. */
+    function providerStamp(ms) {
+      const date = new Date(ms)
+      const pad = (value) => (value < 10 ? `0${value}` : String(value))
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    }
+
+    /** Coarse remaining duration for a reset: `24天 3小时` down to `12分钟`. */
+    function providerCountdown(t, remainingMs) {
+      const minutes = Math.floor(Math.max(0, remainingMs) / 60000)
+      const days = Math.floor(minutes / 1440)
+      const hours = Math.floor((minutes % 1440) / 60)
+      const rest = minutes % 60
+      if (days > 0) return `${days}${t('providerResetInDays')} ${hours}${t('providerResetInHours')}`
+      if (hours > 0) return `${hours}${t('providerResetInHours')} ${rest}${t('providerResetInMinutes')}`
+      return `${rest}${t('providerResetInMinutes')}`
+    }
+
+    /** Reset line: exact timestamp + countdown, or the documented monthly rule. */
+    function providerResetText(t, balance, provider, nowMs) {
+      const explicit = typeof balance?.resetKind === 'string' ? balance.resetKind : undefined
+      const kind = explicit ?? PROVIDER_FALLBACK_RESET[provider?.kind]
+      const resetsAt = balance ? providerNum(balance.resetsAt) : null
+      if (kind === 'monthly-first') {
+        return resetsAt === null ? t('providerResetMonthlyFirst') : `${t('providerResetMonthlyFirst')} · ${t('providerResetNext')} ${providerStamp(resetsAt)}`
+      }
+      if (kind === 'monthly-allowance') {
+        return resetsAt === null ? t('providerResetMonthlyAllowance') : `${t('providerResetMonthlyAllowance')} · ${t('providerResetNext')} ${providerStamp(resetsAt)}`
+      }
+      if (kind === 'period-end') {
+        if (resetsAt === null) return t('providerResetUnknown')
+        return `${providerStamp(resetsAt)} · ${providerCountdown(t, resetsAt - nowMs)}`
+      }
+      return t('providerResetNone')
+    }
+
+    /** Live cooldown as `12s · reason`; empty when the provider is not cooling. */
+    function providerCooldownText(cooldown, nowMs) {
+      if (!cooldown || cooldown.active !== true) return ''
+      const until = providerNum(cooldown.until)
+      const seconds = Math.ceil(Math.max(0, until === null ? 0 : until - nowMs) / 1000)
+      const minutes = Math.floor(seconds / 60)
+      const rest = seconds % 60
+      const clock = minutes > 0 ? `${minutes}m ${rest < 10 ? `0${rest}` : rest}s` : `${seconds}s`
+      const reason = typeof cooldown.message === 'string' && cooldown.message ? cooldown.message : cooldown.reason
+      return typeof reason === 'string' && reason ? `${clock} · ${reason}` : clock
+    }
+
+    /** Host payload -> `{ generatedAt, providers }` in call-priority order. */
+    function normalizeProviders(payload) {
+      if (!payload || payload.ok !== true || !Array.isArray(payload.providers)) throw new Error('bad-payload')
+      const providers = payload.providers
+        .filter((provider) => provider && typeof provider.id === 'string' && provider.id.length > 0)
+        .sort((left, right) => {
+          const leftRank = providerNum(left.rank)
+          const rightRank = providerNum(right.rank)
+          return (leftRank === null ? Number.MAX_SAFE_INTEGER : leftRank) - (rightRank === null ? Number.MAX_SAFE_INTEGER : rightRank)
+        })
+      const generatedAt = providerNum(payload.generatedAt)
+      return { generatedAt: generatedAt === null ? Date.now() : generatedAt, providers }
+    }
+
+    /** Rebuild the provider list in the given id order (optimistic reorder). */
+    function orderProviderList(providers, orderIds) {
+      const byId = new Map(providers.map((provider) => [provider.id, provider]))
+      const next = []
+      for (const id of orderIds) {
+        const provider = byId.get(id)
+        if (provider === undefined) continue
+        next.push(provider)
+        byId.delete(id)
+      }
+      for (const provider of providers) if (byId.has(provider.id)) next.push(provider)
+      return next.map((provider, index) => ({ ...provider, rank: index + 1 }))
+    }
+
+    async function providerFetch(url, init) {
+      const response = await fetch(url, init ?? {})
+      const data = await response.json().catch(() => null)
+      if (!response.ok || !data || data.ok !== true) {
+        throw new Error(data && typeof data.error === 'string' ? data.error : `http-${response.status}`)
+      }
+      return data
+    }
+
+    const providerPost = (url, body) =>
+      providerFetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body ?? {}),
+        cache: 'no-store',
+      })
+
+    /** Proportional bar; an unknown ratio renders an empty track, never NaN%. */
+    function ProviderBar({ ratio, tone }) {
+      const known = typeof ratio === 'number' && isFinite(ratio)
+      const color = tone === 'success' ? C.success : tone === 'warning' ? C.warning : C.fillStrong
+      return h(
+        'div',
+        { style: S.providerTrack, role: 'presentation' },
+        known ? h('div', { style: { ...S.providerFill, width: `${(ratio * 100).toFixed(2)}%`, background: color } }) : null,
+      )
+    }
+
+    function ProviderField({ label, value }) {
+      return h(
+        'div',
+        { style: { display: 'flex', alignItems: 'baseline', gap: '10px', minWidth: 0 } },
+        h('span', { style: { ...T.caption, color: C.secondary, flex: '0 0 88px' } }, label),
+        h('span', { style: { ...T.caption, color: C.text, flex: '1 1 auto', minWidth: 0, wordBreak: 'break-word', fontVariantNumeric: 'tabular-nums' } }, value),
+      )
+    }
+
+    /**
+     * Web-search provider manager: call priority (drag or arrows), live balance
+     * per billing unit, cooldown countdown, per-provider enable switch and the
+     * local call statistics of the selected provider.
+     *
+     * Balances are never polled — every provider API call is billed — so only an
+     * explicit refresh hits `/refresh`.
+     */
+    function WebSearchProviders(props) {
+      const t = typeof props.t === 'function' ? props.t : (key) => zh[key] ?? en[key] ?? key
+      const [snapshot, setSnapshot] = React.useState(null)
+      const [phase, setPhase] = React.useState('loading')
+      const [failure, setFailure] = React.useState('')
+      const [selectedId, setSelectedId] = React.useState('')
+      const [dragId, setDragId] = React.useState('')
+      const [overId, setOverId] = React.useState('')
+      const [now, setNow] = React.useState(() => Date.now())
+
+      const providers = Array.isArray(snapshot?.providers) ? snapshot.providers : []
+      const busy = phase === 'loading' || phase === 'saving' || phase === 'refreshing'
+
+      const reload = React.useCallback(async () => {
+        setPhase('loading')
+        setFailure('')
+        try {
+          setSnapshot(normalizeProviders(await providerFetch(WEBSEARCH_ROUTES.state, { headers: { accept: 'application/json' }, cache: 'no-store' })))
+          setPhase('ready')
+        } catch (error) {
+          setFailure(error?.message ?? String(error))
+          setPhase('error')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        let cancelled = false
+        providerFetch(WEBSEARCH_ROUTES.state, { headers: { accept: 'application/json' }, cache: 'no-store' })
+          .then((payload) => {
+            if (cancelled) return
+            setSnapshot(normalizeProviders(payload))
+            setPhase('ready')
+          })
+          .catch((error) => {
+            if (cancelled) return
+            setFailure(error?.message ?? String(error))
+            setPhase('error')
+          })
+        return () => {
+          cancelled = true
+        }
+      }, [])
+
+      // One-second tick only while something is cooling down (countdown text).
+      const ticking = providers.some((provider) => provider?.cooldown?.active === true)
+      React.useEffect(() => {
+        if (!ticking) return undefined
+        const timer = setInterval(() => setNow(Date.now()), 1000)
+        return () => clearInterval(timer)
+      }, [ticking])
+
+      // Keep a valid selection whenever the payload changes.
+      React.useEffect(() => {
+        if (!snapshot) return
+        if (providers.some((provider) => provider.id === selectedId)) return
+        setSelectedId(providers.length > 0 ? providers[0].id : '')
+      }, [snapshot, selectedId, providers])
+
+      const accept = (payload) => {
+        setSnapshot(normalizeProviders(payload))
+        setFailure('')
+        setPhase('ready')
+      }
+      const reject = (error) => {
+        setFailure(error?.message ?? String(error))
+        setPhase('error')
+      }
+
+      /** POST the full id array, after applying the new order optimistically. */
+      const commitOrder = (nextIds) => {
+        if (!snapshot || phase === 'saving') return
+        const previous = snapshot
+        setSnapshot({ generatedAt: previous.generatedAt, providers: orderProviderList(previous.providers, nextIds) })
+        setFailure('')
+        setPhase('saving')
+        providerPost(WEBSEARCH_ROUTES.order, { order: nextIds })
+          .then(accept)
+          .catch((error) => {
+            setSnapshot(previous)
+            reject(error)
+          })
+      }
+
+      const moveBy = (id, delta) => {
+        const ids = providers.map((provider) => provider.id)
+        const from = ids.indexOf(id)
+        const to = from + delta
+        if (from < 0 || to < 0 || to >= ids.length) return
+        ids.splice(from, 1)
+        ids.splice(to, 0, id)
+        commitOrder(ids)
+      }
+
+      const refresh = (ids) => {
+        if (busy) return
+        setFailure('')
+        setPhase('refreshing')
+        providerPost(WEBSEARCH_ROUTES.refresh, ids ? { ids } : {})
+          .then(accept)
+          .catch(reject)
+      }
+
+      const toggleEnabled = (provider) => {
+        if (!snapshot || !provider || phase === 'saving') return
+        const previous = snapshot
+        const enabled = provider.enabled !== true
+        setSnapshot({
+          generatedAt: previous.generatedAt,
+          providers: previous.providers.map((row) => (row.id === provider.id ? { ...row, enabled } : row)),
+        })
+        setFailure('')
+        setPhase('saving')
+        providerPost(WEBSEARCH_ROUTES.enable, { id: provider.id, enabled })
+          .then(accept)
+          .catch((error) => {
+            setSnapshot(previous)
+            reject(error)
+          })
+      }
+
+      const onDropRow = (event, id) => {
+        event.preventDefault()
+        let source = dragId
+        if (!source) {
+          try {
+            source = event.dataTransfer.getData('text/plain')
+          } catch {
+            source = ''
+          }
+        }
+        setDragId('')
+        setOverId('')
+        if (!source || source === id) return
+        const ids = providers.map((provider) => provider.id).filter((candidate) => candidate !== source)
+        const target = ids.indexOf(id)
+        if (target < 0) return
+        ids.splice(target, 0, source)
+        commitOrder(ids)
+      }
+
+      const maxRemaining = providerMaxRemaining(providers)
+
+      let status = null
+      if (phase === 'loading' || (failure === '' && snapshot === null)) status = h('span', { style: S.feedback }, t('providerLoading'))
+      else if (phase === 'refreshing') status = h('span', { style: S.feedback }, t('providerRefreshing'))
+      else if (phase === 'saving') status = h('span', { style: S.feedback }, t('providerSaving'))
+      else if (phase === 'error') status = h('span', { style: { ...S.feedback, color: C.danger } }, `${t('providerFailed')} (${failure})`)
+
+      const card =
+        providers.length === 0
+          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('providerLoading') : t('providerNoProviders')))
+          : h(
+              'div',
+              { style: S.card },
+              ...providers.map((provider, index) => {
+                const tone = providerStatus(provider)
+                const ratio = providerRatio(provider, maxRemaining)
+                const active = provider.id === selectedId
+                const isDragging = dragId === provider.id
+                const isOver = overId === provider.id && dragId !== '' && dragId !== provider.id
+                const upDisabled = index === 0 || phase === 'saving'
+                const downDisabled = index === providers.length - 1 || phase === 'saving'
+                const last = index === providers.length - 1
+                return h(
+                  'div',
+                  {
+                    key: provider.id,
+                    draggable: true,
+                    style: {
+                      ...S.row,
+                      ...(last ? S.rowLast : {}),
+                      flexDirection: 'column',
+                      alignItems: 'stretch',
+                      gap: '6px',
+                      cursor: 'grab',
+                      ...(provider.enabled === false ? { opacity: 0.55 } : {}),
+                      ...(isDragging ? { opacity: 0.45 } : {}),
+                      ...(isOver ? { boxShadow: `inset 0 2px 0 ${C.accent}` } : {}),
+                    },
+                    'aria-label': `${provider.label ?? provider.id} · ${t('providerRank')} ${index + 1}`,
+                    title: t('providerDragHint'),
+                    onDragStart: (event) => {
+                      setDragId(provider.id)
+                      setOverId('')
+                      try {
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', provider.id)
+                      } catch {
+                        // Older engines refuse dataTransfer writes; the arrows still work.
+                      }
+                    },
+                    onDragOver: (event) => {
+                      event.preventDefault()
+                      if (overId !== provider.id) setOverId(provider.id)
+                    },
+                    onDragLeave: () => setOverId((current) => (current === provider.id ? '' : current)),
+                    onDrop: (event) => onDropRow(event, provider.id),
+                    onDragEnd: () => {
+                      setDragId('')
+                      setOverId('')
+                    },
+                  },
+                  h(
+                    'div',
+                    {
+                      role: 'button',
+                      tabIndex: 0,
+                      'aria-pressed': active ? 'true' : 'false',
+                      className: 'inv-row',
+                      'data-interactive': 'true',
+                      style: { display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, cursor: 'pointer' },
+                      onClick: () => setSelectedId(provider.id),
+                      onKeyDown: activate(() => setSelectedId(provider.id)),
+                    },
+                    h('span', { style: S.providerRank }, String(index + 1)),
+                    h(
+                      'div',
+                      { style: S.rowMain },
+                      h(
+                        'div',
+                        { style: { display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 } },
+                        h('span', { style: { ...S.dot, background: tone === 'success' ? C.success : tone === 'warning' ? C.warning : C.secondary }, title: providerStatusText(t, tone) }),
+                        h('span', { style: { ...S.rowTitle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, provider.label ?? provider.id),
+                        provider.enabled === false ? h(Badge, { label: t('disabled') }) : null,
+                      ),
+                      h('span', { style: S.rowSub }, `${t('providerBalance')} ${providerBalanceText(t, provider.balance)}`),
+                      h(ProviderBar, { ratio, tone }),
+                    ),
+                    h(
+                      'div',
+                      { style: { display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 } },
+                      h(RowIconButton, { label: t('providerMoveUp'), icon: 'chevronUp', onClick: () => moveBy(provider.id, -1), disabled: upDisabled }),
+                      h(RowIconButton, { label: t('providerMoveDown'), icon: 'chevronDown', onClick: () => moveBy(provider.id, 1), disabled: downDisabled }),
+                    ),
+                  ),
+                )
+              }),
+            )
+
+      const selected = providers.find((provider) => provider.id === selectedId) ?? null
+      let detail = null
+      if (selected !== null) {
+        const tone = providerStatus(selected)
+        const ratio = providerRatio(selected, maxRemaining)
+        const stats = selected.stats ?? {}
+        const cooldown = selected.cooldown ?? { active: false }
+        const rank = providerNum(selected.rank)
+        const ratioText = typeof ratio === 'number' ? `${Math.round(ratio * 100)}%` : ''
+        const balanceLabel = providerBalanceText(t, selected.balance)
+        const lastUsed = typeof stats.lastUsedAt === 'string' && stats.lastUsedAt.length > 0 ? stats.lastUsedAt : t('providerNeverUsed')
+        const statCell = (key, label, value) =>
+          h(
+            'div',
+            { key, style: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '10px 12px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, label),
+            h('span', { style: { ...T.caption, color: C.text, fontWeight: 600, fontVariantNumeric: 'tabular-nums', wordBreak: 'break-word' } }, value),
+          )
+        detail = h(
+          'div',
+          { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+          h(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            h('span', { style: S.rowTitle }, selected.label ?? selected.id),
+            h(Badge, { label: selected.kind ?? '—' }),
+            h(Badge, { label: providerStatusText(t, tone), tone: providerTone(tone), dot: true }),
+          ),
+          ProviderField({ label: t('providerRank'), value: rank === null ? '—' : `#${rank}` }),
+          ProviderField({ label: t('providerBalance'), value: ratioText ? `${balanceLabel} · ${ratioText}` : balanceLabel }),
+          h(ProviderBar, { ratio, tone }),
+          ProviderField({ label: t('providerReset'), value: providerResetText(t, selected.balance, selected, now) }),
+          ProviderField({ label: t('providerCooldown'), value: cooldown.active === true ? providerCooldownText(cooldown, now) : '—' }),
+          ProviderField({ label: t('providerKey'), value: selected.keyPresent === true ? t('providerKeyPresent') : t('providerKeyMissing') }),
+          h(
+            'div',
+            { style: { ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', background: C.fill, border: 'none', gap: '2px' } },
+            statCell('calls', t('providerCalls'), String(providerNum(stats.calls) ?? 0)),
+            statCell('successes', t('providerSuccesses'), String(providerNum(stats.successes) ?? 0)),
+            statCell('failures', t('providerFailures'), String(providerNum(stats.failures) ?? 0)),
+            statCell('lastUsed', t('providerLastUsed'), lastUsed),
+          ),
+          h(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', paddingTop: '2px' } },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'inv-btn',
+                style: { ...S.chip, ...(selected.enabled === false ? S.chipOn : {}) },
+                disabled: phase === 'saving',
+                onClick: () => toggleEnabled(selected),
+              },
+              selected.enabled === false ? t('providerEnable') : t('providerDisable'),
+            ),
+            h(RowButton, { label: t('providerRefreshOne'), disabled: busy, onClick: () => refresh([selected.id]) }),
+          ),
+        )
+      }
+
+      return h(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+        h(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } },
+          h('span', { style: { ...T.caption, color: C.secondary, flex: '1 1 auto', minWidth: 0 } },
+            `${t('providerPriorityHint')} ${t('providerHint')}`),
+          status,
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: { ...S.chip, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
+              disabled: busy,
+              onClick: () => refresh(),
+            },
+            phase === 'refreshing' ? t('providerRefreshing') : t('providerRefresh'),
+          ),
+          phase === 'error' && snapshot === null
+            ? h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'inv-btn',
+                  style: S.chip,
+                  onClick: () => {
+                    reload()
+                  },
+                },
+                t('retry'),
+              )
+            : null,
+        ),
+        card,
+        detail,
+      )
+    }
+
+    /** Prompt injection: the text every agent system prompt carries, edited live. */
+    function PromptInjector(props) {
+      const t = typeof props.t === 'function' ? props.t : (key) => zh[key] ?? en[key] ?? key
+      const [text, setText] = React.useState('')
+      const [status, setStatus] = React.useState('loading')
+      const [detail, setDetail] = React.useState('')
+
+      React.useEffect(() => {
+        let cancelled = false
+        fetch(PROMPT_ROUTE, { method: 'GET', headers: { accept: 'application/json' }, cache: 'no-store' })
+          .then((response) => {
+            if (!response.ok) throw new Error(`http-${response.status}`)
+            return response.json()
+          })
+          .then((data) => {
+            if (cancelled) return
+            setText(data && typeof data.text === 'string' ? data.text : '')
+            setStatus('idle')
+          })
+          .catch(() => {
+            if (!cancelled) setStatus('load-error')
+          })
+        return () => {
+          cancelled = true
+        }
+      }, [])
+
+      const disabled = status === 'loading' || status === 'saving'
+
+      const onSave = () => {
+        if (disabled) return
+        const value = text
+        if (value.trim().length === 0) {
+          setStatus('empty')
+          setDetail('')
+          return
+        }
+        setStatus('saving')
+        setDetail('')
+        fetch(PROMPT_ROUTE, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text: value }),
+        })
+          .then(async (response) => {
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) throw new Error(data && data.error ? data.error : `http-${response.status}`)
+            setStatus('saved')
+          })
+          .catch((error) => {
+            setDetail(error?.message ?? 'unknown')
+            setStatus('error')
+          })
+      }
+
+      let hint = null
+      if (status === 'loading') hint = h('span', { style: S.feedback }, t('promptLoading'))
+      else if (status === 'saving') hint = h('span', { style: S.feedback }, t('promptSaving'))
+      else if (status === 'saved') hint = h('span', { style: { ...S.feedback, color: C.success } }, t('promptSaved'))
+      else if (status === 'empty') hint = h('span', { style: { ...S.feedback, color: C.danger } }, t('promptErrorEmpty'))
+      else if (status === 'load-error') hint = h('span', { style: { ...S.feedback, color: C.danger } }, t('promptErrorLoad'))
+      else if (status === 'error') hint = h('span', { style: { ...S.feedback, color: C.danger } }, `${t('promptErrorSave')}${detail ? ` (${detail})` : ''}`)
+
+      return h(
+        'div',
+        { style: { display: 'flex', flexDirection: 'column', gap: '10px' } },
+        h('span', { style: { ...T.caption, color: C.secondary } }, t('promptDescription')),
+        h(
+          'div',
+          { style: { ...S.card, padding: '10px 12px', background: C.fill, border: 'none' } },
+          h('textarea', {
+            className: 'inv-textarea',
+            style: {
+              boxSizing: 'border-box',
+              width: '100%',
+              minHeight: '180px',
+              resize: 'vertical',
+              margin: 0,
+              padding: '10px 12px',
+              color: C.text,
+              background: C.base,
+              border: `1px solid ${C.hairline}`,
+              borderRadius: '10px',
+              outline: 'none',
+              fontFamily: FONT_MONO,
+              fontSize: '12.5px',
+              lineHeight: 1.6,
+            },
+            value: text,
+            placeholder: t('promptPlaceholder'),
+            disabled,
+            spellCheck: false,
+            'aria-label': t('promptSection'),
+            onChange: (event) => {
+              setText(event.target.value)
+              if (status !== 'saving') {
+                setStatus('idle')
+                setDetail('')
+              }
+            },
+          }),
+        ),
+        h(
+          'div',
+          { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: { ...S.primary, ...(disabled ? { opacity: 0.5, cursor: 'default' } : {}) },
+              disabled,
+              onClick: onSave,
+            },
+            status === 'saving' ? t('promptSaving') : t('promptConfirm'),
+          ),
+          hint,
+        ),
+      )
+    }
+
     function InventoryPanel({ t, back }) {
       const [status, setStatus] = React.useState('loading')
       const [data, setData] = React.useState(null)
@@ -2009,9 +3360,16 @@ window.__ModuleLoader__.load({
         skills: false,
       })
       const [expanded, setExpanded] = React.useState({})
-      // Two-level navigation: 'global' is the overview, 'workspaces' the list,
-      // 'workspace' the detail of `currentWorkspace` (a workspace id).
+      // Navigation: 'global' is the tool overview, 'workspaces' the list,
+      // 'workspace' the detail of `currentWorkspace` (a workspace id), 'sync'
+      // the cross-machine manifest, and the last two the live settings that used
+      // to have their own sidebar entries (web-search providers, prompt text).
       const [view, setView] = React.useState('global')
+      // Live sections keep the panel's open-on-load default (packages on, the
+      // long lists folded), because their data is not in the snapshot.
+      const [providersOpen, setProvidersOpen] = React.useState(true)
+      const [promptOpen, setPromptOpen] = React.useState(false)
+      const [credentialsOpen, setCredentialsOpen] = React.useState(false)
       const [currentWorkspace, setCurrentWorkspace] = React.useState('')
       const [wsBusy, setWsBusy] = React.useState('')
       const [wsError, setWsError] = React.useState('')
@@ -2287,6 +3645,12 @@ window.__ModuleLoader__.load({
         setView('workspace')
       }
 
+      // Two views read live host state (web-search providers, prompt text) and
+      // no inventory snapshot: the snapshot chrome — refresh, search, stats —
+      // would be noise there, and re-reading the snapshot must not remount the
+      // provider list while a reorder is in flight.
+      const isLiveView = view === 'providers' || view === 'prompt' || view === 'credentials'
+
       const nav = h(
         'div',
         { style: S.nav, className: 'inv-nav' },
@@ -2302,18 +3666,20 @@ window.__ModuleLoader__.load({
           style: { ...S.navTitle, opacity: scrolled ? 1 : 0, transition: 'opacity 180ms ease' },
           'aria-hidden': 'true',
         }, view === 'workspace' && activeWorkspace ? activeWorkspace.title : t('title')),
-        h(
-          'button',
-          {
-            type: 'button',
-            style: S.iconBtn,
-            className: 'inv-btn',
-            'aria-label': t('refresh'),
-            title: t('refresh'),
-            onClick: () => load(true),
-          },
-          h(Icon, { name: 'refresh', size: 19 }),
-        ),
+        isLiveView
+          ? null
+          : h(
+              'button',
+              {
+                type: 'button',
+                style: S.iconBtn,
+                className: 'inv-btn',
+                'aria-label': t('refresh'),
+                title: t('refresh'),
+                onClick: () => load(true),
+              },
+              h(Icon, { name: 'refresh', size: 19 }),
+            ),
       )
 
       const segmented = h(
@@ -2351,6 +3717,39 @@ window.__ModuleLoader__.load({
             onClick: () => setView('sync'),
           },
           t('syncView'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            'aria-pressed': view === 'providers' ? 'true' : 'false',
+            style: { ...S.segBtn, ...(view === 'providers' ? S.segBtnActive : {}) },
+            className: 'inv-seg-btn',
+            onClick: () => setView('providers'),
+          },
+          t('providerSection'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            'aria-pressed': view === 'prompt' ? 'true' : 'false',
+            style: { ...S.segBtn, ...(view === 'prompt' ? S.segBtnActive : {}) },
+            className: 'inv-seg-btn',
+            onClick: () => setView('prompt'),
+          },
+          t('promptSection'),
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            'aria-pressed': view === 'credentials' ? 'true' : 'false',
+            style: { ...S.segBtn, ...(view === 'credentials' ? S.segBtnActive : {}) },
+            className: 'inv-seg-btn',
+            onClick: () => setView('credentials'),
+          },
+          t('credentialSection'),
         ),
       )
 
@@ -2666,6 +4065,56 @@ window.__ModuleLoader__.load({
         ),
       ]
 
+      // The two live sections lead the overview: they are the settings the
+      // tool list only describes, and the provider list is the page's live,
+      // actionable half. Same page, same switch-and-row language, different
+      // data source. Both stay mounted, so folding one away does not throw
+      // away a half-typed prompt.
+      const liveSections = [
+        h(
+          Section,
+          {
+            key: 'providers',
+            t,
+            title: t('providerSection'),
+            hint: t('providerHint'),
+            count: 0,
+            open: providersOpen,
+            onToggle: () => setProvidersOpen((prev) => !prev),
+            showCount: false,
+          },
+          providersOpen ? h(WebSearchProviders, { key: 'providers-panel', t }) : null,
+        ),
+        h(
+          Section,
+          {
+            key: 'credentials',
+            t,
+            title: t('credentialSection'),
+            hint: t('credentialToolHint'),
+            count: 0,
+            open: credentialsOpen,
+            onToggle: () => setCredentialsOpen((prev) => !prev),
+            showCount: false,
+          },
+          credentialsOpen ? h(CredentialVault, { key: 'credentials-panel', t }) : null,
+        ),
+        h(
+          Section,
+          {
+            key: 'prompt',
+            t,
+            title: t('promptSection'),
+            hint: t('promptDescription'),
+            count: 0,
+            open: promptOpen,
+            onToggle: () => setPromptOpen((prev) => !prev),
+            showCount: false,
+          },
+          promptOpen ? h(PromptInjector, { key: 'prompt-panel', t }) : null,
+        ),
+      ]
+
       return h(
         'div',
         {
@@ -2679,31 +4128,53 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { style: S.page },
+          // (the page column is a fixed 780px list width on purpose: the tool
+          // survey reads like an inset list, and the live sections follow it)
           h(
             'div',
             { style: S.hero },
-            h('h3', { style: S.h1 }, view === 'sync' ? t('syncTitle') : view === 'workspace' && activeWorkspace ? activeWorkspace.title : t('title')),
+            h(
+              'h3',
+              { style: S.h1 },
+              view === 'sync'
+                ? t('syncTitle')
+                : view === 'providers'
+                  ? t('providerSection')
+                  : view === 'prompt'
+                    ? t('promptSection')
+                    : view === 'credentials'
+                      ? t('credentialSection')
+                      : view === 'workspace' && activeWorkspace
+                      ? activeWorkspace.title
+                      : t('title'),
+            ),
             view === 'sync'
               ? h('p', { style: S.subtitle }, t('syncSubtitle'))
-              : view === 'workspace' && activeWorkspace
-              ? h(
-                  'div',
-                  { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-                  h('span', { style: S.groupDir }, activeWorkspace.path),
-                  activeWorkspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
-                  activeWorkspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
-                )
-              : h('p', { style: S.subtitle }, t('subtitle')),
+              : view === 'providers'
+                ? h('p', { style: S.subtitle }, `${t('providerPriorityHint')} ${t('providerHint')}`)
+                : view === 'prompt'
+                  ? h('p', { style: S.subtitle }, t('promptDescription'))
+                  : view === 'credentials'
+                    ? h('p', { style: S.subtitle }, t('credentialHint'))
+                    : view === 'workspace' && activeWorkspace
+                      ? h(
+                          'div',
+                          { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                          h('span', { style: S.groupDir }, activeWorkspace.path),
+                          activeWorkspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
+                          activeWorkspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
+                        )
+                      : h('p', { style: S.subtitle }, t('subtitle')),
           ),
-          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, hiddenSkillsChip, stamp),
-          view === 'sync'
+          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, hiddenSkillsChip, isLiveView ? null : stamp),
+          view === 'sync' || isLiveView
             ? null
             : view === 'global'
               ? searchField(query, setQuery, t('search'), t('search'))
               : showList
                 ? searchField(wsQuery, setWsQuery, t('wsSearchList'), t('wsSearchList'))
                 : searchField(wsQuery, setWsQuery, t('wsSearch'), t('wsSearch')),
-          view === 'sync' ? null : view === 'global' ? stats : null,
+          view === 'sync' || isLiveView ? null : view === 'global' ? stats : null,
           view === 'global' && warnings.length > 0
             ? h(
                 'div',
@@ -2717,10 +4188,20 @@ window.__ModuleLoader__.load({
                 ),
               )
             : null,
-          view === 'sync'
+          isLiveView
+            ? h(
+                'div',
+                { style: { display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '12px', paddingBottom: '28px' } },
+                view === 'providers'
+                  ? h(WebSearchProviders, { key: 'providers', t })
+                  : view === 'credentials'
+                    ? h(CredentialVault, { key: 'credentials', t })
+                    : h(PromptInjector, { key: 'prompt', t }),
+              )
+            : view === 'sync'
             ? h(SyncPanel, { key: 'sync-panel', t, onReloadSnapshot: () => load(true) })
             : view === 'global'
-              ? overviewSections
+              ? [...liveSections, ...overviewSections]
               : showList
                 ? h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace, query: wsQuery, hiddenSkills, showHiddenSkills })
                 : h(WorkspaceDetail, {
@@ -2811,6 +4292,11 @@ window.__ModuleLoader__.load({
       name: 'dsh-inventory',
       inject: ['slots', 'locale', 'layout'],
       apply,
+      // Named so the browser-half tests can mount one live section on its own
+      // without re-expanding the whole panel and remounting it.
+      __webSearchProviders: WebSearchProviders,
+      __promptInjector: PromptInjector,
+      __credentialVault: CredentialVault,
     }
   },
 })
