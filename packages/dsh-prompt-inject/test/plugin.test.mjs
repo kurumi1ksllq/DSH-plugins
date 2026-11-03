@@ -126,7 +126,7 @@ test('package manifest is a valid DSH bundle and client package', () => {
   const pkg = JSON.parse(read('package.json'))
 
   assert.equal(pkg.name, '@local/dsh-prompt-inject')
-  assert.equal(pkg.version, '0.1.0')
+  assert.equal(pkg.version, '0.2.0')
   assert.equal(pkg.private, true)
   assert.equal(pkg.type, 'module')
   assert.equal(pkg.main, 'index.js')
@@ -556,7 +556,9 @@ test('client.js is a ModuleLoader module that only requires react', () => {
   assert.deepEqual(required, ['react'], 'client must not require Harness packages')
   // Arrays created inside the vm sandbox have another realm's prototype, so
   // copy into this realm before the strict comparison.
-  assert.deepEqual(Array.from(moduleExports.inject), ['slots', 'locale', 'layout'])
+  // The editor moved to the Tools page (dsh-inventory), so the client half only
+  // owns its dictionary now — no slots, no layout, no shell dependency.
+  assert.deepEqual(Array.from(moduleExports.inject), ['locale'])
   assert.equal(typeof moduleExports.apply, 'function')
   assert.match(source, /\/prompt-inject\/state/)
   assert.match(source, /POST/)
@@ -564,64 +566,29 @@ test('client.js is a ModuleLoader module that only requires react', () => {
   assert.doesNotMatch(source, /\bimport\s/)
 })
 
-test('client registers sidebar button and main panel with matching ids', () => {
+test('client registers zh/en dictionaries and owns no sidebar panel any more', () => {
   const { definition } = loadClientDefinition()
   const moduleExports = definition.factory((id) => {
     if (id === 'react') return fakeReact
     throw new Error(`unexpected require: ${id}`)
   })
-  const { ctx, slotRegistrations } = createClientCtx()
+  const { ctx, localeRegistrations, effects } = createClientCtx()
   moduleExports.apply(ctx)
 
-  const sidebar = slotRegistrations.find((entry) => entry.name === 'sidebar.panellist')
-  const main = slotRegistrations.find((entry) => entry.name === 'main')
-
-  assert.ok(sidebar, 'sidebar.panellist registration missing')
-  assert.equal(sidebar.registration.options.id, 'prompt-inject')
-  assert.equal(sidebar.registration.options.order, 20)
-  assert.equal(typeof sidebar.registration.options.label, 'function')
-  assert.equal(sidebar.registration.options.label(), 'prompt-inject:panel')
-  assert.equal(typeof sidebar.registration.component, 'function')
-
-  assert.ok(main, 'main panel registration missing')
-  assert.equal(main.registration.options.key, 'prompt-inject')
-  assert.equal(typeof main.registration.options.inject, 'function')
-  const props = main.registration.options.inject()
-  assert.equal(typeof props.t, 'function')
-  assert.equal(typeof props.back, 'function')
-  assert.equal(typeof main.registration.component, 'function')
-})
-
-test('client registers zh/en dictionaries and back button clears the panel', () => {
-  const { definition } = loadClientDefinition()
-  const moduleExports = definition.factory((id) => {
-    if (id === 'react') return fakeReact
-    throw new Error(`unexpected require: ${id}`)
-  })
-  const { ctx, localeRegistrations, layoutCalls, slotRegistrations } = createClientCtx()
-  moduleExports.apply(ctx)
-
+  // One dictionary, registered inside ctx.effect so a reload tears it down.
+  assert.equal(effects.length, 1, 'the registration must run in ctx.effect')
   assert.equal(localeRegistrations.length, 1)
   const [{ namespace, dictionaries }] = localeRegistrations
   assert.equal(namespace, 'prompt-inject')
   assert.deepEqual(Object.keys(dictionaries).sort(), ['en', 'zh'])
 
+  // The Tools page reads these exact keys through the `prompt-inject` namespace,
+  // so a rename here would silently degrade the editor to raw keys.
   for (const locale of ['zh', 'en']) {
     const dict = dictionaries[locale]
-    for (const key of ['panel', 'title', 'description', 'placeholder', 'confirm', 'saving', 'saved', 'loading', 'back']) {
-      assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
-      assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
-    }
-    // Locale entries are looked up by exact key, so error strings must be
-    // flat keys rather than a nested `error` object.
-    assert.equal(dict.error, undefined, `${locale} must not nest error keys`)
-    for (const key of ['error.load', 'error.save', 'error.empty']) {
+    for (const key of ['title', 'description', 'placeholder', 'confirm', 'saving', 'saved', 'loading']) {
       assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
       assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
     }
   }
-
-  const main = slotRegistrations.find((entry) => entry.name === 'main')
-  main.registration.options.inject().back()
-  assert.deepEqual(layoutCalls, [null])
 })

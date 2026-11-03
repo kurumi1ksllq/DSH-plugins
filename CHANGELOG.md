@@ -12,6 +12,46 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-credential-vault 0.2.0 / dsh-inventory 0.4.1 — vault joins the Tools page
+
+- The credential manager moved into `dsh-inventory`'s 工具管理 panel, right next
+  to the `credential` tool it backs: a 「凭据保险库」 segmented tab plus a
+  collapsible overview section (masked list, detail card, add/edit form with
+  "leave empty to keep the stored secret", delete, master-key rotation, reveal
+  audit log). Same routes, same guarantees — no route returns plaintext, and the
+  panel only ever renders the masked `preview`.
+- `dsh-credential-vault`'s client half now registers **only its locale
+  dictionary** (`inject: ['locale']`); the host half (vault store, `credential`
+  tool, audit log, API) is untouched. With web-search providers and the prompt
+  editor, all three former sidebar panels now live on one page.
+
+### dsh-inventory 0.4.0 / dsh-websearch-failover 0.3.0 / @local/dsh-prompt-inject 0.2.0 — UI consolidation
+
+- **The web-search provider manager moved into the Tools page.** Sidebar entries
+  `websearch-failover` and `prompt-inject` are gone; both sections now render
+  inside `dsh-inventory`'s 工具管理 panel, each with its own segmented tab
+  (「Web 搜索提供方」/「提示词注入」) and, on the overview, a collapsible section at
+  the top. "Tools" is the page that answers what the agent can reach, so the
+  order and balance of the providers that answer `web_search` — and the text
+  injected into every system prompt — are edited next to the tool list they
+  control instead of in two more sidebar rows.
+- The provider section was rewritten in the panel's own visual language
+  (grouped inset rows, iOS switches replaced by the shared chips/row controls,
+  hairline detail card). Behaviour is unchanged: priority order by drag or
+  arrows with optimistic update + rollback, balance bars per billing unit,
+  cooldown countdown, per-provider enable/disable, `/refresh` only on an
+  explicit click (balances are billed per call), and the prompt editor keeps its
+  local empty-text guard.
+- The two bundle client halves now register **only their locale dictionaries**
+  (`inject: ['locale']`, no `sidebar.panellist` / `main` registration), so a
+  profile can no longer end up with three sidebar rows for one settings area.
+  Their host halves are untouched.
+- Tests: `dsh-inventory` gained two browser-half tests that drive the provider
+  section (balance units, detail reset rule, arrow reorder POST, refresh-all) and
+  the prompt section (load, save, empty-body rejection) against the real routes;
+  the two bundles' client tests were rewritten for the new
+  dictionary-only contract.
+
 ### Workspace / tooling
 
 - **Build-freshness gate (D2).** New `scripts/check-artifacts.mjs` verifies the

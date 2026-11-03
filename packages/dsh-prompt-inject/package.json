@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-prompt-inject",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "DeepSeek Harness bundle that injects an editable bilingual section into every agent system prompt, with a sidebar panel for editing it live.",
   "type": "module",

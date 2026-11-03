@@ -1,13 +1,11 @@
 /**
  * @local/dsh-prompt-inject — browser half.
  *
- * Loaded by the Harness web app through `window.__ModuleLoader__`. It adds a
- * sidebar entry (id `prompt-inject`) and a main panel (key `prompt-inject`)
- * that reads and edits the injected system-prompt text through
- * `GET/POST /prompt-inject/state`.
- *
- * Only `react` is required from the module loader; every other capability
- * (`slots`, `locale`, `layout`) arrives through the injected Cordis context.
+ * The prompt editor is no longer a sidebar panel of its own: dsh-inventory's
+ * Tools page hosts it next to the web-search providers and edits the injected
+ * system-prompt text through `GET/POST /prompt-inject/state`. This module only
+ * registers the shared strings, so the host half keeps exactly one owner of the
+ * route and the UI keeps one place to edit it.
  */
 window.__ModuleLoader__.load({
   id: '@local/dsh-prompt-inject',
@@ -319,54 +317,22 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * No sidebar row and no main panel of its own any more: the editor lives on
+     * the Tools page (dsh-inventory) next to the web-search providers, so this
+     * factory only registers its dictionary — the panel's `t` reads it through
+     * the `prompt-inject` namespace, and the keys here are the ones the editor
+     * renders.
+     */
     function apply(ctx) {
       ctx.effect(function () {
         return ctx.locale.register(NS, { zh: zh, en: en })
-      })
-
-      const t = ctx.locale.bind(NS)
-
-      // Sidebar entry; clicking it makes the shell select the `prompt-inject`
-      // panel, which is why the id below matches the main panel key.
-      ctx.slots.inject('sidebar.panellist', function () {
-        return ctx.slots.register(
-          {
-            name: 'sidebar.panellist',
-            id: 'prompt-inject',
-            order: 20,
-            label: function () {
-              return t('panel')
-            },
-            locale: NS,
-          },
-          Icon,
-        )
-      })
-
-      // Main panel receives `t` and a `back` callback as injected props.
-      ctx.slots.inject('main', function () {
-        return ctx.slots.register(
-          {
-            name: 'main',
-            key: 'prompt-inject',
-            locale: NS,
-            inject: function () {
-              return {
-                t: t,
-                back: function () {
-                  ctx.layout.selectPanel(null)
-                },
-              }
-            },
-          },
-          Page,
-        )
       })
     }
 
     return {
       name: '@local/dsh-prompt-inject',
-      inject: ['slots', 'locale', 'layout'],
+      inject: ['locale'],
       apply: apply,
     }
   },

@@ -2,8 +2,9 @@
 //
 // The bundle is hand-authored (no build step), so these tests are the safety
 // net: the file must parse as a classic script, register exactly one
-// `__ModuleLoader__` factory, expose the sidebar entry and main panel, require
-// nothing but `react`, and carry every HTTP route the host half serves. The
+// `__ModuleLoader__` factory, require nothing but `react`, and carry every HTTP
+// route the host half serves. The provider manager itself is rendered by
+// dsh-inventory's Tools page, so no sidebar slot is claimed here. The
 // locale JSON files must stay flat and byte-identical to the strings the bundle
 // registers through `ctx.locale.register`.
 //
@@ -214,20 +215,22 @@ test('plugin/client.js passes node --check on a temp .cjs copy', () => {
   }
 });
 
-test('bundle registers the module id, injection list and both locale entries', () => {
+test('bundle registers the module id, dictionary and no sidebar slot', () => {
   const { record, plugin, requireSpecs } = loadBundle();
   assert.equal(record.id, MODULE_ID);
   assert.equal(typeof record.factory, 'function');
   assert.equal(plugin.name, MODULE_ID);
-  assert.deepEqual(plugin.inject.slice().sort(), ['layout', 'locale', 'slots']);
+  // The provider manager lives on dsh-inventory's Tools page, so the client
+  // half owns the strings only: no slots, no layout, no shell dependency.
+  assert.deepEqual(plugin.inject.slice().sort(), ['locale']);
   assert.ok(requireSpecs.includes('react'), 'the factory must require react');
 
   const { ledger, ctx } = makeCtx();
   plugin.apply(ctx);
 
   assert.equal(ledger.localeNs, LOCALE_NS);
-  assert.equal(ledger.boundNs, LOCALE_NS);
-  assert.deepEqual(ledger.injected.sort(), ['main', 'sidebar.panellist']);
+  assert.deepEqual(ledger.injected, [], 'no sidebar entry or main panel may be registered');
+  assert.equal(ledger.registered.length, 0, 'no slot registrations expected');
   assert.ok(ledger.effects.length >= 1, 'locale registration must run inside ctx.effect');
 
   assert.ok(ledger.localeStrings, 'ctx.locale.register must receive definitions');
@@ -235,46 +238,44 @@ test('bundle registers the module id, injection list and both locale entries', (
   assert.equal(typeof ledger.localeStrings.en, 'object');
 });
 
-test('sidebar entry is a sidebar.panellist registration with id websearch-failover', () => {
+test('the provider strings the Tools page renders are all defined', () => {
   const { plugin } = loadBundle();
   const { ledger, ctx } = makeCtx();
   plugin.apply(ctx);
 
-  const sidebar = ledger.registered.find(function find(row) {
-    return row.meta && row.meta.name === 'sidebar.panellist';
-  });
-  assert.ok(sidebar, 'missing sidebar.panellist registration');
-  assert.equal(sidebar.meta.id, PANEL_KEY);
-  assert.equal(sidebar.meta.locale, LOCALE_NS);
-  assert.equal(typeof sidebar.meta.order, 'number');
-  assert.equal(typeof sidebar.meta.label, 'function');
-  const label = sidebar.meta.label();
-  assert.equal(typeof label, 'string');
-  assert.ok(label.length > 0);
-  assert.equal(label, ledger.localeStrings.zh.panel);
-  assert.ok(sidebar.component, 'sidebar entry needs an icon component');
-});
-
-test('main panel is keyed websearch-failover and injects t + back', () => {
-  const { plugin } = loadBundle();
-  const { ledger, ctx } = makeCtx();
-  plugin.apply(ctx);
-
-  const main = ledger.registered.find(function find(row) {
-    return row.meta && row.meta.name === 'main';
-  });
-  assert.ok(main, 'missing main panel registration');
-  assert.equal(main.meta.key, PANEL_KEY);
-  assert.equal(main.meta.locale, LOCALE_NS);
-  assert.equal(typeof main.meta.inject, 'function');
-  assert.ok(main.component, 'main panel needs a component');
-
-  const injected = main.meta.inject();
-  assert.equal(typeof injected.t, 'function');
-  assert.equal(typeof injected.back, 'function');
-  assert.equal(injected.t('panel'), ledger.localeStrings.zh.panel);
-  injected.back();
-  assert.equal(ledger.selectedPanel, null, 'back must call ctx.layout.selectPanel(null)');
+  // dsh-inventory renders this section with its own dictionary; these are the
+  // provider keys it reads, and a missing one would surface as a raw key.
+  const required = [
+    'unknownBalance',
+    'priorityHint',
+    'enable',
+    'disable',
+    'calls',
+    'successes',
+    'failures',
+    'lastUsed',
+    'cooldown',
+    'keyMissing',
+    'keyPresent',
+    'rank',
+    'reset',
+    'resetMonthlyFirst',
+    'resetNone',
+    'moveUp',
+    'moveDown',
+    'dragHint',
+    'refreshOne',
+    'unit.credits',
+    'unit.usd',
+    'status.ok',
+    'status.cooldown',
+    'status.unknown',
+  ];
+  for (const locale of ['zh', 'en']) {
+    for (const key of required) {
+      assert.equal(typeof ledger.localeStrings[locale][key], 'string', `${locale}.${key} missing`);
+    }
+  }
 });
 
 test('bundle carries every host API route as a literal', () => {

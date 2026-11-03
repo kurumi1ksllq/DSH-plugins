@@ -238,9 +238,11 @@ const ctx = {
 
 plugin.apply(ctx)
 
-const main = ledger.registered.find((entry) => entry.meta.name === 'main')
-const props = main.meta.inject()
-runtime.mount(main.component, props)
+// The provider manager is rendered by dsh-inventory's Tools page now, so this
+// smoke test mounts the section component directly (same props contract) to
+// keep exercising the reorder/balance UI without a shell.
+const props = { t: (key) => ledger.strings.zh[key] ?? key, back: () => {} }
+runtime.mount(plugin.__providersPage, props)
 await runtime.pump()
 
 let tree = runtime.tree()
@@ -376,9 +378,6 @@ await runtime.pump()
 text = textOf(runtime.tree())
 check('kind-based reset fallback when the host sends no resetKind', text.includes('每月免费额度恢复'), text.slice(0, 600))
 
-// back
-buttonByText('返回对话').props.onClick(fakeEvent)
-check('back selects no panel', ledger.selectedPanel === null, String(ledger.selectedPanel))
 
 console.log('')
 console.log(failures.length === 0 ? 'SMOKE OK' : 'SMOKE FAILURES: ' + failures.join(' | '))

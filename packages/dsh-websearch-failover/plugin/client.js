@@ -1,12 +1,14 @@
 /**
  * dsh-websearch-failover — browser half of the DSH bundle.
  *
- * Loaded by the Harness web app through `window.__ModuleLoader__`. It adds a
- * left sidebar entry (id `websearch-failover`) and a main panel (key
- * `websearch-failover`) that lists the registered web-search providers in call
- * priority order, shows each one's remaining balance, and lets the user reorder
- * them by drag-and-drop or with the arrow buttons. The top row is consumed
- * first; the host engine falls over to the next row when quota runs out.
+ * Loaded by the Harness web app through `window.__ModuleLoader__`. The provider
+ * manager is no longer a sidebar panel of its own: dsh-inventory's Tools page
+ * lists the registered providers in call priority order, shows each one's
+ * remaining balance and reorders them. The top provider is consumed first; the
+ * host engine falls over to the next one when quota runs out.
+ *
+ * What stays here the shared strings for that section (`websearch-failover`
+ * locale namespace) and the host half contract below.
  *
  * Host half contract (already fixed), base `/websearch-failover/api`:
  *   GET  ${base}/state                       -> {ok, generatedAt, providers:[...]}
@@ -1279,55 +1281,26 @@ window.__ModuleLoader__.load({
 
     /* ------------------------------- wiring ------------------------------- */
 
+    /**
+     * No sidebar row and no main panel any more: the provider manager is a
+     * section of dsh-inventory's Tools page, next to the tool list it actually
+     * controls. This factory keeps only the dictionary — the Tools page renders
+     * the same keys through the `websearch-failover` namespace — so the bundle
+     * still owns its host API without claiming a shell slot.
+     */
     function apply(ctx) {
       ctx.effect(function () {
         return ctx.locale.register(NS, { zh: zh, en: en })
-      })
-
-      const t = ctx.locale.bind(NS)
-
-      // Sidebar entry; clicking it makes the shell select the `websearch-failover`
-      // panel, which is why the id below matches the main panel key.
-      ctx.slots.inject(SIDEBAR_SLOT, function () {
-        return ctx.slots.register(
-          {
-            name: SIDEBAR_SLOT,
-            id: NS,
-            order: SIDEBAR_ORDER,
-            label: function () {
-              return t('panel')
-            },
-            locale: NS,
-          },
-          Icon,
-        )
-      })
-
-      // Main panel receives `t` and a `back` callback as injected props.
-      ctx.slots.inject(MAIN_SLOT, function () {
-        return ctx.slots.register(
-          {
-            name: MAIN_SLOT,
-            key: NS,
-            locale: NS,
-            inject: function () {
-              return {
-                t: t,
-                back: function () {
-                  ctx.layout.selectPanel(null)
-                },
-              }
-            },
-          },
-          Page,
-        )
       })
     }
 
     return {
       name: 'dsh-websearch-failover',
-      inject: ['slots', 'locale', 'layout'],
+      inject: ['locale'],
       apply: apply,
+      // The provider manager section, mounted by dsh-inventory's Tools page and
+      // by the render smoke test. Same props contract as before: `t` + `back`.
+      __providersPage: Page,
     }
   },
 })

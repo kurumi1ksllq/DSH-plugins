@@ -1,10 +1,11 @@
 /**
  * dsh-credential-vault — browser half of the DSH bundle.
  *
- * Sidebar entry (id `credential-vault`) + main panel: a two-pane manager in
- * the style of the other plugins in this repo (dsh-websearch-failover). Left
- * pane lists masked credential entries; right pane shows details, an add/edit
- * form, delete, master-key rotation, and the reveal audit log.
+ * The credential manager is a section of dsh-inventory's Tools page (next to
+ * the `credential` tool it backs), not a sidebar panel: a masked entry list,
+ * details, an add/edit form, delete, master-key rotation and the reveal audit
+ * log. The host half owns the routes below; this factory owns only the
+ * dictionary and the component the Tools page renders.
  *
  * Host half contract, base `/credential-vault/api`:
  *   GET  ${base}/list            -> { ok, entries:[{name, kind, preview, ...}] }
@@ -509,43 +510,15 @@ window.__ModuleLoader__.load({
 
     /* ------------------------------- wiring ------------------------------- */
 
+    /**
+     * No sidebar row and no main panel any more: the vault is a section of
+     * dsh-inventory's Tools page — the `credential` tool is in the tool list, so
+     * the entries it reads are managed right there. This factory keeps only the
+     * shared strings for that section (`credential-vault` namespace).
+     */
     function apply(ctx) {
       ctx.effect(function () {
         return ctx.locale.register(NS, { zh, en })
-      })
-
-      const t = ctx.locale.bind(NS)
-
-      // Sidebar entry; clicking it selects the `credential-vault` panel, so the
-      // id below matches the main panel key.
-      ctx.slots.inject(SIDEBAR_SLOT, function () {
-        return ctx.slots.register(
-          {
-            name: SIDEBAR_SLOT,
-            id: NS,
-            order: SIDEBAR_ORDER,
-            label: function () { return t('panel') },
-            locale: NS,
-          },
-          Icon,
-        )
-      })
-
-      ctx.slots.inject(MAIN_SLOT, function () {
-        return ctx.slots.register(
-          {
-            name: MAIN_SLOT,
-            key: NS,
-            locale: NS,
-            inject: function () {
-              return {
-                t,
-                back: function () { ctx.layout.selectPanel(null) },
-              }
-            },
-          },
-          Page,
-        )
       })
     }
 
