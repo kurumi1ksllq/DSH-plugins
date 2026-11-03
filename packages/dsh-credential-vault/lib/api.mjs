@@ -14,6 +14,9 @@ import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson, truncate } f
 import { readAudit, trimAudit } from './audit.js'
 import { KINDS } from './store.js'
 
+/** Fixed text for an unexpected store failure; never the raw error message. */
+const STORE_FAILED_MESSAGE = 'the credential store rejected the request'
+
 /** GET /entry?name=… — one masked entry, never the secret itself. */
 export function entryPayload(store, queryName) {
   const name = typeof queryName === 'string' ? queryName.trim() : ''
@@ -56,19 +59,29 @@ export function createApiHandler(service) {
         const name = typeof body?.name === 'string' ? body.name.trim() : ''
         if (name.length === 0) throw new ApiError(400, 'invalid-name', 'name is required')
         const secret = typeof body?.secret === 'string' ? body.secret : ''
-        if (secret.length === 0) throw new ApiError(400, 'invalid-secret', 'secret is required')
         if (secret.length > 64 * 1024) throw new ApiError(413, 'secret-too-large', 'secret exceeds 64 KiB')
         const kind = typeof body?.kind === 'string' && KINDS.includes(body.kind) ? body.kind : 'other'
+        const meta = {
+          username: typeof body?.username === 'string' ? body.username : null,
+          url: typeof body?.url === 'string' ? body.url : null,
+          note: typeof body?.note === 'string' ? body.note : null,
+        }
         try {
-          return { ok: true, ...store.set(name, {
-            kind,
-            secret,
-            username: typeof body?.username === 'string' ? body.username : null,
-            url: typeof body?.url === 'string' ? body.url : null,
-            note: typeof body?.note === 'string' ? body.note : null,
-          }) }
+          // An empty secret means "keep the stored one" — but only for an entry
+          // that already exists. Creating a credential out of nothing is refused,
+          // and so is "editing" a name nobody created.
+          if (secret.length === 0) {
+            const updated = store.update(name, { kind, ...meta })
+            if (!updated) throw new ApiError(400, 'invalid-secret', 'secret is required')
+            return { ok: true, name, updated: true, keptSecret: true }
+          }
+          return { ok: true, ...store.set(name, { kind, secret, ...meta }) }
         } catch (error) {
-          throw new ApiError(400, 'store-failed', truncate(error?.message, 200))
+          if (error instanceof ApiError) throw error
+          // Never forward `error.message`: it is free-form and a future throw
+          // could interpolate secret material straight onto the wire.
+          void truncate
+          throw new ApiError(400, 'store-failed', STORE_FAILED_MESSAGE)
         }
       },
     },

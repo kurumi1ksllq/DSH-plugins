@@ -2475,20 +2475,26 @@ window.__ModuleLoader__.load({
           setEditing(null)
         })
 
-      const remove = (name) =>
-        run(async () => {
-          if (!confirm(`${t('credentialConfirmDelete')}: ${name}?`)) return
+      // The confirmation must happen BEFORE run(): run() flips the section to
+      // "busy", clears the visible failure, and reloads when it returns — so a
+      // cancelled action used to refresh the panel and wipe an error message the
+      // user still needed to read.
+      const remove = (name) => {
+        if (!confirm(`${t('credentialConfirmDelete')}: ${name}?`)) return
+        return run(async () => {
           await credentialPost(CREDENTIAL_ROUTES.remove, { name })
           if (selectedName === name) setSelectedName('')
           setNotice(t('credentialDeleted'))
         })
+      }
 
-      const rotate = () =>
-        run(async () => {
-          if (!confirm(t('credentialRotateConfirm'))) return
+      const rotate = () => {
+        if (!confirm(t('credentialRotateConfirm'))) return
+        return run(async () => {
           await credentialPost(CREDENTIAL_ROUTES.rotate, {})
           setNotice(t('credentialRotated'))
         })
+      }
 
       const selected = entries.find((entry) => entry.name === selectedName) ?? null
       const busy = phase === 'busy'

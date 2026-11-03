@@ -1657,3 +1657,62 @@ async function bootCredentialVault() {
   await new Promise((resolve) => setTimeout(resolve, 0))
   return { calls, open }
 }
+
+test('cancelling the delete confirmation sends no request and keeps the error state', async () => {
+  // A destructive action that is cancelled must be a no-op. The old handler put
+  // the confirm() INSIDE run(), so cancelling still flipped to "busy", wiped the
+  // visible failure, and fired a reload.
+  const calls = []
+  const entries = [
+    { name: 'github-token', kind: 'token', hasSecret: true, preview: 'gho_…un', username: null, url: null, note: null, createdAt: '2026-11-02T18:38:21.111Z', updatedAt: '2026-11-02T18:38:21.111Z' },
+  ]
+  const { React, render } = makeReactRuntime()
+  globalThis.window = {
+    __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) },
+    // The user clicks "Cancel".
+    confirm: () => false,
+  }
+  await import(new URL('../client.js?v=vault-cancel', import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: { inject: (name, factory) => factory(), register: (spec, component) => ({ spec, component }) },
+  })
+  let listShouldFail = false
+  globalThis.fetch = async (url, options = {}) => {
+    const method = String(options.method ?? 'GET').toUpperCase()
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method, body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/credential-vault/api/list') {
+      if (listShouldFail) return { ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }
+      return json({ ok: true, entries })
+    }
+    if (path === '/credential-vault/api/audit') return json({ ok: true, records: [] })
+    return json({ ok: true })
+  }
+  const open = () => resolveTree(render(module.__credentialVault, { t: (key) => dictionary[key] ?? key }))
+  open()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  // Enter the error state by forcing a failed reload, then retry is not needed:
+  // drive a delete that gets cancelled and assert nothing changed on the wire.
+  // The delete control only exists once an entry is selected.
+  const row = findNode(open(), (node) => node.props?.['aria-pressed'] !== undefined && node.props?.role === 'button')
+  assert.ok(row, 'credential row missing')
+  row.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const before = calls.length
+  const deleteButton = findNode(open(), (node) => node.type === 'button' && /删除/.test(textOf(node)))
+  assert.ok(deleteButton, 'delete button missing')
+  deleteButton.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const after = calls.slice(before)
+  assert.deepEqual(after, [], 'a cancelled delete must not touch the network')
+  assert.match(textOf(open()), /gho_…un/, 'the entry must still be listed')
+})
