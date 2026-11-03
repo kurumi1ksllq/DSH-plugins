@@ -319,9 +319,23 @@ test('the README root-bundle warning matches the packages actually present', () 
 // did not exist. A status line is now checked against the lockfile in both
 // directions, and it must name the issue that owns the work.
 
-/** Workspace importers the lockfile declares vs. the packages that exist. */
+/**
+ * The lockfile as **committed**, not as `pnpm install` left it.
+ *
+ * CI runs `pnpm install --frozen-lockfile` before the tests, and that install
+ * rewrites the importers in the working copy — which made the drift disappear on
+ * the runner and turned this contract into its own opposite. The contract is
+ * about what is committed.
+ */
+function committedLockfile() {
+  const fromGit = spawnSync('git', ['show', 'HEAD:pnpm-lock.yaml'], { cwd: ROOT })
+  if (fromGit.status === 0 && fromGit.stdout.length > 0) return fromGit.stdout.toString()
+  return readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+}
+
+/** Workspace importers the committed lockfile declares vs. the packages that exist. */
 function lockfileDrift() {
-  const lock = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+  const lock = committedLockfile()
   const section = lock.slice(lock.indexOf('importers:'))
   const declared = new Set([...section.matchAll(/^ {2}(packages\/[^:\n]+):/gm)].map((match) => match[1]))
   const expected = packageDirs().map((name) => `packages/${name}`)
