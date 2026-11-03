@@ -131,18 +131,18 @@ function readmeSnippets() {
     for (const match of block.matchAll(/"([^"]+)"\s*:\s*"link:([^"]+)"/g)) {
       links.set(match[1], match[2])
     }
-    const array = block.match(/"bundles"\s*:\s*\[([\s\S]*?)\]/)
-    if (array === null) continue
-    for (const match of array[1].matchAll(/"([^"]+)"/g)) bundles.add(match[1])
+    // Every array in every block: a second one must not be silently ignored.
+    for (const array of block.matchAll(/"bundles"\s*:\s*\[([\s\S]*?)\]/g)) {
+      for (const match of array[1].matchAll(/"([^"]+)"/g)) bundles.add(match[1])
+    }
   }
 
-  assert.ok(links.size > 0, 'README must carry a `"dependencies"` snippet with `link:` lines')
-  assert.ok(bundles.size > 0, 'README must carry a `dsh.profile.bundles` snippet')
   return { links, bundles }
 }
 
 test('the README install snippets link every bundle the workspace carries', () => {
   const { links } = readmeSnippets()
+  assert.ok(links.size > 0, 'README must carry a `"dependencies"` snippet with `link:` lines')
   const missing = []
   for (const bundle of bundlePackages()) {
     const spec = links.get(bundle.name)
@@ -155,14 +155,20 @@ test('the README install snippets link every bundle the workspace carries', () =
   assert.deepEqual(missing, [], `README install snippet is incomplete: ${missing.join('; ')}`)
 })
 
-test('every linked dependency is also listed in dsh.profile.bundles', () => {
-  // Listing it in `dependencies` installs the files; only the bundles row loads
-  // them. A snippet whose two lists disagree teaches the exact failure this
-  // issue is about, so the lists are checked against each other, not just for
-  // the presence of the word `dsh.profile.bundles`.
+test('the README bundles list and its link list agree', () => {
+  // Listing a package in `dependencies` installs the files; only the bundles row
+  // loads it. Both directions are checked, because the failure this issue is
+  // about has two sides: a link nobody loads (silently inert) and a retired name
+  // that survives in the bundles list (silently skipped at startup).
   const { links, bundles } = readmeSnippets()
+  assert.ok(bundles.size > 0, 'README must carry a `dsh.profile.bundles` snippet')
+
   const unlisted = [...links.keys()].filter((name) => !bundles.has(name))
   assert.deepEqual(unlisted, [], `README links but never loads: ${unlisted.join(', ')}`)
+
+  const known = new Set(bundlePackages().map((bundle) => bundle.name))
+  const phantom = [...bundles].filter((name) => !known.has(name))
+  assert.deepEqual(phantom, [], `README loads names packages/ does not carry: ${phantom.join(', ')}`)
 })
 
 test('the README says a dependency line alone does not load the bundle', () => {
@@ -182,21 +188,27 @@ test('the README says a dependency line alone does not load the bundle', () => {
 
 const UPDATE_DOCS = ['docs/update-scheme.md', 'docs/update-checkout.md']
 
-test('the update docs do not describe the repository as it was before the repair', () => {
+test('the update docs do not state the pre-repair bundle count as current', () => {
+  // These docs are the record of an eight-bundle survey, so the old number is
+  // allowed to appear — but only on a line that says it is history. A bare
+  // "8 个包(bundle)" reads as today's fact and is how the first pass slipped by.
+  const stale = /(?:八|8)\s*个\s*(?:bundle|包)/
   for (const doc of UPDATE_DOCS) {
     const text = readFileSync(join(ROOT, doc), 'utf8')
-    const stale = text.match(/八个\s*bundle|8\s*个\s*bundle/g)
-    assert.equal(
-      stale,
-      null,
-      `${doc} still claims ${stale?.[0]} — packages/ holds ${packageDirs().length} bundles`,
+    const offenders = text
+      .split('\n')
+      .filter((line) => stale.test(line) && !line.includes('当时'))
+    assert.deepEqual(
+      offenders,
+      [],
+      `${doc} states ${offenders.join(' / ')} as current — packages/ holds ${packageDirs().length} bundles`,
     )
   }
 })
 
 test('the update scheme states the bundle count that packages/ actually holds', () => {
   const text = readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8')
-  const scope = text.match(/范围[：:][^\n]*?(\d+)\s*个\s*(?:bundle|包)/)
+  const scope = text.match(/(?:范围|覆盖)[：:][^\n]*?(\d+)\s*个\s*(?:bundle|包)/)
   assert.ok(scope, 'docs/update-scheme.md must state the scope and how many bundles it covers')
   assert.equal(
     Number(scope[1]),
@@ -208,7 +220,7 @@ test('the update scheme states the bundle count that packages/ actually holds', 
 test('each update doc carries a dated calibration block', () => {
   for (const doc of UPDATE_DOCS) {
     const text = readFileSync(join(ROOT, doc), 'utf8')
-    const block = text.match(/现状校准（\d{4}-\d{2}-\d{2},main @ [0-9a-f]{7}）/)
+    const block = text.match(/现状校准[（(]\d{4}-\d{2}-\d{2},main @ [0-9a-f]{7}[）)]/)
     assert.ok(
       block,
       `${doc} must open with 现状校准（YYYY-MM-DD,main @ <sha>） naming the commit it was checked against`,
@@ -222,5 +234,17 @@ test('the checkout doc no longer asks for approval of work that is done', () => 
   assert.ok(
     text.includes('/root/DSH-plugins'),
     'update-checkout.md must say which checkout the profile loads now',
+  )
+})
+
+test('the README root-bundle warning matches the packages actually present', () => {
+  // AGENTS.md gets this ordinal pinned; the same sentence in the README was left
+  // at "sixth" while the workspace grew to seven bundles.
+  const ordinal = README.match(/否则它会变成第([一二三四五六七八九十]+)个 bundle/)
+  assert.ok(ordinal, 'README must warn about the root becoming a bundle')
+  assert.equal(
+    ordinal[1],
+    CN_DIGITS[packageDirs().length + 1],
+    `README says the root would become bundle ${ordinal[1]}, expected ${packageDirs().length + 1}`,
   )
 })

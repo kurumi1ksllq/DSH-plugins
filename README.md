@@ -2,7 +2,7 @@
 
 一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
-**这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管,都不在这里;这里只说 profile 接上去所需的最小接线。
+**这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管，都不在这里；这里只说 profile 接上去所需的最小接线。
 
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
@@ -24,7 +24,8 @@
 
 ```bash
 git clone https://github.com/kurumi1ksllq/DSH-plugins.git ~/DSH-plugins
-cd ~/DSH-plugins && pnpm install    # workspace 依赖；顺带生成 websearch 的 plugin/lib
+cd ~/DSH-plugins && pnpm install
+pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被 gitignore，clone 后不存在）
 ```
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
@@ -51,13 +52,13 @@ cd ~/DSH-plugins && pnpm install    # workspace 依赖；顺带生成 websearch 
 ```
 
 - `dsh-websearch-failover` 的 `/plugin` 后缀不能少——仓库根不是 bundle。
-- `dev-flow-skill` 只注册 skill（仓库根的 `SKILL.md`），不新增工具。
+- `dev-flow-skill` 只注册 skill（包目录内的 `SKILL.md`），不新增工具。
 - `dsh-git-bash-tool` 是 Windows 专属（把 shell 换成 Git Bash、关掉 pwsh 工具），Linux/macOS 不要加。
 - 要装哪个就留哪个，删掉一行等于不装。
 
 ### 3. 把包名写进 `dsh.profile.bundles`
 
-**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。两个列表一一对应——你留了几条 link，这里就写几个包名（下面列了全部 7 个，不装的可选项删掉）：
+**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。关系是「包含」而不是「相等」：`bundles` 里通常还有 registry 插件和 `@deepseek-ai/*` 宿主行，**只要保证你 link 的每个包名都在里面**。下面只列本仓库的 7 个（不装的可选项删掉）：
 
 ```json
 "dsh": {
@@ -75,7 +76,7 @@ cd ~/DSH-plugins && pnpm install    # workspace 依赖；顺带生成 websearch 
 }
 ```
 
-`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app` 那几行是宿主自带的，不要删。
+数组里已有的其它条目（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-experimental-*`、`dsh-context` 等）是宿主自带或另装的 registry 插件，**原样保留，不要把整段替换掉**。
 
 ### 4. 安装、校验、重启
 
@@ -86,7 +87,7 @@ node ~/DSH-plugins/scripts/check-profile.mjs   # 期望 profile ok: N linked bun
 
 N 等于你实际留下的 link 条数（5 条必装 + 你选的可选包；当前线上 profile 是 5）。数量对不上，说明第 2 步和第 3 步没对齐。
 
-首次接线**必须重启一次 DSH**（冷启动才会读新的 `package.json`），然后在 Web GUI 插件页确认每个插件都是 `active`。
+首次接线需要重启一次 DSH（冷启动才会读新的 `package.json`）——**按仓库硬规则，重启必须先拿到用户明确批准**（见 `AGENTS.md` 与 `docs/update-checkout.md`）。重启后在 Web GUI 插件页确认每个插件都是 `active`。
 
 装完之后的日常更新见 [`docs/update-scheme.md`](docs/update-scheme.md)：本地 link 的包是「原地换文件 + 触发一次重组合」，原则上不用重启；registry 来源的包走 DSH 自带的 plugin-manager。
 
@@ -112,7 +113,7 @@ pnpm verify           # 校验每个包仍是合法 bundle
 ## 边界
 
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第六个 bundle。
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第八个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
 - `scripts/verify-packages.mjs` 只校验 `packages/` 内部，不检查任何 profile。宿主怎么接线是宿主的事。
 

@@ -10,7 +10,7 @@
 > - 正文里的 `dsh-ctx-guard` 是当时记录的包,现已从仓库删除。
 > - 阶段 3(重启)是否已执行,以 Web GUI 插件页 5 个插件是否 `active` 为准——本文不做断言。
 
-- 状态：**已执行完成(2026-11-04 复核)**——原文状态为「待批准」,现已作废。
+- 状态:**已执行完成(2026-11-04 复核)**——原文状态为「待批准」,现已作废。
 - 关联:`docs/update-scheme.md` §4.4、决策点 D1。
 - 前置结论:**未经你明确同意,不重启 DSH**。
 
@@ -42,7 +42,7 @@ HMR 用 `ino:size:mtimeMs` 比对模块。**原地换文件**走 `module-compari
 把 `link:` 指向**另一个目录**会触发 `restart-required(package-moved)` —— 换目录 = 必须重启。
 这是 DSH 的安全边界,不是缺陷。窗口 = 一次进程重启,进行中的会话会断开重连。
 
-## 4. 执行步骤(需你批准)
+## 4. 原始执行步骤(已于 2026-11-04 执行完成,仅存档)
 
 ### 阶段 0 — 预检(已跑,全绿)
 
@@ -60,7 +60,7 @@ HMR 用 `ino:size:mtimeMs` 比对模块。**原地换文件**走 `module-compari
 换成 `link:/root/DSH-plugins/...`:
 
 - `@local/dsh-prompt-inject` → `packages/dsh-prompt-inject`
-- `dsh-ctx-guard` → `packages/dsh-ctx-guard`
+- ~~`dsh-ctx-guard` → `packages/dsh-ctx-guard`~~(该包已从仓库删除,此项不适用)
 - `dsh-inventory` → `packages/dsh-inventory`
 - `dsh-websearch-failover` → `packages/dsh-websearch-failover/plugin`(注意 `/plugin` 后缀不能漏)
 
