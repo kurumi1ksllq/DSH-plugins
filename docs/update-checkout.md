@@ -1,6 +1,16 @@
 # D1 — 统一权威 checkout(运维方案)
 
-- 状态:**待批准**。执行前不动任何 profile 配置。
+> **现状校准（2026-11-04,main @ 54b61c0）**：本方案**已执行完成**,下文保留为执行当时的原始记录。
+>
+> - profile `/root/.dsh/profiles/web` 的 5 条 `link:` 全部指向 `/root/DSH-plugins`:
+>   `dsh-credential-vault`、`dsh-git-status`、`dsh-inventory`、`@local/dsh-prompt-inject`、`dsh-websearch-failover/plugin`。
+> - `node scripts/check-profile.mjs` → `profile ok: 5 linked bundle(s)`,0 条「loads from a DIFFERENT checkout」告警。
+> - `node scripts/update.mjs plan` → `local=5 manager=4 updatable=0`,5 行全为 `/root/DSH-plugins`。
+> - 旧 checkout `/root/dsh-workspace/DSH-plugins` 已不再被任何被加载的包引用;**目录本身尚未退役**(移动前先确认脚本不再引用)。
+> - 正文里的 `dsh-ctx-guard` 是当时记录的包,现已从仓库删除。
+> - 阶段 3(重启)是否已执行,以 Web GUI 插件页 5 个插件是否 `active` 为准——本文不做断言。
+
+- 状态：**已执行完成(2026-11-04 复核)**——原文状态为「待批准」,现已作废。
 - 关联:`docs/update-scheme.md` §4.4、决策点 D1。
 - 前置结论:**未经你明确同意,不重启 DSH**。
 

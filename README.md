@@ -2,11 +2,12 @@
 
 一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
-**这个仓库只放插件。** 服务器怎么配 DSH、profile 怎么接、密钥怎么管，都不在这里。
+**这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管,都不在这里;这里只说 profile 接上去所需的最小接线。
 
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
+| [`packages/dev-flow-skill`](packages/dev-flow-skill) | `dev-flow-skill` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge，含 3 个停点与反绕过硬规则；装上去只注册 skill，不占工具位 |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-git-status`](packages/dsh-git-status) | `dsh-git-status` | 只读 Git 概览：分支与最近提交、改动文件列表与只读 diff、stash 内容、冲突独立计数；装了 gh CLI 时还有未合并 PR 和 issue，分支名/commit 可复制可跳 GitHub |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行） |
@@ -17,18 +18,66 @@
 
 ## 装上
 
-profile 的 `package.json` 里逐个 link，包名不需要改：
+一台从没装过本项目的机器（Node ≥22、pnpm ≥10、已装 DSH），按四步做。
+
+### 1. 拿代码
+
+```bash
+git clone https://github.com/kurumi1ksllq/DSH-plugins.git ~/DSH-plugins
+cd ~/DSH-plugins && pnpm install    # workspace 依赖；顺带生成 websearch 的 plugin/lib
+```
+
+### 2. 在 profile 的 `package.json` 里逐个 link
+
+包名不需要改；路径写 clone 到的绝对路径（把 `/path/to/DSH-plugins` 换成你的）：
 
 ```json
 "dependencies": {
-  "@local/dsh-prompt-inject": "link:../../packages/dsh-prompt-inject",
-  "dsh-git-bash-tool": "link:../../packages/dsh-git-bash-tool",
-  "dsh-inventory": "link:../../packages/dsh-inventory",
-  "dsh-websearch-failover": "link:../../packages/dsh-websearch-failover/plugin"
+  "dsh-credential-vault": "link:/path/to/DSH-plugins/packages/dsh-credential-vault",
+  "dsh-git-status": "link:/path/to/DSH-plugins/packages/dsh-git-status",
+  "dsh-inventory": "link:/path/to/DSH-plugins/packages/dsh-inventory",
+  "@local/dsh-prompt-inject": "link:/path/to/DSH-plugins/packages/dsh-prompt-inject",
+  "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin",
+  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill",
+  "dsh-git-bash-tool": "link:/path/to/DSH-plugins/packages/dsh-git-bash-tool"
 }
 ```
 
-相对路径 `../../packages/...` 假设 profile 目录与本仓库的 `packages/` 同级。然后 `pnpm install`，重启 DSH。要装哪个就留哪个，删掉一行等于不装。
+- `dsh-websearch-failover` 的 `/plugin` 后缀不能少——仓库根不是 bundle。
+- `dsh-git-bash-tool` 是 Windows 专属（把 shell 换成 Git Bash、关掉 pwsh 工具），Linux/macOS 不要加。
+- `dev-flow-skill` 只注册 skill，不影响工具列表。
+- 要装哪个就留哪个，删掉一行等于不装。
+
+### 3. 把包名写进 `dsh.profile.bundles`
+
+**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件：
+
+```json
+"dsh": {
+  "profile": {
+    "bundles": [
+      "dsh-inventory",
+      "@local/dsh-prompt-inject",
+      "dsh-websearch-failover",
+      "dsh-credential-vault",
+      "dsh-git-status"
+    ]
+  }
+}
+```
+
+`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app` 那几行是宿主自带的，不要删。
+
+### 4. 安装、校验、重启
+
+```bash
+cd /path/to/.dsh/profiles/<profile> && pnpm install --prefer-offline
+node /path/to/DSH-plugins/scripts/check-profile.mjs   # 期望 profile ok: 5 linked bundle(s)、无告警
+```
+
+首次接线**必须重启一次 DSH**（冷启动才会读新的 `package.json`），然后在 Web GUI 插件页确认每个插件都是 `active`。
+
+装完之后的日常更新见 [`docs/update-scheme.md`](docs/update-scheme.md)：本地 link 的包是「原地换文件 + 触发一次重组合」，原则上不用重启；registry 来源的包走 DSH 自带的 plugin-manager。
 
 ## 开发
 

@@ -1,0 +1,40 @@
+{
+  "issue": 37,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T03:02:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "docs-contract 新增三组契约(先红)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "README:补 dev-flow-skill、补全 link 片段、补 bundles 与全新机器步骤",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "两份 update 文档加现状校准块",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "全量 gate + 一致性复核",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -1,7 +1,22 @@
 # DSH-plugins 插件可靠更新方案
 
-- 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 未做**。
-- 范围:`/root/DSH-plugins` 的 8 个 bundle + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+> **现状校准（2026-11-04,main @ 54b61c0）**：本方案调查于 2026-11-02,当时的多条结论**已经修复**。
+> 下文 §0-§2 的「现状」按当天写,不再代表今天;§3(运行时机制)、§4(L2 事务器)、§5-§7(执行与回退)仍然有效。
+>
+> | 结论 | 今天的状态 | 复核命令 |
+> | --- | --- | --- |
+> | P0-1 profile 被两个 checkout 劈成两半 | ✅ 已统一:5 条 `link:` 全指 `/root/DSH-plugins` | `node scripts/check-profile.mjs` → `profile ok: 5 linked bundle(s)` |
+> | P0-2 被加载代码依赖 gitignore 生成物 | ✅ `plugin/lib` 由构建生成且可用 | `pnpm check:websearch` |
+> | P0-3 运行 commit 不在任何 tag/分支上 | ✅ 已收口进 `main`,tag 齐全 | `git tag` |
+> | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` |
+> | P1-6 `pnpm-lock.yaml` importers 漂移 | ⬜ **仍未修,已另开工单** | 见 §2 表后复核段 |
+> | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
+> | 本仓库 bundle 数 | 由 8 变 **7**(`dsh-ctx-guard` 已退役) | `ls packages` |
+>
+> 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
+
+- 状态：**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
+- 范围:`/root/DSH-plugins` 的 8 个包(bundle) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 
@@ -39,7 +54,7 @@ profile `/root/.dsh/profiles/web/package.json` 里有两条独立的车道:
 | `link:<绝对路径>`(本地源码) | **6** | 原地换文件 + 重组合 | 本项目(无现成工具) |
 | registry 版本号(npm) | **4** | 改依赖版本 + pnpm(remove→install) | DSH 自带 plugin-manager |
 
-6 个 link 包(按**实际被加载的路径**):
+5 个 link 包(按**实际被加载的路径**):
 
 | 包 | 实际加载自 | checkout |
 | --- | --- | --- |
@@ -111,6 +126,16 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 | P1-11 | registry 车道已有一处真实落后:`@wxg-prc-cpg/browser-skill-dsh-plugin` 装 0.4.0,最新 0.4.1 | 见 §4.3 |
 | P1-12 | 更新路径未脚本化,全靠手工 `git fetch` | 见 §4.2 |
 
+**2026-11-04 复核(逐条核对仓库实况)**:
+
+- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(`profile ok: 5 linked bundle(s)`)。
+- ✅ **P1-8** 每个包都有 `scripts.test`(7/7),`pnpm -r --if-present` 不再静默跳过。
+- ✅ **P1-9** 每个包都有 `engines.dsh: ^0.2.0`(7/7)。
+- ✅ **P1-10** `.github/workflows/ci.yml` 已存在;README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
+- ⬜ **P1-6 仍未修**:`pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault` / `dsh-git-status`,还残留已删除的 `packages/dsh-ctx-guard`。**已另开工单**,不要把它当成已完成。
+- ⬜ **P1-4** 未复核:`pnpm check:websearch` 是否以 profile 里 bundle 的 `realpath` 为根,本次未验证。
+
+
 ---
 
 ## 3. 关键机制:在 DSH 里「更新」到底等价于什么
@@ -141,7 +166,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 
 - **L1** `dsh --profile web --dump-config`:校验 profile/bundle 解析、patch 读取与 YAML、`engines.dsh` 兼容(含豁免)、patch 合并。**不 import 任何插件模块**。耗时 0.25s。
 - **L2** 进程内 import 全部 209 个组合行(装 launcher 同一份 runtime resolution):实测 `imported ok: 183, failures: 0`;把某包入口改成 import 一个不存在的文件后 → `failures: 1` 且 exit 1,**而同一时刻 L1 完全看不见**(exit 0、stderr 空)。耗时 4s。
-- **L3** `dsh headless` **不能**当预检:它加载的是 base+headless,**不含这 8 个 bundle**;换成 `dsh --profile web --port 0` 就是起第二个 Web 宿主,抢 profile 的 pnpm 文件锁与会话。
+- **L3** `dsh headless` **不能**当预检:它加载的是 base+headless,**不含这 8 个包(bundle)**;换成 `dsh --profile web --port 0` 就是起第二个 Web 宿主,抢 profile 的 pnpm 文件锁与会话。
 - **L4** 一次真实重组合 = 与线上完全相同的替换链路,失败判定看服务日志 `restart required:` 与插件页 fiber `active|failed`。
 
 **代价(最重要的一条)**:HMR 的替换是**先卸旧、再装新**,而

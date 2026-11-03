@@ -14,7 +14,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(here, '..')
@@ -85,4 +85,108 @@ test('AGENTS.md states the non-negotiables', () => {
 test('the README points a new session at the mandatory development flow', () => {
   assert.ok(README.includes('AGENTS.md'), 'README must point at the repo AGENTS.md')
   assert.ok(README.includes('dev-flow'), 'README must name the dev-flow skill')
+})
+
+// ---------------------------------------------------------------------------
+// Install path
+//
+// The 「装上」 snippet listed four of the five bundles the live profile links, and
+// said nothing about `dsh.profile.bundles`. Copying it produced a profile that
+// installed cleanly and loaded nothing — the worst failure mode, because every
+// command exited 0. These tests take `packages/` as the only source of truth, so
+// adding or retiring a bundle turns CI red instead of quietly rotting the prose.
+
+/** Every package under packages/ that registers itself as a DSH bundle. */
+function bundlePackages() {
+  const dirs = packageDirs().map((name) => join(ROOT, 'packages', name))
+  // dsh-websearch-failover is a repo root; the installable bundle is plugin/.
+  dirs.push(join(ROOT, 'packages', 'dsh-websearch-failover', 'plugin'))
+
+  const bundles = []
+  for (const dir of dirs) {
+    let manifest
+    try {
+      manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+    } catch {
+      continue
+    }
+    if (manifest.dsh?.bundle === undefined) continue
+    bundles.push({ name: manifest.name, dir })
+  }
+  return bundles
+}
+
+/** name → link target, taken from the README's dependency snippet. */
+function readmeLinkSpecs() {
+  const blocks = [...README.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1])
+  const snippet = blocks.find((block) => block.includes('"dependencies"'))
+  assert.ok(snippet, 'README must carry a `"dependencies"` snippet for a new profile')
+
+  const specs = new Map()
+  for (const line of snippet.matchAll(/"([^"]+)"\s*:\s*"link:([^"]+)"/g)) {
+    specs.set(line[1], line[2])
+  }
+  return specs
+}
+
+test('the README install snippet links every bundle the workspace carries', () => {
+  const specs = readmeLinkSpecs()
+  const missing = []
+  for (const bundle of bundlePackages()) {
+    const spec = specs.get(bundle.name)
+    const expected = relative(ROOT, bundle.dir).split(sep).join('/')
+    if (spec === undefined) missing.push(`${bundle.name} (no line at all)`)
+    else if (!spec.split('\\').join('/').endsWith(expected)) {
+      missing.push(`${bundle.name} (link:${spec} does not point at ${expected})`)
+    }
+  }
+  assert.deepEqual(missing, [], `README install snippet is incomplete: ${missing.join('; ')}`)
+})
+
+test('the README says a dependency line alone does not load the bundle', () => {
+  // The half that is easy to miss: `dsh.profile.bundles` decides what loads.
+  assert.ok(README.includes('dsh.profile.bundles'), 'README must name `dsh.profile.bundles`')
+  assert.ok(README.includes('不会加载'), 'README must warn that a missing bundles row does not load')
+})
+
+// ---------------------------------------------------------------------------
+// Update docs
+//
+// docs/update-scheme.md and docs/update-checkout.md were written against a repo
+// that no longer exists: eight bundles, two checkouts splitting the six links,
+// the running commit on no tag, no CI. Reading them today sends a new session
+// chasing a fault that was already repaired.
+
+const UPDATE_DOCS = ['docs/update-scheme.md', 'docs/update-checkout.md']
+
+test('the update docs do not describe the repository as it was before the repair', () => {
+  for (const doc of UPDATE_DOCS) {
+    const text = readFileSync(join(ROOT, doc), 'utf8')
+    const stale = text.match(/八个\s*bundle|8\s*个\s*bundle/g)
+    assert.equal(
+      stale,
+      null,
+      `${doc} still claims ${stale?.[0]} — packages/ holds ${packageDirs().length} bundles`,
+    )
+  }
+})
+
+test('each update doc carries a dated calibration block', () => {
+  for (const doc of UPDATE_DOCS) {
+    const text = readFileSync(join(ROOT, doc), 'utf8')
+    const block = text.match(/现状校准（\d{4}-\d{2}-\d{2},main @ [0-9a-f]{7}）/)
+    assert.ok(
+      block,
+      `${doc} must open with 现状校准（YYYY-MM-DD,main @ <sha>） naming the commit it was checked against`,
+    )
+  }
+})
+
+test('the checkout doc no longer asks for approval of work that is done', () => {
+  const text = readFileSync(join(ROOT, 'docs/update-checkout.md'), 'utf8')
+  assert.equal(text.includes('状态:**待批准**'), false, 'update-checkout.md still reads as pending approval')
+  assert.ok(
+    text.includes('/root/DSH-plugins'),
+    'update-checkout.md must say which checkout the profile loads now',
+  )
 })
