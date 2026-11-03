@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, eight independently versioned bundles. Every entry names the
+One repository, seven independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -11,6 +11,25 @@ A bundle whose directory has changes after its version tag fails the gate.
 ---
 
 ## Unreleased
+
+### Workspace / tooling — lockfile 与 CI 守卫
+
+- **`pnpm-lock.yaml` 的 importers 与 `packages/` 重新对齐**:补上 `dsh-credential-vault`、
+  `dsh-git-status`,去掉已删除的 `dsh-ctx-guard`。
+- **CI 新增一步** `git diff --exit-code -- pnpm-lock.yaml`(在 `pnpm install` 之后):
+  `pnpm install --frozen-lockfile` 在 importers 失配时会 **exit 0 却改写** lockfile,
+  不比较就等于没装这道闸。契约按 step 顺序断言它(注释掉、挪到 install 之前、或加
+  `|| true` 都会红)。
+
+### dsh-git-status 0.2.2 — remotes survive a mirror
+
+- **面板的仓库链接不再被 `insteadOf` 破坏。** `remotesOf` 原来读 `git remote -v`,那条
+  命令输出的是 `url.<base>.insteadOf` **改写后**的地址:配了镜像的机器上,面板收到
+  `https://mirror/…/https://github.com/me/repo.git`,解析不出 `owner/repo`,GitHub 链接
+  因此失效(本机 `~/.gitconfig` 就踩到了,连测试都跟着假红)。现在改读
+  `git config --local --get-regexp '^remote\..*\.url$'`,拿仓库里真正写的值。
+- 测试:`url.<x>.insteadOf` 存在时仍然返回原始 URL,且 `slugFromRemoteUrl` 能得到
+  `me/repo`;把实现退回 `git remote -v` 即红。
 
 ### dev-flow-skill 0.2.1 — the dual-axis review prompt now actually ships
 

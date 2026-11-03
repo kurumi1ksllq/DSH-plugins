@@ -260,18 +260,31 @@ export function redactRemoteUrl(url) {
 
 /**
  * Configured remotes: [{ name, url }] (fetch URL only), credential-free.
- * Output shape is `name<TAB>url (fetch)`, i.e. the URL and the suffix share a
- * SPACE — matching a `\t` before `(fetch)` never matched anything, so every
- * snapshot carried `remotes: []` and the panel lost its repo slug and its
- * forge hint along with it.
+ *
+ * Read from `git config` rather than `git remote -v`: the latter prints the URL
+ * *after* `url.<base>.insteadOf` rewriting, so on a machine configured with a
+ * mirror the panel received `https://mirror/…/https://github.com/me/repo.git`
+ * and could no longer parse owner/repo for its GitHub links. `git config` reports
+ * what the repository actually says.
  */
 export async function remotesOf(repoDir) {
-  const out = await runCommand('git', ['-C', repoDir, 'remote', '-v'], { allowFailure: true })
+  // `--local`: only `.git/config`. Without it a global `remote.ghost.url` turns up
+  // for any directory that happens to be open, and a stale one would be reported
+  // as this workspace's remote.
+  const out = await runCommand(
+    'git',
+    ['-C', repoDir, 'config', '--local', '--get-regexp', '^remote\\..*\\.url$'],
+    { allowFailure: true },
+  )
   if (typeof out !== 'string') return []
   const seen = new Map()
   for (const line of out.split('\n')) {
-    const match = /^(\S+)\t(\S+) \((fetch)\)$/.exec(line.trim())
-    if (match) seen.set(match[1], redactRemoteUrl(match[2]))
+    // `remote.<name>.url <url>`; the name may itself contain dots.
+    const match = /^remote\.(.+)\.url (.+)$/.exec(line.trim())
+    if (match === null) continue
+    // First url wins: that is the one git fetches from, and re-adding a remote
+    // appends rather than replaces.
+    if (!seen.has(match[1])) seen.set(match[1], redactRemoteUrl(match[2]))
   }
   return [...seen].map(([name, url]) => ({ name, url }))
 }
