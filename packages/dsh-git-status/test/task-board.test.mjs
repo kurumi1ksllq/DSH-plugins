@@ -336,3 +336,34 @@ test('no-ci is a repository-level question, raised even without a matching card'
   }))
   assert.equal(board.needsUser.filter((n) => n.kind === 'no-ci').length, 1)
 })
+
+// ---- follow-up: HTTP-shaped input, clean-main commits, whitespace stdout ----
+
+test('buildTaskBoard accepts the HTTP shape of flowStates (plain object)', () => {
+  // Over HTTP the snapshot carries flowStates as a plain object keyed by issue
+  // number. Reading only a Map made the host and the browser disagree about the
+  // very same snapshot.
+  const board = buildTaskBoard(snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
+    issues: [issue(26)],
+    flowStates: { 26: { issue: 26, grade: 'standard', stage: 'dev', tickets: [], ci: null, review: null, merge: null } },
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 26)
+  assert.equal(card.grade, 'standard', 'flow state from a plain object must be honoured')
+  assert.equal(card.stale, false)
+})
+
+test('committing straight onto main is off-flow even with a clean tree', () => {
+  // spec names this the canonical violation: dev-flow forbids committing to the
+  // trunk. A clean tree does not make it fine.
+  const board = buildTaskBoard(snap({
+    git: {
+      currentBranch: 'main',
+      status: { branch: 'main', detached: false, dirty: 0, untracked: 0, conflicts: 0, staged: 0, unstaged: 0 },
+      branches: [branch('main', { current: true, ahead: 3 })],
+    },
+  }))
+  assert.equal(board.offFlow.length, 1)
+  assert.equal(board.offFlow[0].reason, 'dirty-main')
+  assert.equal(board.offFlow[0].files, 0)
+})

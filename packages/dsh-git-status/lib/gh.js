@@ -176,9 +176,11 @@ export async function prChecks(repoDir, prNumber) {
   )
   if (typeof out !== 'string') return 'unknown'
   const text = out.trim()
+  // Whitespace-only output means the command failed without saying anything
+  // useful; that is "we do not know", never "this repo has no CI".
+  if (text.length === 0) return 'unknown'
   // `gh pr checks` prints "no checks reported on <branch>" and exits 1 when the
   // PR has no runs at all — that is `none`, not an unknown failure.
-  if (text.length === 0) return 'none'
   if (/no checks reported/i.test(text)) return 'none'
   try {
     return classifyChecks(JSON.parse(text))

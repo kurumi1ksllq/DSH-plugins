@@ -41,9 +41,22 @@ export function issueFromBranch(name) {
   return Number.isInteger(number) && number > 0 ? number : null
 }
 
-/** True for a Map from any realm (vm contexts, iframes, structured clones). */
-export function isMapLike(value) {
-  return value !== null && typeof value === 'object' && typeof value.get === 'function' && typeof value.has === 'function'
+/**
+ * Normalise `snapshot.flowStates` into a reader.
+ *
+ * Three shapes reach this function and all three must work:
+ *   - a Map (the host's own object, and any vm realm — `instanceof Map` fails there);
+ *   - a plain object keyed by issue number (what JSON.parse produces, i.e. the
+ *     only shape the browser ever sees);
+ *   - nothing.
+ * Accepting only a Map made the host answer differently from the browser for the
+ * same snapshot.
+ * @returns {{get: (issue: number|string) => object|null}}
+ */
+export function toFlowStateReader(value) {
+  if (value === null || value === undefined || typeof value !== 'object') return { get: () => null }
+  if (typeof value.get === 'function') return { get: (issue) => value.get(issue) ?? null }
+  return { get: (issue) => value[issue] ?? null }
 }
 
 function stageIndexOf(stage) {
@@ -98,14 +111,19 @@ function offFlowOf(git, knownIssues) {
   const branch = typeof status.branch === 'string' && status.branch.length > 0 ? status.branch : '(detached)'
   const current = git?.currentBranch ?? status.branch
 
-  if (dirty > 0 && (current === 'main' || current === 'master')) {
-    return { branch: current, reason: 'dirty-main', files: dirty }
+  if (current === 'main' || current === 'master') {
+    // dev-flow forbids committing to the trunk at all. Uncommitted work is the
+    // obvious case; commits ahead of upstream are the quieter one — the tree is
+    // clean, yet the work never had a branch or a review.
+    const ahead = trustedAheadOf(git)
+    if (dirty > 0 || ahead > 0) {
+      return { branch: current, reason: 'dirty-main', files: dirty, ahead }
+    }
+    return null
   }
   if (current === null || current === undefined || status.detached === true) {
     return dirty > 0 ? { branch, reason: 'unnamed-branch', files: dirty } : null
   }
-  if (current === 'main' || current === 'master') return null
-
   const issueNumber = issueFromBranch(current)
   if (issueNumber === null) {
     // Report it even when clean: a committed feature branch is unrouted work.
@@ -169,9 +187,7 @@ export function buildTaskBoard(snapshot) {
   const prs = Array.isArray(snapshot?.prs) ? snapshot.prs : []
   const mergedPrs = Array.isArray(snapshot?.mergedPrs) ? snapshot.mergedPrs : []
   const checks = snapshot?.checks && typeof snapshot.checks === 'object' ? snapshot.checks : {}
-  // Cross-realm safe: a Map built in another VM context fails `instanceof Map`
-  // here, and silently dropping it would blank every card's progress.
-  const flowStates = isMapLike(snapshot?.flowStates) ? snapshot.flowStates : new Map()
+  const flowStates = toFlowStateReader(snapshot?.flowStates)
 
   const branchByIssue = new Map()
   for (const branch of branches) {
@@ -223,6 +239,20 @@ export function buildTaskBoard(snapshot) {
     offFlow,
     forgeHint: snapshot?.forgeHint ?? null,
   }
+}
+
+/**
+ * Unpushed commits on the CURRENT branch, from the branch list.
+ * Returns 0 when the branch is not listed (detached, or no upstream yet) rather
+ * than inventing a number the board would then report as a violation.
+ */
+function trustedAheadOf(git) {
+  const current = git?.currentBranch ?? git?.status?.branch
+  if (typeof current !== 'string') return 0
+  const branches = Array.isArray(git?.branches) ? git.branches : []
+  const entry = branches.find((b) => b?.name === current)
+  const ahead = entry?.ahead
+  return Number.isInteger(ahead) && ahead > 0 ? ahead : 0
 }
 
 /** What an empty column is waiting for; the board reads as a checklist. */

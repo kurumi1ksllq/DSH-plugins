@@ -115,3 +115,9 @@ test('prChecks: unparseable output on exit 0 is unknown', async () => {
   const dir = fakeGhDir('not json', 0)
   assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'unknown')
 })
+
+test('prChecks: whitespace-only output on failure is unknown, not none', async () => {
+  // "failed and said nothing useful" must not read as "this repo has no CI".
+  const dir = fakeGhDir('   \n', 1)
+  assert.equal(await withPath(dir, () => prChecks('/tmp', 7)), 'unknown')
+})
