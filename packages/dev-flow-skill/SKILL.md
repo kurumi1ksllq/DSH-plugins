@@ -93,6 +93,59 @@ lint（如仓库有）
 build（如仓库有）
 ```
 
+## 任务状态文件
+
+Git 和 GitHub 只知道证据（分支、提交、PR、CI），不知道 TDD 内部走到了哪、CI 自修到第几轮、review 报告是否在等你裁决。**每过一个节点，把这些写进 `docs/specs/.flow/<issue>.json`**；文件是任务板（`dsh-git-status` 面板）的唯一进度来源。
+
+### 何时写
+
+| 时机 | 写什么 |
+|---|---|
+| 停点2 确认后、开 issue 后 | 建文件：`issue`、`grade`、`stage: "spec"`、`tickets`（全部 `todo`） |
+| 建分支后 | `stage: "dev"` |
+| 每个 ticket 红 | 该 ticket `state: "red"` |
+| 每个 ticket 绿（四件套全过） | 该 ticket `state: "done"` |
+| push + 开 PR 后 | `stage: "pr"` → 查到 CI 后 `stage: "ci"`，写 `ci.status` |
+| CI 红自修每轮结束 | `ci.run` 加 1（上限 `max: 2`），`ci.status` 按实况 |
+| CI 绿、发起 review 前 | `stage: "review"`，`review.state: "running"` |
+| review 报告出来后 | `review.state: "pending-decision"` |
+| 你裁决、review 完结 | `review.state: "done"`、`stage: "merge"` |
+| merge 完成 | `stage: "done"`、`merge.authorized: true` |
+
+每次写入同时更新 `updatedAt`（ISO 8601 带时区）。
+
+### 格式
+
+```json
+{
+  "issue": 26,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-03T06:00:00+08:00",
+  "tickets": [
+    { "id": 1, "title": "建表", "state": "done" },
+    { "id": 2, "title": "校验", "state": "red" }
+  ],
+  "ci": { "run": 1, "max": 2, "status": "red" },
+  "review": { "state": "pending-decision", "axes": 2 },
+  "merge": { "authorized": false }
+}
+```
+
+枚举（超出即非法，面板会当作没有状态）：
+
+- `grade`: `trivial` | `standard`
+- `stage`: `intake` | `spec` | `dev` | `pr` | `ci` | `review` | `merge` | `done` —— 这八个值就是任务板的八列
+- `tickets[].state`: `todo` | `red` | `green` | `done`
+- `ci.status`: `green` | `red` | `none` | `unknown`
+- `review.state`: `not-started` | `running` | `pending-decision` | `done`
+
+### 写坏了会怎样
+
+**以仓库实况为准**：状态文件的 `stage` 与分支/PR/CI 实况不一致时，面板按实况放置卡片，并标一条「状态过期」提示。所以漏写只会让卡片停在更早的列，不会把任务谎报成已完成。
+
+文件随分支走（进 `.flow/` 目录但不是秘密），PR 里能看到状态变化；它**不是**流程的替代品——停点、merge 口令仍以对话为准。
+
 ## 硬规则
 
 - **禁止直接改 main**：任何代码改动都在 `issue-<n>-<desc>` 分支上，经 PR 进入 main。
@@ -101,6 +154,7 @@ build（如仓库有）
 - **trivial 硬标准**不可放宽：≤1 文件 且 ≤30 行 且 无接口变更。
 - commit/push 只在流程节点（停点3 声明后、CI 自修重推）执行；其他时候等用户明确要求。
 - 提交后回复末行加状态行（branch / PR / CI 状态）。
+- **每过一个节点就写 `docs/specs/.flow/<issue>.json`**（见「任务状态文件」）；漏写任务板会停在旧列。
 
 ## 给用户的分支保护（用户自己执行）
 

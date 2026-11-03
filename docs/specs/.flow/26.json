@@ -1,0 +1,55 @@
+{
+  "issue": 26,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-03T08:50:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "lib/flow-state.js: 读取校验状态文件",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "gh.js: classifyChecks / prChecks 三态",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "lib/task-board.js: 任务板纯逻辑",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "snapshot.js: 挂接 flowStates + checks",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "client.js: 重绘为 8 列任务板",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "SKILL.md: 任务状态文件章节 + lint 契约",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "README 重写",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -85,6 +85,45 @@ window.__ModuleLoader__.load({
       copied: '已复制',
       copyFailed: '复制失败,请手动选中',
       lastCommit: (when, subject) => `${when} · ${subject}`,
+      // task board
+      boardTitle: '任务板',
+      needsUserTitle: '需要你出手',
+      needsUserEmpty: '没有等你决策的事',
+      offFlowTitle: '未进流程',
+      'offFlow_dirty-main': (branch) => `在 ${branch} 上有未提交改动 —— dev-flow 禁止直接改主干`,
+      'offFlow_unnamed-branch': (branch) => `分支 ${branch} 不叫 issue-<n>-<描述>,任务板无法判断它属于哪个任务`,
+      'offFlow_unknown-issue': (branch, n) => `分支 ${branch} 指向 issue #${n},但这个 issue 不存在`,
+      offFlowFiles: (n) => `${n} 个文件`,
+      column_intake: '待处理',
+      column_spec: '方案中',
+      column_dev: '开发中',
+      column_pr: '待 PR',
+      column_ci: 'CI',
+      column_review: '待 review',
+      column_merge: '待 merge',
+      column_done: '已完成',
+      'empty_no-unconfirmed-issue': '没有待确认的需求',
+      'empty_no-spec-pending': '没有待核的方案',
+      'empty_nothing-in-tdd': '没有在写的 ticket',
+      'empty_no-branch-awaiting-push': '没有待推送的分支',
+      'empty_no-pr-in-ci': '没有 PR 在跑 CI',
+      'empty_no-review-pending': '没有待裁决的 review',
+      'empty_no-pr-awaiting-merge': '没有 PR 等口令',
+      'empty_nothing-merged-yet': '还没有合并记录',
+      grade_trivial: 'trivial',
+      grade_standard: 'standard',
+      stale: '状态过期',
+      staleTip: (flowStage) => `状态文件写着 ${flowStage},与仓库实况不符`,
+      'need_intake-confirm': (n) => `#${n} 已建档但还没建分支,先确认意图与分级(停点1)`,
+      'need_no-ci': '本仓库当前没有 CI,要生成最小 workflow 还是本次直接进 review?',
+      'need_ci-red-escalated': (n) => `#${n} 的 CI 已红到第 2 轮,不再自动重推,需要你决定`,
+      'need_merge-gate': (n, pr) => `PR #${pr}(issue #${n})等你点名 merge`,
+      checks_green: 'CI 绿',
+      checks_red: 'CI 红',
+      checks_none: '无 CI',
+      checks_unknown: 'CI 未知',
+      ticketsDone: (done, total) => `ticket ${done}/${total}`,
+      cardAction: '需要你',
     }
 
     const en = {
@@ -149,6 +188,44 @@ window.__ModuleLoader__.load({
       copied: 'Copied',
       copyFailed: 'Copy failed — select it manually',
       lastCommit: (when, subject) => `${when} · ${subject}`,
+      boardTitle: 'Task board',
+      needsUserTitle: 'Needs you',
+      needsUserEmpty: 'Nothing waiting on you',
+      offFlowTitle: 'Off flow',
+      'offFlow_dirty-main': (branch) => `Uncommitted changes on ${branch} — dev-flow forbids committing to the trunk`,
+      'offFlow_unnamed-branch': (branch) => `Branch ${branch} is not named issue-<n>-<desc>, so the board cannot place it`,
+      'offFlow_unknown-issue': (branch, n) => `Branch ${branch} points at issue #${n}, which does not exist`,
+      offFlowFiles: (n) => `${n} files`,
+      column_intake: 'Intake',
+      column_spec: 'Spec',
+      column_dev: 'In dev',
+      column_pr: 'To PR',
+      column_ci: 'CI',
+      column_review: 'Review',
+      column_merge: 'To merge',
+      column_done: 'Done',
+      'empty_no-unconfirmed-issue': 'No requirement to confirm',
+      'empty_no-spec-pending': 'No plan to approve',
+      'empty_nothing-in-tdd': 'No ticket being written',
+      'empty_no-branch-awaiting-push': 'No branch waiting to push',
+      'empty_no-pr-in-ci': 'No PR running CI',
+      'empty_no-review-pending': 'No review awaiting a ruling',
+      'empty_no-pr-awaiting-merge': 'No PR awaiting the merge word',
+      'empty_nothing-merged-yet': 'Nothing merged yet',
+      grade_trivial: 'trivial',
+      grade_standard: 'standard',
+      stale: 'Stale state',
+      staleTip: (flowStage) => `State file says ${flowStage}, which the repository does not back up`,
+      'need_intake-confirm': (n) => `#${n} has no branch yet — confirm intent and grade (stop point 1)`,
+      'need_no-ci': 'This repository has no CI. Generate a minimal workflow, or go straight to review?',
+      'need_ci-red-escalated': (n) => `CI for #${n} is red at round 2 — no more auto-pushes, you decide`,
+      'need_merge-gate': (n, pr) => `PR #${pr} (issue #${n}) awaits your merge word`,
+      checks_green: 'CI green',
+      checks_red: 'CI red',
+      checks_none: 'No CI',
+      checks_unknown: 'CI unknown',
+      ticketsDone: (done, total) => `ticket ${done}/${total}`,
+      cardAction: 'Needs you',
     }
 // PART 2 — styles + primitives
     // ---- inline styles (Apple grouped list, same family as dsh-inventory) ----
@@ -207,6 +284,42 @@ window.__ModuleLoader__.load({
       diffAdd: { color: 'var(--dsw-alias-state-success-primary, #2f9e5f)' },
       diffDel: { color: 'var(--dsw-alias-state-error-primary, #d1495b)' },
       diffMeta: { opacity: 0.55 },
+      // ---- task board (dev-flow) ----
+      board: { display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, alignItems: 'flex-start' },
+      column: {
+        flex: '0 0 240px', minWidth: 240, borderRadius: 14,
+        background: 'var(--dsw-alias-bg-layer-2, rgba(128,128,128,0.08))', padding: '10px 12px',
+      },
+      columnHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+      columnTitle: { fontSize: 13, fontWeight: 600, opacity: 0.75, letterSpacing: '0.02em' },
+      columnCount: { fontSize: 12, opacity: 0.5 },
+      columnEmpty: { fontSize: 12, opacity: 0.45, padding: '10px 2px', lineHeight: 1.5 },
+      card: {
+        background: 'var(--dsw-alias-bg-layer-1, rgba(128,128,128,0.12))', borderRadius: 10,
+        padding: '10px 12px', marginBottom: 8, border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.16))',
+      },
+      cardStale: { borderColor: 'rgba(255,159,10,0.55)' },
+      cardHead: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' },
+      cardTitle: { fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+      dots: { display: 'flex', gap: 3, margin: '6px 0' },
+      dot: { width: 7, height: 7, borderRadius: 999, background: 'rgba(128,128,128,0.28)' },
+      dotDone: { width: 7, height: 7, borderRadius: 999, background: 'var(--dsw-alias-button-info-fill, #588cff)' },
+      cardMeta: { fontSize: 11, opacity: 0.6, lineHeight: '16px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+      cardAct: { fontSize: 12, marginTop: 6, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,159,10,0.16)' },
+      needsBox: {
+        borderRadius: 14, padding: '10px 14px', marginBottom: 14,
+        background: 'rgba(255,159,10,0.12)', border: '1px solid rgba(255,159,10,0.4)',
+      },
+      needsHead: { fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.7, marginBottom: 6 },
+      needsRow: { fontSize: 13, lineHeight: '22px' },
+      offFlowBox: {
+        borderRadius: 14, padding: '10px 14px', marginBottom: 14,
+        background: 'rgba(209,73,91,0.12)', border: '1px solid rgba(209,73,91,0.4)',
+      },
+      offFlowRow: { fontSize: 13, lineHeight: '20px' },
+      pageWide: { padding: '20px 20px 48px', maxWidth: 1400, margin: '0 auto' },
+      details: { marginTop: 20 },
+      summary: { fontSize: 13, fontWeight: 600, opacity: 0.6, cursor: 'pointer', padding: '8px 2px' },
     }
 
     function Badge({ text, tone }) {
@@ -700,6 +813,282 @@ function DiffView({ t, sessionId, path, statusSha }) {
       return ''
     }
 
+
+    // PART 4 — task board (dev-flow)
+    /**
+     * The board is a projection of the snapshot onto dev-flow's stages. The
+     * heavy lifting lives in the host half (`lib/task-board.js`) so the browser
+     * bundle stays a renderer; this file only turns the answer into rows.
+     *
+     * Board data arrives pre-computed on the snapshot (`board`), falling back to
+     * recomputing locally when an older host sends only raw fields — the panel
+     * must never render an empty board just because the two halves disagree on
+     * version.
+     */
+    function boardOf(snap) {
+      if (snap?.board) return snap.board
+      return buildBoardLocally(snap)
+    }
+
+    /**
+     * Mirror of `lib/task-board.js` for older hosts. Deliberately small: only
+     * the stage derivation and the off-flow check, which is what the render
+     * needs to stay useful.
+     */
+    function buildBoardLocally(snap) {
+      const STAGES = ['intake', 'spec', 'dev', 'pr', 'ci', 'review', 'merge', 'done']
+      const git = snap?.git ?? {}
+      const branches = Array.isArray(git.branches) ? git.branches : []
+      const issues = Array.isArray(snap?.issues) ? snap.issues : []
+      const prs = Array.isArray(snap?.prs) ? snap.prs : []
+      const merged = Array.isArray(snap?.mergedPrs) ? snap.mergedPrs : []
+      const checks = snap?.checks && typeof snap.checks === 'object' ? snap.checks : {}
+      // Over HTTP the state arrives as a plain object keyed by issue number; in
+      // tests it may be a Map. Accept both rather than silently reading nothing.
+      const rawStates = snap?.flowStates
+      const flowStateOf = (key) => {
+        if (!rawStates) return null
+        if (typeof rawStates.get === 'function') return rawStates.get(key) ?? null
+        return rawStates[key] ?? null
+      }
+
+      const issueOf = (name) => {
+        const m = /^issue-(\d+)-/.exec(typeof name === 'string' ? name : '')
+        if (!m) return null
+        const n = Number(m[1])
+        return Number.isInteger(n) && n > 0 ? n : null
+      }
+
+      const byIssue = new Map()
+      for (const b of branches) {
+        const n = issueOf(b?.name)
+        if (n !== null && !byIssue.has(n)) byIssue.set(n, b)
+      }
+      const keys = new Set()
+      for (const i of issues) if (Number.isInteger(i?.number)) keys.add(i.number)
+      for (const n of byIssue.keys()) keys.add(n)
+
+      const cards = []
+      for (const key of keys) {
+        const issue = issues.find((i) => i?.number === key) ?? null
+        const branch = byIssue.get(key) ?? null
+        const pr = prs.find((x) => x?.headRefName === branch?.name) ?? null
+        const mergedPr = pr === null ? merged.find((x) => x?.headRefName === branch?.name) ?? null : null
+        const checkState = pr === null ? undefined : checks[pr.number]
+        const flow = flowStateOf(key)
+        let stage
+        if (mergedPr) stage = 'done'
+        else if (pr) stage = checkState === 'red' || checkState === undefined || checkState === 'unknown' ? 'ci' : flow?.review?.state === 'done' ? 'merge' : 'review'
+        else if ((branch?.ahead ?? 0) > 0) stage = 'pr'
+        else if (branch) stage = 'dev'
+        else if (issue) stage = 'intake'
+        else stage = 'spec'
+        cards.push({
+          issue: key,
+          title: issue !== null ? issue.title : branch?.name ?? '',
+          url: issue?.url ?? null,
+          grade: flow?.grade ?? null,
+          stage,
+          stageIndex: STAGES.indexOf(stage),
+          columnCount: STAGES.length,
+          stale: flow !== null && flow?.stage !== stage,
+          flowStage: flow?.stage ?? null,
+          hasBranch: Boolean(branch),
+          branchName: branch?.name ?? null,
+          ahead: branch?.ahead ?? 0,
+          prNumber: pr?.number ?? null,
+          prUrl: pr?.url ?? null,
+          prDraft: pr?.isDraft === true,
+          checks: checkState ?? 'unknown',
+          tickets: flow?.tickets ?? [],
+          ci: flow?.ci ?? null,
+          review: flow?.review ?? null,
+          merge: flow?.merge ?? null,
+        })
+      }
+
+      // Mirrors offFlowOf() in lib/task-board.js: dirty trunk, unnamed branch, or
+      // an issue-<n>-* branch whose issue does not exist. The latter two do not
+      // require a dirty tree — committed work on a stray branch is still unrouted.
+      const status = git?.status ?? {}
+      const dirty = Number.isInteger(status.dirty) ? status.dirty : 0
+      const branchName = typeof status.branch === 'string' && status.branch.length > 0 ? status.branch : '(detached)'
+      const currentBranch = git?.currentBranch ?? status.branch
+      let offFlow = []
+      if (dirty > 0 && (currentBranch === 'main' || currentBranch === 'master')) {
+        offFlow = [{ branch: currentBranch, reason: 'dirty-main', files: dirty }]
+      } else if (currentBranch === null || currentBranch === undefined || status.detached === true) {
+        if (dirty > 0) offFlow = [{ branch: branchName, reason: 'unnamed-branch', files: dirty }]
+      } else if (currentBranch !== 'main' && currentBranch !== 'master') {
+        const n = issueOf(currentBranch)
+        const known = Array.isArray(snap?.issues) ? new Set(snap.issues.map((i) => i?.number)) : null
+        if (n === null) offFlow = [{ branch: currentBranch, reason: 'unnamed-branch', files: dirty }]
+        else if (known !== null && !known.has(n)) offFlow = [{ branch: currentBranch, reason: 'unknown-issue', files: dirty, issue: n }]
+      }
+
+      const needsUser = []
+      for (const c of cards) {
+        if (c.issue !== null && !c.hasBranch && c.stage === 'intake') needsUser.push({ kind: 'intake-confirm', issue: c.issue, prNumber: null, severity: 'info' })
+      }
+      for (const c of cards) {
+        if (c.checks !== 'red') continue
+        const run = c.ci?.run
+        const max = c.ci?.max ?? 2
+        if (Number.isInteger(run) && run >= max) needsUser.push({ kind: 'ci-red-escalated', issue: c.issue, prNumber: c.prNumber, severity: 'blocker' })
+      }
+      for (const c of cards) {
+        if (c.review?.state !== 'done' || c.merge?.authorized === true || c.prNumber === null) continue
+        needsUser.push({ kind: 'merge-gate', issue: c.issue, prNumber: c.prNumber, severity: 'blocker' })
+      }
+      if (Object.values(checks).some((state) => state === 'none')) needsUser.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
+      needsUser.sort((a, b) => (a.severity === 'blocker' ? 0 : 1) - (b.severity === 'blocker' ? 0 : 1))
+      const limited = needsUser.slice(0, 3)
+      for (const card of cards) {
+        card.action = limited.find((n) => n.issue !== null && n.issue === card.issue) ?? null
+      }
+
+      return {
+        columns: STAGES.map((stage) => ({
+          stage,
+          cards: cards.filter((c) => c.stage === stage),
+          empty: emptyKeyOf(stage),
+        })),
+        needsUser: limited,
+        offFlow,
+        forgeHint: snap?.forgeHint ?? null,
+      }
+    }
+
+    function emptyKeyOf(stage) {
+      switch (stage) {
+        case 'intake': return 'no-unconfirmed-issue'
+        case 'spec': return 'no-spec-pending'
+        case 'dev': return 'nothing-in-tdd'
+        case 'pr': return 'no-branch-awaiting-push'
+        case 'ci': return 'no-pr-in-ci'
+        case 'review': return 'no-review-pending'
+        case 'merge': return 'no-pr-awaiting-merge'
+        case 'done': return 'nothing-merged-yet'
+        default: return ''
+      }
+    }
+
+    /** Eight dots: filled up to the card's stage, so progress is readable at a glance. */
+    function ProgressDots({ card }) {
+      const slots = []
+      for (let i = 0; i < card.columnCount; i += 1) {
+        slots.push(h('span', { key: `d${i}`, style: i <= card.stageIndex ? S.dotDone : S.dot }))
+      }
+      return h('div', { style: S.dots }, slots)
+    }
+
+    /** One issue's card: title, progress, evidence, and (only when needed) an action. */
+    function TaskCard({ t, card }) {
+      const meta = []
+      if (card.branchName) meta.push(card.branchName)
+      if (card.ahead > 0) meta.push(`↑${card.ahead}`)
+      if (card.prNumber !== null) meta.push(`PR #${card.prNumber}`)
+      const checksText =
+        card.checks === 'green' ? t('checks_green')
+          : card.checks === 'red' ? t('checks_red')
+            : card.checks === 'none' ? t('checks_none')
+              : t('checks_unknown')
+      if (card.prNumber !== null) meta.push(checksText)
+      if (card.ci && Number.isInteger(card.ci.run)) meta.push(`CI ${card.ci.run}/${card.ci.max ?? 2}`)
+      const doneTickets = card.tickets.filter((x) => x.state === 'done').length
+      if (card.tickets.length > 0) meta.push(t('ticketsDone', doneTickets, card.tickets.length))
+
+      const badges = []
+      if (card.grade) badges.push(h(Badge, { key: 'g', text: t(`grade_${card.grade}`), tone: 'accent' }))
+      if (card.stale) badges.push(h(Badge, { key: 's', text: t('stale'), tone: 'warn' }))
+      if (card.prDraft) badges.push(h(Badge, { key: 'd', text: t('prDraft') }))
+
+      const titleText = card.issue !== null ? `#${card.issue} ${card.title}` : card.title
+      // Fourth row: only when THIS issue needs the user. The top strip lists
+      // everything pending; the card says what this one is waiting for.
+      const action = card.action
+        ? h('div', { style: S.cardAct }, `⚠ ${t('cardAction')}:${t(`need_${card.action.kind}`, card.issue, card.action.prNumber)}`)
+        : null
+      return h(
+        'div',
+        { style: { ...S.card, ...(card.stale ? S.cardStale : {}) }, 'data-card': String(card.issue) },
+        h('div', { style: S.cardHead }, h('div', { style: S.cardTitle, title: card.stale ? t('staleTip', card.flowStage) : titleText }, titleText), ...badges),
+        h(ProgressDots, { card }),
+        meta.length > 0 ? h('div', { style: S.cardMeta }, meta.join(' · ')) : null,
+        card.stale ? h('div', { style: S.cardMeta }, t('staleTip', card.flowStage)) : null,
+        card.url ? h('a', { href: card.url, target: '_blank', rel: 'noreferrer', style: S.link }, t('openOnGithub')) : null,
+        action,
+      )
+    }
+
+    function BoardColumn({ t, column }) {
+      return h(
+        'div',
+        { style: S.column, 'data-column': column.stage },
+        h(
+          'div',
+          { style: S.columnHead },
+          h('div', { style: S.columnTitle }, t(`column_${column.stage}`)),
+          h('div', { style: S.columnCount }, String(column.cards.length)),
+        ),
+        column.cards.length === 0
+          ? h('div', { style: S.columnEmpty }, t(`empty_${column.empty}`))
+          : column.cards.map((card) => h(TaskCard, { key: `c-${card.issue ?? card.branchName}`, t, card })),
+      )
+    }
+
+    /** The four dev-flow gates that need a human, blockers first. */
+    function NeedsUser({ t, items }) {
+      if (items.length === 0) return null
+      return h(
+        'div', { style: S.needsBox },
+        h('div', { style: S.needsHead }, t('needsUserTitle')),
+        items.map((item, i) =>
+          h('div', { key: `n${i}`, style: S.needsRow }, `• ${t(`need_${item.kind}`, item.issue, item.prNumber)}`),
+        ),
+      )
+    }
+
+    /** Work that bypassed dev-flow: dirty trunk, or a branch the board cannot place. */
+    function OffFlow({ t, entries }) {
+      if (entries.length === 0) return null
+      return h(
+        'div', { style: S.offFlowBox },
+        h('div', { style: S.needsHead }, t('offFlowTitle')),
+        entries.map((e, i) =>
+          h('div', { key: `o${i}`, style: S.offFlowRow },
+            `• ${t(`offFlow_${e.reason}`, e.branch, e.issue)} · ${t('offFlowFiles', e.files)}`),
+        ),
+      )
+    }
+
+    function TaskBoard({ t, snap }) {
+      const board = boardOf(snap)
+      return h(
+        'div',
+        null,
+        h(NeedsUser, { t, items: board.needsUser ?? [] }),
+        h(OffFlow, { t, entries: board.offFlow ?? [] }),
+        h('div', { style: S.board }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
+      )
+    }
+
+    /** Collapsed repo facts: the old card stack, kept for drill-down. */
+    function RepoFacts({ t, snap, sessionId }) {
+      return h(
+        'details',
+        { style: S.details },
+        h('summary', { style: S.summary }, t('sectionRepo') + ' / ' + t('sectionBranches') + ' / ' + t('sectionChanges') + ' / ' + t('sectionStash')),
+        h(RepoCard, { t, snap, sessionId }),
+        h(ChangesCard, { t, snap, sessionId }),
+        h(AheadCard, { t, snap }),
+        h(StashCard, { t, snap }),
+        h(BranchCard, { t, snap }),
+        h(PrCard, { t, snap }),
+        h(IssueCard, { t, snap }),
+      )
+    }
+
     function GitPanel({ t, sessionId: boundSessionId, initialSnap }) {
       const [snap, setSnap] = React.useState(initialSnap ?? null)
       const [error, setError] = React.useState(null)
@@ -757,19 +1146,14 @@ function DiffView({ t, sessionId, path, statusSha }) {
       }
       return h(
         'div',
-        { style: S.page },
-        h('div', { style: S.title }, t('title')),
+        { style: S.pageWide },
+        h('div', { style: S.title }, t('boardTitle')),
         h('div', { style: S.subtitle }, subtitleOf(snap)),
         h('div', { style: S.toolbar },
           h('button', { type: 'button', style: S.ghostBtn, disabled: loading, onClick: () => load(true) }, t('refresh')),
         ),
-        h(RepoCard, { t, snap, sessionId }),
-        h(ChangesCard, { t, snap, sessionId }),
-        h(AheadCard, { t, snap }),
-        h(StashCard, { t, snap }),
-        h(BranchCard, { t, snap }),
-        h(PrCard, { t, snap }),
-        h(IssueCard, { t, snap }),
+        h(TaskBoard, { t, snap }),
+        h(RepoFacts, { t, snap, sessionId }),
       )
     }
 

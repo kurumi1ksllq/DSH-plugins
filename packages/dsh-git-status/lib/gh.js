@@ -126,3 +126,65 @@ export async function openIssues(repoDir) {
     return null
   }
 }
+
+/** Check states that mean the run failed for good. */
+const FAILED_CHECK_STATES = new Set(['FAILURE', 'CANCELLED', 'TIMED_OUT', 'STARTUP_FAILURE', 'ACTION_REQUIRED'])
+/** Check states that mean the run finished clean. */
+const PASSED_CHECK_STATES = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED'])
+
+/**
+ * Collapse `gh pr checks --json state` into the CI three-state contract.
+ *
+ * The panel must never show "no CI" as "CI green": an empty list means the
+ * repository has no workflow for this PR (`none`), while a run still in flight
+ * means we do not know yet (`unknown`). A failure outranks everything — a red
+ * check is actionable even while another job is still running.
+ * @param {Array<{state?:string}>} checks
+ * @returns {'green'|'red'|'none'|'unknown'}
+ */
+export function classifyChecks(checks) {
+  if (!Array.isArray(checks) || checks.length === 0) return 'none'
+  let sawPending = false
+  for (const check of checks) {
+    const state = typeof check?.state === 'string' ? check.state.toUpperCase() : ''
+    if (FAILED_CHECK_STATES.has(state)) return 'red'
+    if (!PASSED_CHECK_STATES.has(state)) sawPending = true
+  }
+  return sawPending ? 'unknown' : 'green'
+}
+
+/**
+ * CI state of one PR, for the task board's CI column.
+ *
+ * One `gh` call per PR, so callers run these behind a small concurrency pool.
+ * Exit code 1 with a body is normal: `gh pr checks` exits non-zero while checks
+ * are failing or pending, so the BODY decides, not the exit status. That is
+ * only true because the call opts into `keepStdoutOnFailure`.
+ * @returns {Promise<'green'|'red'|'none'|'unknown'>}
+ */
+export async function prChecks(repoDir, prNumber) {
+  if (!Number.isInteger(prNumber) || prNumber <= 0) return 'unknown'
+  if (typeof repoDir !== 'string' || repoDir.length === 0) return 'unknown'
+  // `keepStdoutOnFailure` is REQUIRED here: `gh pr checks` exits 1 when it has
+  // no checks to report and 8 while checks are pending, and both cases still
+  // print to stdout. Dropping that output turned "no CI" into "unknown", so the
+  // panel never asked the user whether to create a workflow.
+  const out = await runCommand(
+    'gh',
+    ['pr', 'checks', String(prNumber), '--json', 'state'],
+    { cwd: repoDir, allowFailure: true, keepStdoutOnFailure: true, timeoutMs: 15_000 },
+  )
+  if (typeof out !== 'string') return 'unknown'
+  const text = out.trim()
+  // Whitespace-only output means the command failed without saying anything
+  // useful; that is "we do not know", never "this repo has no CI".
+  if (text.length === 0) return 'unknown'
+  // `gh pr checks` prints "no checks reported on <branch>" and exits 1 when the
+  // PR has no runs at all — that is `none`, not an unknown failure.
+  if (/no checks reported/i.test(text)) return 'none'
+  try {
+    return classifyChecks(JSON.parse(text))
+  } catch {
+    return 'unknown'
+  }
+}

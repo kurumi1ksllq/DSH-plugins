@@ -25,12 +25,15 @@ import {
   ghStatus,
   openIssues,
   openPullRequests,
+  prChecks,
   recentlyMergedPullRequests,
   slugFromRemoteUrl,
 } from './gh.js'
 import { createHash } from 'node:crypto'
 
 import { resolveInsideRepo } from './path-guard.js'
+import { readFlowStates } from './flow-state.js'
+import { buildTaskBoard } from './task-board.js'
 import { pickWorkspace, sessionCwdOf } from './workspace.js'
 
 const CACHE_TTL_MS = 30_000
@@ -126,6 +129,16 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     prs: null,
     mergedPrs: null,
     issues: null,
+    // CI state per PR number ('green'|'red'|'none'|'unknown'), filled below.
+    checks: {},
+    // dev-flow task state read from docs/specs/.flow/<issue>.json, keyed by
+    // issue number. A plain object, NOT a Map: the route JSON.stringify's this
+    // payload, and a Map becomes `{}` on the wire — the browser would then show
+    // every card with no progress at all.
+    flowStates: {},
+    // The board itself, computed here so the browser only renders. Re-deriving
+    // it client-side meant two implementations that drifted.
+    board: null,
     generatedAt: new Date().toISOString(),
   }
 
@@ -171,7 +184,21 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
   // has the same `owner/repo` shape, and github.com/<it> is someone else's repo.
   const repoSlug = forgeHint === 'not-github' ? null : origin ? slugFromRemoteUrl(origin.url) : null
 
-  return {
+  // CI state per open PR. One `gh` call each, so the pool stays small: the panel
+  // is a task board, not a CI dashboard, and `unknown` degrades quietly.
+  const checks = await checksOf(workspace.dir, prs)
+
+  // Which issues the board will draw: everything open, plus whatever the local
+  // `issue-<n>-*` branches name, so a repo without forge access still gets cards.
+  const issueNumbers = [
+    ...(Array.isArray(issues) ? issues.map((i) => i?.number) : []),
+    ...branches.map((b) => issueNumberOf(b?.name)).filter((n) => n !== null),
+  ]
+  const flowMap = await readFlowStates(workspace.dir, issueNumbers)
+  // Map → plain object so the state survives JSON.stringify on the way out.
+  const flowStates = Object.fromEntries(flowMap)
+
+  const snapshot = {
     ...base,
     // The Session's own directory, which may sit below the repo root.
     sessionCwd: sessionCwd ?? null,
@@ -195,7 +222,46 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     prs,
     mergedPrs,
     issues,
+    checks,
+    flowStates,
   }
+  // The board is derived on the host, once, from the same evidence the raw
+  // fields carry — so the browser cannot disagree with the API about stages.
+  snapshot.board = buildTaskBoard({ ...snapshot, flowStates: flowMap })
+  return snapshot
+}
+
+/** Small pool so a repo with many PRs cannot flood the gh CLI. */
+const CHECK_CONCURRENCY = 4
+
+/**
+ * CI state for every open PR, keyed by PR number.
+ *
+ * Failures are not fatal: a PR missing from the map reads as `unknown` on the
+ * board, which is the honest answer when `gh` could not be asked.
+ * @returns {Promise<Record<number, string>>}
+ */
+async function checksOf(repoDir, prs) {
+  if (!Array.isArray(prs) || prs.length === 0) return {}
+  const numbers = prs.map((p) => p?.number).filter((n) => Number.isInteger(n) && n > 0)
+  const out = {}
+  for (let i = 0; i < numbers.length; i += CHECK_CONCURRENCY) {
+    const slice = numbers.slice(i, i + CHECK_CONCURRENCY)
+    const states = await Promise.all(slice.map((n) => prChecks(repoDir, n)))
+    slice.forEach((n, idx) => {
+      out[n] = states[idx]
+    })
+  }
+  return out
+}
+
+/** `issue-<n>-<desc>` → n; anything else → null. Mirrors the board's mapping. */
+function issueNumberOf(branchName) {
+  if (typeof branchName !== 'string') return null
+  const match = /^issue-(\d+)-/.exec(branchName)
+  if (!match) return null
+  const n = Number(match[1])
+  return Number.isInteger(n) && n > 0 ? n : null
 }
 
 /** Stable hash of the changed-path set a snapshot carries. */
