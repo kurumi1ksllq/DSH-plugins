@@ -379,12 +379,14 @@ test('the update scheme keeps P1-6 in step with the committed pnpm-lock.yaml', (
   const drifted = missing.length > 0 || phantom.length > 0
   const detail = `pnpm-lock.yaml@${rev}: missing ${missing.join(', ') || '-'}; unexpected ${phantom.join(', ') || '-'}`
 
-  // The docs quote the working copy's numbers, so a lockfile edited but not
-  // committed would be judged against a document claiming the other state. Say
-  // that instead of reporting a drift nobody can see.
+  // Locally, a lockfile edited but not committed means the doc and the file are
+  // being read at two different states — say that instead of reporting a drift
+  // nobody can see. CI is the opposite case: its `pnpm install --frozen-lockfile`
+  // rewrites the working copy by design (that is P1-6 itself), so a difference
+  // there is expected and says nothing about the author.
   const working = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
   const committed = committedLockfile(rev)
-  if (working !== committed) {
+  if (process.env.CI === undefined && working !== committed) {
     const diff = spawnSync('git', ['status', '--porcelain', '--', 'pnpm-lock.yaml'], { cwd: ROOT })
     assert.equal(
       diff.stdout.toString().trim(),
