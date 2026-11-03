@@ -1685,7 +1685,16 @@ test('the credential vault lists masked entries, saves a new one and records the
 
   const sets = calls.filter((call) => call.method === 'POST' && call.url === '/credential-vault/api/set')
   assert.equal(sets.length, 1)
-  assert.deepEqual(JSON.parse(sets[0].body), { name: 'new-token', kind: 'other', secret: 'ghp_realsecretvalue', username: '', url: '', note: '' })
+  assert.deepEqual(JSON.parse(sets[0].body), {
+    name: 'new-token',
+    kind: 'other',
+    secret: 'ghp_realsecretvalue',
+    service: '',
+    aliases: [],
+    username: '',
+    url: '',
+    note: '',
+  })
   assert.ok(calls.some((call) => call.url === '/credential-vault/api/list'), 'the list is re-read after saving')
 })
 
@@ -1703,7 +1712,10 @@ function buttonByTextIn(tree, label) {
   return findNode(resolveTree(hits[hits.length - 1]), (node) => typeof node.props?.onClick === 'function')
 }
 
+let vaultBootCount = 0
+
 async function bootCredentialVault() {
+  vaultBootCount += 1
   const calls = []
   const entries = [
     { name: 'github-token', kind: 'token', hasSecret: true, preview: 'gho_…un', username: null, url: null, note: null, createdAt: '2026-11-02T18:38:21.111Z', updatedAt: '2026-11-02T18:38:21.111Z' },
@@ -1713,7 +1725,7 @@ async function bootCredentialVault() {
     __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) },
     confirm: () => true,
   }
-  await import(new URL('../client.js?v=vault-case', import.meta.url).href)
+  await import(new URL(`../client.js?v=vault-case-${vaultBootCount}`, import.meta.url).href)
   const module = globalThis.window.loaded.factory(() => React)
   const dictionary = {}
   module.apply({
@@ -1838,4 +1850,57 @@ test('the dictionary carries no keys the panel never reads', async () => {
   ])
   const newDead = dead.filter((key) => !KNOWN_DEAD.has(key))
   assert.deepEqual(newDead, [], `new dictionary keys nobody reads: ${newDead.join(', ')}`)
+})
+
+test('the credential editor offers database, service, aliases and a slug preview', async () => {
+  // Issue #36 (T6): the user cannot be expected to invent a "professional" name,
+  // so the editor must (a) offer the database classification, (b) accept a service
+  // id and free-form aliases, and (c) show what the typed name normalizes to.
+  const { calls, open } = await bootCredentialVault()
+
+  const addButton = findNode(open(), (node) => node.type === 'button' && /新增凭据/.test(textOf(node)))
+  assert.ok(addButton, 'add-credential button missing')
+  addButton.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  let tree = open()
+  const optionValues = []
+  eachNode(tree, (node) => {
+    if (node.type === 'option') optionValues.push(node.props.value)
+  })
+  assert.ok(optionValues.includes('database'), `kind options missing database: ${optionValues.join(', ')}`)
+
+  const findInput = (pattern) =>
+    findNode(tree, (node) => node.type === 'input' && pattern.test(String(node.props.placeholder ?? '')))
+  const nameInput = findInput(/github-token/)
+  const serviceInput = findInput(/aliyun-ecs/)
+  const aliasesInput = findInput(/gh,/)
+  const secretInput = findNode(tree, (node) => node.type === 'input' && node.props?.type === 'password')
+  assert.ok(nameInput, 'name input missing')
+  assert.ok(serviceInput, 'service input missing')
+  assert.ok(aliasesInput, 'aliases input missing')
+  assert.ok(secretInput, 'secret input missing')
+
+  const type = (node, value) => node.props.onChange({ target: { value } })
+  type(nameInput, 'GitHub Token')
+  type(secretInput, 'ghp_paneltest')
+  type(serviceInput, 'github')
+  type(aliasesInput, 'gh, git, ,GitHub_Token')
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  tree = open()
+  assert.match(textOf(tree), /github-token/, 'the normalized slug preview must be rendered from the typed name')
+
+  const form = findNode(tree, (node) => node.type === 'form')
+  assert.ok(form, 'editor form missing')
+  const before = calls.length
+  form.props.onSubmit({ preventDefault() {} })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const posted = calls.slice(before).filter((call) => call.url === '/credential-vault/api/set')
+  assert.equal(posted.length, 1, 'saving must post exactly once')
+  const body = JSON.parse(posted[0].body)
+  assert.equal(body.service, 'github')
+  assert.deepEqual(body.aliases, ['gh', 'git', 'GitHub_Token'])
+  assert.equal(body.kind, 'other')
 })

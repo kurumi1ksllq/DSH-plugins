@@ -62,9 +62,16 @@ export function createApiHandler(service) {
         if (secret.length > 64 * 1024) throw new ApiError(413, 'secret-too-large', 'secret exceeds 64 KiB')
         const kind = typeof body?.kind === 'string' && KINDS.includes(body.kind) ? body.kind : 'other'
         const meta = {
+          service: typeof body?.service === 'string' && body.service.trim().length > 0 ? body.service.trim() : null,
+          aliases: Array.isArray(body?.aliases) ? body.aliases.filter((alias) => typeof alias === 'string') : [],
           username: typeof body?.username === 'string' ? body.username : null,
           url: typeof body?.url === 'string' ? body.url : null,
           note: typeof body?.note === 'string' ? body.note : null,
+        }
+        // The panel sends "other" for an unknown kind; anything the enum does not
+        // know must be refused rather than silently downgraded.
+        if (typeof body?.kind === 'string' && body.kind.length > 0 && !KINDS.includes(body.kind)) {
+          throw new ApiError(400, 'invalid-kind', `kind must be one of ${KINDS.join(', ')}`)
         }
         try {
           // An empty secret means "keep the stored one" — but only for an entry

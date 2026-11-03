@@ -314,6 +314,11 @@ window.__ModuleLoader__.load({
       credentialAdd: '新增凭据',
       credentialName: '名称',
       credentialNamePlaceholder: '例如 github-token、prod-server',
+      credentialSlugPreview: '规范名',
+      credentialService: '服务（可选）',
+      credentialServicePlaceholder: 'github / openai / aliyun-ecs',
+      credentialAliases: '别名（可选）',
+      credentialAliasesPlaceholder: 'gh, github-token, git',
       credentialKind: '类型',
       credentialSecret: '凭据值',
       credentialSecretPlaceholder: '密码 / token / API key',
@@ -340,6 +345,7 @@ window.__ModuleLoader__.load({
       credentialKindToken: 'Token',
       credentialKindApiKey: 'API Key',
       credentialKindSshKey: 'SSH 密钥',
+      credentialKindDatabase: '数据库',
       credentialKindOther: '其他',
     }
 
@@ -607,6 +613,11 @@ window.__ModuleLoader__.load({
       credentialAdd: 'Add credential',
       credentialName: 'Name',
       credentialNamePlaceholder: 'e.g. github-token, prod-server',
+      credentialSlugPreview: 'Normalized name',
+      credentialService: 'Service (optional)',
+      credentialServicePlaceholder: 'github / openai / aliyun-ecs',
+      credentialAliases: 'Aliases (optional)',
+      credentialAliasesPlaceholder: 'gh, github-token, git',
       credentialKind: 'Kind',
       credentialSecret: 'Secret',
       credentialSecretPlaceholder: 'password / token / API key',
@@ -633,6 +644,7 @@ window.__ModuleLoader__.load({
       credentialKindToken: 'Token',
       credentialKindApiKey: 'API key',
       credentialKindSshKey: 'SSH key',
+      credentialKindDatabase: 'Database',
       credentialKindOther: 'Other',
     }
 
@@ -2246,15 +2258,35 @@ window.__ModuleLoader__.load({
       rotate: `${VAULT_BASE}/rotate`,
     }
 
-    const CREDENTIAL_KINDS = ['password', 'token', 'api-key', 'ssh-key', 'other']
+    const CREDENTIAL_KINDS = ['password', 'token', 'api-key', 'ssh-key', 'database', 'other']
 
     const credentialKindLabel = (t, kind) => {
       if (kind === 'password') return t('credentialKindPassword')
       if (kind === 'token') return t('credentialKindToken')
       if (kind === 'api-key') return t('credentialKindApiKey')
       if (kind === 'ssh-key') return t('credentialKindSshKey')
+      if (kind === 'database') return t('credentialKindDatabase')
       return t('credentialKindOther')
     }
+
+    /**
+     * The same normalization the host applies to a credential name: lower-case,
+     * every run of non-alphanumeric characters folded to one dash. Shown live
+     * under the name field so the user sees that "GitHub Token" and
+     * "github-token" are the same credential.
+     */
+    const credentialSlug = (name) =>
+      String(name ?? '')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, '-')
+        .replace(/^-+|-+$/g, '')
+
+    /** Parse the comma-separated alias field into the array the host stores. */
+    const credentialAliases = (text) =>
+      String(text ?? '')
+        .split(/[,，]/)
+        .map((part) => part.trim())
+        .filter((part) => part.length > 0)
 
     async function credentialApi(path, options) {
       const response = await fetch(path, options ?? {})
@@ -2301,6 +2333,8 @@ window.__ModuleLoader__.load({
         name: initial.name ?? '',
         kind: CREDENTIAL_KINDS.includes(initial.kind) ? initial.kind : 'other',
         secret: '',
+        service: initial.service ?? '',
+        aliases: Array.isArray(initial.aliases) ? initial.aliases.join(', ') : '',
         username: initial.username ?? '',
         url: initial.url ?? '',
         note: initial.note ?? '',
@@ -2316,7 +2350,14 @@ window.__ModuleLoader__.load({
           style: { display: 'flex', flexDirection: 'column', gap: '10px' },
           onSubmit: (event) => {
             event.preventDefault()
-            if (canSave && !busy) onSave({ ...form, name: form.name.trim() })
+            if (canSave && !busy) {
+              onSave({
+                ...form,
+                name: form.name.trim(),
+                service: form.service.trim(),
+                aliases: credentialAliases(form.aliases),
+              })
+            }
           },
         },
         [
@@ -2326,6 +2367,13 @@ window.__ModuleLoader__.load({
             { key: 'name', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
             h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialName')),
             h('input', { style: CREDENTIAL_INPUT, placeholder: t('credentialNamePlaceholder'), ...bind('name') }),
+            form.name.trim().length > 0
+              ? h(
+                  'span',
+                  { style: { ...T.caption, color: C.secondary } },
+                  `${t('credentialSlugPreview')}: ${credentialSlug(form.name) || '—'}`,
+                )
+              : null,
           ),
           h(
             'label',
@@ -2336,6 +2384,18 @@ window.__ModuleLoader__.load({
               { style: CREDENTIAL_INPUT, ...bind('kind') },
               ...CREDENTIAL_KINDS.map((kind) => h('option', { key: kind, value: kind }, credentialKindLabel(t, kind))),
             ),
+          ),
+          h(
+            'label',
+            { key: 'service', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialService')),
+            h('input', { style: CREDENTIAL_INPUT, placeholder: t('credentialServicePlaceholder'), ...bind('service') }),
+          ),
+          h(
+            'label',
+            { key: 'aliases', style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+            h('span', { style: { ...T.caption, color: C.secondary } }, t('credentialAliases')),
+            h('input', { style: CREDENTIAL_INPUT, placeholder: t('credentialAliasesPlaceholder'), ...bind('aliases') }),
           ),
           h(
             'label',

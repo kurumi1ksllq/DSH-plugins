@@ -10,9 +10,12 @@ import {
   loadOrCreateMasterKey,
   maskSecret,
   masterKeyPath,
+  normalizeAliases,
+  normalizeKey,
   openSecret,
   readVault,
   sealSecret,
+  slugOf,
   vaultFilePath,
   writeVault,
 } from './store.js'
@@ -44,6 +47,25 @@ export function createVaultStore(dir) {
     return found === undefined ? null : { name, ...found }
   }
 
+  /**
+   * Reject a write whose name folds to the same slug as a DIFFERENT existing
+   * credential. `github token` and `github-token` would otherwise both exist and
+   * silently shadow each other in alias/slug lookups, so the store refuses the
+   * second one and names the occupant to the caller.
+   */
+  function assertNoSlugCollision(vault, name) {
+    const slug = slugOf(name)
+    for (const existing of Object.keys(vault.entries)) {
+      if (existing === name) continue
+      if (slugOf(existing) === slug) {
+        throw new Error(
+          `credential name "${name}" collides with the existing credential "${existing}" ` +
+            `(both normalize to "${slug}"); rename one of them`,
+        )
+      }
+    }
+  }
+
   return {
     dir,
 
@@ -53,7 +75,10 @@ export function createVaultStore(dir) {
       return Object.entries(vault.entries)
         .map(([name, value]) => ({
           name,
+          slug: slugOf(name),
           kind: value.kind ?? 'other',
+          service: value.service ?? null,
+          aliases: normalizeAliases(value.aliases),
           hasSecret: typeof value.secret === 'string' && value.secret.length > 0,
           preview: value.secret ? maskSecret(openSecret(key, value.secret)) : null,
           username: value.username ?? null,
@@ -72,17 +97,22 @@ export function createVaultStore(dir) {
       const { secret, ...rest } = found
       return {
         ...rest,
+        slug: slugOf(name),
+        kind: rest.kind ?? 'other',
+        service: rest.service ?? null,
+        aliases: normalizeAliases(rest.aliases),
         hasSecret: typeof secret === 'string' && secret.length > 0,
         preview: secret ? maskSecret(openSecret(key, secret)) : null,
       }
     },
 
     /** Create or overwrite one credential. */
-    set(name, { kind = 'other', secret, username = null, url = null, note = null } = {}) {
+    set(name, { kind = 'other', secret, username = null, url = null, note = null, service = null, aliases = [] } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
       const vault = readVault(dir)
+      assertNoSlugCollision(vault, name)
       const now = new Date().toISOString()
       const previous = vault.entries[name]
       vault.entries[name] = {
@@ -91,6 +121,8 @@ export function createVaultStore(dir) {
         username: username || null,
         url: url || null,
         note: note || null,
+        service: service || null,
+        aliases: normalizeAliases(aliases),
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
       }
@@ -107,7 +139,7 @@ export function createVaultStore(dir) {
      * false when the name is unknown — the caller decides what that means; it
      * must never silently create a secret-less entry.
      */
-    update(name, { kind, username, url, note } = {}) {
+    update(name, { kind, username, url, note, service, aliases } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       const vault = readVault(dir)
       const previous = vault.entries[name]
@@ -120,6 +152,8 @@ export function createVaultStore(dir) {
         username: username === undefined ? (previous.username ?? null) : username || null,
         url: url === undefined ? (previous.url ?? null) : url || null,
         note: note === undefined ? (previous.note ?? null) : note || null,
+        service: service === undefined ? (previous.service ?? null) : service || null,
+        aliases: aliases === undefined ? normalizeAliases(previous.aliases) : normalizeAliases(aliases),
         updatedAt: new Date().toISOString(),
       }
       writeVault(dir, vault)

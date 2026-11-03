@@ -1,6 +1,6 @@
 {
   "name": "dsh-credential-vault",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Credential vault for DeepSeek Harness: store server passwords, GitHub tokens and API keys AES-256-GCM encrypted under $DSH_HOME, expose one `credential` tool for the model to read them by name on demand, plus a sidebar manager with a read audit log. Plaintext never appears in the session log or the HTTP API responses the panel uses.",
   "type": "module",

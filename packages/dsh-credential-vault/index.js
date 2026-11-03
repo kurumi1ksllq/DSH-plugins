@@ -17,6 +17,9 @@ import { createVaultStore } from './lib/vault-store.js' // STARTUP-MARKER
 import { appendAudit, readAudit } from './lib/audit.js'
 import { API_BASE, createApiHandler } from './lib/api.mjs'
 import { isValidName } from './lib/store.js'
+import { matchedBy, publicFields, resolveName, searchEntries } from './lib/resolve.js'
+import { hintSection } from './lib/hint.js'
+import { createEnvBridge, createGrantTable, envVarFor, sessionIdOf } from './lib/env-injection.js'
 
 export const name = 'dsh-credential-vault'
 
@@ -34,23 +37,10 @@ export function defaultVaultDir() {
   return join(home, 'credential-vault')
 }
 
-/** The system-prompt section: teaches the model the tool contract. */
-const HINT_SECTION = {
-  name: 'dsh-credential-vault:hint',
-  order: 160,
-  text:
-    'Credential vault (dsh-credential-vault): stored credentials (server passwords, tokens, API keys) are available ' +
-    `through the \`${TOOL_NAME}\` tool. \`action:"list"\` shows what exists (names, kinds, notes only); ` +
-    `\`action:"get"\` returns masked metadata; \`action:"reveal", name:"…"\` returns the secret itself, and every ` +
-    'reveal is written to an audit log the user can read in the panel. Ask the user before revealing a credential ' +
-    'the user has not explicitly directed you to use, and never print a revealed secret into a file, log or message ' +
-    'the user did not ask for.',
-}
-
 /**
  * Cordis plugin entry.
  * @param {import('@deepseek-ai/cordis').Context} ctx
- * @param {{vaultDir?: string}} [config]
+ * @param {{vaultDir?: string, grantTtlMs?: number}} [config]
  */
 export function apply(ctx, config = {}) {
 
@@ -60,7 +50,35 @@ export function apply(ctx, config = {}) {
     : defaultVaultDir()
   const store = createVaultStore(dir)
 
-  ctx.systemPrompt.section({ ...HINT_SECTION })
+  ctx.systemPrompt.section(hintSection(store))
+
+  // Zero-plaintext path: `use` records a grant and `shellEnv` injects the value
+  // into each shell call, so the secret never enters the conversation.
+  const grants = createGrantTable({ ttlMs: options.grantTtlMs })
+  let envRegister = null
+  const envBridge = createEnvBridge({
+    store,
+    grants,
+    register: (contributor) => (envRegister === null ? undefined : envRegister(contributor)),
+  })
+
+  /** Bind the registry when this deployment composes `dsh-shell-env`. */
+  function attachShellEnv(service) {
+    if (service === null || typeof service?.register !== 'function') return
+    envRegister = (contributor) => service.register(contributor)
+    envBridge.sync()
+  }
+
+  if (ctx.shellEnv !== undefined) {
+    ctx.effect(() => {
+      attachShellEnv(ctx.shellEnv)
+      return () => envBridge.dispose()
+    })
+  } else if (typeof ctx.inject === 'function') {
+    // Optional dependency: a composition without `dsh-shell-env` must still load
+    // this plugin — `use` then fails loudly instead of leaking a value.
+    ctx.effect(() => ctx.inject(['shellEnv'], (inner) => attachShellEnv(inner.shellEnv)))
+  }
 
   const outputSpec = {
     schema: { type: 'object', additionalProperties: true },
@@ -75,20 +93,27 @@ export function apply(ctx, config = {}) {
       return ctx.tools.register(defineTool({
       name: TOOL_NAME,
       description:
-        'Read credentials from the encrypted vault: list what is stored, get masked metadata, or reveal the secret ' +
-        'itself. Every reveal is audited. Use the exact credential name from `action:"list"`.',
+        'Read credentials from the encrypted vault. Prefer `action:"use"`, which returns only an environment ' +
+        'variable name so the secret never enters this conversation. `action:"list"` shows what exists, ' +
+        '`action:"search"` finds one by any spelling (name, alias, service), `action:"get"` returns masked ' +
+        'metadata, and `action:"reveal"` returns plaintext (every reveal is audited — use it only when the ' +
+        'user explicitly asks to see the value).',
       parameters: {
         action: {
           type: 'string',
           required: true,
-          description: '"list", "get" or "reveal".',
+          description: '"list", "search", "get", "use" or "reveal".',
         },
         name: {
           type: 'string',
-          description: 'Credential name. Required for "get" and "reveal".',
+          description: 'Credential name or any close spelling of it. Required for "get", "use" and "reveal".',
+        },
+        query: {
+          type: 'string',
+          description: 'Search text: a name, alias, service or a few keywords. Required for "search".',
         },
       },
-      execute(args) {
+      execute(args, exec) {
         const action = typeof args?.action === 'string' ? args.action : ''
         if (action === 'list') {
           const entries = store.list().map(({ preview, ...rest }) => rest)
@@ -96,32 +121,172 @@ export function apply(ctx, config = {}) {
             action,
             count: entries.length,
             entries,
-            note: 'Names only. Use action "reveal" with one of these names when you need the secret itself.',
+            note:
+              'Each entry carries name/slug/service/aliases. When you need a secret, call action "use" with the ' +
+              'name (or any of its aliases) to get a DSH_CRED_* environment variable.',
           }
         }
-        if (action === 'get' || action === 'reveal') {
+        if (action === 'search') {
+          const query = typeof args?.query === 'string' ? args.query.trim() : ''
+          if (query.length === 0) {
+            appendAudit(dir, {
+              name: null,
+              outcome: 'rejected',
+              source: 'tool',
+              action: 'search',
+              sessionId: sessionIdOf(exec),
+              reason: 'search without query',
+            })
+            throw new Error('credential: "query" is required for action "search"')
+          }
+          const entries = store.list()
+          const matches = searchEntries(entries, query)
+          const resolvedBy = matchedBy(entries, query)
+          const status = matches.length === 0 ? 'missing' : matches.length === 1 ? 'resolved' : 'ambiguous'
+          return {
+            action,
+            query,
+            status,
+            resolvedBy,
+            matches: matches.map(publicFields),
+            ...(status === 'ambiguous' ? { note: 'Several credentials match; pass the exact name to "use".' } : {}),
+          }
+        }
+        if (action === 'get' || action === 'use' || action === 'reveal') {
           const credName = typeof args?.name === 'string' ? args.name.trim() : ''
           if (!isValidName(credName)) {
-            appendAudit(dir, { name: credName || null, outcome: 'rejected', source: 'tool', reason: 'invalid name' })
+            appendAudit(dir, {
+              name: credName || null,
+              outcome: 'rejected',
+              source: 'tool',
+              action,
+              sessionId: sessionIdOf(exec),
+              reason: 'invalid name',
+            })
             throw new Error('credential: "name" is required and must be a plain name (see action "list")')
           }
-          if (action === 'get') {
-            const found = store.get(credName)
-            appendAudit(dir, { name: credName, outcome: found === null ? 'missing' : 'ok', source: 'tool' })
-            if (found === null) throw new Error(`credential: no credential named "${credName}"`)
-            const { preview, ...rest } = found
-            return { action, ...rest, note: 'Metadata only; the secret stays sealed.' }
+          const resolved = resolveName(store.list(), credName)
+          if (resolved.status === 'missing') {
+            appendAudit(dir, {
+              name: credName,
+              outcome: 'missing',
+              source: 'tool',
+              action,
+              sessionId: sessionIdOf(exec),
+            })
+            throw new Error(
+              `credential: no credential matches "${credName}" — call action "list" to see what is stored, ` +
+                'then ask the user whether to add it',
+            )
           }
-          const revealed = store.reveal(credName)
-          appendAudit(dir, { name: credName, outcome: revealed === null ? 'missing' : 'ok', source: 'tool' })
-          if (revealed === null) throw new Error(`credential: no credential named "${credName}"`)
-          return { action, ...revealed }
+          if (resolved.status === 'ambiguous') {
+            const names = resolved.candidates.map((candidate) => candidate.name)
+            appendAudit(dir, {
+              name: credName,
+              outcome: 'ambiguous',
+              source: 'tool',
+              action,
+              sessionId: sessionIdOf(exec),
+              reason: names.join(', '),
+            })
+            throw new Error(
+              `credential: "${credName}" matches several credentials (${names.join(', ')}) — ` +
+                'repeat the call with one of those exact names',
+            )
+          }
+          if (action === 'get') {
+            const found = store.get(resolved.name)
+            appendAudit(dir, {
+              name: resolved.name,
+              outcome: found === null ? 'missing' : 'ok',
+              source: 'tool',
+              action,
+              sessionId: sessionIdOf(exec),
+              resolvedBy: resolved.resolvedBy,
+            })
+            if (found === null) throw new Error(`credential: no credential named "${resolved.name}"`)
+            const { preview, ...rest } = found
+            return {
+              action,
+              ...rest,
+              resolvedBy: resolved.resolvedBy,
+              note: 'Metadata only; the secret stays sealed.',
+            }
+          }
+          if (action === 'use') {
+            // Zero-plaintext path. Check availability BEFORE any audit write or
+            // reveal: a deployment without shellEnv must fail loudly rather than
+            // quietly hand the value over.
+            if (!envBridge.ready) {
+              throw new Error(
+                'credential: environment variable injection is not available in this deployment, so "use" ' +
+                  'cannot deliver the secret without putting it in the conversation. Stop and tell the user ' +
+                  'that this deployment needs dsh-shell-env for safe credential use; do not use "reveal" on ' +
+                  'your own initiative.',
+              )
+            }
+            envBridge.sync()
+            const envVar = envVarFor(resolved.name)
+            if (!envBridge.declared().includes(envVar)) {
+              throw new Error(`credential: "use" could not declare ${envVar} with the shell environment`)
+            }
+            const sessionId = sessionIdOf(exec)
+            if (sessionId === null) {
+              appendAudit(dir, { name: resolved.name, outcome: 'rejected', source: 'tool', reason: 'no session id' })
+              throw new Error('credential: "use" requires an agent session')
+            }
+            const revealed = store.reveal(resolved.name)
+            if (revealed === null) throw new Error(`credential: no credential named "${resolved.name}"`)
+            const grant = grants.issue(sessionId, resolved.name, revealed.secret)
+            appendAudit(dir, {
+              name: resolved.name,
+              outcome: 'ok',
+              source: 'tool',
+              action: 'use',
+              sessionId,
+              resolvedBy: resolved.resolvedBy,
+            })
+            return {
+              action,
+              name: resolved.name,
+              resolvedBy: resolved.resolvedBy,
+              envVar: grant.envVar,
+              expiresAt: grant.expiresAt,
+              note:
+                `The value is NOT in this result. Reference $${grant.envVar} inside a shell command; it is ` +
+                'injected into each shell call until it expires. Never echo it, printenv it, or write it to a ' +
+                'file, URL or command-line argument.',
+            }
+          }
+          if (action === 'reveal') {
+            const revealed = store.reveal(resolved.name)
+            appendAudit(dir, {
+              name: resolved.name,
+              outcome: revealed === null ? 'missing' : 'ok',
+              source: 'tool',
+              action,
+              sessionId: sessionIdOf(exec),
+              resolvedBy: resolved.resolvedBy,
+            })
+            if (revealed === null) throw new Error(`credential: no credential named "${resolved.name}"`)
+            return { action, ...revealed, resolvedBy: resolved.resolvedBy }
+          }
+          return null
         }
-        throw new Error('credential: action must be "list", "get" or "reveal"')
+        throw new Error('credential: action must be "list", "search", "get", "use" or "reveal"')
       },
       presentCall: (args) => {
         const action = typeof args?.action === 'string' ? args.action : 'credential'
-        const label = action === 'list' ? 'List credentials' : action === 'reveal' ? 'Reveal credential' : 'Read credential'
+        const label =
+          action === 'list'
+            ? 'List credentials'
+            : action === 'search'
+              ? 'Search credentials'
+              : action === 'use'
+                ? 'Use credential'
+                : action === 'reveal'
+                  ? 'Reveal credential'
+                  : 'Read credential'
         return { title: label, kind: 'read', detail: typeof args?.name === 'string' ? args.name : undefined }
       },
       output: outputSpec,

@@ -1,8 +1,14 @@
-// Read audit log for dsh-credential-vault: one JSON line per reveal, appended
-// under the vault directory. Best-effort — a failing append never fails the
-// tool call itself.
+// Read audit log for dsh-credential-vault: one JSON line per credential read,
+// appended under the vault directory. Best-effort — a failing append never fails
+// the tool call itself.
+//
+// A record answers "who read what, how did they find it, and did they use the
+// safe path": `sessionId` attributes the read to one agent session, `resolvedBy`
+// names the matching rule that produced the credential, and `action` separates
+// the zero-plaintext `use` path from the audited `reveal` escape hatch.
+// No record ever contains a value.
 
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, fchmodSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const AUDIT_FILE = 'audit.log'
@@ -15,10 +21,27 @@ export function appendAudit(dir, record) {
     name: record.name ?? null,
     outcome: record.outcome ?? 'ok',
     source: record.source ?? 'tool',
+    ...(typeof record.action === 'string' && record.action.length > 0 ? { action: record.action } : {}),
+    ...(typeof record.sessionId === 'string' && record.sessionId.length > 0 ? { sessionId: record.sessionId } : {}),
+    ...(typeof record.resolvedBy === 'string' && record.resolvedBy.length > 0
+      ? { resolvedBy: record.resolvedBy }
+      : {}),
     ...('reason' in record ? { reason: String(record.reason).slice(0, 200) } : {}),
   }) + '\n'
   try {
-    appendFileSync(join(dir, AUDIT_FILE), line, 'utf8')
+    // The log names which credentials were read and when: keep it 0600 like the
+    // vault itself, even when an older file was created with a wider mode.
+    const fd = openSync(join(dir, AUDIT_FILE), 'a', 0o600)
+    try {
+      try {
+        fchmodSync(fd, 0o600)
+      } catch {
+        /* the append still matters more than the mode */
+      }
+      writeFileSync(fd, line, 'utf8')
+    } finally {
+      closeSync(fd)
+    }
   } catch {
     /* diagnostics only */
   }
@@ -58,7 +81,6 @@ export function trimAudit(dir) {
   }
 }
 
-import { writeFileSync } from 'node:fs'
 function writeAll(file, text) {
   writeFileSync(file, text, 'utf8')
 }
