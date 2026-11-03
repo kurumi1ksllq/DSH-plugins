@@ -70,9 +70,18 @@ function dshHome() {
   return process.env.DSH_HOME || join(process.env.HOME || process.env.USERPROFILE || '', '.dsh')
 }
 
+/**
+ * Directory entries, dot-prefixed ones included.
+ *
+ * This used to shell out to `ls -1`, which hides dot entries and splits names
+ * on newlines. A profile directory whose name starts with a dot was invisible
+ * to `resolveProfileDir`, and the same lister made the dot guard in
+ * `nodeModulesLinks` unreachable. `readdirSync` sees both, so the guard is now
+ * the only thing deciding what gets skipped.
+ */
 function readDirNames(dir) {
   try {
-    return execFileSync('ls', ['-1', dir], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+    return readdirSync(dir)
   } catch {
     return []
   }
@@ -146,8 +155,8 @@ function entryProblem(dir, manifest) {
  * on its own, which would make the guard below dead code and hide a real
  * `.pnpm`-style leftover behind an accident of the lister.
  */
-function nodeModulesLinks(profileDir) {
-  const links = []
+function nodeModulesEntries(profileDir) {
+  const entries = []
   const walk = (dir, scope) => {
     let names = []
     try {
@@ -166,13 +175,14 @@ function nodeModulesLinks(profileDir) {
       }
       if (!stat.isSymbolicLink()) {
         if (scope === null && name.startsWith('@')) walk(path, name)
+        else entries.push({ name: scope === null ? name : `${scope}/${name}`, path, link: false, target: null })
         continue
       }
-      links.push({ name: scope === null ? name : `${scope}/${name}`, path, target: readlinkSync(path) })
+      entries.push({ name: scope === null ? name : `${scope}/${name}`, path, link: true, target: readlinkSync(path) })
     }
   }
   walk(join(profileDir, 'node_modules'), null)
-  return links
+  return entries
 }
 
 const options = parseArgs(process.argv.slice(2))
@@ -241,12 +251,23 @@ for (const name of [...SHIPPED.keys()].sort()) {
 
   const checkout = checkoutOf(real)
   const commit = checkout === null ? null : commitOf(checkout)
-  if (checkout === REPO) {
+  const expected = resolve(REPO, SHIPPED.get(name))
+  if (checkout === REPO && real === expected) {
     results.push({ name, kind: 'ok', version: manifest.version, detail: `${real} @ ${commit ?? 'no-git'}` })
+  } else if (checkout === REPO) {
+    // Right checkout, wrong directory: a name wired to another package in this
+    // repository. Reporting this as ok was the worst possible outcome — a
+    // wiring check that green-lights crossed wires, and prints the other
+    // package's version while doing it.
+    results.push({
+      name,
+      kind: 'fail',
+      detail: `wrong bundle: ${name} resolves to ${real}, but this repo ships it from ${expected}`,
+    })
+    failures += 1
   } else {
     // Not an error today (D1 is still open), but exactly the situation that
     // makes this repository's green checks meaningless — say so loudly.
-    const expected = resolve(REPO, SHIPPED.get(name))
     results.push({
       name,
       kind: 'warn',
@@ -267,31 +288,43 @@ for (const name of [...SHIPPED.keys()].sort()) {
 // a link nobody declares is at least worth a warning.
 const seen = new Set(results.map((row) => row.name))
 
-for (const link of nodeModulesLinks(profileDir)) {
-  if (seen.has(link.name)) continue
-  const declared = typeof deps[link.name] === 'string'
+for (const entry of nodeModulesEntries(profileDir)) {
+  if (seen.has(entry.name)) continue
+  const declaredAsLink = typeof deps[entry.name] === 'string' && deps[entry.name].startsWith('link:')
+  if (!entry.link) {
+    // Declared as a link, materialised as a real directory: the host loads
+    // something this repository never checked. Silence here is the same bug
+    // class as the orphan scan — the entry is not "fine", it is invisible.
+    if (declaredAsLink) {
+      results.push({ name: entry.name, kind: 'fail', detail: `declared as link:, but node_modules holds a real directory: ${entry.path}` })
+      failures += 1
+    }
+    continue
+  }
   let real = null
   try {
-    real = realpathSync(link.path)
+    real = realpathSync(entry.path)
   } catch {
     // Declared or not, a link to a directory that does not exist is broken.
-    results.push({ name: link.name, kind: 'fail', detail: `dangling link (target missing): ${link.path} -> ${link.target}` })
+    results.push({ name: entry.name, kind: 'fail', detail: `dangling link (target missing): ${entry.path} -> ${entry.target}` })
     failures += 1
     continue
   }
-  if (declared) {
+  if (typeof deps[entry.name] === 'string') {
     // Declared, alive, and not a bundle this repo ships: the pass above never
     // sees it (it only walks `SHIPPED`), so report it here or it vanishes from
     // the report entirely — which is the blindness this script exists to end.
+    // `info`, not `ok`: `profile ok: N` counts the bundles this repository
+    // ships from this checkout, and a foreign package must not inflate it.
     results.push({
-      name: link.name,
-      kind: 'ok',
+      name: entry.name,
+      kind: 'info',
       detail: `declared, live link (not a bundle this repo ships): ${real}`,
     })
     continue
   }
   results.push({
-    name: link.name,
+    name: entry.name,
     kind: 'warn',
     reason: 'stray',
     detail: `stray link, not declared in the profile manifest: ${real}`,
@@ -327,7 +360,7 @@ if (options.json) {
   console.log(JSON.stringify({ ok: failures === 0, profile: profileDir, failures, warnings, results }, null, 2))
 } else {
   for (const row of results) {
-    const mark = row.kind === 'ok' ? ' ok ' : row.kind === 'warn' ? 'warn' : 'FAIL'
+    const mark = row.kind === 'ok' ? ' ok ' : row.kind === 'info' ? 'info' : row.kind === 'warn' ? 'warn' : 'FAIL'
     console.log(`  ${mark} ${row.name}${row.version ? `@${row.version}` : ''}`)
     console.log(`       ${row.detail}`)
   }

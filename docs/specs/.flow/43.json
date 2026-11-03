@@ -2,7 +2,7 @@
   "issue": 43,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-04T06:40:00+08:00",
+  "updatedAt": "2026-11-04T07:30:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -32,17 +32,17 @@
     {
       "id": 6,
       "title": "review 裁决 A:修 P1-P6(readdirSync 活守卫/口径/横幅/静默消失/spec/flow)",
-      "state": "in_progress"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 1,
+    "run": 2,
     "max": 2,
     "status": "green"
   },
   "review": {
-    "state": "running",
-    "axes": 2
+    "state": "pending-decision",
+    "axes": 3
   },
   "merge": {
     "authorized": false

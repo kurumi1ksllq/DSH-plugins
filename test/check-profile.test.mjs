@@ -14,7 +14,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const SCRIPT = join(here, '..', 'scripts', 'check-profile.mjs')
+const ROOT = join(here, '..')
+const SCRIPT = join(ROOT, 'scripts', 'check-profile.mjs')
 
 /** A throwaway profile directory with a manifest, and nothing else. */
 function makeProfile({ dependencies = {} } = {}) {
@@ -28,6 +29,15 @@ function makeProfile({ dependencies = {} } = {}) {
 function run(dir) {
   const run = spawnSync(process.execPath, [SCRIPT, '--profile', dir, '--json'], { encoding: 'utf8' })
   return { status: run.status, out: (run.stdout ?? '') + (run.stderr ?? ''), json: safeJson(run.stdout) }
+}
+
+/** Run with a chosen `$DSH_HOME`, so profile *discovery* can be exercised too. */
+function runWithHome(home) {
+  const result = spawnSync(process.execPath, [SCRIPT, '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, DSH_HOME: home },
+  })
+  return { status: result.status, out: (result.stdout ?? '') + (result.stderr ?? ''), json: safeJson(result.stdout) }
 }
 
 /** The same profile through the human-readable path: the summary lines live here. */
@@ -188,7 +198,9 @@ test('a declared link that is not one of ours is reported, never silently droppe
     assert.equal(result.status, 0, result.out)
     const entry = row(result.json, 'someone-elses-bundle')
     assert.ok(entry, `a declared live link must appear in the report, not vanish:\n${result.out}`)
-    assert.equal(entry.kind, 'ok')
+    // `info`, not `ok`: a foreign package must not inflate `profile ok: N`,
+    // which three docs quote as "the bundles this repo ships".
+    assert.equal(entry.kind, 'info')
     assert.equal(result.json?.ok, true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -229,5 +241,80 @@ test('a bundle served from another checkout is counted as a warning, not as ok',
     assert.match(result.out, /load from another checkout/, result.out)
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a bundle wired to the wrong package in this checkout is a failure', () => {
+  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:./elsewhere' } })
+  try {
+    // Right checkout, wrong directory: the shape a hand-edited profile
+    // produces, and the one a "wiring check" must never green-light. The
+    // target has to live in this checkout for the case to be reachable, so it
+    // points at a sibling package this repository really ships.
+    const sibling = join(ROOT, 'packages', 'dsh-inventory')
+    symlinkSync(sibling, join(dir, 'node_modules', 'dsh-git-status'))
+    const result = run(dir)
+    assert.equal(result.status, 1, `crossed wires must fail:\n${result.out}`)
+    assert.equal(row(result.json, 'dsh-git-status')?.kind, 'fail')
+    assert.match(row(result.json, 'dsh-git-status').detail, /wrong bundle/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a declared link materialised as a real directory does not vanish', () => {
+  const dir = makeProfile({ dependencies: { 'someone-elses-bundle': 'link:./ext' } })
+  try {
+    // pnpm normally links, but a copied tree (rsync, docker layer, manual
+    // `cp -r`) leaves a real directory behind and the host loads that instead.
+    fakeBundle(dir, 'ext')
+    mkdirSync(join(dir, 'node_modules', 'someone-elses-bundle'), { recursive: true })
+    writeFileSync(join(dir, 'node_modules', 'someone-elses-bundle', 'package.json'), JSON.stringify({ name: 'x' }))
+    const result = run(dir)
+    assert.equal(result.status, 1, `a declared-but-copied entry must be reported:\n${result.out}`)
+    const entry = row(result.json, 'someone-elses-bundle')
+    assert.ok(entry, `it must not vanish from the report:\n${result.out}`)
+    assert.equal(entry.kind, 'fail')
+    assert.match(entry.detail, /real directory/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the scanner really sees dot entries instead of inheriting a lister that hides them', () => {
+  const dir = makeProfile()
+  try {
+    // Guards against the original defect coming back through the front door:
+    // if the lister hides dot entries again, the guard becomes dead code and
+    // this test is the only thing that would notice.
+    symlinkSync(join(dir, 'ghost'), join(dir, 'node_modules', '.ghost-bundle'))
+    const result = run(dir)
+    assert.equal(result.status, 0, result.out)
+    assert.deepEqual(result.json?.results, [])
+    const lister = spawnSync(
+      process.execPath,
+      ['-e', `const {readdirSync}=require('node:fs');console.log(readdirSync(${JSON.stringify(join(dir, 'node_modules'))}).length)`],
+      { encoding: 'utf8' },
+    )
+    assert.equal(Number(lister.stdout.trim()), 1, 'the fixture must actually contain one entry')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a dot-named profile directory is discovered, not silently invisible', () => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-home-'))
+  try {
+    // The lister used to be `ls -1`, which hides dot entries: a profile named
+    // `.web` simply did not exist as far as this script was concerned, and
+    // "no profile to check" reads as success. Seeing it is the whole point.
+    const profile = join(home, 'profiles', '.hidden-profile')
+    mkdirSync(profile, { recursive: true })
+    writeFileSync(join(profile, 'package.json'), JSON.stringify({ name: 'hidden', private: true, dependencies: {} }))
+    const result = runWithHome(home)
+    assert.equal(result.status, 0, result.out)
+    assert.equal(result.json?.profile, profile, `the dot-named profile must be found:\n${result.out}`)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
   }
 })

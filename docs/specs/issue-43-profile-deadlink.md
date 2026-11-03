@@ -14,7 +14,7 @@
 | profile 的 manifest 已不认它 | `grep -c dsh-ctx-guard /root/.dsh/profiles/web/package.json` → `0` |
 | profile 的 lockfile 还认它 | `grep -c dsh-ctx-guard /root/.dsh/profiles/web/pnpm-lock.yaml` → `3`(下次 `--frozen-lockfile` 会炸) |
 | 而检查脚本报全绿 | `node scripts/check-profile.mjs --profile web` → `profile ok: 5 linked bundle(s)`,exit 0 |
-| 根因 | `scripts/check-profile.mjs:163-165`:只遍历 `SHIPPED` 里的名字,`deps[name]` 不是字符串就 `continue`;`node_modules` 里没有对应声明的条目**从不被看见** |
+| 根因 | `origin/main @ 02fc03b` 的 `scripts/check-profile.mjs:163-165`:只遍历 `SHIPPED` 里的名字,`deps[name]` 不是字符串就 `continue`;`node_modules` 里没有对应声明的条目**从不被看见** |
 
 结论:P1-4/P1-5 想防的「接线腐化只有 boot 时才暴露」,对**孤儿条目**这一类仍然不设防。
 
@@ -64,3 +64,18 @@ review 报 6 条,全部采纳,均在同分支追加修复(未另开票):
 | P6 | `.flow/43.json` 与 CI 实况脱节 | 已按节点更新,随修复一并提交 |
 
 **用户裁决(2026-11-04)**:profile 里与本仓库无关的**悬空**链接也一律 `fail`,**不设白名单**——悬空就是坏接线,不该靠仓库白名单豁免。
+
+## 7. 第二轮复核(2026-11-04)与追加修复
+
+对 `cc91e58` 做独立对抗复核,判 P1/P3 已修、P2/P4/P5 部分修、**P6 写坏了**。全部继续修:
+
+| 发现 | 处理 |
+| --- | --- |
+| **[高]** `.flow/43.json` 用了枚举外值 `in_progress` → `normalizeFlowState` 对**整份文件**返回 `null`,#43 卡片在面板上没有任何进度 | 改回合法枚举;实测 `OK stage=review review=pending-decision` |
+| **[高]** SHIPPED 名字指向**同 checkout 内另一个包**仍报 `ok`(且显示错包的版本) | `ok` 分支加 `real === expected` 判定,否则 `fail: wrong bundle`;补用例 |
+| **[高]** 非 SHIPPED 的声明活链接发 `ok`,污染 `profile ok: N` 口径(与 P2 自相抵消) | 改发 `kind: 'info'`,不计入 `profile ok`;补/改用例 |
+| **[中]** 声明为 `link:` 却落成**真目录**的非 SHIPPED 条目仍静默消失 | 孤儿扫描改为 `nodeModulesEntries`,覆盖非符号链接;此类判 `fail`;补用例 |
+| **[中]** 「扫描器必须看得见点条目」无测试(改回 `ls -1` 仍全绿) | `readDirNames` 改用 `readdirSync`(顺带修掉「点开头 profile 目录不可见」);补 2 条用例,变异验证:改回 `ls -1` → 3 条红 |
+| **[低]** spec 行号只对 `origin/main` 成立却没标版本锚点 | 引用处写明 `origin/main @ 02fc03b` |
+
+`check-profile` 在**另一个 checkout** 里跑时会把 5 个 bundle 全报 `cross-checkout` 警告(`profile ok: 0`)——这是既有语义,不是本轮引入;本仓库自己的 checkout 里仍是 `profile ok: 5`。
