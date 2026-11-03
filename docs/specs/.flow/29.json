@@ -1,0 +1,45 @@
+{
+  "issue": 29,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-03T22:35:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "flowStatePath 取消导出 + 路径行为断言",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "stageOf 4 条用例改写为 buildTaskBoard 黑盒",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "NEEDS_USER_KINDS 常量断言改为四种触发行为",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "rejectsBecauseMalformed 改为同目录先正后负",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "全仓扫描确认无私有符号残留",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
