@@ -29,7 +29,7 @@
  * docs/update-scheme.md), one profile legitimately spans two checkouts.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -70,9 +70,18 @@ function dshHome() {
   return process.env.DSH_HOME || join(process.env.HOME || process.env.USERPROFILE || '', '.dsh')
 }
 
+/**
+ * Directory entries, dot-prefixed ones included.
+ *
+ * This used to shell out to `ls -1`, which hides dot entries and splits names
+ * on newlines. A profile directory whose name starts with a dot was invisible
+ * to `resolveProfileDir`, and the same lister made the dot guard in
+ * `nodeModulesLinks` unreachable. `readdirSync` sees both, so the guard is now
+ * the only thing deciding what gets skipped.
+ */
 function readDirNames(dir) {
   try {
-    return execFileSync('ls', ['-1', dir], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+    return readdirSync(dir)
   } catch {
     return []
   }
@@ -134,6 +143,48 @@ function entryProblem(dir, manifest) {
   if (!existsSync(resolve(dir, main))) return `entry point missing: ${main}`
   return null
 }
+/**
+ * Every symlink the profile's `node_modules` carries, one `@scope/` level deep.
+ *
+ * Dot entries are skipped on purpose: `.bin`, `.pnpm` and `.modules.yaml` are
+ * pnpm's own bookkeeping. A dangling executable in `.bin` (a pruned optional
+ * dependency) is not a wiring problem for this repository, and reporting it
+ * would bury the signal.
+ *
+ * This reads with `readdirSync`, not `readDirNames`: `ls -1` hides dot entries
+ * on its own, which would make the guard below dead code and hide a real
+ * `.pnpm`-style leftover behind an accident of the lister.
+ */
+function nodeModulesEntries(profileDir) {
+  const entries = []
+  const walk = (dir, scope) => {
+    let names = []
+    try {
+      names = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const name of names) {
+      if (name.startsWith('.')) continue
+      const path = join(dir, name)
+      let stat = null
+      try {
+        stat = lstatSync(path)
+      } catch {
+        continue
+      }
+      if (!stat.isSymbolicLink()) {
+        if (scope === null && name.startsWith('@')) walk(path, name)
+        else entries.push({ name: scope === null ? name : `${scope}/${name}`, path, link: false, target: null })
+        continue
+      }
+      entries.push({ name: scope === null ? name : `${scope}/${name}`, path, link: true, target: readlinkSync(path) })
+    }
+  }
+  walk(join(profileDir, 'node_modules'), null)
+  return entries
+}
+
 const options = parseArgs(process.argv.slice(2))
 const profileDir = resolveProfileDir(options.profile)
 
@@ -200,20 +251,85 @@ for (const name of [...SHIPPED.keys()].sort()) {
 
   const checkout = checkoutOf(real)
   const commit = checkout === null ? null : commitOf(checkout)
-  if (checkout === REPO) {
+  const expected = resolve(REPO, SHIPPED.get(name))
+  if (checkout === REPO && real === expected) {
     results.push({ name, kind: 'ok', version: manifest.version, detail: `${real} @ ${commit ?? 'no-git'}` })
+  } else if (checkout === REPO) {
+    // Right checkout, wrong directory: a name wired to another package in this
+    // repository. Reporting this as ok was the worst possible outcome — a
+    // wiring check that green-lights crossed wires, and prints the other
+    // package's version while doing it.
+    results.push({
+      name,
+      kind: 'fail',
+      detail: `wrong bundle: ${name} resolves to ${real}, but this repo ships it from ${expected}`,
+    })
+    failures += 1
   } else {
     // Not an error today (D1 is still open), but exactly the situation that
     // makes this repository's green checks meaningless — say so loudly.
-    const expected = resolve(REPO, SHIPPED.get(name))
     results.push({
       name,
       kind: 'warn',
+      reason: 'cross-checkout',
       version: manifest.version,
       detail: `loads from a DIFFERENT checkout: ${checkout ?? real} @ ${commit ?? 'no-git'} (this repo: ${expected})`,
     })
     warnings += 1
   }
+}
+
+// Everything above only walks `SHIPPED`, and only for names the manifest
+// declares. That leaves the exact shape that shipped on this machine: a bundle
+// removed from the repository while pnpm kept its symlink behind. The host
+// ignores it, this script never looked at it, and the only symptom was a
+// `pnpm install --frozen-lockfile` failing much later. So walk `node_modules`
+// itself: a link that resolves to nothing is broken no matter who wrote it, and
+// a link nobody declares is at least worth a warning.
+const seen = new Set(results.map((row) => row.name))
+
+for (const entry of nodeModulesEntries(profileDir)) {
+  if (seen.has(entry.name)) continue
+  const declaredAsLink = typeof deps[entry.name] === 'string' && deps[entry.name].startsWith('link:')
+  if (!entry.link) {
+    // Declared as a link, materialised as a real directory: the host loads
+    // something this repository never checked. Silence here is the same bug
+    // class as the orphan scan — the entry is not "fine", it is invisible.
+    if (declaredAsLink) {
+      results.push({ name: entry.name, kind: 'fail', detail: `declared as link:, but node_modules holds a real directory: ${entry.path}` })
+      failures += 1
+    }
+    continue
+  }
+  let real = null
+  try {
+    real = realpathSync(entry.path)
+  } catch {
+    // Declared or not, a link to a directory that does not exist is broken.
+    results.push({ name: entry.name, kind: 'fail', detail: `dangling link (target missing): ${entry.path} -> ${entry.target}` })
+    failures += 1
+    continue
+  }
+  if (typeof deps[entry.name] === 'string') {
+    // Declared, alive, and not a bundle this repo ships: the pass above never
+    // sees it (it only walks `SHIPPED`), so report it here or it vanishes from
+    // the report entirely — which is the blindness this script exists to end.
+    // `info`, not `ok`: `profile ok: N` counts the bundles this repository
+    // ships from this checkout, and a foreign package must not inflate it.
+    results.push({
+      name: entry.name,
+      kind: 'info',
+      detail: `declared, live link (not a bundle this repo ships): ${real}`,
+    })
+    continue
+  }
+  results.push({
+    name: entry.name,
+    kind: 'warn',
+    reason: 'stray',
+    detail: `stray link, not declared in the profile manifest: ${real}`,
+  })
+  warnings += 1
 }
 
 // dsh-inventory's Tools page renders sections that call the other bundles' HTTP
@@ -229,19 +345,22 @@ if (linkedNames.has('dsh-inventory')) {
     results.push({
       name: 'dsh-inventory sections',
       kind: 'warn',
+      reason: 'inventory-sections',
       detail: `the Tools page renders ${missing.join(', ')} but ${missing.length > 1 ? 'they are' : 'it is'} not linked in this profile — those tabs will answer 404`,
     })
     warnings += 1
   }
 }
 
-const branched = results.filter((row) => row.kind === 'warn')
+// Only a bundle loaded from a foreign checkout deserves the D1 banner; a stray
+// link and a half-linked inventory page are different problems with different fixes.
+const branched = results.filter((row) => row.kind === 'warn' && row.reason === 'cross-checkout')
 
 if (options.json) {
   console.log(JSON.stringify({ ok: failures === 0, profile: profileDir, failures, warnings, results }, null, 2))
 } else {
   for (const row of results) {
-    const mark = row.kind === 'ok' ? ' ok ' : row.kind === 'warn' ? 'warn' : 'FAIL'
+    const mark = row.kind === 'ok' ? ' ok ' : row.kind === 'info' ? 'info' : row.kind === 'warn' ? 'warn' : 'FAIL'
     console.log(`  ${mark} ${row.name}${row.version ? `@${row.version}` : ''}`)
     console.log(`       ${row.detail}`)
   }
@@ -250,7 +369,7 @@ if (options.json) {
     console.log('  See decision D1 in docs/update-scheme.md (unifying needs one approved restart).')
   }
   const head = failures === 0
-    ? `\nprofile ok: ${results.length} linked bundle(s) in ${profileDir}`
+    ? `\nprofile ok: ${results.filter((row) => row.kind === 'ok').length} linked bundle(s) in ${profileDir}`
     : `\n${failures} wiring problem(s) in ${profileDir}`
   console.log(head + (warnings > 0 ? ` (${warnings} warning(s))` : ''))
 }

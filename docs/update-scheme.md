@@ -128,7 +128,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 
 **2026-11-04 复核(逐条核对仓库实况)**:
 
-- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(`profile ok: 5 linked bundle(s)`)。
+- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(`profile ok: 5 linked bundle(s)`);2026-11-04 起它还会扫 `node_modules` 里**未被 manifest 声明**的符号链接:目标不存在一律 `fail`(exit 1),目标还在但没人声明给 `warn`——`dsh-ctx-guard` 这类「包删了、pnpm 还留着链接」的残留就是被这一条抓住的,见 **#43**。
 - ✅ **P1-8** 每个包都有 `scripts.test`(7/7),`pnpm -r --if-present` 不再静默跳过。
 - ✅ **P1-9** 每个包都有 `engines.dsh: ^0.2.0`(7/7)。
 - ✅ **P1-10** `ls .github/workflows/ci.yml` 存在(CI 只看文件在不在,`pnpm verify` 不覆盖这条);README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。

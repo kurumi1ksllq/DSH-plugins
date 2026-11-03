@@ -1,0 +1,50 @@
+{
+  "issue": 43,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-04T07:35:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "红:test/check-profile.test.mjs(临时 profile 接线)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "绿:nodeModulesLinks 死链 fail / stray warn",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "仓库外:删 dsh-ctx-guard 死链 + 重算 profile lockfile",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档:update-scheme P1-4/P1-5 复核段补一句",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "pnpm gate 全绿(不动 packages/,无版本变更)",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "review 裁决 A:修 P1-P6(readdirSync 活守卫/口径/横幅/静默消失/spec/flow)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 3
+  },
+  "merge": {
+    "authorized": false
+  }
+}
