@@ -60,6 +60,28 @@ test('the README does not resurrect the retired sidebar panels', () => {
   }
 })
 
+test('AGENTS.md exists and its plugin count matches reality', () => {
+  // AGENTS.md is the file that makes the development flow mandatory rather than
+  // a lucky skill match, so it is held to the same factual standard as the README.
+  const agents = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8')
+  const count = packageDirs().length
+  const claimed = agents.match(/([一二三四五六七八九十]+)个可独立/)
+  assert.ok(claimed, 'AGENTS.md must describe the packages it lists')
+  assert.equal(claimed[1], CN_DIGITS[count], `AGENTS.md says ${claimed[1]} bundles but packages/ holds ${count}`)
+
+  // "otherwise it becomes the Nth bundle" must stay N+1.
+  const ordinal = agents.match(/它会变成第([一二三四五六七八九十]+)个 bundle/)
+  assert.ok(ordinal, 'AGENTS.md must warn about the root becoming a bundle')
+  assert.equal(ordinal[1], CN_DIGITS[count + 1], `AGENTS.md says the root would become bundle ${ordinal[1]}, expected ${count + 1}`)
+})
+
+test('AGENTS.md states the non-negotiables', () => {
+  const agents = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8')
+  for (const rule of ['dev-flow', '禁止直接改 main', 'merge #', '.flow', '禁测私有函数']) {
+    assert.ok(agents.includes(rule), `AGENTS.md must state: ${rule}`)
+  }
+})
+
 test('the README points a new session at the mandatory development flow', () => {
   assert.ok(README.includes('AGENTS.md'), 'README must point at the repo AGENTS.md')
   assert.ok(README.includes('dev-flow'), 'README must name the dev-flow skill')
