@@ -81,7 +81,7 @@ test('statusOf keeps trailing and inner spaces in file names', async () => {
 
 // ---- remotes: parsing, slug and credentials -------------------------------
 
-test('remotesOf parses `git remote -v` (space before the (fetch) suffix)', async () => {
+test('remotesOf lists every configured remote with its raw url', async () => {
   const dir = initRepo('gs-remote-')
   git(dir, 'remote', 'add', 'origin', 'git@github.com:me/repo.git')
   git(dir, 'remote', 'add', 'fork', 'https://github.com/other/fork.git')
@@ -89,7 +89,7 @@ test('remotesOf parses `git remote -v` (space before the (fetch) suffix)', async
   assert.deepEqual(remotes.sort((a, b) => a.name.localeCompare(b.name)), [
     { name: 'fork', url: 'https://github.com/other/fork.git' },
     { name: 'origin', url: 'git@github.com:me/repo.git' },
-  ], 'a strict tab-(fetch) regex matched nothing, so every snapshot had remotes: []')
+  ], 'each configured remote must come back once, with the url the repository stores')
 })
 
 test('remotesOf reports the configured URL even when url.<x>.insteadOf rewrites it', async () => {
@@ -106,7 +106,9 @@ test('remotesOf reports the configured URL even when url.<x>.insteadOf rewrites 
   )
 
   const previous = process.env.GIT_CONFIG_GLOBAL
+  const previousNoSystem = process.env.GIT_CONFIG_NOSYSTEM
   process.env.GIT_CONFIG_GLOBAL = config
+  process.env.GIT_CONFIG_NOSYSTEM = '1'
   try {
     const remotes = await remotesOf(dir)
     assert.equal(remotes.length, 1)
@@ -119,7 +121,36 @@ test('remotesOf reports the configured URL even when url.<x>.insteadOf rewrites 
   } finally {
     if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
     else process.env.GIT_CONFIG_GLOBAL = previous
+    if (previousNoSystem === undefined) delete process.env.GIT_CONFIG_NOSYSTEM
+    else process.env.GIT_CONFIG_NOSYSTEM = previousNoSystem
   }
+})
+
+test('remotesOf reports the fetch url, never the pushurl', async () => {
+  // `git config --get-regexp '^remote..*.url$'` (unescaped dots) also matches
+  // `remote.<name>.pushurl`; only the second-layer parse kept pushurl out of the
+  // snapshot. Pin the behaviour, not the coincidence.
+  const dir = initRepo('gs-remote-pushurl-')
+  git(dir, 'remote', 'add', 'origin', 'https://github.com/me/repo.git')
+  git(dir, 'config', 'remote.origin.pushurl', 'ssh://git@push.example/me/repo.git')
+  const remotes = await remotesOf(dir)
+  assert.deepEqual(remotes, [{ name: 'origin', url: 'https://github.com/me/repo.git' }])
+})
+
+test('remotesOf takes the first url when a remote declares two', async () => {
+  // git fetches from the first; the snapshot must describe the same place.
+  const dir = initRepo('gs-remote-multi-')
+  git(dir, 'remote', 'add', 'origin', 'https://github.com/me/first.git')
+  git(dir, 'config', '--add', 'remote.origin.url', 'https://github.com/me/second.git')
+  const remotes = await remotesOf(dir)
+  assert.deepEqual(remotes, [{ name: 'origin', url: 'https://github.com/me/first.git' }])
+})
+
+test('remotesOf reports nothing outside a repository', async () => {
+  // Reading every config scope let a global `remote.ghost.url` leak into the
+  // snapshot of any directory that happened to be opened.
+  const dir = mkdtempSync(join(tmpdir(), 'gs-norepo-'))
+  assert.deepEqual(await remotesOf(dir), [])
 })
 
 test('remotesOf never hands a token to the panel', async () => {

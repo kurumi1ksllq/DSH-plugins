@@ -381,9 +381,9 @@ test('the update scheme keeps P1-6 in step with the committed pnpm-lock.yaml', (
 
   // Locally, a lockfile edited but not committed means the doc and the file are
   // being read at two different states — say that instead of reporting a drift
-  // nobody can see. CI is the opposite case: its `pnpm install --frozen-lockfile`
-  // rewrites the working copy by design (that is P1-6 itself), so a difference
-  // there is expected and says nothing about the author.
+  // nobody can see. On CI the working copy is rewritten by `pnpm install`, so this
+  // check is local-only: the workflow's own `git diff --exit-code` step (asserted by
+  // its own contract) is what catches an install that changes the lockfile.
   const working = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
   const committed = committedLockfile(rev)
   if (process.env.CI === undefined && working !== committed) {
@@ -442,14 +442,24 @@ test('every P1-10 line cites evidence that covers the claim', () => {
   assert.ok(existsSync(join(ROOT, '.github/workflows/ci.yml')), 'the CI workflow the docs cite must exist')
 })
 
-test('CI fails when pnpm install rewrites the committed lockfile', () => {
+test('CI compares the lockfile after install, in a way that can fail', () => {
   // `pnpm install --frozen-lockfile` exits 0 *and* rewrites pnpm-lock.yaml when
-  // its importers are out of step — which is exactly how the drift in P1-6
-  // survived: nothing compared the file before and after. The workflow must.
+  // its importers are out of step, which is how the P1-6 drift survived. Matching
+  // the workflow text with a loose regex would pass on a commented-out step, on a
+  // guard placed *before* install, or on `|| true` — so read the steps in order.
   const ci = readFileSync(join(ROOT, '.github/workflows/ci.yml'), 'utf8')
-  assert.match(
-    ci,
-    /git diff --exit-code -- pnpm-lock\.yaml/,
-    'ci.yml must assert the lockfile is unchanged after install',
-  )
+  const steps = [...ci.matchAll(/^\s*-\s+name:\s*(.+)\n\s+run:\s*(.+)$/gm)].map((match) => ({
+    name: match[1].trim(),
+    run: match[2].trim(),
+  }))
+
+  const installAt = steps.findIndex((step) => step.name === 'Install')
+  const guardAt = steps.findIndex((step) => /git diff --exit-code/.test(step.run))
+  assert.ok(installAt >= 0, 'ci.yml must run pnpm install')
+  assert.ok(guardAt >= 0, 'ci.yml must compare pnpm-lock.yaml')
+  assert.ok(guardAt > installAt, 'the comparison must run after install, or it can never fail')
+
+  const guard = steps[guardAt].run
+  assert.match(guard, /^git diff --exit-code (?:-- )?pnpm-lock\.yaml$/, `unexpected guard command: ${guard}`)
 })
+

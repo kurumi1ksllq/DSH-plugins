@@ -2,7 +2,7 @@
   "issue": 39,
   "grade": "standard",
   "stage": "pr",
-  "updatedAt": "2026-11-04T04:18:53+08:00",
+  "updatedAt": "2026-11-04T04:41:24+08:00",
   "tickets": [
     {
       "id": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": 4,
-      "title": "check-profile:按 realpath 校验生成物 + 报告死链",
+      "title": "check-profile realpath/死链校验(移交后续 issue)",
       "state": "todo"
     },
     {
