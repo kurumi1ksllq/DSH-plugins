@@ -8,8 +8,8 @@
 > | P0-1 profile 被两个 checkout 劈成两半 | ✅ 已统一:5 条 `link:` 全指 `/root/DSH-plugins` | `node scripts/check-profile.mjs` → `profile ok: 5 linked bundle(s)` |
 > | P0-2 被加载代码依赖 gitignore 生成物 | ⚠️ 本机已构建(`plugin/lib` up to date);**fresh clone 必须先 `pnpm build:websearch`**,clone 里没有生成物 | `pnpm check:websearch` |
 > | P0-3 运行 commit 不在任何 tag/分支上 | ✅ 已收口进 `main`,tag 齐全 | `git tag` |
-> | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` |
-> | P1-6 `pnpm-lock.yaml` importers 漂移 | ⬜ **仍未修,已另开工单** | 见 §2 表后复核段 |
+> | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` + `ls .github/workflows/ci.yml` |
+> | P1-6 `pnpm-lock.yaml` importers 漂移 | ⬜ **仍未修,见 #39** | 见 §2 表后复核段 |
 > | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
 > | 本仓库 bundle 数 | 由 8 变 **7**(`dsh-ctx-guard` 已退役) | `ls packages` |
 >
@@ -39,7 +39,7 @@
 
 三条结论:
 
-1. **更新不等于重装。** 已装的 6 个本地插件是 `link:` 依赖 —— DSH 直接 import 那个目录里的文件。更新它们 = **原地换文件 + 触发一次 profile 重新组合**,DSH 的 HMR 会比对 `ino:size:mtimeMs` 把变了的模块换成新代码,**不需要重启**(证据链见 §3.2)。
+1. **更新不等于重装。** 已装的 6 个本地插件(当时;现 5 个)是 `link:` 依赖 —— DSH 直接 import 那个目录里的文件。更新它们 = **原地换文件 + 触发一次 profile 重新组合**,DSH 的 HMR 会比对 `ino:size:mtimeMs` 把变了的模块换成新代码,**不需要重启**(证据链见 §3.2)。
 2. **但现状让这件事不可靠,且有三个 P0 级缺陷**:代码库被劈成两个 checkout 各装一半(§2.1)、被加载的代码依赖一个 gitignore 的生成物(§2.2)、正在跑的 commit 不在任何 tag/分支上(§2.3)。
 3. **不要自己造轮子。** DSH 自带 `@deepseek-ai/dsh-plugin-manager` + `dsh-hmr`,已经提供了写锁、manifest/lockfile 快照回滚、`restart-required` 上报、版本豁免。registry 插件走它的车道;本地 link 插件它管不了(会 `already-installed` 拒绝),那部分才需要补一个**独立的小事务器**。
 
@@ -118,11 +118,11 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 | --- | --- | --- |
 | P1-4 | `pnpm check:websearch` 默认查 A 的工作树,而线上 link 的是 B → **在 A 里永远绿** | 用 profile 里 bundle 的 `realpath` 当 `--root` |
 | P1-5 | profile 接线零校验(曾经的 `scripts/probe-profile.mjs` 已被删除) | 恢复只读 `check-profile.mjs` 并接进 `pnpm verify` |
-| P1-6 | `pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault`/`dsh-git-status`;`--frozen-lockfile` 实测仍会改写 lockfile | 补一次 install 提交 lockfile + CI 加 `--frozen-lockfile` |
+| P1-6 | `pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault`/`dsh-git-status`;`--frozen-lockfile` 实测仍会改写 lockfile(**仍未修,见 #39**) | 补一次 install 提交 lockfile + CI 加 `--frozen-lockfile` |
 | P1-7 | 版本无纪律:全历史仅 1 次 bump;`plugin/` 0.2.0 与仓库根 `websearch-dsh-plugin` 0.3.0 是同一个东西的两个版本号 | 定「改代码必须 bump」+ 自动检查 |
 | P1-8 | `dsh-git-bash-tool` 无 test、无 scripts 块,`pnpm -r --if-present` 静默跳过 | 补最小 test + verify 断言每包必须有 `scripts.test` |
 | P1-9 | 当时 8 个包都没有 `engines.dsh`/DSH peer → 版本兼容检查**从不触发**,没有保护 | 补 `engines.dsh`;当前运行时是 `0.2.1-rc.5` |
-| P1-10 | 无 CI(`.github` 不存在);README 说「六个插件」实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
+| P1-10 | 无 CI(`.github` 不存在);README 说「六个插件」(当时)实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
 | P1-11 | registry 车道已有一处真实落后:`@wxg-prc-cpg/browser-skill-dsh-plugin` 装 0.4.0,最新 0.4.1 | 见 §4.3 |
 | P1-12 | 更新路径未脚本化,全靠手工 `git fetch` | 见 §4.2 |
 
@@ -131,8 +131,8 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 - ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(`profile ok: 5 linked bundle(s)`)。
 - ✅ **P1-8** 每个包都有 `scripts.test`(7/7),`pnpm -r --if-present` 不再静默跳过。
 - ✅ **P1-9** 每个包都有 `engines.dsh: ^0.2.0`(7/7)。
-- ✅ **P1-10** `.github/workflows/ci.yml` 已存在;README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
-- ⬜ **P1-6 仍未修**:`pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault` / `dsh-git-status`,还残留已删除的 `packages/dsh-ctx-guard`。**已另开工单**,不要把它当成已完成。
+- ✅ **P1-10** `ls .github/workflows/ci.yml` 存在(CI 只看文件在不在,`pnpm verify` 不覆盖这条);README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
+- ⬜ **P1-6 仍未修**:`pnpm-lock.yaml` 的 importers 缺 `dsh-credential-vault` / `dsh-git-status`,还残留已删除的 `packages/dsh-ctx-guard`。见 **#39**,不要把它当成已完成。
 - ⬜ **P1-4** 未复核:`pnpm check:websearch` 是否以 profile 里 bundle 的 `realpath` 为根,本次未验证。
 
 
@@ -255,7 +255,7 @@ L3 运行侧:registry 插件走 DSH 自带 plugin-manager(不自己造)
 **为什么是「原地换文件」而不是「换 symlink」**:HMR 用 `ino:size:mtimeMs` 判定变化,同目录原地替换走 `module-comparison` → 免重启;把 `link:` 指到新目录 = `package-moved` → **必须重启**。这是本方案与「版本目录 + 原子改 symlink」这类常规做法**结论相反**的地方,是本项目最反直觉的一条约束。
 
 **已知边界**(诚实列出):
-- 多文件替换不是单事务;`RENAME_EXCHANGE` 是目录级一次完成,但 6 个已装 bundle 之间仍是一个一个来 → 建议**按 checkout 整批一次性交换**。
+- 多文件替换不是单事务;`RENAME_EXCHANGE` 是目录级一次完成,但当时那 6 个已装 bundle 之间仍是一个一个来 → 建议**按 checkout 整批一次性交换**。
 - 若插件改了 Host 图(增删 row),客户端侧还要等 `client-hmr` 轮询产物(默认 500ms)并重置组件状态(页面 React 状态会丢)。
 - journal/编排锁的落点建议 `$DSH_HOME`(与 DSH 自身状态同处),但本次调查受「不写 `/root/.dsh`」约束,原型放在 `.tmp/`。
 
@@ -271,7 +271,7 @@ L3 运行侧:registry 插件走 DSH 自带 plugin-manager(不自己造)
 
 ### 4.4 L0 前置整改:为什么必须先做,以及它的代价
 
-**必须先把 6 个 `link:` 统一到一个权威 checkout**,否则 L2 存在的意义只是「把一半包更新得更整齐」。
+**必须先把当时那 6 个 `link:` 统一到一个权威 checkout**,否则 L2 存在的意义只是「把一半包更新得更整齐」。
 
 **但统一 checkout = 换 link 目标 = `restart-required(package-moved)` = 需要一次重启窗口。** 所以它不能夹在日常更新里顺手做,必须:
 

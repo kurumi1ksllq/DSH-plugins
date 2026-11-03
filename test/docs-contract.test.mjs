@@ -12,7 +12,8 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative, sep } from 'node:path'
 
@@ -140,19 +141,41 @@ function readmeSnippets() {
   return { links, bundles }
 }
 
-test('the README install snippets link every bundle the workspace carries', () => {
+// The one bundle a new machine may legitimately skip: it replaces the shell with
+// Git Bash and there is no point installing it off Windows. Everything else must
+// appear as a real `link:` line — a name and a path in prose is not an install.
+const WINDOWS_ONLY = new Set(['dsh-git-bash-tool'])
+
+test('the README links every bundle a new machine needs', () => {
   const { links } = readmeSnippets()
   assert.ok(links.size > 0, 'README must carry a `"dependencies"` snippet with `link:` lines')
+
+  const required = bundlePackages().filter((bundle) => !WINDOWS_ONLY.has(bundle.name))
   const missing = []
-  for (const bundle of bundlePackages()) {
+  for (const bundle of required) {
     const spec = links.get(bundle.name)
     const expected = relative(ROOT, bundle.dir).split(sep).join('/')
-    if (spec === undefined) missing.push(`${bundle.name} (no line at all)`)
+    if (spec === undefined) missing.push(`${bundle.name} (no link: line)`)
     else if (!spec.split('\\').join('/').endsWith(expected)) {
       missing.push(`${bundle.name} (link:${spec} does not point at ${expected})`)
     }
   }
   assert.deepEqual(missing, [], `README install snippet is incomplete: ${missing.join('; ')}`)
+  assert.ok(
+    links.size >= required.length,
+    `README links ${links.size} bundle(s); a new machine needs ${required.length}`,
+  )
+})
+
+test('the README names every bundle and gives its path, whatever the format', () => {
+  // Format is free (json snippet, table, prose) — being undocumented is not.
+  const missing = []
+  for (const bundle of bundlePackages()) {
+    const expected = relative(ROOT, bundle.dir).split(sep).join('/')
+    if (!README.includes(bundle.name)) missing.push(`${bundle.name} (name never mentioned)`)
+    if (!README.includes(expected)) missing.push(`${bundle.name} (path ${expected} never given)`)
+  }
+  assert.deepEqual(missing, [], `README does not document every bundle: ${missing.join('; ')}`)
 })
 
 test('the README bundles list and its link list agree', () => {
@@ -217,24 +240,63 @@ test('the update scheme states the bundle count that packages/ actually holds', 
   )
 })
 
-test('each update doc carries a dated calibration block', () => {
+test('each update doc carries a dated calibration block naming a real commit', () => {
+  // A calibration block whose only property is "matches a regex" is worthless:
+  // `2030-13-45,main @ deadbee` proves nothing was ever checked. The date must
+  // parse and the sha must resolve to a commit in this repository.
   for (const doc of UPDATE_DOCS) {
     const text = readFileSync(join(ROOT, doc), 'utf8')
-    const block = text.match(/现状校准[（(]\d{4}-\d{2}-\d{2},main @ [0-9a-f]{7}[）)]/)
+    const block = text.match(/现状校准[（(](\d{4}-\d{2}-\d{2}),main @ ([0-9a-f]{7,40})[）)]/)
     assert.ok(
       block,
       `${doc} must open with 现状校准（YYYY-MM-DD,main @ <sha>） naming the commit it was checked against`,
     )
+    const [, date, sha] = block
+    assert.equal(Number.isNaN(Date.parse(date)), false, `${doc}: ${date} is not a real date`)
+
+    // A shallow clone (some CI checkouts, `--depth 1`) genuinely cannot tell
+    // whether the sha exists; skipping beats failing for the wrong reason. CI
+    // fetches full history (ci.yml: fetch-depth 0), so the check runs there.
+    const shallow = spawnSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: ROOT })
+    if (shallow.stdout?.toString().trim() === 'true') continue
+
+    const resolved = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: ROOT })
+    assert.equal(resolved.status, 0, `${doc}: ${sha} is not a commit in this repository`)
+    const ancestor = spawnSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], { cwd: ROOT })
+    assert.equal(ancestor.status, 0, `${doc}: ${sha} is not an ancestor of HEAD`)
+    // The block claims "checked against this commit on this date": a date before
+    // the commit or far in the future is a claim nobody could have made.
+    const committed = spawnSync('git', ['show', '-s', '--format=%cs', sha], { cwd: ROOT })
+    const commitDate = committed.stdout?.toString().trim()
+    assert.ok(commitDate, `${doc}: cannot read the commit date of ${sha}`)
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    assert.ok(date >= commitDate, `${doc}: ${date} predates commit ${sha} (${commitDate})`)
+    assert.ok(date <= tomorrow, `${doc}: ${date} is in the future`)
   }
 })
 
 test('the checkout doc no longer asks for approval of work that is done', () => {
   const text = readFileSync(join(ROOT, 'docs/update-checkout.md'), 'utf8')
-  assert.equal(text.includes('状态:**待批准**'), false, 'update-checkout.md still reads as pending approval')
+  // Full-width colons are the house style in half these docs, so a half-width
+  // literal is not a guard — it is a spelling test.
+  assert.equal(/状态[：:]\s*\*\*待批准\*\*/.test(text), false, 'update-checkout.md still reads as pending approval')
+  assert.ok(/状态[：:]\s*\*\*已执行完成/.test(text), 'update-checkout.md must say the work is done')
   assert.ok(
     text.includes('/root/DSH-plugins'),
     'update-checkout.md must say which checkout the profile loads now',
   )
+})
+
+test('the checkout doc does not state an old link count as current', () => {
+  // The calibration block says five; the body still said six in three places.
+  for (const doc of UPDATE_DOCS) {
+    const text = readFileSync(join(ROOT, doc), 'utf8')
+    // 「6 包」 without the 个 was the one that survived the first pass.
+    const offenders = text
+      .split('\n')
+      .filter((line) => /(?:6|六)\s*个?[^\n]{0,14}?(?:link|包|插件)/.test(line) && !/当时|历史上/.test(line))
+    assert.deepEqual(offenders, [], `${doc} states an old link count as current: ${offenders.join(' / ')}`)
+  }
 })
 
 test('the README root-bundle warning matches the packages actually present', () => {
@@ -247,4 +309,135 @@ test('the README root-bundle warning matches the packages actually present', () 
     CN_DIGITS[packageDirs().length + 1],
     `README says the root would become bundle ${ordinal[1]}, expected ${packageDirs().length + 1}`,
   )
+})
+
+// ---------------------------------------------------------------------------
+// P1-6 (lockfile drift)
+//
+// The one thing the docs promised to keep honest was "P1-6 is still not fixed".
+// Flipping that line to ✅ left all contracts green, and the ticket it referred to
+// did not exist. A status line is now checked against the lockfile in both
+// directions, and it must name the issue that owns the work.
+
+/**
+ * Which revision's lockfile the contract is about.
+ *
+ * On a GitHub `pull_request` checkout HEAD is the *merge* commit, so `HEAD:` is
+ * base+PR — a PR that never touches the lockfile would be judged on whatever main
+ * did to it. When HEAD is a merge, use its second parent (the PR head); otherwise
+ * the commit itself. Reported in every failure so the reader knows what was read.
+ */
+function lockfileRev() {
+  const parents = spawnSync('git', ['rev-list', '--parents', '-n', '1', 'HEAD'], { cwd: ROOT })
+  assert.equal(parents.status, 0, 'docs-contract needs a git checkout (git rev-list failed)')
+  const fields = parents.stdout.toString().trim().split(/\s+/)
+  return fields.length > 2 ? 'HEAD^2' : 'HEAD'
+}
+
+/** The lockfile at `rev`, from git — never the working copy, which `pnpm install` rewrites. */
+function committedLockfile(rev) {
+  const blob = spawnSync('git', ['show', `${rev}:pnpm-lock.yaml`], { cwd: ROOT })
+  assert.equal(blob.status, 0, `docs-contract needs pnpm-lock.yaml in ${rev}`)
+  assert.ok(blob.stdout.length > 0, `pnpm-lock.yaml at ${rev} is empty`)
+  return blob.stdout.toString()
+}
+
+/** Workspace importers the lockfile at `rev` declares vs. the packages that exist. */
+function lockfileDrift(rev = lockfileRev()) {
+  const lock = committedLockfile(rev)
+  const at = lock.indexOf('importers:')
+  // A parser that cannot find its section would report "everything missing" and
+  // then happily agree with a "仍未修" line: blind must be loud.
+  assert.ok(at > -1, `pnpm-lock.yaml at ${rev} has no importers: section`)
+  const declared = new Set([...lock.slice(at).matchAll(/^ {2}(packages\/[^:\n]+):/gm)].map((match) => match[1]))
+  assert.ok(declared.size > 0, `pnpm-lock.yaml at ${rev} declares no workspace importers`)
+  const expected = packageDirs().map((name) => `packages/${name}`)
+  return {
+    rev,
+    declared,
+    missing: expected.filter((entry) => !declared.has(entry)),
+    phantom: [...declared].filter((entry) => !expected.includes(entry)),
+  }
+}
+
+/** Lines that talk about P1-6, matched on `P1-6` and the easier-to-miss `P1.6`. */
+function p16Lines(text) {
+  return text.split('\n').filter((line) => /P1[-.]6/.test(line))
+}
+
+test('every P1-6 line states a status the lockfile can be checked against', () => {
+  // Leaving a P1-6 line without a marker made it invisible: a second, contradicting
+  // line could be added next to the correct one and the docs still passed.
+  const lines = p16Lines(readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8'))
+  assert.ok(lines.length > 0, 'docs/update-scheme.md must state the P1-6 status')
+  const bare = lines.filter((line) => !/(⬜|✅|仍未修|已修)/.test(line))
+  assert.deepEqual(bare, [], `P1-6 lines must state 仍未修/已修 explicitly: ${bare.join(' / ')}`)
+})
+
+test('the update scheme keeps P1-6 in step with the committed pnpm-lock.yaml', () => {
+  const { rev, missing, phantom } = lockfileDrift()
+  const drifted = missing.length > 0 || phantom.length > 0
+  const detail = `pnpm-lock.yaml@${rev}: missing ${missing.join(', ') || '-'}; unexpected ${phantom.join(', ') || '-'}`
+
+  // Locally, a lockfile edited but not committed means the doc and the file are
+  // being read at two different states — say that instead of reporting a drift
+  // nobody can see. CI is the opposite case: its `pnpm install --frozen-lockfile`
+  // rewrites the working copy by design (that is P1-6 itself), so a difference
+  // there is expected and says nothing about the author.
+  const working = readFileSync(join(ROOT, 'pnpm-lock.yaml'), 'utf8')
+  const committed = committedLockfile(rev)
+  if (process.env.CI === undefined && working !== committed) {
+    const diff = spawnSync('git', ['status', '--porcelain', '--', 'pnpm-lock.yaml'], { cwd: ROOT })
+    assert.equal(
+      diff.stdout.toString().trim(),
+      '',
+      `pnpm-lock.yaml differs from ${rev} but is not committed — commit it, the P1-6 contract reads ${rev}`,
+    )
+  }
+
+  const lines = p16Lines(readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8'))
+  for (const line of lines) {
+    if (drifted) {
+      assert.ok(line.includes('仍未修'), `${detail} — but this line does not say 仍未修: ${line}`)
+      assert.ok(/#\d+/.test(line), `P1-6 line must cite the follow-up issue number: ${line}`)
+    } else {
+      // The other direction: once the lockfile is fixed, leaving "仍未修" behind is
+      // the same lie in reverse.
+      assert.ok(line.includes('已修'), `${detail} is clean — but this line does not say 已修: ${line}`)
+      assert.equal(line.includes('仍未修'), false, `${detail} is clean — but this line still says 仍未修: ${line}`)
+    }
+  }
+})
+
+test('while P1-6 is open, the follow-up ticket exists and both docs name it', () => {
+  const { missing, phantom } = lockfileDrift()
+  if (missing.length === 0 && phantom.length === 0) return // nothing deferred, nothing to cite
+
+  const scheme = readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8')
+  const cited = new Set(
+    p16Lines(scheme)
+      .flatMap((line) => [...line.matchAll(/#(\d+)/g)])
+      .map((match) => match[1]),
+  )
+  assert.ok(cited.size > 0, 'P1-6 out of step: cite the issue that owns the fix')
+  const [ticket] = [...cited]
+
+  const drift = readFileSync(join(ROOT, 'docs/specs/docs-drift.md'), 'utf8')
+  const deferred = drift.match(/(?:拆成独立 chore issue|不做)[^\n]*?#(\d+)/)
+  assert.ok(deferred, 'docs/specs/docs-drift.md must name the issue it deferred work to, on the deferral line')
+  assert.equal(deferred[1], ticket, `docs/specs/docs-drift.md defers to #${deferred[1]}, but P1-6 cites #${ticket}`)
+
+  const specs = readdirSync(join(ROOT, 'docs/specs')).filter((name) => name.startsWith(`issue-${ticket}-`))
+  assert.ok(specs.length > 0, `#${ticket} has no spec under docs/specs/ (expected issue-${ticket}-*.md)`)
+})
+
+test('every P1-10 line cites evidence that covers the claim', () => {
+  // P1-10 is "there is no CI" and `pnpm verify` never looks at .github/workflows,
+  // so citing it proved nothing. Every line, not just the first one found.
+  const text = readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8')
+  const lines = text.split('\n').filter((line) => line.includes('P1-10'))
+  assert.ok(lines.length > 0, 'docs/update-scheme.md must mention P1-10')
+  const bad = lines.filter((line) => !/\.github|gh pr checks/.test(line))
+  assert.deepEqual(bad, [], `P1-10 evidence must name the CI workflow: ${bad.join(' / ')}`)
+  assert.ok(existsSync(join(ROOT, '.github/workflows/ci.yml')), 'the CI workflow the docs cite must exist')
 })

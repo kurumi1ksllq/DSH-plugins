@@ -12,6 +12,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dev-flow-skill 0.2.1 — the dual-axis review prompt now actually ships
+
+- **停点3 的双轴 review 有了可复制的模板。** 原文写「用下面的**固定 prompt 模板**」,
+  但下面只有几条要求 bullet、没有可复制正文,于是每次 review 都靠执行者临场重建,两条轴
+  随会话漂移。现在模板正文以代码块落在 `SKILL.md` 里(轴1 对 spec、轴2 对规范),含
+  「原文照抄、不得即兴改写」「只报告不修改任何文件」「至少 3 个问题,确实找不到就写
+  未发现问题」。
+- 契约 `test/review-template.test.mjs`:两条轴**各自**切区间校验(不能靠另一条轴的文字
+  蒙过),并要求模板声明「不得即兴改写」;删掉任一条轴的要求即红。
+
 ### dsh-credential-vault 0.2.1 / dsh-inventory 0.5.0 — vault joins the Tools page
 
 - **"Leave empty to keep the stored secret" now actually works.** The editor always

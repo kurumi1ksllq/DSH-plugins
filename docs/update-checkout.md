@@ -16,7 +16,7 @@
 
 ## 1. 问题:有两份同名仓库在跑
 
-profile `/root/.dsh/profiles/web` 的 6 个 `link:` 插件被劈成两半:
+profile `/root/.dsh/profiles/web` 的 6 个 `link:` 插件(当时)被劈成两半:
 
 | checkout | 路径 | 加载的包 |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ profile `/root/.dsh/profiles/web` 的 6 个 `link:` 插件被劈成两半:
 
 ## 2. 目标
 
-6 个 `link:` 包全部从 A 加载,B 退役。达成后 A 里的 `pnpm gate` 才真正代表线上。
+当时那 6 个 `link:` 包全部从 A 加载,B 退役。达成后 A 里的 `pnpm gate` 才真正代表线上。
 
 ## 3. 为什么必须重启
 
@@ -77,7 +77,7 @@ profile 的 `node_modules/<pkg>` 是符号链接,必须指向新目标。用 **p
 cd /root/.dsh/profiles/web && pnpm install --prefer-offline
 ```
 
-然后 `node scripts/update.mjs plan` 确认:6 个包全报 `/root/DSH-plugins`,混代警告消失。
+然后 `node scripts/update.mjs plan` 确认:5 个包全报 `/root/DSH-plugins`,混代警告消失。
 
 ### 阶段 3 — 重启 DSH(需要你明确批准)
 
@@ -87,10 +87,10 @@ cd /root/.dsh/profiles/web && pnpm install --prefer-offline
 
 ```bash
 node scripts/check-profile.mjs     # 期望 0 warning
-node scripts/update.mjs plan       # 期望 6 包同属一个 checkout
+node scripts/update.mjs plan       # 期望 5 包同属一个 checkout
 ```
 
-再在 Web GUI 插件页确认 6 个插件都是 `active`(不是 `failed`)。
+再在 Web GUI 插件页确认 5 个插件都是 `active`(不是 `failed`)。
 
 ## 5. 回退
 

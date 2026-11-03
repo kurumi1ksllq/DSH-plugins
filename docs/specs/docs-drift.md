@@ -1,9 +1,9 @@
 # 文档漂移校正(README + 两份 update 运维文档)
 
 - 分级:`standard`
-- 状态:待确认(停点2)
+- 状态:已完成(#38 → main `496aa2c`)
 - 调查基准:`main @ 54b61c0`,2026-11-04,运行时 DSH `0.2.1-rc.5`
-- 不做(拆成独立 chore issue):`pnpm-lock.yaml` 的 importer 漂移、`profile/node_modules/dsh-ctx-guard` 死链残留
+- 不做(拆成独立 chore issue #39):`pnpm-lock.yaml` 的 importer 漂移、`profile/node_modules/dsh-ctx-guard` 死链残留
 
 ## 1. 问题:三处文档与仓库实况已经不一致
 
