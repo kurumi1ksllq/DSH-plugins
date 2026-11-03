@@ -116,24 +116,36 @@ function bundlePackages() {
   return bundles
 }
 
-/** name → link target, taken from the README's dependency snippet. */
-function readmeLinkSpecs() {
+/**
+ * Everything the README's json snippets say: `link:` specs and bundles rows.
+ *
+ * Read as a union of all snippets, not just the first one — the install path is
+ * split into a required block and an optional block, and both count.
+ */
+function readmeSnippets() {
   const blocks = [...README.matchAll(/```json\n([\s\S]*?)```/g)].map((match) => match[1])
-  const snippet = blocks.find((block) => block.includes('"dependencies"'))
-  assert.ok(snippet, 'README must carry a `"dependencies"` snippet for a new profile')
+  const links = new Map()
+  const bundles = new Set()
 
-  const specs = new Map()
-  for (const line of snippet.matchAll(/"([^"]+)"\s*:\s*"link:([^"]+)"/g)) {
-    specs.set(line[1], line[2])
+  for (const block of blocks) {
+    for (const match of block.matchAll(/"([^"]+)"\s*:\s*"link:([^"]+)"/g)) {
+      links.set(match[1], match[2])
+    }
+    const array = block.match(/"bundles"\s*:\s*\[([\s\S]*?)\]/)
+    if (array === null) continue
+    for (const match of array[1].matchAll(/"([^"]+)"/g)) bundles.add(match[1])
   }
-  return specs
+
+  assert.ok(links.size > 0, 'README must carry a `"dependencies"` snippet with `link:` lines')
+  assert.ok(bundles.size > 0, 'README must carry a `dsh.profile.bundles` snippet')
+  return { links, bundles }
 }
 
-test('the README install snippet links every bundle the workspace carries', () => {
-  const specs = readmeLinkSpecs()
+test('the README install snippets link every bundle the workspace carries', () => {
+  const { links } = readmeSnippets()
   const missing = []
   for (const bundle of bundlePackages()) {
-    const spec = specs.get(bundle.name)
+    const spec = links.get(bundle.name)
     const expected = relative(ROOT, bundle.dir).split(sep).join('/')
     if (spec === undefined) missing.push(`${bundle.name} (no line at all)`)
     else if (!spec.split('\\').join('/').endsWith(expected)) {
@@ -143,8 +155,17 @@ test('the README install snippet links every bundle the workspace carries', () =
   assert.deepEqual(missing, [], `README install snippet is incomplete: ${missing.join('; ')}`)
 })
 
+test('every linked dependency is also listed in dsh.profile.bundles', () => {
+  // Listing it in `dependencies` installs the files; only the bundles row loads
+  // them. A snippet whose two lists disagree teaches the exact failure this
+  // issue is about, so the lists are checked against each other, not just for
+  // the presence of the word `dsh.profile.bundles`.
+  const { links, bundles } = readmeSnippets()
+  const unlisted = [...links.keys()].filter((name) => !bundles.has(name))
+  assert.deepEqual(unlisted, [], `README links but never loads: ${unlisted.join(', ')}`)
+})
+
 test('the README says a dependency line alone does not load the bundle', () => {
-  // The half that is easy to miss: `dsh.profile.bundles` decides what loads.
   assert.ok(README.includes('dsh.profile.bundles'), 'README must name `dsh.profile.bundles`')
   assert.ok(README.includes('不会加载'), 'README must warn that a missing bundles row does not load')
 })
@@ -155,7 +176,9 @@ test('the README says a dependency line alone does not load the bundle', () => {
 // docs/update-scheme.md and docs/update-checkout.md were written against a repo
 // that no longer exists: eight bundles, two checkouts splitting the six links,
 // the running commit on no tag, no CI. Reading them today sends a new session
-// chasing a fault that was already repaired.
+// chasing a fault that was already repaired. Historical sentences are allowed to
+// stay (they are the record of that survey); what must not drift is the line that
+// claims what the repository holds *now*.
 
 const UPDATE_DOCS = ['docs/update-scheme.md', 'docs/update-checkout.md']
 
@@ -169,6 +192,17 @@ test('the update docs do not describe the repository as it was before the repair
       `${doc} still claims ${stale?.[0]} — packages/ holds ${packageDirs().length} bundles`,
     )
   }
+})
+
+test('the update scheme states the bundle count that packages/ actually holds', () => {
+  const text = readFileSync(join(ROOT, 'docs/update-scheme.md'), 'utf8')
+  const scope = text.match(/范围[：:][^\n]*?(\d+)\s*个\s*(?:bundle|包)/)
+  assert.ok(scope, 'docs/update-scheme.md must state the scope and how many bundles it covers')
+  assert.equal(
+    Number(scope[1]),
+    packageDirs().length,
+    `docs/update-scheme.md says ${scope[1]} bundles but packages/ holds ${packageDirs().length}`,
+  )
 })
 
 test('each update doc carries a dated calibration block', () => {

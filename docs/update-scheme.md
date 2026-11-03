@@ -16,7 +16,7 @@
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
 
 - 状态：**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
-- 范围:`/root/DSH-plugins` 的 8 个包(bundle) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+- 范围:`/root/DSH-plugins` 的 7 个 bundle(调查当时为 8 个,含已退役的 `dsh-ctx-guard`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 
@@ -51,17 +51,17 @@ profile `/root/.dsh/profiles/web/package.json` 里有两条独立的车道:
 
 | 车道 | 数量 | 更新语义 | 谁负责 |
 | --- | --- | --- | --- |
-| `link:<绝对路径>`(本地源码) | **6** | 原地换文件 + 重组合 | 本项目(无现成工具) |
+| `link:<绝对路径>`(本地源码) | **5**(调查当时 6) | 原地换文件 + 重组合 | 本项目(无现成工具) |
 | registry 版本号(npm) | **4** | 改依赖版本 + pnpm(remove→install) | DSH 自带 plugin-manager |
 
-5 个 link 包(按**实际被加载的路径**):
+调查当时的 6 个 link 包(按**实际被加载的路径**)。今天已是 5 个、且全部来自 A,见文首校准块:
 
 | 包 | 实际加载自 | checkout |
 | --- | --- | --- |
 | `dsh-credential-vault` | `/root/DSH-plugins/packages/...` | **A** |
 | `dsh-git-status` | `/root/DSH-plugins/packages/...` | **A** |
 | `@local/dsh-prompt-inject` | `/root/dsh-workspace/DSH-plugins/packages/...` | **B** |
-| `dsh-ctx-guard` | `/root/dsh-workspace/DSH-plugins/packages/...` | **B** |
+| ~~`dsh-ctx-guard`~~(已退役,仓库中已删除) | `/root/dsh-workspace/DSH-plugins/packages/...` | **B** |
 | `dsh-inventory` | `/root/dsh-workspace/DSH-plugins/packages/...` | **B** |
 | `dsh-websearch-failover` | `/root/dsh-workspace/DSH-plugins/packages/.../plugin` | **B** |
 
