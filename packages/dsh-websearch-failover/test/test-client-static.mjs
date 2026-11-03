@@ -287,14 +287,19 @@ test('bundle carries every host API route as a literal', () => {
   assert.ok(source.includes("'content-type': 'application/json'"), 'POST requests must send JSON content-type');
 });
 
-test('reorder UI ships both arrow buttons and HTML5 drag-and-drop', () => {
+test('the reorder UI no longer lives in this bundle', () => {
+  // The provider manager's arrows and drag-and-drop moved to dsh-inventory's
+  // Tools page together with the rest of the section. The behaviour is still
+  // asserted, just from its new home:
+  //   packages/dsh-inventory/test/client.test.mjs
+  //     - "the tools page lists web-search providers with balances, priority
+  //        order and detail" (arrow buttons, order POST, drag handlers)
+  //   packages/dsh-inventory/client.js (draggable / onDragStart / dataTransfer)
+  // Re-adding the UI here would put a second, unowned copy back in the product.
   const source = readClient();
   for (const token of ['draggable', 'onDragStart', 'onDragOver', 'onDrop', 'onDragEnd']) {
-    assert.ok(source.includes(token), `missing drag-and-drop token: ${token}`);
+    assert.equal(source.includes(token), false, `this bundle must not ship the reorder UI again (${token})`);
   }
-  assert.ok(source.includes("'↑'"), 'missing the move-up arrow button');
-  assert.ok(source.includes("'↓'"), 'missing the move-down arrow button');
-  assert.ok(source.includes('dataTransfer'), 'drag start should seed dataTransfer');
 });
 
 test('bundle requires nothing but react and uses no JSX/import/stylesheet', () => {

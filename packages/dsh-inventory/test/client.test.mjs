@@ -1538,6 +1538,33 @@ test('the tools page lists web-search providers with balances, priority order an
   assert.equal(order.length, 1)
   assert.deepEqual(JSON.parse(order[0].body).order, ['exa', 'tavily'])
 
+  // Bar geometry: a host-supplied ratio wins, otherwise remaining is normalised
+  // against the largest remaining, and an unknown balance renders no fill.
+  // (Moved here from dsh-websearch-failover's smoke test when the old sidebar
+  // Page was deleted — the behaviour is unchanged, only its home is.)
+  const widths = []
+  const collectWidths = (node) => {
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) { for (const child of node) collectWidths(child); return }
+    if (typeof node.type === 'function') { collectWidths(node.type(node.props)); return }
+    const width = node.props?.style?.width
+    if (typeof width === 'string' && width.includes('%')) widths.push(width)
+    collectWidths(node.children)
+    if (node.props && typeof node.props === 'object') {
+      for (const [key, value] of Object.entries(node.props)) {
+        if (key === 'children' || key === 'style' || key === 'key') continue
+        if (value !== null && typeof value === 'object') collectWidths(value)
+      }
+    }
+  }
+  collectWidths(tree())
+  // Tavily carries a host-supplied ratio (0.8); Exa only a remaining amount
+  // (200 of a 800 max) so it must be normalised. A provider whose balance is
+  // unknown renders an empty track rather than NaN.
+  assert.ok(widths.includes('80.00%'), `ratio-sourced bar width missing: ${JSON.stringify(widths)}`)
+  assert.ok(widths.includes('25.00%'), `normalised-vs-max bar width missing: ${JSON.stringify(widths)}`)
+  assert.ok(!widths.some((w) => w.includes('NaN')), `a bar must never render NaN%: ${JSON.stringify(widths)}`)
+
   // Refresh all providers is the only path that hits /refresh (billing per call).
   const refreshAll = findNode(tree(), (node) => node.type === 'button' && textOf(node) === '刷新余额')
   refreshAll.props.onClick()
