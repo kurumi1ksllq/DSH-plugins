@@ -139,3 +139,25 @@ test('a store failure never echoes the secret in the response', async () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('an unhandled route failure does not echo error.message either', async () => {
+  // The catch-all fires on errors nobody anticipated — exactly when the text
+  // may carry arbitrary data. It must answer with a fixed body.
+  const dir = mkdtempSync(join(tmpdir(), 'vault-500-'))
+  try {
+    const real = createVaultStore(dir)
+    const exploding = {
+      ...real,
+      dir: real.dir,
+      list() { throw new Error('boom sk-leak-in-internal-error') },
+    }
+    const handler = createApiHandler({ store: exploding })
+    const res = await call(handler, 'GET', `${API_BASE}/list`)
+    assert.equal(res.status, 500)
+    assert.equal(res.json.error, 'internal-error')
+    assert.equal(JSON.stringify(res.json).includes('sk-leak-in-internal-error'), false, 'the 500 body must not carry the message')
+    assert.equal(res.json.message, undefined, 'no message field at all')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

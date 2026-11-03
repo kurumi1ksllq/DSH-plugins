@@ -10,7 +10,7 @@
 // Every POST checks the request origin (routes registered with
 // `ctx.webServer.register` bypass the /api authorization layer).
 
-import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson, truncate } from './http.mjs'
+import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson } from './http.mjs'
 import { readAudit, trimAudit } from './audit.js'
 import { KINDS } from './store.js'
 
@@ -80,7 +80,6 @@ export function createApiHandler(service) {
           if (error instanceof ApiError) throw error
           // Never forward `error.message`: it is free-form and a future throw
           // could interpolate secret material straight onto the wire.
-          void truncate
           throw new ApiError(400, 'store-failed', STORE_FAILED_MESSAGE)
         }
       },
@@ -141,12 +140,11 @@ export function createApiHandler(service) {
         sendJson(res, error.status, { ok: false, error: error.code, message: error.message })
         return
       }
-      sendJson(res, 500, {
-        ok: false,
-        error: 'internal-error',
-        message: truncate(error?.message ?? String(error), 300),
-        path: pathname,
-      })
+      // The catch-all must not echo `error.message` either: this branch fires on
+      // errors nobody anticipated, which is exactly when the text may carry
+      // arbitrary data (including a secret). The detail goes to the log only.
+      console.error('[credential-vault] unhandled route failure', pathname, error)
+      sendJson(res, 500, { ok: false, error: 'internal-error', path: pathname })
     }
   }
 }
