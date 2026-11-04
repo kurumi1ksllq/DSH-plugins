@@ -16,6 +16,7 @@ import {
   openSecret,
   readVault,
   sealSecret,
+  validateMeta,
   slugOf,
   vaultFilePath,
   writeVault,
@@ -44,6 +45,10 @@ export function createVaultStore(dir) {
 
   function entry(name) {
     const vault = readVault(dir)
+    // Defence-in-depth only: `readVault` already returns prototype-free entries
+    // and drops dangerous keys, so this guards against a future change that makes
+    // `entries` a plain object again.
+    if (!Object.hasOwn(vault.entries, name)) return null
     const found = vault.entries[name]
     return found === undefined ? null : { name, ...found }
   }
@@ -157,6 +162,7 @@ export function createVaultStore(dir) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
+      const meta = validateMeta({ service, username, url, note, aliases })
       const vault = readVault(dir)
       assertNoSlugCollision(vault, name)
       vault.version = VAULT_VERSION
@@ -165,11 +171,11 @@ export function createVaultStore(dir) {
       vault.entries[name] = {
         kind,
         secret: sealSecret(key, secret),
-        username: username || null,
-        url: url || null,
-        note: note || null,
-        service: service || null,
-        aliases: normalizeAliases(aliases),
+        username: meta.username,
+        url: meta.url,
+        note: meta.note,
+        service: meta.service,
+        aliases: meta.aliases,
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
       }
@@ -193,15 +199,26 @@ export function createVaultStore(dir) {
       if (previous === undefined) return false
       const nextKind = kind === undefined ? (previous.kind ?? 'other') : kind
       if (!KINDS.includes(nextKind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
+
+      // Validate only the fields the caller actually supplied; a partial update
+      // must not blank the untouched ones.
+      const meta = validateMeta({
+        service: service === undefined ? undefined : service,
+        username: username === undefined ? undefined : username,
+        url: url === undefined ? undefined : url,
+        note: note === undefined ? undefined : note,
+        aliases: aliases === undefined ? undefined : aliases,
+      })
+
       vault.version = VAULT_VERSION
       vault.entries[name] = {
         ...previous,
         kind: nextKind,
-        username: username === undefined ? (previous.username ?? null) : username || null,
-        url: url === undefined ? (previous.url ?? null) : url || null,
-        note: note === undefined ? (previous.note ?? null) : note || null,
-        service: service === undefined ? (previous.service ?? null) : service || null,
-        aliases: aliases === undefined ? normalizeAliases(previous.aliases) : normalizeAliases(aliases),
+        username: username === undefined ? (previous.username ?? null) : meta.username,
+        url: url === undefined ? (previous.url ?? null) : meta.url,
+        note: note === undefined ? (previous.note ?? null) : meta.note,
+        service: service === undefined ? (previous.service ?? null) : meta.service,
+        aliases: aliases === undefined ? normalizeAliases(previous.aliases) : meta.aliases,
         updatedAt: new Date().toISOString(),
       }
       writeVault(dir, vault)

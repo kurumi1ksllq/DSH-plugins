@@ -62,6 +62,16 @@ profile 的 `package.json` 里加一行：
 
 所有 POST 都做同源校验（`sec-fetch-site` / `Origin` / `Host`），跨站请求 403。
 
+## 0.4.0 的对外契约变更
+
+0.4.0 是**缺陷修复版本，但包含两处输入收紧**，升级前请知悉：
+
+| 变更 | 影响 |
+| --- | --- |
+| 新增 `400 invalid-metadata` | `POST /set` 的 `service`/`aliases`/`username`/`url`/`note` 超限、含换行或类型不符时返回 400，**不再静默丢弃或截断** |
+| 拒绝危险键名 | 名字为 `__proto__` / `toString` / `constructor` 等 `Object.prototype` 自有属性时拒绝写入（这些名字此前会让凭据静默消失或产生幽灵条目） |
+| `aliases` 必须是字符串数组 | 非字符串元素返回 400（此前被静默过滤）；空串与重复仍会归一化 |
+
 ## 安全边界（威胁模型）
 
 旧版本这里写过一句「明文只存在于进程内存和 `credential` 的返回值里」——**那是错的**，
@@ -80,8 +90,20 @@ spill 2、`.git/config` 1、`/tmp` 2）。原因很直接：只要明文进入�
 - **审计可追溯**：`audit.log` 记录时间、名称、结果（`ok` / `missing` / `rejected` /
   `ambiguous`）、`action`（`use` 或 `reveal`）、`sessionId`、`resolvedBy` 与原因，
   **不记值**；文件权限 0600。
-- **路径安全**：凭据名不允许路径分隔符与控制字符；`master.key` / `vault.json`
-  均为 0600，写入走临时文件 + rename 的原子路径。
+- **路径与键名安全**：凭据名不允许路径分隔符与控制字符，也**不允许是
+  `Object.prototype` 的自有属性名**（`__proto__` / `toString` / `constructor` …）。
+  后者曾能在 0.3.0 上复现：`set('__proto__')` 会让条目静默消失并污染 `entries`，
+  而 `get('toString')` 会沿原型链返回一条**不存在的凭据**。`vault.json` 的 `entries`
+  现为无原型对象，查表一律用 `Object.hasOwn`。
+  否决用的是 `Object.prototype` 自有属性这一有限集合，不限制字符集，所以
+  `阿里云 ECS 密码` 这类中文名照常可用。
+- **元数据校验**：`service` / `aliases` 会**逐字进入每轮系统提示词**，因此在 store 与
+  HTTP API 两处都强制单行且限长（`service` ≤64、`aliases` ≤16 条×≤64、
+  `username` ≤128、`url` ≤512、`note` ≤512 但允许换行）。超限返回
+  `400 invalid-metadata`，**不静默截断**。提示词侧还有第二道防线：索引渲染时会压平
+  换行并截断，即使历史数据里已含换行也进不了提示词结构。这里的"换行"包括
+  `\n` / `\r`、NEL(`U+0085`)、LS(`U+2028`)、PS(`U+2029`)——后三者在 JavaScript
+  和多数 Markdown 渲染器里同样算换行。
 
 **没有做什么（请不要误解）**
 
@@ -130,11 +152,11 @@ node scripts/scrub-session-secrets.mjs --roots A,B  # 额外/自定义扫描根
 pnpm --filter dsh-credential-vault test
 ```
 
-116 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验、store 全操作、
+141 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名）、store 全操作、
 `normalizeKey` / `slug` / 别名去重 / slug 撞名拒绝 / v1 旧库兼容、五级命中
 （exact→slug→alias→service→keyword）与 `ambiguous` 不猜、动态提示词（函数求值 +
 索引 + 硬规则）、`use` 的零明文返回与按会话注入（含 TTL 过期、跨会话隔离、
-`shellEnv` 缺失时明确报错）、审计字段与 0600 权限、HTTP 路由/校验/同源/405/404，
+`shellEnv` 缺失时明确报错）、审计字段与 0600 权限、元数据校验与提示词注入防御、HTTP 路由/校验/同源/405/404，
 以及一条贯穿断言：明文不出现在任何工具返回值、HTTP 响应或审计日志里。
 
 仓库根目录另有 13 个测试覆盖历史明文清理脚本（dry-run、备份外置、陈旧锁不再挡路、

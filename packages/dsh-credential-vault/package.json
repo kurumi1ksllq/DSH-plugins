@@ -1,6 +1,6 @@
 {
   "name": "dsh-credential-vault",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Credential vault for DeepSeek Harness: store server passwords, GitHub tokens, API keys and database secrets AES-256-GCM encrypted under $DSH_HOME, exposed through one `credential` tool. The default path (`action:\"use\"`) returns only a DSH_CRED_* variable name whose value dsh-shell-env injects into each shell call, so the secret never enters the conversation; `action:\"reveal\"` is the audited escape hatch that does return plaintext. A system-prompt section lists what is stored on every assembly so the model checks the vault before asking the user. HTTP API responses never carry secret material.",
   "type": "module",
