@@ -44,6 +44,14 @@ pnpm test      # 全部包的 node --test
 pnpm verify    # 打包元数据：bundle 清单 / artifact 副本 / profile 链接 / 版本纪律
 ```
 
+多会话共用同一个 checkout 时，上面两条可能被**别人的未提交改动**或**宿主 git 全局配置**（如镜像 `insteadOf`）带偏而假红。
+这时用干净验证路径——它把 HEAD 检出到临时 worktree、隔离 `HOME`/`GIT_CONFIG_GLOBAL` 后跑同样的四件套，结束自动清理，不写宿主工作树：
+
+```bash
+node scripts/verify-clean.mjs                 # install --frozen-lockfile + verify + test
+node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同样隔离）
+```
+
 ### 版本纪律
 
 改动了某个包就必须升它的版本号（`check-bundle-versions` 会拦），
