@@ -1,8 +1,8 @@
 {
   "issue": 43,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-05T05:32:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-05T06:05:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -18,15 +18,20 @@
       "id": 3,
       "title": "全量 gate + PR + CI + 双轴 review",
       "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "review 6 项自修(泄漏/信号/断言强度/基准号/隔离/换行)",
+      "state": "green"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {

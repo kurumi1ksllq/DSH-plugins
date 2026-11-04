@@ -20,9 +20,9 @@
  *   node scripts/verify-clean.mjs                 # install + verify + test
  *   node scripts/verify-clean.mjs -- <command…>   # run a custom gate instead
  *
- * Exit code = the gate's exit code (1 on setup failure).
+ * Exit code = the gate's exit code (1 on setup failure, 130 on SIGINT/SIGTERM).
  */
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -75,52 +75,93 @@ function git(args, env, options = {}) {
 const custom = parseArgs(process.argv.slice(2))
 
 /**
- * The whole run, returning the exit code instead of calling `process.exit()`:
- * a `process.exit()` inside the guarded region would skip the cleanup below
- * and strand a worktree registration in the shared checkout (observed live).
+ * Shared cleanup: idempotent, never throws, safe from both the `finally` and
+ * a signal handler racing it — whichever runs first wins, the second is a no-op
+ * on already-removed paths (git remove fails → prune still unregisters).
  */
-function main() {
-const scratch = mkdtempSync(join(tmpdir(), 'verify-clean-'))
-const worktree = join(scratch, 'checkout')
-const home = join(scratch, 'home')
-let registered = false
-
-try {
-  // A worktree of HEAD, not a copy of the working tree: the gate must see the
-  // committed state, with none of the host's dirt — that is the entire point.
-  const add = git(['worktree', 'add', '--detach', worktree, 'HEAD'], process.env, { cwd: ROOT })
-  if (add.status !== 0) {
-    console.error(`verify-clean: could not create the worktree:\n${add.stderr}`)
-    process.exit(1)
-  }
-  registered = true
-  mkdirSync(home) // empty, not just nonexistent — HOME must exist for pnpm caches
-
-  const env = isolatedEnv(home)
-  // A step is one `[command, ...args]` array — a custom gate arrives as a flat
-  // argv tail and is wrapped into a single step, never destructured in place.
-  const steps = custom.length > 0 ? [custom] : DEFAULT_GATE
-  let failed = 0
-
-  for (const step of steps) {
-    const [command, ...args] = step
-    console.error(`\n=== ${command} ${args.join(' ')}`)  // stderr: stdout belongs to the gate
-    const run = spawnSync(command, args, { encoding: 'utf8', env, cwd: worktree, stdio: 'inherit' })
-    if (run.status !== 0) {
-      console.error(`\nverify-clean: gate step failed (exit ${run.status}): ${command} ${args.join(' ')}`)
-      failed = run.status ?? 1
-      break
+function cleanup(scratch, worktree, registered) {
+  if (registered) {
+    const remove = git(['worktree', 'remove', '--force', worktree], process.env, { cwd: ROOT })
+    if (remove.status !== 0) {
+      console.error('verify-clean: worktree remove failed, pruning the registration instead')
+      git(['worktree', 'prune'], process.env, { cwd: ROOT })
     }
   }
-
-  if (failed === 0) console.error('\nverify-clean: gate green in a clean tree')
-  return failed
-} finally {
-  // Both paths matter: a *registered* worktree left behind poisons every later
-  // `git worktree list`, and a stray scratch dir eats disk on a shared machine.
-  if (registered) git(['worktree', 'remove', '--force', worktree], process.env, { cwd: ROOT })
-  rmSync(scratch, { recursive: true, force: true })
-}
+  try {
+    rmSync(scratch, { recursive: true, force: true })
+  } catch (error) {
+    console.error(`verify-clean: could not remove the scratch dir ${scratch}: ${error.message}`)
+  }
 }
 
-process.exit(main())
+async function main() {
+  const scratch = mkdtempSync(join(tmpdir(), 'verify-clean-'))
+  const worktree = join(scratch, 'checkout')
+  const home = join(scratch, 'home')
+  let registered = false
+
+  // Interrupts: while `spawnSync` blocks on the gate, Node defers signal
+  // handlers and the `finally` below cannot be relied on. The handler performs
+  // the same cleanup itself and exits 130 (128+SIGINT). The gate child shares
+  // our process group, so the terminal delivers the signal to it as well.
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      cleanup(scratch, worktree, registered)
+      process.exit(130)
+    })
+  }
+
+  try {
+    // Setup drops host GIT_DIR/GIT_WORK_TREE (delete the keys — an empty string
+    // is itself a GIT_DIR pointing nowhere): a session exporting either would
+    // aim the registration somewhere else entirely.
+    const setupEnv = { ...process.env }
+    for (const key of ['GIT_DIR', 'GIT_WORK_TREE']) delete setupEnv[key]
+    setupEnv.GIT_CONFIG_NOSYSTEM = '1'
+    // A worktree of HEAD, not a copy of the working tree: the gate must see the
+    // committed state, with none of the host's dirt — that is the entire point.
+    const add = git(['worktree', 'add', '--detach', worktree, 'HEAD'], setupEnv, { cwd: ROOT })
+    if (add.status !== 0) {
+      console.error(`verify-clean: could not create the worktree:\n${add.stderr}`)
+      return 1 // return, never exit: exit here would skip the cleanup in finally
+    }
+    registered = true
+    mkdirSync(home) // empty, not just nonexistent — HOME must exist for pnpm caches
+
+    const env = isolatedEnv(home)
+    // A step is one `[command, ...args]` array — a custom gate arrives as a flat
+    // argv tail and is wrapped into a single step, never destructured in place.
+    const steps = custom.length > 0 ? [custom] : DEFAULT_GATE
+    let failed = 0
+
+    for (const step of steps) {
+      const [command, ...args] = step
+      console.error(`\n=== ${command} ${args.join(' ')}`)  // stderr: stdout belongs to the gate
+      // Spawn + event loop, not `spawnSync`: a blocking spawnSync defers signal
+      // handlers for the whole gate (minutes on `pnpm install`), which is what
+      // left interrupted runs stranded before. Polling keeps the loop live so
+      // the SIGINT/SIGTERM handler above can actually fire.
+      const run = spawn(command, args, { env, cwd: worktree, stdio: 'inherit' })
+      const status = await new Promise((resolve) => {
+        let code = null
+        run.on('exit', (exitCode) => { code = exitCode })
+        run.on('close', () => resolve(code))
+        const poll = setInterval(() => {
+          if (code !== null) { clearInterval(poll); resolve(code) }
+        }, 200)
+      })
+      if (status !== 0) {
+        console.error(`\nverify-clean: gate step failed (exit ${status}): ${command} ${args.join(' ')}`)
+        failed = status ?? 1
+        break
+      }
+    }
+
+    if (failed === 0) console.error('\nverify-clean: gate green in a clean tree')
+    return failed
+  } finally {
+    cleanup(scratch, worktree, registered)
+  }
+}
+
+main().then((code) => process.exit(code))

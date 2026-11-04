@@ -32,17 +32,23 @@ test('the gate runs in a throwaway HOME with no ambient git config', () => {
   // worktree, the probe below would print a mirror URL instead of the origin.
   const probe = `
     const { execFileSync } = require('node:child_process');
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+    // 'git remote get-url' applies insteadOf rewrites; the raw config value
+    // does not. Equality of the two is the mirror-agnostic rewrite detector —
+    // the same trick remotesOf uses in dsh-git-status (#42).
+    const configured = execFileSync('git', ['config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim();
+    const resolved = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
     const home = process.env.HOME ?? '';
-    console.log(JSON.stringify({ url, home, nosystem: process.env.GIT_CONFIG_NOSYSTEM }));
+    console.log(JSON.stringify({ configured, resolved, home, nosystem: process.env.GIT_CONFIG_NOSYSTEM }));
   `
   const result = run(probe)
   assert.equal(result.status, 0, result.stdout + result.stderr)
   const seen = JSON.parse(result.stdout.trim())
-  // What matters is the absence of a rewrite, not the exact spelling: CI
-  // checks out without the .git suffix, so assert "the real repo, no mirror".
-  assert.match(seen.url, /github\.com[/\/:]+kurumi1ksllq\/DSH-plugins(\.git)?$/, `ambient insteadOf leaked: ${seen.url}`)
-  assert.equal(seen.url.includes('ghfast.top'), false, `mirror rewrite leaked: ${seen.url}`)
+  // The gate must not inherit any insteadOf: the resolved URL must equal the
+  // configured one, whatever shape either takes (this catches prefix mirrors
+  // like https://mirror/git/https://github.com/... that a hostname blacklist
+  // would miss).
+  assert.equal(seen.resolved, seen.configured, `insteadOf rewrite leaked: ${seen.configured} -> ${seen.resolved}`)
+  assert.match(seen.resolved, /kurumi1ksllq\/DSH-plugins/, `origin points somewhere else: ${seen.resolved}`)
   assert.notEqual(seen.home, process.env.HOME, 'the gate must not inherit the host HOME')
   assert.equal(seen.nosystem, '1', 'the system gitconfig must be disabled')
 })
@@ -83,10 +89,17 @@ test('cleanup: no worktree registration and no temp HOME survive the run', () =>
 })
 
 test('AGENTS.md documents when and how to run verify-clean', () => {
-  // The tool is useless if the next session never learns it exists. Read as a
-  // contract: the section name, the command, and the reason must all be there.
+  // The tool is useless if the next session never learns it exists. Anchored
+  // to the 完工验收四件套 section so a stray filename mention elsewhere cannot
+  // keep a deleted section green: the subsection header, the reason, and BOTH
+  // example commands must all sit between that header and 版本纪律.
   const agents = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8')
-  assert.match(agents, /verify-clean\.mjs/)
-  assert.match(agents, /多会话|共用|干净/)
-  assert.match(agents, /node scripts\/verify-clean\.mjs/)
+  const start = agents.indexOf('## 完工验收四件套')
+  const end = agents.indexOf('### 版本纪律')
+  assert.notEqual(start, -1, 'AGENTS.md lost the 完工验收四件套 section')
+  assert.notEqual(end, -1, 'AGENTS.md lost the 版本纪律 subsection (section anchor)')
+  const section = agents.slice(start, end)
+  assert.match(section, /多会话共用|干净验证/, 'the reason (shared checkout false reds) is gone')
+  assert.match(section, /node scripts\/verify-clean\.mjs\s*#.*verify \+ test|node scripts\/verify-clean\.mjs\s*$/, 'the default-gate command is gone')
+  assert.match(section, /node scripts\/verify-clean\.mjs\s*--/, 'the custom-gate command is gone')
 })
