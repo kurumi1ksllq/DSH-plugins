@@ -45,8 +45,9 @@ export function createVaultStore(dir) {
 
   function entry(name) {
     const vault = readVault(dir)
-    // `Object.hasOwn`, not a bare lookup: a name like `toString` would otherwise
-    // resolve through the prototype chain into a phantom credential.
+    // Defence-in-depth only: `readVault` already returns prototype-free entries
+    // and drops dangerous keys, so this guards against a future change that makes
+    // `entries` a plain object again.
     if (!Object.hasOwn(vault.entries, name)) return null
     const found = vault.entries[name]
     return found === undefined ? null : { name, ...found }
@@ -201,7 +202,6 @@ export function createVaultStore(dir) {
 
       // Validate only the fields the caller actually supplied; a partial update
       // must not blank the untouched ones.
-      const touched = { username, url, note, service, aliases }
       const meta = validateMeta({
         service: service === undefined ? undefined : service,
         username: username === undefined ? undefined : username,
@@ -209,7 +209,6 @@ export function createVaultStore(dir) {
         note: note === undefined ? undefined : note,
         aliases: aliases === undefined ? undefined : aliases,
       })
-      void touched
 
       vault.version = VAULT_VERSION
       vault.entries[name] = {

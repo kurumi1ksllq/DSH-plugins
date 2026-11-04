@@ -28,12 +28,22 @@ export const HINT_INDEX_LIMIT = 50
  */
 function flatten(value, max) {
   if (typeof value !== 'string') return ''
-  const flat = value.replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ').trim()
+  const flat = value.replace(/[\r\n\t\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, ' ').trim()
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
-/** Hard cap for one rendered index line, so a wide vault cannot balloon the prompt. */
+/** Hard cap for one rendered index line. */
 const INDEX_LINE_MAX = 200
+
+/**
+ * Total character budget for the whole index.
+ *
+ * A per-line cap alone does not bound the prompt: 50 entries × (200-char line)
+ * is ~10 KB, and the worst legal metadata (64-char name + 64-char service + 16 ×
+ * 64-char aliases) measured ~11.8 KB. The budget is therefore enforced across
+ * lines, and whatever does not fit is reported as a count instead.
+ */
+export const HINT_INDEX_BUDGET = 4000
 
 /** One line of the credential index: names and metadata only, never a value. */
 function indexLine(entry) {
@@ -56,16 +66,27 @@ function indexLine(entry) {
 export function buildHintText(entries) {
   const list = Array.isArray(entries) ? entries : []
   const shown = list.slice(0, HINT_INDEX_LIMIT)
-  const hidden = list.length - shown.length
 
-  const index =
-    list.length === 0
-      ? 'The vault is empty right now — no credentials are stored.'
-      : [
-          'Stored credentials (names and metadata only):',
-          ...shown.map(indexLine),
-          ...(hidden > 0 ? [`- …and ${hidden} more; call action:"search" to find the rest.`] : []),
-        ].join('\n')
+  let index
+  if (list.length === 0) {
+    index = 'The vault is empty right now — no credentials are stored.'
+  } else {
+    const lines = ['Stored credentials (names and metadata only):']
+    let used = lines[0].length
+    let rendered = 0
+    for (const entry of shown) {
+      const line = indexLine(entry)
+      if (used + line.length + 1 > HINT_INDEX_BUDGET) break
+      lines.push(line)
+      used += line.length + 1
+      rendered += 1
+    }
+    const remaining = list.length - rendered
+    if (remaining > 0) {
+      lines.push(`- …and ${remaining} more; call action:"search" to find the rest.`)
+    }
+    index = lines.join('\n')
+  }
 
   return [
     'Credential vault (dsh-credential-vault): the user keeps passwords, tokens, API keys and database secrets in an encrypted vault you can read through the `credential` tool.',

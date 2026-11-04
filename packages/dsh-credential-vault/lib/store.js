@@ -53,7 +53,8 @@ export function slugOf(name) {
  * `service` and `aliases` are interpolated verbatim into every prompt assembly,
  * so a newline there could start a new instruction line. They are therefore
  * single-line and short. `note` is exempt from the newline rule (it is prose for
- * humans and never enters the prompt) but still length-capped.
+ * humans and never enters the SYSTEM PROMPT; it does appear in tool results and
+ * participates in keyword matching) but still length-capped.
  */
 export const META_LIMITS = {
   service: 64,
@@ -64,7 +65,13 @@ export const META_LIMITS = {
   note: 512,
 }
 
-const CONTROL_CHARS = /[\r\n\u0000-\u001f\u007f]/
+// Characters that must never appear in a single-line metadata field:
+//   - C0/DEL and NEL (U+0085), LINE SEPARATOR (U+2028), PARAGRAPH SEPARATOR
+//     (U+2029) are line breaks in JavaScript and in most Markdown renderers;
+//   - the Unicode "format" category (Cf) covers zero-width spaces (U+200B),
+//     BOM (U+FEFF) and bidi overrides (U+202E), which can disguise or reorder
+//     the text a reader sees without changing its length.
+const CONTROL_CHARS = /[\r\n\u0000-\u001f\u007f\u0085\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/
 
 /** A single-line string within `max` characters, or null when empty. */
 function checkSingleLine(field, value, max) {
@@ -98,16 +105,28 @@ export function validateMeta(meta = {}) {
     note = trimmed.length > 0 ? trimmed : null
   }
 
-  const aliases = normalizeAliases(meta.aliases)
-  if (aliases.length > META_LIMITS.aliasCount) {
+  // Validate the RAW list before normalizing: normalizeAliases() drops non-strings,
+  // blanks and duplicates, which would silently swallow input (and let 20 copies of
+  // one alias slip past the count limit).
+  const rawAliases = meta.aliases
+  if (rawAliases !== undefined && rawAliases !== null && !Array.isArray(rawAliases)) {
+    throw new Error('invalid aliases: must be an array of strings')
+  }
+  const list = Array.isArray(rawAliases) ? rawAliases : []
+  if (list.length > META_LIMITS.aliasCount) {
     throw new Error(`invalid aliases: at most ${META_LIMITS.aliasCount} entries`)
   }
-  for (const alias of aliases) {
+  for (const alias of list) {
+    if (typeof alias !== 'string') throw new Error('invalid aliases: must be an array of strings')
+    // Blank entries are normalisation, not silently-dropped data: the panel adds
+    // trailing commas, and `normalizeAliases` trims them away.
+    if (alias.trim().length === 0) continue
     if (CONTROL_CHARS.test(alias)) throw new Error('invalid aliases: must not contain line breaks or control characters')
     if (alias.length > META_LIMITS.aliasLength) {
       throw new Error(`invalid aliases: each alias must be at most ${META_LIMITS.aliasLength} characters`)
     }
   }
+  const aliases = normalizeAliases(list)
 
   return { service, aliases, username, url, note }
 }
@@ -143,20 +162,24 @@ export function vaultFilePath(dir) {
   return join(dir, 'vault.json')
 }
 
-/** Validate a credential name: non-empty, printable, no path separators. */
 /**
  * Names that are `Object.prototype` own properties cannot be used as vault keys.
  *
- * `entries` is a plain-object map keyed by credential name, so `__proto__` writes
- * the prototype instead of an entry (the credential silently vanishes while
- * `entries` starts answering for a name that was never stored), and `toString`
- * makes every lookup walk the prototype chain and return a phantom credential.
- * The guard is a deny-list of the finite, well-known set rather than a charset
- * whitelist, which would reject legitimate names like `阿里云 ECS 密码`.
+ * In 0.3.0 `entries` was a plain object, so `__proto__` wrote the prototype
+ * instead of an entry (the credential silently vanished while `entries` started
+ * answering for a name that was never stored), and `toString` made every lookup
+ * walk the prototype chain and return a phantom credential. `entries` is now
+ * prototype-free, but the name guard stays as the first line of defence — it is
+ * what stops such an entry from being written or read back in the first place.
+ *
+ * The deny-list is preferred over a charset whitelist because a whitelist would
+ * reject legitimate names like `阿里云 ECS 密码`. Note it is dynamic: a plugin
+ * that adds a property to `Object.prototype` would make that name unusable, which
+ * is acceptable for a defence-in-depth check but is why it is not the only guard.
  * @param {string} name
  * @returns {boolean}
  */
-export function isDangerousKey(name) {
+function isDangerousKey(name) {
   return name === '__proto__' || Object.hasOwn(Object.prototype, name)
 }
 
@@ -238,7 +261,14 @@ export function emptyVault() {
  */
 function adoptEntries(parsed) {
   const entries = Object.create(null)
-  for (const key of Object.keys(parsed)) entries[key] = parsed[key]
+  for (const key of Object.keys(parsed)) {
+    // A hand-edited (or, later, imported) vault may carry `__proto__` as a real
+    // own key. Writing cannot create one any more, so a file that has one is not
+    // a vault this plugin wrote — drop it instead of promoting it to a
+    // first-class credential that `get`/`reveal`/`list` would happily serve.
+    if (isDangerousKey(key)) continue
+    entries[key] = parsed[key]
+  }
   return entries
 }
 

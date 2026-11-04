@@ -75,14 +75,24 @@ test('aliases are sanitized and a bad kind is rejected', async () => {
     const store = createVaultStore(dir)
     const handler = createApiHandler({ store })
 
+    // Blank entries and duplicates are normalised; a non-string is REFUSED rather
+    // than silently filtered out (issue #48 review: silent filtering hid input).
     await call(handler, {
       method: 'POST',
       path: '/set',
-      body: { name: 'db', kind: 'database', secret: 'pw', aliases: [' db ', '', 42, 'db'] },
+      body: { name: 'db', kind: 'database', secret: 'pw', aliases: [' db ', '', 'db'] },
     })
     const entry = (await call(handler, { path: '/entry?name=db' })).payload.entry
     assert.deepEqual(entry.aliases, ['db'])
     assert.equal(entry.kind, 'database')
+
+    const refused = await call(handler, {
+      method: 'POST',
+      path: '/set',
+      body: { name: 'db2', kind: 'database', secret: 'pw', aliases: ['ok', 42] },
+    })
+    assert.equal(refused.status, 400)
+    assert.equal(refused.payload.error, 'invalid-metadata')
 
     const rejected = await call(handler, {
       method: 'POST',
