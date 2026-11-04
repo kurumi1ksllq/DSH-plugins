@@ -2006,3 +2006,124 @@ test('the update action offers the target version once the host reports one', as
   const current = resolveTree(render(plugin.__pluginUpdateAction, { subject, t }))
   assert.match(textOf(current), /already current/)
 })
+
+// ---- issue #51: export/import UI ------------------------------------------
+
+async function bootVaultWithExportSpy() {
+  const { calls, open } = await bootCredentialVault()
+  return { calls, open }
+}
+
+test('#51 the export flow downloads via the injectable saveFile with no plaintext in transit', async () => {
+  const base = await bootCredentialVault()
+  // Re-boot with a saveFile spy: bootCredentialVault always builds its own ctx,
+  // so we drive the component directly here instead.
+  const saved = []
+  const { React, render } = makeReactRuntime()
+  const entries = [
+    { name: 'github-token', kind: 'token', service: 'github', aliases: ['gh'], hasSecret: true, preview: 'gho_…un', username: null, url: null, note: null, updatedAt: '2026-11-04T00:00:00.000Z' },
+  ]
+  globalThis.window = { __ModuleLoader__: { load: (d) => (globalThis.window.loaded = d) }, confirm: () => true }
+  await import(new URL(`../client.js?v=export-${Date.now()}`, import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: { inject: (name, factory) => factory(), register: (spec, component) => ({ spec, component }) },
+  })
+  const calls = []
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method: String(options.method ?? 'GET').toUpperCase(), body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/credential-vault/api/list') return json({ ok: true, entries })
+    if (path === '/credential-vault/api/audit') return json({ ok: true, records: [] })
+    if (path === '/credential-vault/api/export') {
+      return json({ ok: true, filename: 'vault-20261104.dsvault', content: JSON.stringify({ format: 'dsh-credential-vault-export', payload: 'CIPHERTEXT' }) })
+    }
+    return json({ ok: true })
+  }
+
+  const tree = () => resolveTree(render(module.__credentialVault, {
+    t: (key) => dictionary[key] ?? key,
+    saveFile: (file) => { saved.push(file); return true },
+  }))
+  tree()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  // Open the export form.
+  const exportButton = findNode(tree(), (node) => node.type === 'button' && /导出/.test(textOf(node)))
+  assert.ok(exportButton, 'export button missing')
+  exportButton.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  // Fill the two passphrase fields.
+  let current = tree()
+  const passInput = findNode(current, (node) => node.type === 'input' && node.props?.placeholder === '口令（至少 12 个字符）')
+  const confirmInput = findNode(current, (node) => node.type === 'input' && node.props?.placeholder === '再输一遍口令')
+  assert.ok(passInput && confirmInput, 'passphrase fields missing')
+  passInput.props.onChange({ target: { value: 'correct horse battery' } })
+  confirmInput.props.onChange({ target: { value: 'correct horse battery' } })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const before = calls.filter((call) => call.url === '/credential-vault/api/export').length
+  const form = findNode(tree(), (node) => node.type === 'form')
+  form.props.onSubmit({ preventDefault() {} })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assert.equal(saved.length, 1, 'saveFile must be called once')
+  assert.equal(saved[0].filename, 'vault-20261104.dsvault')
+  assert.ok(saved[0].text.includes('CIPHERTEXT'), 'the envelope ciphertext must be saved')
+  // The envelope is ciphertext; the mocked list entry value must never appear.
+  assert.equal(saved[0].text.includes('gho_…un'), false)
+})
+
+test('#51 mismatched passphrases block the export request entirely', async () => {
+  const { React, render } = makeReactRuntime()
+  const entries = []
+  globalThis.window = { __ModuleLoader__: { load: (d) => (globalThis.window.loaded = d) }, confirm: () => true }
+  await import(new URL(`../client.js?v=export-mismatch-${Date.now()}`, import.meta.url).href)
+  const module = globalThis.window.loaded.factory(() => React)
+  const dictionary = {}
+  module.apply({
+    effect: (fn) => fn(),
+    locale: { register: (ns, dict) => Object.assign(dictionary, dict.zh), bind: () => (key) => dictionary[key] ?? key },
+    layout: { selectPanel() {} },
+    slots: { inject: (name, factory) => factory(), register: (spec, component) => ({ spec, component }) },
+  })
+  const calls = []
+  const saved = []
+  globalThis.fetch = async (url, options = {}) => {
+    const path = String(url).split('?')[0]
+    calls.push({ url: path, method: String(options.method ?? 'GET').toUpperCase(), body: options.body })
+    const json = (value) => ({ ok: true, status: 200, json: async () => value })
+    if (path === '/credential-vault/api/list') return json({ ok: true, entries })
+    if (path === '/credential-vault/api/audit') return json({ ok: true, records: [] })
+    return json({ ok: true })
+  }
+  const tree = () => resolveTree(render(module.__credentialVault, {
+    t: (key) => dictionary[key] ?? key,
+    saveFile: (file) => { saved.push(file); return true },
+  }))
+  tree()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const exportButton = findNode(tree(), (node) => node.type === 'button' && /导出/.test(textOf(node)))
+  exportButton.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const passInput = findNode(tree(), (node) => node.type === 'input' && node.props?.placeholder === '口令（至少 12 个字符）')
+  const confirmInput = findNode(tree(), (node) => node.type === 'input' && node.props?.placeholder === '再输一遍口令')
+  passInput.props.onChange({ target: { value: 'correct horse battery' } })
+  confirmInput.props.onChange({ target: { value: 'different pass phrase' } })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  const form = findNode(tree(), (node) => node.type === 'form')
+  form.props.onSubmit({ preventDefault() {} })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assert.equal(saved.length, 0, 'mismatch must not trigger a download')
+  assert.equal(calls.filter((call) => call.url === '/credential-vault/api/export').length, 0, 'mismatch must not reach the network')
+})

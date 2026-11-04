@@ -10,11 +10,11 @@
 // material to the panel (it returns `hasSecret` + a masked preview), and the
 // `credential` tool returns the secret only to the session that asked for it.
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import { join } from 'node:path'
 
-export const VAULT_VERSION = 2
+export const VAULT_VERSION = 3
 export const KINDS = ['password', 'token', 'api-key', 'ssh-key', 'database', 'other']
 const MASTER_KEY_BYTES = 32
 
@@ -291,7 +291,14 @@ export function readVault(dir) {
   if (!parsed || typeof parsed !== 'object' || typeof parsed.entries !== 'object' || parsed.entries === null) {
     throw new Error(`vault file at ${file} has no entries object`)
   }
-  return { version: typeof parsed.version === 'number' ? parsed.version : VAULT_VERSION, entries: adoptEntries(parsed.entries) }
+  const version = typeof parsed.version === 'number' ? parsed.version : VAULT_VERSION
+  // A FUTURE version may carry fields this build does not understand (like the
+  // stable ids added in v3). Reading it and writing it back would silently strip
+  // those fields, so refuse instead of degrading (issue #51).
+  if (version > VAULT_VERSION) {
+    throw new Error(`unsupported-vault-version: vault at ${file} is version ${version}, this build understands up to ${VAULT_VERSION}`)
+  }
+  return { version, entries: adoptEntries(parsed.entries) }
 }
 
 /** Write vault.json atomically (temp file + rename) with 0600 permissions. */
@@ -299,8 +306,19 @@ export function writeVault(dir, vault) {
   mkdirSync(dir, { recursive: true })
   const file = vaultFilePath(dir)
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`
-  writePrivateFileSync(tmp, JSON.stringify(vault, null, 2) + '\n')
-  renameSync(tmp, file)
+  try {
+    writePrivateFileSync(tmp, JSON.stringify(vault, null, 2) + '\n')
+    renameSync(tmp, file)
+  } catch (error) {
+    // The temp file is never a valid vault.json; leaving it behind would make
+    // the directory look corrupted to a human scanning for what went wrong.
+    try {
+      unlinkSync(tmp)
+    } catch {
+      /* nothing to clean */
+    }
+    throw error
+  }
 }
 
 /**

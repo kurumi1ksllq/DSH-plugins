@@ -337,6 +337,22 @@ window.__ModuleLoader__.load({
       credentialEdit: '编辑',
       credentialDelete: '删除',
       credentialConfirmDelete: '确认删除凭据',
+      credentialExport: '导出',
+      credentialImport: '导入',
+      credentialExportTitle: '导出凭据',
+      credentialExportHint: '导出文件用口令加密（至少 12 个字符），可安全放到网盘或 U 盘。它是密文，但请妥善保管。',
+      credentialExportGo: '导出并下载',
+      credentialExportDone: '已导出并开始下载。文件是密文，用完后建议删除。',
+      credentialExportNoDownload: '导出成功，但浏览器未能触发下载，可在导出重试或联系面板维护者。',
+      credentialImportTitle: '导入凭据',
+      credentialImportHint: '粘贴另一台设备导出的 .dsvault 文件内容，并用导出时的口令解密。同名但内容不同的凭据会报告冲突，不会覆盖。',
+      credentialImportGo: '导入',
+      credentialImportContentPlaceholder: '粘贴 .dsvault 文件的 JSON 内容',
+      credentialImportOverwrite: '覆盖本机同名凭据（仅限完全相同的凭据；冲突仍会报告）',
+      credentialImportSummary: '导入完成：新增 {imported} 条，更新 {updated} 条，跳过 {skipped} 条，冲突 {conflicts} 条，本机较新 {stale} 条',
+      credentialPassphrasePlaceholder: '口令（至少 12 个字符）',
+      credentialPassphraseConfirm: '再输一遍口令',
+      credentialPassphraseMismatch: '两次输入的口令不一致',
       credentialRotate: '轮换主密钥',
       credentialRotateConfirm: '确认轮换主密钥？所有凭据将重新加密，旧密钥备份为 master.key.bak。',
       credentialRotated: '已轮换主密钥，凭据已重新加密',
@@ -643,6 +659,22 @@ window.__ModuleLoader__.load({
       credentialEdit: 'Edit',
       credentialDelete: 'Delete',
       credentialConfirmDelete: 'Delete credential',
+      credentialExport: 'Export',
+      credentialImport: 'Import',
+      credentialExportTitle: 'Export credentials',
+      credentialExportHint: 'The export file is encrypted with a passphrase (at least 12 characters) and is safe for cloud drives or USB sticks. It is ciphertext — still keep it safe.',
+      credentialExportGo: 'Export and download',
+      credentialExportDone: 'Exported; the download has started. The file is ciphertext, but delete it once you are done.',
+      credentialExportNoDownload: 'Export succeeded, but the browser could not trigger the download. Try exporting again.',
+      credentialImportTitle: 'Import credentials',
+      credentialImportHint: 'Paste the contents of a .dsvault file exported on another device and decrypt it with the export passphrase. Credentials that share a name but differ in content are reported as conflicts, never overwritten.',
+      credentialImportGo: 'Import',
+      credentialImportContentPlaceholder: 'Paste the JSON contents of a .dsvault file',
+      credentialImportOverwrite: 'Overwrite local credentials with the same name (only exact matches; conflicts are still reported)',
+      credentialImportSummary: 'Import finished: {imported} imported, {updated} updated, {skipped} skipped, {conflicts} conflicts, {stale} locally newer',
+      credentialPassphrasePlaceholder: 'Passphrase (at least 12 characters)',
+      credentialPassphraseConfirm: 'Repeat the passphrase',
+      credentialPassphraseMismatch: 'The two passphrases do not match',
       credentialRotate: 'Rotate master key',
       credentialRotateConfirm: 'Rotate the master key? Every entry is re-encrypted; the old key is kept as master.key.bak.',
       credentialRotated: 'Master key rotated, entries re-encrypted',
@@ -2270,6 +2302,8 @@ window.__ModuleLoader__.load({
       set: `${VAULT_BASE}/set`,
       remove: `${VAULT_BASE}/delete`,
       rotate: `${VAULT_BASE}/rotate`,
+      export: `${VAULT_BASE}/export`,
+      import: `${VAULT_BASE}/import`,
     }
 
     const CREDENTIAL_KINDS = ['password', 'token', 'api-key', 'ssh-key', 'database', 'other']
@@ -2460,6 +2494,123 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** Inline form for the export action: passphrase + confirmation. */
+    function CredentialExportForm({ t, busy, onSubmit, onCancel }) {
+      const [passphrase, setPassphrase] = React.useState('')
+      const [confirmPassphrase, setConfirmPassphrase] = React.useState('')
+      const mismatch = confirmPassphrase.length > 0 && passphrase !== confirmPassphrase
+      const canSave = passphrase.length >= 12 && passphrase === confirmPassphrase
+      return h(
+        'form',
+        {
+          style: { display: 'flex', flexDirection: 'column', gap: '10px' },
+          onSubmit: (event) => {
+            event.preventDefault()
+            if (canSave && !busy) onSubmit({ passphrase })
+          },
+        },
+        [
+          h('span', { key: 'caption', style: S.sectionTitle }, t('credentialExportTitle')),
+          h('span', { key: 'hint', style: { ...T.caption, color: C.secondary } }, t('credentialExportHint')),
+          h('input', {
+            key: 'passphrase', type: 'password', style: CREDENTIAL_INPUT,
+            autoComplete: 'new-password', placeholder: t('credentialPassphrasePlaceholder'),
+            value: passphrase, onChange: (event) => setPassphrase(event.target.value),
+          }),
+          h('input', {
+            key: 'confirm', type: 'password', style: CREDENTIAL_INPUT,
+            autoComplete: 'new-password', placeholder: t('credentialPassphraseConfirm'),
+            value: confirmPassphrase, onChange: (event) => setConfirmPassphrase(event.target.value),
+          }),
+          mismatch ? h('span', { key: 'mismatch', style: { ...T.caption, color: C.danger } }, t('credentialPassphraseMismatch')) : null,
+          h(
+            'div',
+            { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            h(
+              'button',
+              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              busy ? t('credentialSaving') : t('credentialExportGo'),
+            ),
+            h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
+          ),
+        ],
+      )
+    }
+
+    /** Inline form for the import action: passphrase + pasted envelope + mode. */
+    function CredentialImportForm({ t, busy, onSubmit, onCancel }) {
+      const [passphrase, setPassphrase] = React.useState('')
+      const [content, setContent] = React.useState('')
+      const [overwrite, setOverwrite] = React.useState(false)
+      const canSave = passphrase.length >= 12 && content.trim().length > 0
+      return h(
+        'form',
+        {
+          style: { display: 'flex', flexDirection: 'column', gap: '10px' },
+          onSubmit: (event) => {
+            event.preventDefault()
+            if (canSave && !busy) onSubmit({ passphrase, content: content.trim(), overwrite })
+          },
+        },
+        [
+          h('span', { key: 'caption', style: S.sectionTitle }, t('credentialImportTitle')),
+          h('span', { key: 'hint', style: { ...T.caption, color: C.secondary } }, t('credentialImportHint')),
+          h('input', {
+            key: 'passphrase', type: 'password', style: CREDENTIAL_INPUT,
+            autoComplete: 'new-password', placeholder: t('credentialPassphrasePlaceholder'),
+            value: passphrase, onChange: (event) => setPassphrase(event.target.value),
+          }),
+          h('textarea', {
+            key: 'content',
+            style: { ...CREDENTIAL_INPUT, minHeight: '120px', fontFamily: 'monospace', resize: 'vertical' },
+            placeholder: t('credentialImportContentPlaceholder'),
+            value: content,
+            onChange: (event) => setContent(event.target.value),
+          }),
+          h(
+            'label',
+            { key: 'overwrite', style: { display: 'flex', alignItems: 'center', gap: '8px', ...T.caption } },
+            h('input', { type: 'checkbox', checked: overwrite, onChange: (event) => setOverwrite(event.target.checked) }),
+            t('credentialImportOverwrite'),
+          ),
+          h(
+            'div',
+            { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+            h(
+              'button',
+              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              busy ? t('credentialSaving') : t('credentialImportGo'),
+            ),
+            h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
+          ),
+        ],
+      )
+    }
+
+    /**
+     * Trigger a browser download for an export file. Returns false when no DOM
+     * is available (tests), so callers can distinguish "saved" from "skipped".
+     * Follows the same pattern as @deepseek-ai/dsh-session-log-export's
+     * `downloadUrl`: Blob URL + a temporary anchor with `download`.
+     */
+    function defaultSaveFile({ text, filename }) {
+      if (typeof document === 'undefined') return false
+      try {
+        const blob = new Blob([text], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        return true
+      } catch {
+        return false
+      }
+    }
+
     /**
      * Credential vault: masked list on top, detail + add/edit form + reveal audit
      * log below. No route ever returns a secret, so the panel only ever shows the
@@ -2468,6 +2619,10 @@ window.__ModuleLoader__.load({
     function CredentialVault(props) {
       const t = typeof props.t === 'function' ? props.t : (key) => zh[key] ?? en[key] ?? key
       const confirm = typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm.bind(window) : () => true
+      // Download/read are injectable so tests can drive them without a DOM
+      // (the node test runtime has no `document`); production uses the defaults.
+      const saveFile = typeof props.saveFile === 'function' ? props.saveFile : defaultSaveFile
+      const readFile = typeof props.readFile === 'function' ? props.readFile : (file) => file.text()
 
       const [entries, setEntries] = React.useState([])
       const [audit, setAudit] = React.useState([])
@@ -2477,6 +2632,7 @@ window.__ModuleLoader__.load({
       const [failure, setFailure] = React.useState('')
       const [notice, setNotice] = React.useState('')
       const [showAudit, setShowAudit] = React.useState(false)
+      const [aux, setAux] = React.useState(null) // null | 'export' | 'import'
 
       const reload = React.useCallback(async () => {
         setPhase((current) => (current === 'loading' ? 'loading' : 'busy'))
@@ -2558,6 +2714,51 @@ window.__ModuleLoader__.load({
         })
       }
 
+      // ---- export / import (issue #51) ----
+      const [exportForm, setExportForm] = React.useState(null) // {passphrase, confirm}
+      const [importForm, setImportForm] = React.useState(null) // {passphrase, content, overwrite}
+
+      const startExport = async (form) => {
+        setPhase('busy')
+        setFailure('')
+        try {
+          const result = await credentialPost(CREDENTIAL_ROUTES.export, { passphrase: form.passphrase })
+          const saved = saveFile({ text: result.content, filename: result.filename })
+          setAux(null)
+          setExportForm(null)
+          setPhase('idle')
+          setNotice(saved ? t('credentialExportDone') : t('credentialExportNoDownload'))
+        } catch (error) {
+          setFailure(error?.message ?? String(error))
+          setPhase('error')
+        }
+      }
+
+      const startImport = async (form) => {
+        setPhase('busy')
+        setFailure('')
+        try {
+          const result = await credentialPost(CREDENTIAL_ROUTES.import, {
+            passphrase: form.passphrase,
+            content: form.content,
+            mode: form.overwrite ? 'overwrite' : 'skip',
+          })
+          await reload()
+          setAux(null)
+          setImportForm(null)
+          setPhase('idle')
+          setNotice(t('credentialImportSummary')
+            .replace('{imported}', String(result.imported ?? 0))
+            .replace('{updated}', String(result.updated ?? 0))
+            .replace('{skipped}', String(result.skipped ?? 0))
+            .replace('{conflicts}', String((result.conflicts ?? []).length))
+            .replace('{stale}', String(result.stale ?? 0)))
+        } catch (error) {
+          setFailure(error?.message ?? String(error))
+          setPhase('error')
+        }
+      }
+
       const selected = entries.find((entry) => entry.name === selectedName) ?? null
       const busy = phase === 'busy'
 
@@ -2620,8 +2821,27 @@ window.__ModuleLoader__.load({
               ),
             )
 
+      const auxPanel =
+        aux === 'export'
+          ? h(CredentialExportForm, {
+              key: 'export-form',
+              t,
+              busy,
+              onSubmit: startExport,
+              onCancel: () => setAux(null),
+            })
+          : aux === 'import'
+            ? h(CredentialImportForm, {
+                key: 'import-form',
+                t,
+                busy,
+                onSubmit: startImport,
+                onCancel: () => setAux(null),
+              })
+            : null
+
       const details =
-        editing !== null
+        aux === null && editing !== null
           ? h(CredentialEditor, {
               key: `editor-${editing.name ?? 'new'}`,
               t,
@@ -2739,6 +2959,28 @@ window.__ModuleLoader__.load({
               className: 'inv-btn',
               style: S.chip,
               disabled: busy,
+              onClick: () => setAux((current) => (current === 'export' ? null : 'export')),
+            },
+            t('credentialExport'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: S.chip,
+              disabled: busy,
+              onClick: () => setAux((current) => (current === 'import' ? null : 'import')),
+            },
+            t('credentialImport'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'inv-btn',
+              style: S.chip,
+              disabled: busy,
               onClick: rotate,
             },
             t('credentialRotate'),
@@ -2756,6 +2998,7 @@ window.__ModuleLoader__.load({
           ),
         ),
         list,
+        auxPanel,
         details,
         auditPanel,
         notice !== '' ? h('div', { style: S.notice, role: 'status' }, notice) : null,

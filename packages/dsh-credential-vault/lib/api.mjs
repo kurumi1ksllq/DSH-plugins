@@ -11,8 +11,15 @@
 // `ctx.webServer.register` bypass the /api authorization layer).
 
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson } from './http.mjs'
-import { readAudit, trimAudit } from './audit.js'
-import { KINDS, validateMeta } from './store.js'
+import { appendAudit, readAudit, trimAudit } from './audit.js'
+import { KINDS, VAULT_VERSION, validateMeta, isValidName, normalizeKey } from './store.js'
+import { sealEnvelope, openEnvelope, EnvelopeError } from './envelope.mjs'
+import { mergeImports } from './merge.mjs'
+
+/** Body cap for the import route alone: envelope JSON for a large vault. */
+export const IMPORT_MAX_BODY_BYTES = 8 * 1024 * 1024 + 64 * 1024
+/** Business cap on the decrypted-import content string. */
+const MAX_IMPORT_CONTENT_BYTES = 8 * 1024 * 1024
 
 /** Fixed text for an unexpected store failure; never the raw error message. */
 const STORE_FAILED_MESSAGE = 'the credential store rejected the request'
@@ -50,12 +57,129 @@ class ApiError extends Error {
   }
 }
 
+/** `POST /export`: build an encrypted envelope of the whole vault. */
+function exportPayload(store, dir, body) {
+  const passphrase = body?.passphrase
+  if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) {
+    appendAudit(dir, { name: null, outcome: 'rejected', source: 'api', action: 'export', reason: 'invalid passphrase length' })
+    throw new ApiError(400, 'invalid-passphrase', 'passphrase must be 12-1024 characters')
+  }
+  const { entries, corrupt } = store.exportEntries()
+  const envelope = sealEnvelope(passphrase, { sourceVaultVersion: VAULT_VERSION, entries, corruptCount: corrupt })
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const host = (typeof process !== 'undefined' && process.env && process.env.HOSTNAME) || 'vault'
+  appendAudit(dir, {
+    name: null, outcome: 'ok', source: 'api', action: 'export',
+    sessionId: null, resolvedBy: null,
+    reason: `${entries.length} entries, ${corrupt} corrupt`,
+  })
+  return {
+    ok: true,
+    corrupt,
+    filename: `${host}-${stamp}.dsvault`,
+    content: JSON.stringify(envelope),
+  }
+}
+
+/** `POST /import`: decrypt, validate the whole batch, then merge in one write. */
+function importPayload(store, dir, body) {
+  const passphrase = body?.passphrase
+  if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) {
+    appendAudit(dir, { name: null, outcome: 'rejected', source: 'api', action: 'import', reason: 'invalid passphrase length' })
+    throw new ApiError(400, 'invalid-passphrase', 'passphrase must be 12-1024 characters')
+  }
+  const content = typeof body?.content === 'string' ? body.content : ''
+  if (content.length === 0) throw new ApiError(400, 'invalid-content', 'content is required')
+  if (Buffer.byteLength(content, 'utf8') > MAX_IMPORT_CONTENT_BYTES) {
+    throw new ApiError(413, 'content-too-large', 'content exceeds 8 MiB')
+  }
+  const mode = body?.mode === 'overwrite' ? 'overwrite' : 'skip'
+
+  let payload
+  try {
+    const parsed = JSON.parse(content)
+    payload = openEnvelope(passphrase, parsed)
+  } catch (error) {
+    // JSON 损坏与解密失败都可能是"文件被改"——统一错误码避免 oracle（spec §4.1）。
+    // 纯粹的 JSON 语法错误仍单独报，帮助用户发现"复制时少了尾巴"。
+    const isJsonSyntax = error instanceof SyntaxError
+    appendAudit(dir, {
+      name: null, outcome: 'rejected', source: 'api', action: 'import',
+      reason: isJsonSyntax ? 'invalid-json' : 'bad-passphrase-or-tampered',
+    })
+    if (isJsonSyntax) throw new ApiError(400, 'invalid-json', 'content is not valid JSON')
+    throw new ApiError(400, 'bad-passphrase-or-tampered', 'cannot decrypt this file')
+  }
+  if (!payload || !Array.isArray(payload.entries)) {
+    throw new ApiError(400, 'bad-passphrase-or-tampered', 'cannot decrypt this file')
+  }
+
+  // Phase 1: the whole batch must pass the same validation the store applies.
+  const localMeta = store.listMeta()
+  const localBySlug = new Map(localMeta.map((entry) => [normalizeKey(entry.name), entry]))
+  const seenIds = new Set()
+  const seenSlugs = new Set()
+  for (const entry of payload.entries) {
+    if (typeof entry.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entry.id)) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name ?? '?'}" has an invalid uuid id`)
+    }
+    if (typeof entry.name !== 'string' || !isValidName(entry.name)) {
+      throw new ApiError(400, 'invalid-metadata', `entry name is invalid`)
+    }
+    if (typeof entry.secret !== 'string' || entry.secret.length === 0) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has no secret`)
+    }
+    if (typeof entry.kind !== 'string' || !KINDS.includes(entry.kind)) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has an unknown kind`)
+    }
+    try {
+      validateMeta({
+        service: entry.service ?? null,
+        aliases: entry.aliases ?? [],
+        username: entry.username ?? null,
+        url: entry.url ?? null,
+        note: entry.note ?? null,
+      })
+    } catch (error) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}": ${error.message}`)
+    }
+    const slug = normalizeKey(entry.name)
+    if (seenIds.has(entry.id)) throw new ApiError(400, 'invalid-metadata', `duplicate id ${entry.id} in the import file`)
+    if (seenSlugs.has(slug)) throw new ApiError(400, 'invalid-metadata', `duplicate slug "${slug}" in the import file`)
+    seenIds.add(entry.id)
+    seenSlugs.add(slug)
+  }
+
+  // Phase 2: snapshot merge.
+  const localEntries = localMeta.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    updatedAt: entry.updatedAt,
+  }))
+  const merged = mergeImports({ localEntries, incomingEntries: payload.entries, mode })
+  if (merged.writes.length > 0) store.applyImport(merged.writes)
+  appendAudit(dir, {
+    name: null, outcome: 'ok', source: 'api', action: 'import',
+    sessionId: null, resolvedBy: null,
+    reason: `${merged.imported} imported, ${merged.updated} updated, ${merged.skipped} skipped, ${merged.conflicts.length} conflicts`,
+  })
+  return {
+    ok: true,
+    imported: merged.imported,
+    updated: merged.updated,
+    skipped: merged.skipped,
+    stale: merged.stale,
+    corrupt: payload.corruptCount ?? 0,
+    conflicts: merged.conflicts,
+  }
+}
+
 /**
  * Build the request handler for the plugin's prefix route.
  * @param {{ store: object, maxBodyBytes?: number }} service
  */
 export function createApiHandler(service) {
-  const { store } = service
+  const { store, dir } = service
   const maxBodyBytes = Number.isFinite(service.maxBodyBytes) ? service.maxBodyBytes : MAX_BODY_BYTES
 
   const routes = {
@@ -128,6 +252,15 @@ export function createApiHandler(service) {
       methods: ['POST'],
       run: () => ({ ok: true, resealed: store.rotateKey() }),
     },
+    [`${API_BASE}/export`]: {
+      methods: ['POST'],
+      run: ({ body }) => exportPayload(store, dir, body),
+    },
+    [`${API_BASE}/import`]: {
+      methods: ['POST'],
+      bodyLimit: IMPORT_MAX_BODY_BYTES,
+      run: ({ body }) => importPayload(store, dir, body),
+    },
   }
 
   return async function handler(req, res) {
@@ -153,7 +286,7 @@ export function createApiHandler(service) {
       let body = {}
       if (method === 'POST') {
         try {
-          body = await readJsonBody(req, maxBodyBytes)
+          body = await readJsonBody(req, route.bodyLimit ?? maxBodyBytes)
         } catch (error) {
           if (error?.code === 'payload-too-large') {
             sendJson(res, 413, { ok: false, error: 'payload-too-large' })

@@ -20,6 +20,8 @@
     "gate": "pnpm verify && pnpm test",
     "check:profile": "node scripts/check-profile.mjs",
     "check:versions": "node scripts/check-bundle-versions.mjs",
-    "test:docs": "node --test test/*.test.mjs"
+    "test:docs": "node --test test/*.test.mjs",
+    "vault:export": "node packages/dsh-credential-vault/bin/vault-sync.mjs export",
+    "vault:import": "node packages/dsh-credential-vault/bin/vault-sync.mjs import"
   }
 }
