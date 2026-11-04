@@ -39,7 +39,10 @@ test('the gate runs in a throwaway HOME with no ambient git config', () => {
   const result = run(probe)
   assert.equal(result.status, 0, result.stdout + result.stderr)
   const seen = JSON.parse(result.stdout.trim())
-  assert.equal(seen.url, 'https://github.com/kurumi1ksllq/DSH-plugins.git', `ambient insteadOf leaked: ${seen.url}`)
+  // What matters is the absence of a rewrite, not the exact spelling: CI
+  // checks out without the .git suffix, so assert "the real repo, no mirror".
+  assert.match(seen.url, /github\.com[/\/:]+kurumi1ksllq\/DSH-plugins(\.git)?$/, `ambient insteadOf leaked: ${seen.url}`)
+  assert.equal(seen.url.includes('ghfast.top'), false, `mirror rewrite leaked: ${seen.url}`)
   assert.notEqual(seen.home, process.env.HOME, 'the gate must not inherit the host HOME')
   assert.equal(seen.nosystem, '1', 'the system gitconfig must be disabled')
 })
