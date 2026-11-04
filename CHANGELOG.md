@@ -12,6 +12,19 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.7.1 — 更新路由的测试不再改真实仓库
+
+- **测试写生产状态的修复。** 插件页更新路由的 route 测试会真的跑 `git fetch`、写真实的
+  `$DSH_HOME/plugin-update/last.json`,在 checkout 干净且落后时甚至真的 `git merge --ff-only`。
+  一次测试运行就这样覆盖掉了用户真实的更新结果,并把一条 `ahead-of-target` 假记录留在界面上。
+- apply 的全流程抽成 `performUpdate({repo, stateDir, respond, reconcile})`:仓库与状态目录
+  都是参数,测试在临时仓库上跑;route handler 只负责命名真实仓库、真实状态目录和真实响应。
+- 新增覆盖点 `DSH_INVENTORY_UPDATE_REPO`:为不常见布局(复制进来的 bundle、嵌套 clone)指定
+  仓库,也让路由路径可被安全地端到端测试。仍会校验 `<root>/packages/dsh-inventory/package.json`
+  的 name,不会对陌生仓库动手。
+- `needsInstall` 改看**依赖字段**而不是"任何 package.json 变了":版本号 bump 不再触发一次
+  `pnpm install`(它曾在没有依赖的 checkout 上失败并触发回滚)。
+
 ### dsh-inventory 0.7.0 — 插件页上的「更新」按钮
 
 - **DSH 的插件页现在能直接更新本仓库的插件。** 每个 bundle 的详情页头部多一个

@@ -13,7 +13,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -342,9 +342,36 @@ export function changedFiles(repoDir, from, to) {
   return listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
 }
 
-/** The dependency graph moved, so the profile's node_modules has to be rebuilt. */
-export function needsInstall(files) {
-  return files.some((file) => file === 'pnpm-lock.yaml' || /(^|\/)package\.json$/.test(file))
+/**
+ * Whether the dependency graph moved.
+ *
+ * Deliberately NOT "any package.json changed": bumping a `version` field must
+ * not trigger a `pnpm install` (mine did, and the install then failed on a
+ * checkout that had no dependencies to install). `pnpm-lock.yaml` is the honest
+ * signal; a package.json only counts when its dependency fields differ.
+ */
+export function needsInstall(repoDir, from, to, files) {
+  if (files.includes('pnpm-lock.yaml')) return true
+  const manifests = files.filter((file) => /(^|\/)package\.json$/.test(file))
+  const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+  for (const file of manifests) {
+    const read = (ref) => {
+      const shown = gitIn(repoDir, ['show', `${ref}:${file}`])
+      if (shown.ok !== true) return null
+      try {
+        return JSON.parse(shown.stdout)
+      } catch {
+        return null
+      }
+    }
+    const before = read(from)
+    const after = read(to)
+    if (before === null || after === null) return true
+    for (const field of FIELDS) {
+      if (JSON.stringify(before[field] ?? {}) !== JSON.stringify(after[field] ?? {})) return true
+    }
+  }
+  return false
 }
 
 /** The generated engine copies are gitignored, so a checkout alone does not run. */
@@ -422,4 +449,166 @@ function checkSyntax(files) {
     }
   }
   return failures.length === 0 ? { ok: true } : { ok: false, failures }
+}
+
+/** Where an outcome is kept, under a caller-chosen directory (never a global one). */
+export function readLastOutcome(stateDir) {
+  try {
+    return JSON.parse(readFileSync(join(stateDir, 'last.json'), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/** Write the outcome. A failed write must not fail an update that already moved. */
+export function writeLastOutcome(stateDir, value) {
+  try {
+    mkdirSync(stateDir, { recursive: true })
+    writeFileSync(join(stateDir, 'last.json'), `${JSON.stringify(value, null, 2)}\n`)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error) }
+  }
+}
+
+/**
+ * One update, start to finish, with every side effect scoped to its arguments.
+ *
+ * `repo` and `stateDir` are parameters rather than globals on purpose: the route
+ * handler passes the checkout the running plugin was loaded from, while tests
+ * pass throwaway ones. A shared global here once let a route test run `git fetch`
+ * against the real repository and overwrite the user's real last.json.
+ *
+ * @param {{repo: string, stateDir: string, target?: string, respond: (payload: object) => void,
+ *          reconcile?: () => Promise<object>}} options
+ * @returns {Promise<object>}
+ */
+export async function performUpdate(options) {
+  const { repo, stateDir, respond, reconcile } = options
+  const target = options.target ?? 'origin/main'
+  const remember = (value) => {
+    const written = writeLastOutcome(stateDir, value)
+    if (written.ok !== true) return { ...value, lastWriteError: written.error }
+    return value
+  }
+
+  const fetched = gitIn(repo, ['fetch', '--quiet', ...target.split('/')], { timeoutMs: 60_000 })
+  if (fetched.ok !== true) {
+    const refused = { ok: false, stage: 'fetch', detail: fetched.error, at: Date.now() }
+    remember(refused)
+    return refused
+  }
+
+  const resolved = gitIn(repo, ['rev-parse', target])
+  if (resolved.ok !== true) {
+    const refused = { ok: false, stage: 'target', detail: resolved.error, at: Date.now() }
+    remember(refused)
+    return refused
+  }
+
+  const local = localBundles(repo)
+  const remote = remoteVersionsAt(repo, target)
+  const gate = checkUpdatable({
+    state: readCheckoutState(repo),
+    local,
+    remote,
+    targetHead: resolved.stdout.trim(),
+    relation: relationTo(repo, target).relation,
+  })
+
+  if (gate.ok !== true) {
+    const refused = { ok: false, stage: 'gate', reason: gate.reason, detail: gate.detail, at: Date.now() }
+    remember(refused)
+    return refused
+  }
+
+  // Probe the TARGET's entry files before anything moves: a replacement that
+  // fails to load is not recoverable, the old version is not restored.
+  const moving = new Set((gate.changed ?? []).map((item) => item.name))
+  const listed = gitIn(repo, ['ls-tree', '-r', '--name-only', target, 'packages'])
+  const dirs = []
+  if (listed.ok === true) {
+    for (const dir of new Set(
+      listed.stdout
+        .split('\n')
+        .filter((path) => /^packages\/[^/]+\/package\.json$/.test(path))
+        .map((path) => path.replace(/\/package\.json$/, '')),
+    )) {
+      const manifest = gitIn(repo, ['show', `${target}:${dir}/package.json`])
+      if (manifest.ok !== true) continue
+      let name
+      try {
+        name = JSON.parse(manifest.stdout).name
+      } catch {
+        continue
+      }
+      if (moving.size === 0 || moving.has(name)) dirs.push(dir)
+    }
+  }
+  const probe = probeTargetEntries(repo, target, dirs)
+  if (probe.ok !== true) {
+    const refused = {
+      ok: false,
+      stage: 'probe',
+      detail: `the new code does not parse: ${JSON.stringify(probe.failures)}`,
+      at: Date.now(),
+    }
+    remember(refused)
+    return refused
+  }
+
+  const result = await runUpdate({
+    gate,
+    moveCheckout: async () => {
+      const moved = await moveCheckout(repo, { remote: 'origin', ref: 'main' })
+      if (moved.ok !== true) return moved
+      const files = changedFiles(repo, moved.from, moved.to)
+      const undo = (why) => {
+        const restored = gitIn(repo, ['reset', '--hard', '--quiet', moved.from])
+        return { ok: false, error: `${why}${restored.ok === true ? ' (checkout restored)' : ' (restore FAILED)'}` }
+      }
+      if (needsInstall(repo, moved.from, moved.to, files)) {
+        const installed = runIn(repo, 'pnpm', ['install', '--prefer-offline'], 300_000)
+        if (installed.ok !== true) return undo(`pnpm install failed: ${installed.error}`)
+      }
+      if (needsBuild(files)) {
+        const built = runIn(repo, 'pnpm', ['build:websearch'], 180_000)
+        if (built.ok !== true) return undo(`build:websearch failed: ${built.error}`)
+      }
+      return moved
+    },
+    respond: (moved) => {
+      const payload =
+        moved?.ok === true
+          ? { ok: true, accepted: true, from: moved.from, to: moved.to, changed: moved.changed ?? [] }
+          : {
+              ok: false,
+              accepted: false,
+              reason: moved?.error === undefined ? gate.reason : 'move-failed',
+              detail: moved?.error ?? gate.detail,
+            }
+      respond(payload)
+      remember({ at: Date.now(), stage: 'accepted', ...payload })
+    },
+    reconcile,
+  })
+
+  return remember({ at: Date.now(), ...result })
+}
+
+/** Run a command in `cwd`; a failure is a value. */
+function runIn(cwd, file, args, timeoutMs) {
+  try {
+    const stdout = execFileSync(file, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+      maxBuffer: 8 * 1024 * 1024,
+    })
+    return { ok: true, stdout }
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n').slice(-3).join(' ') : ''
+    return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
+  }
 }

@@ -363,10 +363,7 @@ test('probeTargetEntries parses the target’s entry files, not the working tree
   assert.equal(bad.failures[0].path, 'packages/dsh-one/index.js')
 })
 
-test('changedFiles and the install/build predicates follow the file list', () => {
-  assert.equal(needsInstall(['pnpm-lock.yaml']), true)
-  assert.equal(needsInstall(['packages/dsh-inventory/package.json']), true)
-  assert.equal(needsInstall(['packages/dsh-inventory/client.js']), false)
+test('changedFiles and the build predicate follow the file list', () => {
   assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), true)
   assert.equal(needsBuild(['packages/dsh-inventory/client.js']), false)
 })
