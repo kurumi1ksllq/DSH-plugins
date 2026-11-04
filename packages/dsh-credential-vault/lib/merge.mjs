@@ -9,7 +9,7 @@
 // which would let an incoming "same name, different id" entry silently replace a
 // local one — the exact hazard this merge exists to prevent.
 
-import { normalizeKey } from './store.js'
+import { KINDS, isValidName, normalizeKey, validateMeta } from './store.js'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -66,6 +66,12 @@ export function mergeImports({ localEntries, incomingEntries, mode }) {
   }
 
   // ---- phase 1: validate the whole batch before touching anything ----------
+  // The full metadata check lives in `validateIncomingEntries` (exported) so the
+  // CLI runs EXACTLY the same rules as the HTTP API — the CLI is agent-reachable,
+  // and skipping the check there would let a crafted file inject newlines into
+  // the prompt index or drop `__proto__` into the store.
+  validateIncomingEntries(incomingEntries)
+
   const seenIds = new Set()
   const seenSlugs = new Set()
   for (const entry of incomingEntries) {
@@ -109,4 +115,36 @@ export function mergeImports({ localEntries, incomingEntries, mode }) {
   }
 
   return result
+}
+
+/**
+ * Phase-1 validation for an incoming import batch: the SAME rules the HTTP API
+ * applies. Exported so the CLI (`bin/vault-sync.mjs`) and the API cannot drift —
+ * the CLI is agent-reachable, and an unchecked import could land a newline in a
+ * prompt-index field or a `__proto__` key in the store.
+ * @param {Array<object>} entries
+ * @returns {void} throws on the first invalid entry
+ */
+export function validateIncomingEntries(entries) {
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (typeof entry.id !== 'string' || !UUID_RE.test(entry.id)) {
+      throw new Error(`merge: incoming entry "${entry.name ?? '?'}" has an invalid uuid id`)
+    }
+    if (typeof entry.name !== 'string' || !isValidName(entry.name)) {
+      throw new Error('merge: incoming entry name is invalid')
+    }
+    if (typeof entry.secret !== 'string' || entry.secret.length === 0) {
+      throw new Error(`merge: entry "${entry.name}" has no secret`)
+    }
+    if (typeof entry.kind !== 'string' || !KINDS.includes(entry.kind)) {
+      throw new Error(`merge: entry "${entry.name}" has an unknown kind`)
+    }
+    validateMeta({
+      service: entry.service ?? null,
+      aliases: entry.aliases ?? [],
+      username: entry.username ?? null,
+      url: entry.url ?? null,
+      note: entry.note ?? null,
+    })
+  }
 }

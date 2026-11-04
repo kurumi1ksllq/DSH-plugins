@@ -3,7 +3,7 @@
 // plaintext, and only the tool path calls it.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { copyFileSync, mkdirSync, openSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import {
   KINDS,
   VAULT_VERSION,
@@ -287,6 +287,7 @@ export function createVaultStore(dir) {
       const vault = readVault(dir)
       const entries = []
       let corrupt = 0
+      let migrated = false
       for (const [name, value] of Object.entries(vault.entries)) {
         let secret
         try {
@@ -295,8 +296,18 @@ export function createVaultStore(dir) {
           corrupt += 1
           continue
         }
+        // Spec §3.1: a pre-v3 entry has no id. Forge a real UUID NOW and persist
+        // it to the local vault — a derived id (name+createdAt) could be forged
+        // by a third party, so derived ids must never enter an export file. The
+        // write is the documented one-time migration cost of the first export.
+        let id = value.id
+        if (typeof id !== 'string' || id.length === 0) {
+          id = randomUUID()
+          value.id = id
+          migrated = true
+        }
         entries.push({
-          id: value.id ?? null,
+          id,
           name,
           kind: value.kind ?? 'other',
           service: value.service ?? null,
@@ -309,6 +320,7 @@ export function createVaultStore(dir) {
           secret,
         })
       }
+      if (migrated) writeVault(dir, vault)
       return { entries, corrupt }
     },
 
@@ -318,6 +330,15 @@ export function createVaultStore(dir) {
      */
     applyImport(writes) {
       const vault = readVault(dir)
+      // Spec §6.3: back up the CURRENT file before the batch lands, so an
+      // interrupted or regretted import can be rolled back by hand. A brand-new
+      // vault has no vault.json yet — nothing to roll back, so no backup either.
+      if (existsSync(vaultFilePath(dir))) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const bakPath = `${vaultFilePath(dir)}.bak-${stamp}`
+        copyFileSync(vaultFilePath(dir), bakPath)
+        chmodSync(bakPath, 0o600)
+      }
       const now = new Date().toISOString()
       for (const entry of writes) {
         vault.entries[entry.name] = {

@@ -17,8 +17,10 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { createVaultStore } from '../lib/vault-store.js'
+import { VAULT_VERSION } from '../lib/store.js'
+import { appendAudit } from '../lib/audit.js'
 import { sealEnvelope, openEnvelope, ENVELOPE_KDF, ENVELOPE_FORMAT, ENVELOPE_VERSION, MIN_PASSPHRASE_LENGTH } from '../lib/envelope.mjs'
-import { mergeImports } from '../lib/merge.mjs'
+import { mergeImports, validateIncomingEntries } from '../lib/merge.mjs'
 
 function defaultVaultDir() {
   return join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'credential-vault')
@@ -83,8 +85,12 @@ export async function runExport({ vaultDir, out, passphrase, log = () => {}, err
   }
   const store = createVaultStore(vaultDir)
   const { entries, corrupt } = store.exportEntries()
-  const envelope = sealEnvelope(passphrase, { sourceVaultVersion: 3, entries })
+  const envelope = sealEnvelope(passphrase, { sourceVaultVersion: VAULT_VERSION, entries })
   writeFileSync(out, JSON.stringify(envelope, null, 2) + '\n', { mode: 0o600 })
+  appendAudit(vaultDir, {
+    name: null, outcome: 'ok', source: 'cli', action: 'export', sessionId: null,
+    reason: `${entries.length} entries, ${corrupt} corrupt skipped -> ${out}`,
+  })
   log(`exported ${entries.length} entries (${corrupt} corrupt skipped) to ${out}`)
   if (corrupt > 0) log('NOTE: corrupt entries were skipped; inspect the panel for details')
   return 0
@@ -104,6 +110,9 @@ export async function runImport({ vaultDir, in: inFile, passphrase, mode = 'skip
   const content = readFileSync(inFile, 'utf8')
   const envelope = JSON.parse(content)
   const payload = openEnvelope(passphrase, envelope)
+  // Same rules the HTTP API applies (issue #51 review: the CLI is agent-reachable;
+  // skipping this would let a crafted file inject newlines into the prompt index).
+  validateIncomingEntries(payload.entries)
 
   const store = createVaultStore(vaultDir)
   const localEntries = store.listMeta().map((entry) => ({
@@ -118,6 +127,10 @@ export async function runImport({ vaultDir, in: inFile, passphrase, mode = 'skip
   if (dryRun) return merged.conflicts.length > 0 || merged.stale > 0 ? 1 : 0
 
   if (merged.writes.length > 0) store.applyImport(merged.writes)
+  appendAudit(vaultDir, {
+    name: null, outcome: 'ok', source: 'cli', action: 'import', sessionId: null,
+    reason: `${merged.imported} imported, ${merged.updated} updated, ${merged.skipped} skipped, ${merged.conflicts.length} conflicts`,
+  })
   return merged.conflicts.length > 0 || merged.stale > 0 ? 1 : 0
 }
 

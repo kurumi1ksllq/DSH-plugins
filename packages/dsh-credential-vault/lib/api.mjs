@@ -12,7 +12,7 @@
 
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson } from './http.mjs'
 import { appendAudit, readAudit, trimAudit } from './audit.js'
-import { KINDS, validateMeta, isValidName, normalizeKey } from './store.js'
+import { KINDS, VAULT_VERSION, validateMeta, isValidName, normalizeKey } from './store.js'
 import { sealEnvelope, openEnvelope, EnvelopeError } from './envelope.mjs'
 import { mergeImports } from './merge.mjs'
 
@@ -60,12 +60,12 @@ class ApiError extends Error {
 /** `POST /export`: build an encrypted envelope of the whole vault. */
 function exportPayload(store, dir, body) {
   const passphrase = body?.passphrase
-  if (typeof passphrase !== 'string' || passphrase.length === 0) {
-    appendAudit(dir, { name: null, outcome: 'rejected', source: 'api', action: 'export', reason: 'missing passphrase' })
-    throw new ApiError(400, 'invalid-passphrase', 'passphrase is required')
+  if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) {
+    appendAudit(dir, { name: null, outcome: 'rejected', source: 'api', action: 'export', reason: 'invalid passphrase length' })
+    throw new ApiError(400, 'invalid-passphrase', 'passphrase must be 12-1024 characters')
   }
   const { entries, corrupt } = store.exportEntries()
-  const envelope = sealEnvelope(passphrase, { sourceVaultVersion: 3, entries })
+  const envelope = sealEnvelope(passphrase, { sourceVaultVersion: VAULT_VERSION, entries, corruptCount: corrupt })
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const host = (typeof process !== 'undefined' && process.env && process.env.HOSTNAME) || 'vault'
   appendAudit(dir, {
@@ -84,8 +84,9 @@ function exportPayload(store, dir, body) {
 /** `POST /import`: decrypt, validate the whole batch, then merge in one write. */
 function importPayload(store, dir, body) {
   const passphrase = body?.passphrase
-  if (typeof passphrase !== 'string' || passphrase.length === 0) {
-    throw new ApiError(400, 'invalid-passphrase', 'passphrase is required')
+  if (typeof passphrase !== 'string' || passphrase.length < 12 || passphrase.length > 1024) {
+    appendAudit(dir, { name: null, outcome: 'rejected', source: 'api', action: 'import', reason: 'invalid passphrase length' })
+    throw new ApiError(400, 'invalid-passphrase', 'passphrase must be 12-1024 characters')
   }
   const content = typeof body?.content === 'string' ? body.content : ''
   if (content.length === 0) throw new ApiError(400, 'invalid-content', 'content is required')

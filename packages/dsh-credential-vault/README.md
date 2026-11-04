@@ -168,7 +168,7 @@ node scripts/scrub-session-secrets.mjs --roots A,B  # 额外/自定义扫描根
 pnpm --filter dsh-credential-vault test
 ```
 
-197 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
+208 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
 `normalizeKey` / `slug` / 别名去重 / slug 撞名拒绝 / v1 旧库兼容、五级命中
 （exact→slug→alias→service→keyword）与 `ambiguous` 不猜、动态提示词（函数求值 +
 索引 + 硬规则）、`use` 的零明文返回与按会话注入（含 TTL 过期、跨会话隔离、

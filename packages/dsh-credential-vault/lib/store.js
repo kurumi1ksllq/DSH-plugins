@@ -11,7 +11,7 @@
 // `credential` tool returns the secret only to the session that asked for it.
 
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const VAULT_VERSION = 3
@@ -306,8 +306,19 @@ export function writeVault(dir, vault) {
   mkdirSync(dir, { recursive: true })
   const file = vaultFilePath(dir)
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`
-  writePrivateFileSync(tmp, JSON.stringify(vault, null, 2) + '\n')
-  renameSync(tmp, file)
+  try {
+    writePrivateFileSync(tmp, JSON.stringify(vault, null, 2) + '\n')
+    renameSync(tmp, file)
+  } catch (error) {
+    // The temp file is never a valid vault.json; leaving it behind would make
+    // the directory look corrupted to a human scanning for what went wrong.
+    try {
+      unlinkSync(tmp)
+    } catch {
+      /* nothing to clean */
+    }
+    throw error
+  }
 }
 
 /**

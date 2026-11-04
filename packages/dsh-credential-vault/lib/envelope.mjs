@@ -48,7 +48,7 @@ function normalizePassphrase(passphrase) {
   return text
 }
 
-/** The authenticated header: everything except `payload` and `cipher.tag`. */
+/** The authenticated header (format, version, kdf params, exportedAt). salt/iv/cipher.name are bound via the derived key and the canonical check; they need no separate AAD. */
 function headerOf(envelope) {
   const { format, version, exportedAt, kdf } = envelope
   return [

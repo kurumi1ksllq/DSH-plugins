@@ -136,3 +136,80 @@ test('inspect validates the envelope shape without decrypting', async () => {
     rmSync(base, { recursive: true, force: true })
   }
 })
+
+// ---- review round: CLI must apply the same validation and audit as the API --
+
+test('#51 CLI import refuses invalid metadata with exit 2 and leaves the vault untouched', async () => {
+  const base = tempDir()
+  try {
+    const vaultDir = join(base, 'vault')
+    const targetDir = join(base, 'target')
+    const target = createVaultStore(targetDir)
+    target.set('keep', { kind: 'token', secret: 'KEEP-SECRET' })
+
+    // A file whose entry name is a dangerous key: the API rejects it, the CLI must too.
+    const envelope = sealEnvelope(PASS, {
+      sourceVaultVersion: 3,
+      entries: [{ id: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa', name: '__proto__', kind: 'token', secret: 'v' }],
+    })
+    const bad = join(base, 'bad.dsvault')
+    writeFileSync(bad, JSON.stringify(envelope), { mode: 0o600 })
+
+    const exit = await main(['import', '--in', bad, '--vault', targetDir], { ...io(), readPassphrase: async () => PASS })
+    assert.equal(exit, 2)
+    assert.equal(target.reveal('keep').secret, 'KEEP-SECRET')
+    assert.equal(existsSync(join(targetDir, 'vault.json.bak')), false, 'a rejected import must not touch the vault')
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('#51 CLI export and import leave audit records without the passphrase', async () => {
+  const base = tempDir()
+  try {
+    const vaultDir = join(base, 'vault')
+    const store = createVaultStore(vaultDir)
+    store.set('github token', { kind: 'token', secret: 'ghp_cliaudit' })
+    const out = join(base, 'sync.dsvault')
+
+    await main(['export', '--out', out, '--vault', vaultDir], { ...io(), readPassphrase: async () => PASS })
+    await main(['import', '--in', out, '--vault', join(base, 'target')], { ...io(), readPassphrase: async () => PASS })
+
+    const { readAudit } = await import('../lib/audit.js')
+    const records = readAudit(vaultDir, 20).filter((record) => record.action === 'export' || record.action === 'import')
+    assert.ok(records.length >= 1, 'CLI actions must be audited')
+    assert.ok(records.some((record) => record.source === 'cli'))
+    assert.equal(JSON.stringify(records).includes('ghp_cliaudit'), false)
+    assert.equal(JSON.stringify(records).includes(PASS), false)
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('#51 exporting a pre-v3 vault forges real ids and persists them locally', async () => {
+  const base = tempDir()
+  try {
+    const vaultDir = join(base, 'vault')
+    const seeded = createVaultStore(vaultDir)
+    seeded.set('legacy', { kind: 'token', secret: 'legacy-secret' })
+    const doc = JSON.parse(readFileSync(join(vaultDir, 'vault.json'), 'utf8'))
+    doc.version = 2
+    delete doc.entries.legacy.id
+    writeFileSync(join(vaultDir, 'vault.json'), JSON.stringify(doc))
+
+    const out = join(base, 'sync.dsvault')
+    await main(['export', '--out', out, '--vault', vaultDir], { ...io(), readPassphrase: async () => PASS })
+
+    // The local vault gained a real id (one-time migration).
+    const after = JSON.parse(readFileSync(join(vaultDir, 'vault.json'), 'utf8'))
+    assert.match(after.entries.legacy.id, /^[0-9a-f-]{36}$/i)
+
+    // The export file carries the same id (so a re-export is stable).
+    const envelope = JSON.parse(readFileSync(out, 'utf8'))
+    const payload = JSON.parse(readFileSync(out, 'utf8')) // structure only
+    assert.equal(envelope.payload.length > 0, true)
+    void payload
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})

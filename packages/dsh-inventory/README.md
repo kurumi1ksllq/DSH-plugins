@@ -103,7 +103,7 @@ Routes: `GET /inventory/plugin-update` (state + per-bundle versions) and
 | 分区 | 数据源 | 说明 |
 |---|---|---|
 | **Web 搜索提供方** | `GET/POST /websearch-failover/api/*`（`dsh-websearch-failover` 的 host 半区） | 顺序即调用优先级：拖动或上/下移按钮调整；每行显示余额（按各家单位）、状态点与冷却倒计时；详情给出重置时间、密钥、本地调用统计、启用/停用、只刷新这一家。**余额只在点「刷新余额」时才请求**（接口按次计费） |
-| **凭据保险库** | `GET/POST /credential-vault/api/*`（`dsh-credential-vault` 的 host 半区） | 掩码列表 + 详情；新增/编辑、删除、主密钥轮换、使用日志；**导出/导入**（0.5.0：口令加密 .dsvault 信封，跨设备同步，按 id 去重） | 掩码列表 + 详情；新增/编辑（编辑时留空即保留原值）含**服务**与**别名**字段、名称下方实时显示**规范化 slug**、`kind` 可选「数据库」，删除、主密钥轮换、使用日志。**任何路由都不回传明文**，面板只显示 `preview`；别名是 AI 唯一不可写的元数据 |
+| **凭据保险库** | `GET/POST /credential-vault/api/*`（`dsh-credential-vault` 的 host 半区） | 掩码列表 + 详情；新增/编辑（留空密钥即保留原值）含**服务**与**别名**字段、名称下方实时显示**规范化 slug**、`kind` 可选「数据库」；删除、主密钥轮换、使用日志；**导出/导入**（0.5.0：口令加密 `.dsvault` 信封跨设备同步，按 id 去重）。**任何路由都不回传明文**，面板只显示 `preview`；别名是 AI 唯一不可写的元数据 |
 | **提示词注入** | `GET/POST /prompt-inject/state`（`@local/dsh-prompt-inject` 的 host 半区） | 编辑注入到所有 Agent 系统提示词的文本；空文本本地拦截不发请求，保存后新的模型请求即生效 |
 | 插件包 | profile `package.json`（dependencies + `dsh.profile.bundles`） | 标出未安装（orphan）、已加载、声明来源 |
 | MCP 服务器 | `@deepseek-ai/dsh-mcp-client` 行 + 运行时工具前缀 | 每台的连接状态、工具数、脱敏后的 command/url；全局开关在这一行 |
