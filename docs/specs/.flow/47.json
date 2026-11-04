@@ -1,8 +1,8 @@
 {
   "issue": 47,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-04T12:00:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-04T12:20:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -31,8 +31,8 @@
     },
     {
       "id": 6,
-      "title": "现场:~/.dsh/skills 软链已建(免重启);profile link 待 #47 合并后补",
-      "state": "todo"
+      "title": "现场:软链已建(免重启);profile link+bundles 补装后 done",
+      "state": "done"
     },
     {
       "id": 7,
@@ -50,6 +50,6 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
