@@ -64,14 +64,19 @@ export function createApiHandler(service) {
         // Same rules the store applies: `service` and `aliases` reach the system
         // prompt verbatim, so a newline or an oversized value must be refused here
         // too — with a 400 the panel can explain, not a store-level 500.
+        // Only forward metadata the request actually mentioned: a keep-secret edit
+        // sends `{name, kind, secret:''}` and must not blank the stored fields
+        // (issue #57). An explicitly empty value still clears, because the key IS
+        // present and validateMeta turns '' into null.
+        const has = (key) => Object.hasOwn(body ?? {}, key)
         let meta
         try {
           meta = validateMeta({
-            service: body?.service ?? null,
-            aliases: body?.aliases ?? [],
-            username: body?.username ?? null,
-            url: body?.url ?? null,
-            note: body?.note ?? null,
+            service: has('service') ? body.service : undefined,
+            aliases: has('aliases') ? body.aliases : undefined,
+            username: has('username') ? body.username : undefined,
+            url: has('url') ? body.url : undefined,
+            note: has('note') ? body.note : undefined,
           })
         } catch (error) {
           throw new ApiError(400, 'invalid-metadata', error.message)

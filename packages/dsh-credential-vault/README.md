@@ -9,7 +9,8 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
 
 - **加密存储**：首次使用自动生成 32 字节主密钥（`master.key`，0600）；每条凭据
   用 AES-256-GCM 单独加密后写入 `vault.json`（0600，原子写）。支持主密钥轮换
-  （全部条目重新加密，旧密钥备份为 `master.key.bak`）。
+  （全部条目重新加密，旧密钥备份为 `master.key.bak` —— **它是明文密钥副本，
+  确认新密钥可用后应手动删除**）。
 - **规范化元数据**：每条凭据除 `name` 外可带 `service`（`github` / `openai` / `mysql` …）、
   `aliases`（用户手写的别名，如 `gh, git`）与 `kind`
   （`password` / `token` / `api-key` / `ssh-key` / `database` / `other`）。
@@ -28,7 +29,8 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
   - `get`/`use`/`reveal` 的 `name` 都走同一套命中解析，因此模型写 `gh` 也能取到
     `github token`。
 - **提示词约定**：注入一段 system prompt，**每轮重新求值**并列出当前库里的凭据索引
-  （只有名字与元数据）。硬规则：向用户索取任何密码/token/连接串**之前**必须先查库；
+  （只有名字与元数据；索引有 8000 字符预算，超过会折叠成
+  `…and N more; call action:"search"`——这是有意取舍，名字**永不截断**）。硬规则：向用户索取任何密码/token/连接串**之前**必须先查库；
   凭据只能通过 `action:"use"` 拿到的 `DSH_CRED_*` 变量使用；禁止把值拼进
   URL / remote / 命令行参数 / 文件 / 消息；禁止 `echo` / `printenv` 打印变量；
   `reveal` 仅在用户明确要求时使用。
@@ -97,6 +99,9 @@ spill 2、`.git/config` 1、`/tmp` 2）。原因很直接：只要明文进入�
   现为无原型对象，查表一律用 `Object.hasOwn`。
   否决用的是 `Object.prototype` 自有属性这一有限集合，不限制字符集，所以
   `阿里云 ECS 密码` 这类中文名照常可用。
+- **危险键名的存量条目（0.4.1）**：0.3.0 允许用 `__proto__` / `toString` 这类名字
+  建凭据。0.4.0 起写入被拒，但**已有的条目不会被删除**——它们在面板里可见并标记
+  `unsafeName: true`，`get` / `reveal` / `use` 会明确报错，只有你在面板里显式删除才会消失。
 - **元数据校验**：`service` / `aliases` 会**逐字进入每轮系统提示词**，因此在 store 与
   HTTP API 两处都强制单行且限长（`service` ≤64、`aliases` ≤16 条×≤64、
   `username` ≤128、`url` ≤512、`note` ≤512 但允许换行）。超限返回
@@ -152,11 +157,11 @@ node scripts/scrub-session-secrets.mjs --roots A,B  # 额外/自定义扫描根
 pnpm --filter dsh-credential-vault test
 ```
 
-141 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名）、store 全操作、
+158 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
 `normalizeKey` / `slug` / 别名去重 / slug 撞名拒绝 / v1 旧库兼容、五级命中
 （exact→slug→alias→service→keyword）与 `ambiguous` 不猜、动态提示词（函数求值 +
 索引 + 硬规则）、`use` 的零明文返回与按会话注入（含 TTL 过期、跨会话隔离、
-`shellEnv` 缺失时明确报错）、审计字段与 0600 权限、元数据校验与提示词注入防御、HTTP 路由/校验/同源/405/404，
+`shellEnv` 缺失时明确报错）、审计字段与 0600 权限、元数据校验与提示词注入防御（含 0.4.1 的保留-标记-拒绝语义）、HTTP 路由/校验/同源/405/404，
 以及一条贯穿断言：明文不出现在任何工具返回值、HTTP 响应或审计日志里。
 
 仓库根目录另有 13 个测试覆盖历史明文清理脚本（dry-run、备份外置、陈旧锁不再挡路、

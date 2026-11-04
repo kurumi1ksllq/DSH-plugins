@@ -2,7 +2,7 @@
   "issue": 48,
   "grade": "standard",
   "stage": "merge",
-  "updatedAt": "2026-11-04T01:40:30.738Z",
+  "updatedAt": "2026-11-04T12:30:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -21,12 +21,12 @@
     },
     {
       "id": 4,
-      "title": "文档 + 版本 0.3.1",
+      "title": "文档 + 版本 0.4.0",
       "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
     "status": "green"
   },

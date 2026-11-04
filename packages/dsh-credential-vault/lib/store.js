@@ -71,15 +71,18 @@ export const META_LIMITS = {
 //   - the Unicode "format" category (Cf) covers zero-width spaces (U+200B),
 //     BOM (U+FEFF) and bidi overrides (U+202E), which can disguise or reorder
 //     the text a reader sees without changing its length.
-const CONTROL_CHARS = /[\r\n\u0000-\u001f\u007f\u0085\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/
+export const CONTROL_CHARS = /[\r\n\u0000-\u001f\u007f\u0085\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/
 
 /** A single-line string within `max` characters, or null when empty. */
 function checkSingleLine(field, value, max) {
   if (value === undefined || value === null) return null
   if (typeof value !== 'string') throw new Error(`invalid ${field}: must be a string`)
+  // Check the RAW value first: `trim()` would remove a trailing newline and let
+  // it through as if it never existed (issue #53). Surrounding spaces are still
+  // trimmed below, because that is normalisation, not smuggling.
+  if (CONTROL_CHARS.test(value)) throw new Error(`invalid ${field}: must not contain line breaks or control characters`)
   const text = value.trim()
   if (text.length === 0) return null
-  if (CONTROL_CHARS.test(text)) throw new Error(`invalid ${field}: must not contain line breaks or control characters`)
   if (text.length > max) throw new Error(`invalid ${field}: longer than ${max} characters`)
   return text
 }
@@ -93,9 +96,12 @@ function checkSingleLine(field, value, max) {
  * @returns {{service: string|null, aliases: string[], username: string|null, url: string|null, note: string|null}}
  */
 export function validateMeta(meta = {}) {
-  const service = checkSingleLine('service', meta.service, META_LIMITS.service)
-  const username = checkSingleLine('username', meta.username, META_LIMITS.username)
-  const url = checkSingleLine('url', meta.url, META_LIMITS.url)
+  // `undefined` means "the caller did not mention this field" and is passed
+  // through as `undefined` so a partial update can keep the stored value.
+  // `null` or `''` means "clear it" and normalises to `null` (issue #57).
+  const service = meta.service === undefined ? undefined : checkSingleLine('service', meta.service, META_LIMITS.service)
+  const username = meta.username === undefined ? undefined : checkSingleLine('username', meta.username, META_LIMITS.username)
+  const url = meta.url === undefined ? undefined : checkSingleLine('url', meta.url, META_LIMITS.url)
 
   let note = null
   if (meta.note !== undefined && meta.note !== null) {
@@ -104,6 +110,7 @@ export function validateMeta(meta = {}) {
     if (trimmed.length > META_LIMITS.note) throw new Error(`invalid note: longer than ${META_LIMITS.note} characters`)
     note = trimmed.length > 0 ? trimmed : null
   }
+  if (meta.note === undefined) note = undefined
 
   // Validate the RAW list before normalizing: normalizeAliases() drops non-strings,
   // blanks and duplicates, which would silently swallow input (and let 20 copies of
@@ -128,7 +135,7 @@ export function validateMeta(meta = {}) {
   }
   const aliases = normalizeAliases(list)
 
-  return { service, aliases, username, url, note }
+  return { service, aliases: meta.aliases === undefined ? undefined : aliases, username, url, note }
 }
 
 /**
@@ -179,7 +186,7 @@ export function vaultFilePath(dir) {
  * @param {string} name
  * @returns {boolean}
  */
-function isDangerousKey(name) {
+export function isDangerousKey(name) {
   return name === '__proto__' || Object.hasOwn(Object.prototype, name)
 }
 
@@ -189,7 +196,11 @@ export function isValidName(name) {
     typeof name === 'string' &&
     name.trim().length > 0 &&
     name.length <= 128 &&
-    !/[\r\n/\\\u0000-\u001f]/.test(name) &&
+    !/[/\\]/.test(name) &&
+    // Reuse the one control-character definition instead of keeping a second,
+    // narrower regex here — that divergence is exactly how U+2028 slipped
+    // through the name check while metadata already rejected it (issue #54).
+    !CONTROL_CHARS.test(name) &&
     !isDangerousKey(name)
   )
 }
@@ -262,11 +273,11 @@ export function emptyVault() {
 function adoptEntries(parsed) {
   const entries = Object.create(null)
   for (const key of Object.keys(parsed)) {
-    // A hand-edited (or, later, imported) vault may carry `__proto__` as a real
-    // own key. Writing cannot create one any more, so a file that has one is not
-    // a vault this plugin wrote — drop it instead of promoting it to a
-    // first-class credential that `get`/`reveal`/`list` would happily serve.
-    if (isDangerousKey(key)) continue
+    // KEEP even a dangerous key (issue #52): 0.3.0 allowed these names to be
+    // created, so such an entry can be real user data. Dropping it here made the
+    // next unrelated write erase it from disk for good. It is carried through
+    // untouched and flagged by the read paths instead; only an explicit
+    // `delete()` removes it. `entries` has no prototype, so an own key is inert.
     entries[key] = parsed[key]
   }
   return entries

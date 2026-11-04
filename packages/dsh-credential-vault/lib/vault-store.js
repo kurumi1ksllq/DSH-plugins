@@ -7,6 +7,7 @@ import { copyFileSync, mkdirSync, openSync, renameSync, writeFileSync, fchmodSyn
 import {
   KINDS,
   VAULT_VERSION,
+  isDangerousKey,
   isValidName,
   loadOrCreateMasterKey,
   maskSecret,
@@ -54,6 +55,22 @@ export function createVaultStore(dir) {
   }
 
   /**
+   * Refuse to READ a credential whose name is an `Object.prototype` key.
+   *
+   * Such an entry can only exist because 0.3.0 allowed creating it. It is kept on
+   * disk (issue #52 — deleting it silently would destroy user data), but handing
+   * its secret to a caller is exactly the "phantom credential" hazard the name
+   * guard exists to prevent, so reading fails loudly and names the way out.
+   */
+  function assertSafeRead(name) {
+    if (!isDangerousKey(name)) return
+    throw new Error(
+      `credential "${name}" has an unsafe name (an Object.prototype property); ` +
+        'rename or delete it in the panel before using it',
+    )
+  }
+
+  /**
    * Reject a write whose name folds to the same slug as a DIFFERENT existing
    * credential. `github token` and `github-token` would otherwise both exist and
    * silently shadow each other in alias/slug lookups, so the store refuses the
@@ -96,9 +113,11 @@ export function createVaultStore(dir) {
               corrupt = true
             }
           }
+          const unsafeName = isDangerousKey(name)
           return {
             name,
             slug: slugOf(name),
+            unsafeName,
             kind: value.kind ?? 'other',
             service: value.service ?? null,
             aliases: normalizeAliases(value.aliases),
@@ -128,6 +147,7 @@ export function createVaultStore(dir) {
         .map(([name, value]) => ({
           name,
           slug: slugOf(name),
+          unsafeName: isDangerousKey(name),
           kind: value.kind ?? 'other',
           service: value.service ?? null,
           aliases: normalizeAliases(value.aliases),
@@ -143,6 +163,7 @@ export function createVaultStore(dir) {
 
     /** One masked entry or null. */
     get(name) {
+      assertSafeRead(name)
       const found = entry(name)
       if (found === null) return null
       const { secret, ...rest } = found
@@ -162,7 +183,15 @@ export function createVaultStore(dir) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
-      const meta = validateMeta({ service, username, url, note, aliases })
+      const rawMeta = validateMeta({ service, username, url, note, aliases })
+      // `set` creates the whole entry, so "not provided" simply means null here.
+      const meta = {
+        service: rawMeta.service ?? null,
+        aliases: rawMeta.aliases ?? [],
+        username: rawMeta.username ?? null,
+        url: rawMeta.url ?? null,
+        note: rawMeta.note ?? null,
+      }
       const vault = readVault(dir)
       assertNoSlugCollision(vault, name)
       vault.version = VAULT_VERSION
@@ -239,6 +268,7 @@ export function createVaultStore(dir) {
      * the HTTP API must not.
      */
     reveal(name) {
+      assertSafeRead(name)
       const found = entry(name)
       if (found === null) return null
       return {

@@ -16,7 +16,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { isValidName, readVault, writeVault, emptyVault } from '../lib/store.js'
+import { isDangerousKey as isDangerous, isValidName, readVault, writeVault, emptyVault } from '../lib/store.js'
 import { createVaultStore } from '../lib/vault-store.js'
 import { buildHintText } from '../lib/hint.js'
 
@@ -71,10 +71,10 @@ test('reading a hand-edited vault cannot pollute Object.prototype', () => {
     )
     const vault = readVault(dir)
     assert.equal(Object.getPrototypeOf(vault.entries), null, 'entries must be prototype-free')
-    // A dangerous key is dropped on read: writing one is impossible since #48,
-    // so a file carrying one was not produced by this plugin and must not be
-    // promoted into a credential the panel and the model would serve.
-    assert.deepEqual(Object.keys(vault.entries), ['real'])
+    // Since #52 a dangerous key is KEPT on read (dropping it here made the next
+    // unrelated write erase user data for good) — it is flagged and refused on
+    // access instead. Only an explicit delete() removes it.
+    assert.deepEqual(Object.keys(vault.entries).sort(), ['__proto__', 'real'])
     assert.equal({}.polluted, undefined, 'Object.prototype must stay clean')
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -86,10 +86,12 @@ test('get() never resolves a name through the prototype chain', () => {
   try {
     const store = createVaultStore(dir)
     store.set('real', { kind: 'token', secret: 'v' })
-    assert.equal(store.get('toString'), null)
-    assert.equal(store.get('constructor'), null)
-    assert.equal(store.get('__proto__'), null)
-    assert.equal(store.reveal('toString'), null)
+    // Since #52 reading an existing dangerous-name entry THROWS instead of
+    // returning a phantom or a null: the entry is real data, not an accident.
+    for (const name of ['toString', 'constructor', '__proto__']) {
+      assert.throws(() => store.get(name), /unsafe name/, name)
+      assert.throws(() => store.reveal(name), /unsafe name/, name)
+    }
     assert.equal(store.delete('toString'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -325,11 +327,16 @@ test('a hand-edited vault never surfaces a dangerous key as a credential', () =>
       '{"version":2,"entries":{"__proto__":{"kind":"token","secret":"v"},"constructor":{"kind":"token","secret":"v"},"real":{"kind":"token","secret":"v"}}}',
     )
     const store = createVaultStore(dir)
-    assert.equal(store.get('__proto__'), null)
-    assert.equal(store.get('constructor'), null)
-    assert.equal(store.reveal('__proto__'), null)
-    assert.deepEqual(store.listMeta().map((entry) => entry.name), ['real'])
-    assert.deepEqual(Object.keys(readVault(dir).entries), ['real'])
+    // Kept but flagged and refused on access (issue #52).
+    for (const name of ['__proto__', 'constructor']) {
+      assert.throws(() => store.get(name), /unsafe name/, name)
+      assert.throws(() => store.reveal(name), /unsafe name/, name)
+    }
+    // Names themselves, order-free (localeCompare's collation of underscores is
+    // an implementation detail the test must not pin).
+    assert.deepEqual([...store.listMeta().map((entry) => entry.name)].sort(), ['__proto__', 'constructor', 'real'])
+    assert.ok(store.listMeta().every((entry) => entry.unsafeName === isDangerous(entry.name)))
+    assert.deepEqual(Object.keys(readVault(dir).entries).sort(), ['__proto__', 'constructor', 'real'])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -384,5 +391,9 @@ test('a wide vault cannot blow the prompt index past its budget', () => {
     note: null,
   }))
   const text = buildHintText(entries)
-  assert.ok(text.length <= 6000, `prompt index must stay bounded, got ${text.length}`)
+  // Budget raised to 8000 in the #55/#56 hotfix (and names are no longer
+  // truncated, so a 50-entry vault legitimately renders more than before).
+  const indexLines = text.split('\n').filter((line) => line.startsWith('- '))
+  const indexChars = indexLines.join('\n').length
+  assert.ok(indexLines.join('\n').length <= 8000 + 200, `index must respect the budget, got ${indexChars}`)
 })

@@ -1,0 +1,65 @@
+{
+  "issue": 53,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T04:39:30.318Z",
+  "batch": {
+    "branch": "issue-52-vault-hotfix",
+    "issues": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      50,
+      58
+    ],
+    "spec": "docs/specs/credential-vault-hotfix-0.4.1.md",
+    "title": "trim 在控制字符检查之前"
+  },
+  "tickets": [
+    {
+      "id": 1,
+      "title": "T1 #53 顺序 + #54 复用 CONTROL_CHARS",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "T2 #52 危险键保留/抛错/写回不删",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "T3 #57 只透传真实出现的键",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "T4 #55#56 提示词索引",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "T5 #50 .bak 清理",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "T6 #58 文档与状态",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
