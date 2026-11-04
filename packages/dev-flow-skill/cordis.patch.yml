@@ -1,14 +1,10 @@
 # Bundle patch layer for dev-flow-skill.
 #
-# The skill itself is a directory shipped by this package (`SKILL.md` plus the
-# contract linter in lib/). The patch installs a single host-side row that
-# exposes the skill directory location through config, so a profile can point
-# DSH's skill loader at the bundled SKILL.md without copying it by hand.
-# Config keys are intentionally minimal; a profile patch overrides them the
-# same shallow way as the other bundles in this workspace.
+# One host-side row: the package's own entry (`index.js`), which registers the
+# `dev-flow` skill into `ctx.skills` with the shipped `SKILL.md` body read at
+# apply time. No config is written here on purpose — the row has no `Config`
+# schema, and the skill's name/description/body all come from the package itself
+# so a profile cannot silently point it at some other document.
 - insert:
     - id: dev-flow-skill
       name: "dev-flow-skill"
-      config:
-        skillName: dev-flow
-        skillPath: SKILL.md

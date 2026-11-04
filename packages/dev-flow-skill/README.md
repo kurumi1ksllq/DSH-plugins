@@ -35,11 +35,40 @@ node --test packages/dev-flow-skill/test/*.test.mjs
 
 ## 安装
 
-profile 的 `package.json` 加一行 link，重启 DSH；SKILL.md 期望位于 DSH 的 skill 目录（`~/.dsh/skills/dev-flow/SKILL.md`，以实际目录为准）：
+两条路线**选一即可**，都指向同一个 `SKILL.md`：
+
+| 路线 | 做法 | 生效方式 |
+| --- | --- | --- |
+| profile 声明 | `link:` 依赖 + `dsh.profile.bundles` 里加包名 | 需要一次 profile 重组合（重启 DSH） |
+| 文件系统 | 软链到 `<DSH_HOME>/skills/dev-flow` | `skill-filesystem` 的监视器自动发现，**免重启** |
+
+两条都装上时，runtime 注册（本包的 `apply`）优先级高于 user 根（rank 400），冲突由 catalog 收集阶段按 rank 合并并记一条 `ignored` 警告——不是 `register` 自己打的。
+
+### 路线 1：profile 声明（`dsh.profile.bundles` 必须同时有）
 
 ```json
-"dev-flow-skill": "link:../../packages/dev-flow-skill"
+"dependencies": {
+  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill"
+},
+"dsh": {
+  "profile": {
+    "bundles": ["dev-flow-skill"]
+  }
+}
 ```
+
+这一行让插件的 `apply` 跑起来：它把 `dev-flow` 注册进 `ctx.skills`，正文读包内的 `SKILL.md`。**需要一次 profile 重新组合才生效**（重启 DSH 或等宿主重载）。
+
+### 路线 2：文件系统（免重启）
+
+`@deepseek-ai/dsh-skill-filesystem` 默认扫描 `<DSH_HOME>/skills`（rank 400），且 `watch: true`、`watchFollowSymlinks: true`。把包目录软链过去即可，**不需要重启**：
+
+```bash
+mkdir -p ~/.dsh/skills
+ln -sfn /path/to/DSH-plugins/packages/dev-flow-skill ~/.dsh/skills/dev-flow
+```
+
+这个软链不需要改 profile，也不需要重启：监视器在根目录尚不存在时会先盯着最近的祖先目录（`~/.dsh`），目录一出现就重新解析并刷新目录。
 
 项目 AGENTS.md 建议加一行保证路由：
 

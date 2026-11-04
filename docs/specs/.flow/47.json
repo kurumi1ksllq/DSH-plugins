@@ -1,0 +1,55 @@
+{
+  "issue": 47,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-04T12:00:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "红:test/loader.test.mjs(导出形态 + skills.register)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "绿:index.js 运行时读 SKILL.md 并注册 dev-flow",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "patch 去掉自造 skillName/skillPath;包 README 改安装段",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档:根 README 安装片段 + update-scheme 未安装改已装",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "版本 0.2.1 -> 0.2.2",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "现场:~/.dsh/skills 软链已建(免重启);profile link 待 #47 合并后补",
+      "state": "todo"
+    },
+    {
+      "id": 7,
+      "title": "review 裁决 A+C1:9 条修复(文档假陈述/前端解析/真 registry 测试)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
