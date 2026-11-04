@@ -134,6 +134,6 @@ function isDangerousKey(name) {
 | T1 | 危险键名拒绝 + `readVault` 无原型 + `entry()` 用 `hasOwn` | — |
 | T2 | 元数据校验（`validateMeta`）接入 store 与 API | — |
 | T3 | 提示词二次防御（换行压平 + 截断） | — |
-| T4 | 文档（README 安全边界补充）+ 版本 0.3.1 | T1–T3 |
+| T4 | 文档（README 安全边界补充）+ 版本 0.4.0（实现时按审查意见升为次版本：新增错误码 + 拒绝曾接受的输入） | T1–T3 |
 
 T1/T2/T3 互不依赖，可并行实现。

@@ -32,30 +32,51 @@ function flatten(value, max) {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
-/** Hard cap for one rendered index line. */
-const INDEX_LINE_MAX = 200
+/** How many aliases one index line shows before it summarises the rest. */
+const INDEX_ALIAS_LIMIT = 8
+
+/**
+ * Hard cap for the metadata part of one line (the name is never truncated).
+ *
+ * Sized to fit the worst LEGAL metadata without dropping anything visible:
+ * `(database, <64 service>; aliases: <8 × 64 aliases>)` measures 616 characters,
+ * and the whole line (name of 128 + "- " prefix) reaches 747. A cap below 616
+ * silently hid the last aliases (issue #56).
+ */
+const INDEX_DETAILS_MAX = 640
 
 /**
  * Total character budget for the whole index.
  *
- * A per-line cap alone does not bound the prompt: 50 entries × (200-char line)
- * is ~10 KB, and the worst legal metadata (64-char name + 64-char service + 16 ×
- * 64-char aliases) measured ~11.8 KB. The budget is therefore enforced across
- * lines, and whatever does not fit is reported as a count instead.
+ * A per-line cap alone does not bound the prompt: 50 entries with the longest
+ * legal metadata still run to tens of KB. The budget is enforced across lines and
+ * whatever does not fit is reported as a count instead — the model then has to
+ * `search`, which is a deliberate trade-off (issue #56), not an accident.
  */
-export const HINT_INDEX_BUDGET = 4000
+export const HINT_INDEX_BUDGET = 8000
 
-/** One line of the credential index: names and metadata only, never a value. */
+/**
+ * One line of the credential index: names and metadata only, never a value.
+ *
+ * The NAME is rendered in full and never truncated: it is the identifier the
+ * model has to pass to `use`, and truncating the whole line made two different
+ * 128-character names render identically (issue #55). Only the metadata tail is
+ * capped.
+ */
 function indexLine(entry) {
+  const name = flatten(entry.name, 128) || '(unnamed)'
   const details = [flatten(entry.kind ?? 'other', 32) || 'other']
   const service = flatten(entry.service, 64)
   if (service.length > 0) details.push(service)
-  const aliases = Array.isArray(entry.aliases)
-    ? entry.aliases.map((alias) => flatten(alias, 64)).filter((alias) => alias.length > 0).slice(0, 8)
+  const allAliases = Array.isArray(entry.aliases)
+    ? entry.aliases.map((alias) => flatten(alias, 64)).filter((alias) => alias.length > 0)
     : []
-  const suffix = aliases.length > 0 ? `; aliases: ${aliases.join(', ')}` : ''
-  const line = `- ${flatten(entry.name, 64) || '(unnamed)'} (${details.join(', ')}${suffix})`
-  return line.length > INDEX_LINE_MAX ? `${line.slice(0, INDEX_LINE_MAX)}…` : line
+  const aliases = allAliases.slice(0, INDEX_ALIAS_LIMIT)
+  const hidden = allAliases.length - aliases.length
+  const suffix = aliases.length > 0 ? `; aliases: ${aliases.join(', ')}${hidden > 0 ? ` +${hidden}` : ''}` : ''
+  let tail = `(${details.join(', ')}${suffix})`
+  if (tail.length > INDEX_DETAILS_MAX) tail = `${tail.slice(0, INDEX_DETAILS_MAX)}…)`
+  return `- ${name} ${tail}`
 }
 
 /**

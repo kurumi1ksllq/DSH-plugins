@@ -45,6 +45,7 @@ gh --version && gh auth status && git remote -v
 - `trivial`：一句话方案确认即可。
 - `standard`：给出 **spec**（目标、边界、验收）+ **tickets**（有序任务清单，可带依赖），落盘为文件（建议 `docs/specs/<topic>.md`，放仓库或 `$DSH_HOME` 下，按用户偏好）。文件是唯一状态源。
 - 用户确认后自动推进，不再停：`gh issue create`（正文引用 spec 路径与要点）→ `git switch -c issue-<n>-<简述>`。这两个是机械动作，不配停点。
+- **实现阶段不得改写 spec 的目标/边界/验收条款**：审查或实现中发现 spec 本身要改（哪怕理由成立），把变更点列出来**回到用户面前重新确认**（可以在实现 commit 之前单独确认，并在 commit 信息里注明「停点2 重新确认」）。验收条款是用户确认过的承诺，不是实现的注脚。（#48 教训）
 
 ### 停点3 review + merge
 
