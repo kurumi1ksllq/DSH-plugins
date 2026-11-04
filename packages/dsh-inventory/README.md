@@ -45,6 +45,23 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 
 这段进每个请求，约 150 token。它注册在 `webServer` 守卫之前，所以没有 Web 服务器的 profile（headless / ACP）里模型同样能看到。
 
+### 测试与覆盖点(0.7.1)
+
+更新路由的 apply 全流程在 `performUpdate({repo, stateDir, respond, reconcile})` 里,仓库与
+状态目录都是参数 —— 测试在临时 git 仓库上跑,绝不碰真实 checkout 与真实 `$DSH_HOME`。
+(0.7.0 的一条 route 测试会真的 `git fetch` 并写真实的 `last.json`,曾覆盖用户看到的更新结果。)
+
+两个覆盖点:
+
+| 变量 | 作用 |
+| --- | --- |
+| `DSH_INVENTORY_UPDATE_REPO` | 指定要更新的仓库(默认从本插件文件位置反解出 git 顶层) |
+| `DSH_HOME` | 状态目录所在(`<DSH_HOME>/plugin-update/last.json`) |
+
+`DSH_INVENTORY_UPDATE_REPO` **必须是绝对路径**(相对值会被忽略,以免按服务进程的 cwd 解析到
+别的仓库),并且仍要过 `<root>/packages/dsh-inventory/package.json` 的 `name === 'dsh-inventory'`
+校验;`DSH_HOME` 只决定状态文件写在哪,没有可校验的仓库身份。
+
 ## Plugins-page update button (0.7.0)
 
 `dsh-inventory` contributes two cells to the Plugins page's own slot contract —

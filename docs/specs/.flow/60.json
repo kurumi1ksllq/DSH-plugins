@@ -1,0 +1,45 @@
+{
+  "issue": 60,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-04T12:18:12+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "performUpdate 抽出 apply 全流程",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "route handler 收薄",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "替换会跑生产的 route 测试",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "needsInstall 只看依赖变化",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "版本 0.7.1 + CHANGELOG + README",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

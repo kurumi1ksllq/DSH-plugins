@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import {
   changedFiles,
   checkUpdatable,
+  checkoutOverride,
   localBundles,
   needsBuild,
   needsInstall,
@@ -363,10 +364,72 @@ test('probeTargetEntries parses the target’s entry files, not the working tree
   assert.equal(bad.failures[0].path, 'packages/dsh-one/index.js')
 })
 
-test('changedFiles and the install/build predicates follow the file list', () => {
-  assert.equal(needsInstall(['pnpm-lock.yaml']), true)
-  assert.equal(needsInstall(['packages/dsh-inventory/package.json']), true)
-  assert.equal(needsInstall(['packages/dsh-inventory/client.js']), false)
+test('the build predicate follows the file list', () => {
   assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), true)
   assert.equal(needsBuild(['packages/dsh-inventory/client.js']), false)
+})
+
+test('a version-only bump does not ask for an install', () => {
+  // A `pnpm install` for a version bump is pure cost — and on a checkout with no
+  // dependencies it failed and rolled the update back.
+  const dir = initCheckout()
+  writeFileSync(join(dir, 'packages', 'dsh-one', 'package.json'), JSON.stringify({ name: 'dsh-one', version: '0.1.1' }))
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'version only')
+  const from = git(dir, 'rev-parse', 'HEAD~1').trim()
+  const to = git(dir, 'rev-parse', 'HEAD').trim()
+  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), false)
+})
+
+test('a dependency change asks for an install', () => {
+  const dir = initCheckout()
+  writeFileSync(
+    join(dir, 'packages', 'dsh-one', 'package.json'),
+    JSON.stringify({ name: 'dsh-one', version: '0.1.0', dependencies: { 'left-pad': '^1.0.0' } }),
+  )
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'add dep')
+  const from = git(dir, 'rev-parse', 'HEAD~1').trim()
+  const to = git(dir, 'rev-parse', 'HEAD').trim()
+  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
+})
+
+test('a moved lockfile asks for an install on its own', () => {
+  const dir = initCheckout()
+  assert.equal(needsInstall(dir, 'HEAD', 'HEAD', ['pnpm-lock.yaml']), true)
+  assert.equal(needsInstall(dir, 'HEAD', 'HEAD', ['packages/dsh-one/index.js']), false)
+})
+
+test('changedFiles lists exactly the paths between two commits', () => {
+  const dir = initCheckout()
+  writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const a = 1\n')
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'entry')
+  const from = git(dir, 'rev-parse', 'HEAD~1').trim()
+  const to = git(dir, 'rev-parse', 'HEAD').trim()
+  assert.deepEqual(changedFiles(dir, from, to), ['packages/dsh-one/index.js'])
+})
+
+test('a pnpm-level config change asks for an install', () => {
+  // `pnpm.overrides` / `patchedDependencies` move the dependency graph without
+  // necessarily moving the lockfile.
+  const dir = initCheckout()
+  writeFileSync(
+    join(dir, 'packages', 'dsh-one', 'package.json'),
+    JSON.stringify({ name: 'dsh-one', version: '0.1.0', pnpm: { overrides: { 'left-pad': '1.3.0' } } }),
+  )
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'override')
+  const from = git(dir, 'rev-parse', 'HEAD~1').trim()
+  const to = git(dir, 'rev-parse', 'HEAD').trim()
+  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
+})
+
+test('the checkout override is honoured only when it is absolute', () => {
+  // It names the repository the route will fetch, merge and `pnpm install` in.
+  // A relative value would resolve against the service's cwd.
+  assert.equal(checkoutOverride({ DSH_INVENTORY_UPDATE_REPO: '/tmp/repo' }), '/tmp/repo')
+  assert.equal(checkoutOverride({ DSH_INVENTORY_UPDATE_REPO: 'repo' }), undefined)
+  assert.equal(checkoutOverride({ DSH_INVENTORY_UPDATE_REPO: '' }), undefined)
+  assert.equal(checkoutOverride({}), undefined)
 })

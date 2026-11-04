@@ -1,10 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { execFileSync } from 'node:child_process'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { dshHome } from '../lib/dsh-home.js'
 
 import {
   apply,
@@ -1106,50 +1108,125 @@ test('the snapshot pins the default workspace first and names it', async () => {
   }
 })
 
-test('the update route answers before it asks for a recomposition', async () => {
-  // A recomposition stops the affected rows before it recomposes them, and the
-  // row being updated is often this very bundle: a response written afterwards
-  // would never reach the browser. This route runs against the real checkout, so
-  // it may legitimately refuse (dirty tree / up to date); the invariant checked
-  // here is the ordering, and `runUpdate`'s own test pins the accepted path.
-  const order = []
+test('the apply route refuses the wrong method without touching the checkout', async () => {
+  // The sequence itself is covered by `plugin-update-apply.test.mjs` on throwaway
+  // repositories. This handler resolves the checkout the RUNNING plugin was
+  // loaded from, so exercising its POST path here would `git fetch` the real
+  // repository and rewrite the real last.json — one such test once overwrote a
+  // user's genuine update result (issue #60).
   const ctx = makeContext()
-  ctx.get = (name) =>
-    name === 'hmr'
-      ? {
-          runExclusive: async (operation) => {
-            order.push('reconcile')
-            return operation()
-          },
-          reconcileProfile: async () => {
-            order.push('reconcileProfile')
-            return { warnings: [], pending: [] }
-          },
-        }
-      : undefined
   apply(ctx)
-
   const route = ctx.routes.find((entry) => entry.path === PLUGIN_UPDATE_APPLY_ROUTE)
   assert.ok(route, 'apply route not registered')
+  const { status, body } = await call(route.handler, { method: 'GET', url: PLUGIN_UPDATE_APPLY_ROUTE })
+  assert.equal(status, 405)
+  assert.equal(body.error, 'method-not-allowed')
+})
 
-  let status = 0
-  let body = ''
-  await route.handler({ method: 'POST', url: PLUGIN_UPDATE_APPLY_ROUTE }, {
-    writeHead(code) {
-      order.push('respond')
-      status = code
-    },
-    end(chunk) {
-      body = chunk ?? ''
-    },
-  })
+test('the apply route updates the checkout it is pointed at, and only that one', async () => {
+  // End-to-end on throwaway directories: the route's real POST path runs, but the
+  // repository and the state directory are both injected, so nothing outside the
+  // temporary tree is touched (issue #60).
+  const origin = mkdtempSync(join(tmpdir(), 'hr-origin-'))
+  const g = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
+  g(origin, 'init', '-q', '-b', 'main')
+  g(origin, 'config', 'user.email', 't@example.com')
+  g(origin, 'config', 'user.name', 'T')
+  mkdirSync(join(origin, 'packages', 'dsh-inventory'), { recursive: true })
+  writeFileSync(join(origin, 'packages', 'dsh-inventory', 'package.json'), JSON.stringify({ name: 'dsh-inventory', version: '0.1.0' }))
+  writeFileSync(join(origin, 'packages', 'dsh-inventory', 'index.js'), 'export const a = 1\n')
+  g(origin, 'add', '.')
+  g(origin, 'commit', '-q', '-m', 'one')
 
-  assert.equal(status, 200, 'the route must answer')
-  assert.ok(body.length > 0, 'the route must write a body')
-  if (order.includes('reconcile')) {
-    assert.ok(
-      order.indexOf('respond') < order.indexOf('reconcile'),
-      `the answer must precede the recomposition, got: ${order.join(' → ')}`,
-    )
+  const repo = mkdtempSync(join(tmpdir(), 'hr-repo-'))
+  g(origin, 'clone', '-q', origin, repo)
+  g(repo, 'config', 'user.email', 't@example.com')
+  g(repo, 'config', 'user.name', 'T')
+  writeFileSync(join(origin, 'packages', 'dsh-inventory', 'package.json'), JSON.stringify({ name: 'dsh-inventory', version: '0.2.0' }))
+  g(origin, 'add', '.')
+  g(origin, 'commit', '-q', '-m', 'bump')
+
+  const home = mkdtempSync(join(tmpdir(), 'hr-home-'))
+  // Snapshot the real things this test must NOT touch, so "and only that one" is
+  // a claim with an assertion behind it.
+  const realLast = join(dshHome(), 'plugin-update', 'last.json')
+  const realBefore = (() => {
+    try {
+      return statSync(realLast).mtimeMs
+    } catch {
+      return null
+    }
+  })()
+  const realHeadBefore = (() => {
+    try {
+      return execFileSync('git', ['-C', join(import.meta.dirname, '..', '..', '..'), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    } catch {
+      return null
+    }
+  })()
+
+  const previous = { repo: process.env.DSH_INVENTORY_UPDATE_REPO, home: process.env.DSH_HOME }
+  process.env.DSH_INVENTORY_UPDATE_REPO = repo
+  // The whole safety of this test rests on that override: without it the handler
+  // falls back to the checkout this plugin was loaded from, which is the REAL
+  // repository. Assert it rather than trusting the assignment above.
+  assert.equal(process.env.DSH_INVENTORY_UPDATE_REPO, repo, 'the checkout override must be in place')
+  process.env.DSH_HOME = home
+  try {
+    const ctx = makeContext()
+    apply(ctx)
+    const route = ctx.routes.find((entry) => entry.path === PLUGIN_UPDATE_APPLY_ROUTE)
+    let status = 0
+    let body = ''
+    const res = {
+      // A real ServerResponse reports this after end(); the route relies on it to
+      // avoid answering twice, so the fake has to model it too.
+      writableEnded: false,
+      writeHead(code) {
+        status = code
+      },
+      end(chunk) {
+        body = chunk ?? ''
+        res.writableEnded = true
+      },
+    }
+    await route.handler({ method: 'POST', url: PLUGIN_UPDATE_APPLY_ROUTE }, res)
+    assert.equal(status, 200, `the route must answer, got ${status} ${body}`)
+    assert.equal(JSON.parse(body).accepted, true, `the update must be accepted: ${body}`)
+    const last = JSON.parse(readFileSync(join(home, 'plugin-update', 'last.json'), 'utf8'))
+    assert.equal(last.ok, true)
+    assert.deepEqual(last.changed, [{ name: 'dsh-inventory', from: '0.1.0', to: '0.2.0' }])
+    assert.equal(g(repo, 'rev-parse', 'HEAD').trim(), g(origin, 'rev-parse', 'HEAD').trim(), 'the injected checkout moved')
+
+    // The real state directory and the real checkout are untouched: that is the
+    // property issue #60 is about.
+    const realAfter = (() => {
+      try {
+        return statSync(realLast).mtimeMs
+      } catch {
+        return null
+      }
+    })()
+    assert.equal(realAfter, realBefore, 'the real last.json must not be rewritten')
+    const realHeadAfter = (() => {
+      try {
+        return execFileSync('git', ['-C', join(import.meta.dirname, '..', '..', '..'), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+      } catch {
+        return null
+      }
+    })()
+    assert.equal(realHeadAfter, realHeadBefore, 'the real checkout must not move')
+  } finally {
+    for (const dir of [origin, repo, home]) {
+      try {
+        rmSync(dir, { recursive: true, force: true })
+      } catch {
+        /* a leftover temp dir is not worth failing over */
+      }
+    }
+    if (previous.repo === undefined) delete process.env.DSH_INVENTORY_UPDATE_REPO
+    else process.env.DSH_INVENTORY_UPDATE_REPO = previous.repo
+    if (previous.home === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous.home
   }
 })
