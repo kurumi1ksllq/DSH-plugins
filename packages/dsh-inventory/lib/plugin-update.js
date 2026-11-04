@@ -13,6 +13,9 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /** Run git and capture stdout; a failure is a value, not an exception. */
 export function gitIn(dir, args, options = {}) {
@@ -216,7 +219,10 @@ export async function runUpdate({ gate, respond, moveCheckout, reconcile }) {
   }
 
   const moved = await moveCheckout()
-  respond()
+  // The responder is given the mover's outcome, not the gate's prediction: a
+  // failed fetch or a refused fast-forward has to reach the browser as a failure,
+  // or the panel reports "updated" for a checkout that never moved.
+  respond(moved ?? {})
   if (moved?.ok !== true) {
     return { ok: false, stage: 'checkout', error: moved?.error ?? 'the checkout did not move' }
   }
@@ -226,7 +232,7 @@ export async function runUpdate({ gate, respond, moveCheckout, reconcile }) {
   if (typeof reconcile !== 'function') {
     // No hmr service (headless / SDK profiles): the files are new but the running
     // process still has the old code. Say so instead of pretending.
-    return { ...summary, application: 'restart-required', restartReason: 'no-hmr' }
+    return { ...summary, restart: { application: 'restart-required', restartReason: 'no-hmr' } }
   }
 
   try {
@@ -235,12 +241,14 @@ export async function runUpdate({ gate, respond, moveCheckout, reconcile }) {
     if (typeof result.restartReason === 'string' || pending.length > 0) {
       return {
         ...summary,
-        application: 'restart-required',
-        ...(typeof result.restartReason === 'string' ? { restartReason: result.restartReason } : {}),
+        restart: {
+          application: 'restart-required',
+          ...(typeof result.restartReason === 'string' ? { restartReason: result.restartReason } : {}),
+        },
         ...(pending.length > 0 ? { pending } : {}),
       }
     }
-    return { ...summary, application: 'applied', warnings: result.warnings ?? [] }
+    return { ...summary, restart: { application: 'applied' }, warnings: result.warnings ?? [] }
   } catch (error) {
     return {
       ok: false,
@@ -325,4 +333,93 @@ export async function moveCheckout(repoDir, options = {}) {
 
   const to = readCheckoutState(repoDir).head
   return { ok: true, changed, from, to }
+}
+
+/** Paths that differ between two commits of this repository. */
+export function changedFiles(repoDir, from, to) {
+  const listed = gitIn(repoDir, ['diff', '--name-only', `${from}..${to}`])
+  if (listed.ok !== true) return []
+  return listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
+}
+
+/** The dependency graph moved, so the profile's node_modules has to be rebuilt. */
+export function needsInstall(files) {
+  return files.some((file) => file === 'pnpm-lock.yaml' || /(^|\/)package\.json$/.test(file))
+}
+
+/** The generated engine copies are gitignored, so a checkout alone does not run. */
+export function needsBuild(files) {
+  return files.some((file) => file.startsWith('packages/dsh-websearch-failover/lib/'))
+}
+
+/**
+ * Syntax-check the bundles that would be replaced, reading the TARGET, not the
+ * working tree.
+ *
+ * This is a probe, not a proof: `node --check` proves the new files parse, not
+ * that they load inside a Cordis host (a bundle that needs `ctx` cannot be
+ * imported standalone — the repo's own update gate reports that case as
+ * `needs-review` rather than green). It is here because the alternative failure
+ * is unrecoverable: dsh-hmr stops the old version and does not restore it.
+ *
+ * @param {string} repoDir
+ * @param {string} ref
+ * @param {string[]} bundleDirs e.g. ['packages/dsh-inventory']
+ * @param {{runNode?: (files: string[]) => object}} [options] injectable for tests
+ * @returns {{ok: boolean, failures?: {path: string, error: string}[]}}
+ */
+export function probeTargetEntries(repoDir, ref, bundleDirs, options = {}) {
+  const files = []
+  for (const dir of bundleDirs) {
+    const manifest = gitIn(repoDir, ['show', `${ref}:${dir}/package.json`])
+    if (manifest.ok !== true) continue
+    let pkg
+    try {
+      pkg = JSON.parse(manifest.stdout)
+    } catch {
+      continue
+    }
+    const entry = typeof pkg.main === 'string' && pkg.main.length > 0 ? pkg.main : 'index.js'
+    const path = `${dir}/${entry.replace(/^\.\//, '')}`
+    const blob = gitIn(repoDir, ['show', `${ref}:${path}`])
+    if (blob.ok !== true) continue
+    files.push({ path, text: blob.stdout })
+  }
+
+  const runNode = typeof options.runNode === 'function' ? options.runNode : checkSyntax
+  const result = runNode(files)
+  return result ?? { ok: true }
+}
+
+/** Write each file to a temp dir and ask Node to parse it. */
+function checkSyntax(files) {
+  const failures = []
+  let dir
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'dsh-probe-'))
+  } catch (error) {
+    return { ok: false, failures: [{ path: '(temp)', error: String(error?.message ?? error) }] }
+  }
+  try {
+    for (const file of files) {
+      // Always `.mjs`: `node --check` on a `.js` file runs the CJS parser and
+      // exits 0 for files it merely refused to parse as a module — a probe that
+      // cannot fail is worse than no probe.
+      const named = join(dir, `${file.path.replace(/[^A-Za-z0-9._-]+/g, '_')}.mjs`)
+      try {
+        writeFileSync(named, file.text)
+        execFileSync(process.execPath, ['--check', named], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 20_000 })
+      } catch (error) {
+        const stderr = typeof error?.stderr === 'string' ? error.stderr.split('\n').slice(0, 3).join(' ') : ''
+        failures.push({ path: file.path, error: stderr.length > 0 ? stderr : String(error?.message ?? error) })
+      }
+    }
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      /* a leftover temp dir is not worth failing the update over */
+    }
+  }
+  return failures.length === 0 ? { ok: true } : { ok: false, failures }
 }

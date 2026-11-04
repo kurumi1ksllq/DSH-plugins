@@ -181,6 +181,7 @@ window.__ModuleLoader__.load({
       vaultFailed: '仓库操作失败',
       vaultDone: '已移动 {count} 个',
       updateBadge: '可更新',
+      updateCurrent: '已是最新',
       updateTo: '更新到 {version}',
       updateConfirm: '更新会推进整份插件仓库并立即重新加载，确定继续？',
       updateRunning: '正在更新…',
@@ -486,6 +487,7 @@ window.__ModuleLoader__.load({
       vaultFailed: 'Vault action failed',
       vaultDone: 'Moved {count}',
       updateBadge: 'update available',
+      updateCurrent: 'Up to date',
       updateTo: 'Update to {version}',
       updateConfirm: 'This advances the whole plugin checkout and reloads it now. Continue?',
       updateRunning: 'Updating…',
@@ -4414,32 +4416,76 @@ window.__ModuleLoader__.load({
     const UPDATE_ROUTE = '/inventory/plugin-update'
     const UPDATE_APPLY_ROUTE = '/inventory/plugin-update/apply'
 
+    /**
+     * One shared read of the update state.
+     *
+     * Both slots are mounted for the same bundle and this route runs a
+     * `git fetch`, so a request per component would double every poll. The cache
+     * also keeps "is this ours" from costing a network round trip per page.
+     */
+    const updateCache = { at: 0, state: null, inFlight: null }
+    const UPDATE_CACHE_MS = 10_000
+
+    function loadUpdateState(force = false) {
+      const now = Date.now()
+      if (!force && updateCache.state !== null && now - updateCache.at < UPDATE_CACHE_MS) {
+        return Promise.resolve(updateCache.state)
+      }
+      if (updateCache.inFlight !== null) return updateCache.inFlight
+      updateCache.inFlight = fetch(UPDATE_ROUTE, { headers: { accept: 'application/json' } })
+        .then((response) => response.json())
+        .catch((error) => ({ ok: false, error: String(error?.message ?? error) }))
+        .then((state) => {
+          updateCache.state = state
+          updateCache.at = Date.now()
+          updateCache.inFlight = null
+          return state
+        })
+      return updateCache.inFlight
+    }
+
     function useUpdateState() {
-      const [state, setState] = React.useState(null)
-      const load = React.useCallback(async () => {
-        try {
-          const response = await fetch(UPDATE_ROUTE, { headers: { accept: 'application/json' } })
-          setState(await response.json())
-        } catch (error) {
-          setState({ ok: false, error: String(error?.message ?? error) })
+      const [state, setState] = React.useState(updateCache.state)
+      React.useEffect(() => {
+        let live = true
+        loadUpdateState().then((next) => {
+          if (live) setState(next)
+        })
+        return () => {
+          live = false
         }
       }, [])
-      React.useEffect(() => {
-        load()
-      }, [load])
-      return { state, reload: load }
+      return state
+    }
+
+    /**
+     * Whether this subject could be one of ours, decided WITHOUT a request.
+     *
+     * Every other page on the Plugins page must stay free: an official bundle is
+     * never ours, so opening it must not cause a `git fetch`.
+     */
+    function mayBeOurs(subject) {
+      if (subject?.kind !== 'bundle') return false
+      const name = subject.pkg?.name
+      if (typeof name !== 'string' || name.length === 0) return false
+      if (name.startsWith('@deepseek-ai/')) return false
+      return subject.pkg?.installed === true
     }
 
     /** The row for one bundle in the status payload, or null when it is not ours. */
     function updateRowFor(state, subject) {
       if (state?.ok !== true || Array.isArray(state.bundles) !== true) return null
-      if (subject?.kind !== 'bundle') return null
-      const name = subject.pkg?.name
-      return state.bundles.find((row) => row.name === name) ?? null
+      if (mayBeOurs(subject) !== true) return null
+      return state.bundles.find((row) => row.name === subject.pkg.name) ?? null
     }
 
     function PluginUpdateBadge({ subject, t }) {
-      const { state } = useUpdateState()
+      if (mayBeOurs(subject) !== true) return null
+      return h(BadgeBody, { subject, t })
+    }
+
+    function BadgeBody({ subject, t }) {
+      const state = useUpdateState()
       const row = updateRowFor(state, subject)
       if (row === null || row.updatable !== true) return null
       return h(
@@ -4462,12 +4508,18 @@ window.__ModuleLoader__.load({
     }
 
     function PluginUpdateAction({ subject, t }) {
-      const { state, reload } = useUpdateState()
+      if (mayBeOurs(subject) !== true) return null
+      return h(ActionBody, { subject, t })
+    }
+
+    function ActionBody({ subject, t }) {
+      const state = useUpdateState()
       const [busy, setBusy] = React.useState(false)
       const [note, setNote] = React.useState(null)
       const row = updateRowFor(state, subject)
+      const outcome = state?.last ?? null
+
       if (row === null) return null
-      if (row.updatable !== true) return null
 
       const run = async () => {
         setBusy(true)
@@ -4479,27 +4531,36 @@ window.__ModuleLoader__.load({
             body: JSON.stringify({ name: row.name }),
           })
           const payload = await response.json()
-          if (payload?.ok === true && payload.accepted === true) {
-            // The recomposition may stop this very page's plugin; the honest
-            // report is written by the host and read back on the next load.
-            setNote(t('updateDone'))
-          } else {
-            setNote(payload?.detail ?? payload?.error ?? t('updateFailed'))
-          }
+          if (payload?.accepted !== true) setNote(payload?.detail ?? payload?.error ?? t('updateFailed'))
         } catch (error) {
           setNote(String(error?.message ?? error))
         } finally {
           setBusy(false)
-          setTimeout(() => reload(), 1500)
+          setTimeout(() => {
+            loadUpdateState(true).then(() => setNote(null))
+          }, 1500)
         }
       }
 
-      // Confirm BEFORE the request: a busy panel wipes the error the user is
-      // reading (same rule as the credential vault's delete).
-      const confirm = typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm.bind(window) : () => true
+      const confirm =
+        typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm.bind(window) : () => true
       const onClick = () => {
         if (!confirm(t('updateConfirm'))) return
         run()
+      }
+
+      // The host writes the outcome to disk because a self-update stops this
+      // module; reading it back is how the page learns what actually happened.
+      const restart = outcome?.restart
+      const verdict =
+        restart === undefined
+          ? null
+          : restart.application === 'applied'
+            ? t('updateDone')
+            : `${t('updateDone')} · ${restart.restartReason ?? restart.application}`
+
+      if (row.updatable !== true) {
+        return h('span', { style: { ...T.caption, color: C.secondary } }, verdict ?? t('updateCurrent'))
       }
 
       return h(
@@ -4517,6 +4578,7 @@ window.__ModuleLoader__.load({
           t('updateTo').replace('{version}', String(row.nextVersion ?? '')),
         ),
         note === null ? null : h('span', { style: { ...T.caption, color: C.secondary } }, note),
+        verdict === null ? null : h('span', { style: { ...T.caption, color: C.secondary } }, verdict),
       )
     }
 
@@ -4531,7 +4593,6 @@ window.__ModuleLoader__.load({
       __credentialVault: CredentialVault,
       __pluginUpdateAction: PluginUpdateAction,
       __pluginUpdateBadge: PluginUpdateBadge,
-      __updateRowFor: updateRowFor,
     }
   },
 })

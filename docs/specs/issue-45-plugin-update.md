@@ -48,15 +48,20 @@
 ```
 1. 前置校验(任一失败即中止,不动文件)
    · 工作树干净           → git status --porcelain 为空
-   · 能 ff-only           → 目标 ref 是 HEAD 的后代或等于 HEAD
-   · entry probe          → 每个受影响 bundle 入口可 import(失败即拒)
-2. 快照 → $DSH_HOME/plugin-update-backups/<ts>/(package.json, pnpm-lock.yaml, git HEAD)
-3. git merge --ff-only <target>
-4. lockfile 变了 → pnpm install;websearch 源码变了 → pnpm build:websearch
-5. res.end()                       ← 必须先返回(更新的可能就是本插件)
-6. hmr.runExclusive(() => hmr.reconcileProfile())
-7. 结果落盘到 $DSH_HOME/plugin-update/last.json,面板刷新时读取
+   · HEAD 在分支上        → 游离 HEAD 拒绝(没有分支可推进)
+   · relation 必须是 behind → ahead / diverged / unknown 全部拒绝
+   · 入口 probe           → 用 `node --check` 解析**目标 ref** 里每个受影响 bundle 的入口
+2. git fetch + git merge --ff-only <target>
+3. lockfile/package.json 变了 → pnpm install;websearch lib 变了 → pnpm build:websearch
+   → 这两步失败则 `git reset --hard <from>` 回到原处再报错(此时还没有重组合,旧代码仍在跑)
+4. res.end()                       ← 必须先返回(更新的可能就是本插件)
+5. hmr.runExclusive(() => hmr.reconcileProfile())
+6. 结果落盘到 $DSH_HOME/plugin-update/last.json;GET 读它,面板据此显示结论
 ```
+
+已知与初版 spec 的差异(实现后修正):
+- **probe 是 `node --check` 语法校验,不是完整 import**:bundle 需要 `ctx`,脱离宿主 import 会失败(仓库自己的 update gate 也把这种情况记作 `needs-review` 而不是绿)。它挡得住"新代码根本解析不了",挡不住"能解析但初始化抛错"。
+- 没有单独的备份目录:回滚靠 `git reset --hard <from>`,git 自己就是那份快照。
 
 ### 失败语义
 

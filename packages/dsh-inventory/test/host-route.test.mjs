@@ -1105,3 +1105,51 @@ test('the snapshot pins the default workspace first and names it', async () => {
     fixture.restore()
   }
 })
+
+test('the update route answers before it asks for a recomposition', async () => {
+  // A recomposition stops the affected rows before it recomposes them, and the
+  // row being updated is often this very bundle: a response written afterwards
+  // would never reach the browser. This route runs against the real checkout, so
+  // it may legitimately refuse (dirty tree / up to date); the invariant checked
+  // here is the ordering, and `runUpdate`'s own test pins the accepted path.
+  const order = []
+  const ctx = makeContext()
+  ctx.get = (name) =>
+    name === 'hmr'
+      ? {
+          runExclusive: async (operation) => {
+            order.push('reconcile')
+            return operation()
+          },
+          reconcileProfile: async () => {
+            order.push('reconcileProfile')
+            return { warnings: [], pending: [] }
+          },
+        }
+      : undefined
+  apply(ctx)
+
+  const route = ctx.routes.find((entry) => entry.path === PLUGIN_UPDATE_APPLY_ROUTE)
+  assert.ok(route, 'apply route not registered')
+
+  let status = 0
+  let body = ''
+  await route.handler({ method: 'POST', url: PLUGIN_UPDATE_APPLY_ROUTE }, {
+    writeHead(code) {
+      order.push('respond')
+      status = code
+    },
+    end(chunk) {
+      body = chunk ?? ''
+    },
+  })
+
+  assert.equal(status, 200, 'the route must answer')
+  assert.ok(body.length > 0, 'the route must write a body')
+  if (order.includes('reconcile')) {
+    assert.ok(
+      order.indexOf('respond') < order.indexOf('reconcile'),
+      `the answer must precede the recomposition, got: ${order.join(' → ')}`,
+    )
+  }
+})

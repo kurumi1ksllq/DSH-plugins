@@ -1,5 +1,5 @@
 /**
- * The update half of the Plugins page (issue #44).
+ * The update half of the Plugins page (issue #45).
  *
  * Two properties matter more than the happy path, because a recomposition is
  * not a transaction: a failed replacement stops the old code and never brings it
@@ -14,8 +14,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  changedFiles,
   checkUpdatable,
   localBundles,
+  needsBuild,
+  needsInstall,
+  probeTargetEntries,
   moveCheckout,
   parsePackagesVersions,
   readCheckoutState,
@@ -232,8 +236,7 @@ test('runUpdate degrades honestly when the profile has no hmr service', async ()
     reconcile: undefined,
   })
   assert.equal(result.ok, true, 'the files did move, so the update itself succeeded')
-  assert.equal(result.application, 'restart-required')
-  assert.equal(result.restartReason, 'no-hmr')
+  assert.deepEqual(result.restart, { application: 'restart-required', restartReason: 'no-hmr' })
 })
 
 // ---- reading the target and moving the checkout ---------------------------
@@ -289,4 +292,81 @@ test('moveCheckout fast-forwards a behind checkout to the fetched ref', async ()
   assert.notEqual(result.from, result.to, 'the checkout must actually move')
   assert.deepEqual(result.changed, [{ name: 'dsh-one', from: '0.1.0', to: '0.9.0' }])
   assert.equal(JSON.parse(execFileSync('git', ['-C', dir, 'show', 'HEAD:packages/dsh-one/package.json'], { encoding: 'utf8' })).version, '0.9.0')
+})
+
+test('checkUpdatable reports the FIRST reason, not the last one found', () => {
+  // The order is the point: a dirty tree is something the user fixes in place,
+  // while a diverged checkout needs a decision — reporting the second would send
+  // them to the wrong fix.
+  const verdict = checkUpdatable({
+    state: { ok: true, clean: false, dirty: ['README.md'], branch: 'main', head: 'a'.repeat(40) },
+    local: [bundle('dsh-one', '0.1.0')],
+    remote: { 'dsh-one': '0.2.0' },
+    targetHead: 'b'.repeat(40),
+    relation: 'diverged',
+  })
+  assert.equal(verdict.reason, 'dirty-tree')
+})
+
+test('checkUpdatable refuses a checkout that is ahead of the target', () => {
+  // Local commits the target lacks: `merge --ff-only` is a no-op, so the only
+  // thing an "update" would do is stop and restart every row for nothing.
+  const verdict = checkUpdatable({
+    state: { ok: true, clean: true, dirty: [], branch: 'main', head: 'a'.repeat(40) },
+    local: [bundle('dsh-one', '0.1.0')],
+    remote: { 'dsh-one': '0.1.0' },
+    targetHead: 'b'.repeat(40),
+    relation: 'ahead',
+  })
+  assert.equal(verdict.ok, false)
+  assert.equal(verdict.reason, 'ahead-of-target')
+})
+
+test('checkUpdatable refuses when the relation could not be read', () => {
+  const verdict = checkUpdatable({
+    state: { ok: true, clean: true, dirty: [], branch: 'main', head: 'a'.repeat(40) },
+    local: [],
+    remote: {},
+    targetHead: 'b'.repeat(40),
+    relation: 'unknown',
+  })
+  assert.equal(verdict.ok, false)
+  assert.equal(verdict.reason, 'unknown-relation')
+})
+
+test('readCheckoutState keeps the whole path of a modified tracked file', () => {
+  // Porcelain v1 marks a modified tracked file with a LEADING space (` M path`);
+  // trimming before slicing ate two characters of the path.
+  const dir = initCheckout()
+  writeFileSync(join(dir, 'packages', 'dsh-one', 'package.json'), JSON.stringify({ name: 'dsh-one', version: '0.1.1' }))
+  const state = readCheckoutState(dir)
+  assert.deepEqual(state.dirty, ['packages/dsh-one/package.json'])
+})
+
+// ---- the entry probe ------------------------------------------------------
+
+test('probeTargetEntries parses the target’s entry files, not the working tree', () => {
+  const dir = initCheckout()
+  writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const ok = 1\n')
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'entry')
+
+  const good = probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
+  assert.equal(good.ok, true)
+
+  // A broken entry in the target must be caught BEFORE anything moves.
+  writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const =\n')
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-q', '-m', 'break')
+  const bad = probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
+  assert.equal(bad.ok, false)
+  assert.equal(bad.failures[0].path, 'packages/dsh-one/index.js')
+})
+
+test('changedFiles and the install/build predicates follow the file list', () => {
+  assert.equal(needsInstall(['pnpm-lock.yaml']), true)
+  assert.equal(needsInstall(['packages/dsh-inventory/package.json']), true)
+  assert.equal(needsInstall(['packages/dsh-inventory/client.js']), false)
+  assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), true)
+  assert.equal(needsBuild(['packages/dsh-inventory/client.js']), false)
 })
