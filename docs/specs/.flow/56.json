@@ -1,8 +1,8 @@
 {
   "issue": 56,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-04T04:39:30.319Z",
+  "stage": "review",
+  "updatedAt": "2026-11-04T06:06:39.770Z",
   "batch": {
     "branch": "issue-52-vault-hotfix",
     "issues": [
@@ -51,12 +51,12 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "pending-decision",
     "axes": 2
   },
   "merge": {
