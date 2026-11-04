@@ -25,7 +25,6 @@ import {
   constants as FS,
   existsSync,
   lstatSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
   readlinkSync,
@@ -33,7 +32,6 @@ import {
   statSync,
   symlinkSync,
   unlinkSync,
-  writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
@@ -57,6 +55,7 @@ import { writePatchEnabled } from './lib/global-patch.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 import {
+  checkoutOverride,
   gitIn,
   localBundles,
   performUpdate,
@@ -1196,23 +1195,6 @@ async function handleSyncPreview(ctx) {
   return { status: 200, payload: { ok: true, ...syncPreview({ snapshot }) } }
 }
 
-/** Run a command in `cwd`; a failure is a value. */
-function runIn(cwd, file, args, timeoutMs) {
-  try {
-    const stdout = execFileSync(file, args, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: timeoutMs,
-      maxBuffer: 8 * 1024 * 1024,
-    })
-    return { ok: true, stdout }
-  } catch (error) {
-    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n').slice(-3).join(' ') : ''
-    return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
-  }
-}
-
 /**
  * The checkout this plugin is running from.
  *
@@ -1227,7 +1209,7 @@ function pluginCheckoutRoot() {
   // An explicit override exists so an unusual layout (a copied bundle, a nested
   // clone) can name its repository, and so tests can point the route at a
   // throwaway checkout instead of the one this process was loaded from.
-  const override = process.env.DSH_INVENTORY_UPDATE_REPO
+  const override = checkoutOverride()
   const here = dirname(fileURLToPath(import.meta.url))
   const top = override !== undefined && override.length > 0 ? { ok: true, stdout: override } : gitIn(here, ['rev-parse', '--show-toplevel'])
   if (top.ok !== true || top.stdout.trim().length === 0) return null

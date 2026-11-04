@@ -15,7 +15,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 
 /** Run git and capture stdout; a failure is a value, not an exception. */
 export function gitIn(dir, args, options = {}) {
@@ -353,7 +353,14 @@ export function changedFiles(repoDir, from, to) {
 export function needsInstall(repoDir, from, to, files) {
   if (files.includes('pnpm-lock.yaml')) return true
   const manifests = files.filter((file) => /(^|\/)package\.json$/.test(file))
-  const FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+  const FIELDS = [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+    'workspaces',
+    'pnpm',
+  ]
   for (const file of manifests) {
     const read = (ref) => {
       const shown = gitIn(repoDir, ['show', `${ref}:${file}`])
@@ -486,13 +493,17 @@ export function writeLastOutcome(stateDir, value) {
 export async function performUpdate(options) {
   const { repo, stateDir, respond, reconcile } = options
   const target = options.target ?? 'origin/main'
+  // Parse once: the gate, the probe and the fast-forward must all describe the
+  // same ref, or the gate approves a move the merge cannot perform.
+  const [remoteName = 'origin', ...refParts] = target.split('/')
+  const ref = refParts.length > 0 ? refParts.join('/') : 'main'
   const remember = (value) => {
     const written = writeLastOutcome(stateDir, value)
     if (written.ok !== true) return { ...value, lastWriteError: written.error }
     return value
   }
 
-  const fetched = gitIn(repo, ['fetch', '--quiet', ...target.split('/')], { timeoutMs: 60_000 })
+  const fetched = gitIn(repo, ['fetch', '--quiet', remoteName, ref], { timeoutMs: 60_000 })
   if (fetched.ok !== true) {
     const refused = { ok: false, stage: 'fetch', detail: fetched.error, at: Date.now() }
     remember(refused)
@@ -560,7 +571,7 @@ export async function performUpdate(options) {
   const result = await runUpdate({
     gate,
     moveCheckout: async () => {
-      const moved = await moveCheckout(repo, { remote: 'origin', ref: 'main' })
+      const moved = await moveCheckout(repo, { remote: remoteName, ref })
       if (moved.ok !== true) return moved
       const files = changedFiles(repo, moved.from, moved.to)
       const undo = (why) => {
@@ -611,4 +622,21 @@ function runIn(cwd, file, args, timeoutMs) {
     const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n').slice(-3).join(' ') : ''
     return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
   }
+}
+
+/**
+ * The checkout named by `DSH_INVENTORY_UPDATE_REPO`, or undefined.
+ *
+ * Absolute only: a relative value would resolve against the service's working
+ * directory, which may be an unrelated repository — and the caller runs
+ * `git fetch`, `git merge` and `pnpm install` in whatever this returns. The name
+ * check in `pluginCheckoutRoot()` still applies on top.
+ *
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {string|undefined}
+ */
+export function checkoutOverride(env = process.env) {
+  const raw = env.DSH_INVENTORY_UPDATE_REPO
+  if (typeof raw !== 'string' || raw.length === 0) return undefined
+  return isAbsolute(raw) ? raw : undefined
 }

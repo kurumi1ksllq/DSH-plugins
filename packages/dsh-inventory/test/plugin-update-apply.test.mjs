@@ -5,7 +5,8 @@
  * the checkout the *running plugin* was loaded from: a test that POSTs to it runs
  * `git fetch` against the real repository and writes the real
  * `$DSH_HOME/plugin-update/last.json`. One such test overwrote a user's genuine
- * update result with a fabricated `up-to-date`, which then read as a product bug.
+ * update result, so the panel's "last outcome" was really a test artifact — and it
+ * was briefly read as a product bug.
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

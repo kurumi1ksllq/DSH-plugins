@@ -32,7 +32,8 @@
    的 mtime **不变**(已实测:435 项测试,文件未动);
 2. 新测试在临时仓库上断言:拒绝 → HEAD 不动 + last.json 记原因;成功 → HEAD 前移 +
    `changed` 正确 + `restart:{application}`;probe 失败 → HEAD 不动;
-3. 反向验证:去掉仓库覆盖 → 测试红(实测 3 条红);
+3. 反向验证:在 `plugin-update-apply.test.mjs` 上把 `stateDir` 换回真实目录/去掉注入 → 测试红
+   (**不**用「去掉仓库覆盖」来自证:那条路径会真的对真实仓库跑 fetch,是破坏性的);
 4. `pnpm verify` 全绿。
 
 ## 5. Tickets
@@ -49,5 +50,5 @@
 
 | 风险 | 缓解 |
 | --- | --- |
-| 覆盖点是新的生产入口,可能被滥用 | 只接受绝对路径,且仍校验 `packages/dsh-inventory/package.json` 的 name |
+| 覆盖点是新的生产入口,可能被滥用 | `checkoutOverride()` 只接受绝对路径(相对值直接忽略);`pluginCheckoutRoot()` 仍校验 `packages/dsh-inventory/package.json` 的 name |
 | 测试放宽后漏掉真实接线错误 | 保留一条端到端用例(setter 注入临时仓库 + 临时 DSH_HOME),断言 POST 真的推进了 checkout |

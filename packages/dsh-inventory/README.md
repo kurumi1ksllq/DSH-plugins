@@ -58,8 +58,9 @@ bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写
 | `DSH_INVENTORY_UPDATE_REPO` | 指定要更新的仓库(默认从本插件文件位置反解出 git 顶层) |
 | `DSH_HOME` | 状态目录所在(`<DSH_HOME>/plugin-update/last.json`) |
 
-两者都会校验 `<root>/packages/dsh-inventory/package.json` 的 `name === 'dsh-inventory'`,
-不会对陌生仓库动手。
+`DSH_INVENTORY_UPDATE_REPO` **必须是绝对路径**(相对值会被忽略,以免按服务进程的 cwd 解析到
+别的仓库),并且仍要过 `<root>/packages/dsh-inventory/package.json` 的 `name === 'dsh-inventory'`
+校验;`DSH_HOME` 只决定状态文件写在哪,没有可校验的仓库身份。
 
 ## Plugins-page update button (0.7.0)
 

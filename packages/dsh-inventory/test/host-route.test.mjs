@@ -2,10 +2,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { execFileSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { dshHome } from '../lib/dsh-home.js'
 
 import {
   apply,
@@ -1122,28 +1123,6 @@ test('the apply route refuses the wrong method without touching the checkout', a
   assert.equal(body.error, 'method-not-allowed')
 })
 
-test('the update routes never write to the real state directory when refused', async () => {
-  const ctx = makeContext()
-  apply(ctx)
-  const route = ctx.routes.find((entry) => entry.path === PLUGIN_UPDATE_APPLY_ROUTE)
-  const before = (() => {
-    try {
-      return statSync(join(homedir(), '.dsh', 'plugin-update', 'last.json')).mtimeMs
-    } catch {
-      return null
-    }
-  })()
-  await call(route.handler, { method: 'GET', url: PLUGIN_UPDATE_APPLY_ROUTE })
-  const after = (() => {
-    try {
-      return statSync(join(homedir(), '.dsh', 'plugin-update', 'last.json')).mtimeMs
-    } catch {
-      return null
-    }
-  })()
-  assert.equal(after, before, 'a refused method must not rewrite the last outcome')
-})
-
 test('the apply route updates the checkout it is pointed at, and only that one', async () => {
   // End-to-end on throwaway directories: the route's real POST path runs, but the
   // repository and the state directory are both injected, so nothing outside the
@@ -1168,8 +1147,30 @@ test('the apply route updates the checkout it is pointed at, and only that one',
   g(origin, 'commit', '-q', '-m', 'bump')
 
   const home = mkdtempSync(join(tmpdir(), 'hr-home-'))
+  // Snapshot the real things this test must NOT touch, so "and only that one" is
+  // a claim with an assertion behind it.
+  const realLast = join(dshHome(), 'plugin-update', 'last.json')
+  const realBefore = (() => {
+    try {
+      return statSync(realLast).mtimeMs
+    } catch {
+      return null
+    }
+  })()
+  const realHeadBefore = (() => {
+    try {
+      return execFileSync('git', ['-C', join(import.meta.dirname, '..', '..', '..'), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    } catch {
+      return null
+    }
+  })()
+
   const previous = { repo: process.env.DSH_INVENTORY_UPDATE_REPO, home: process.env.DSH_HOME }
   process.env.DSH_INVENTORY_UPDATE_REPO = repo
+  // The whole safety of this test rests on that override: without it the handler
+  // falls back to the checkout this plugin was loaded from, which is the REAL
+  // repository. Assert it rather than trusting the assignment above.
+  assert.equal(process.env.DSH_INVENTORY_UPDATE_REPO, repo, 'the checkout override must be in place')
   process.env.DSH_HOME = home
   try {
     const ctx = makeContext()
@@ -1196,7 +1197,33 @@ test('the apply route updates the checkout it is pointed at, and only that one',
     assert.equal(last.ok, true)
     assert.deepEqual(last.changed, [{ name: 'dsh-inventory', from: '0.1.0', to: '0.2.0' }])
     assert.equal(g(repo, 'rev-parse', 'HEAD').trim(), g(origin, 'rev-parse', 'HEAD').trim(), 'the injected checkout moved')
+
+    // The real state directory and the real checkout are untouched: that is the
+    // property issue #60 is about.
+    const realAfter = (() => {
+      try {
+        return statSync(realLast).mtimeMs
+      } catch {
+        return null
+      }
+    })()
+    assert.equal(realAfter, realBefore, 'the real last.json must not be rewritten')
+    const realHeadAfter = (() => {
+      try {
+        return execFileSync('git', ['-C', join(import.meta.dirname, '..', '..', '..'), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+      } catch {
+        return null
+      }
+    })()
+    assert.equal(realHeadAfter, realHeadBefore, 'the real checkout must not move')
   } finally {
+    for (const dir of [origin, repo, home]) {
+      try {
+        rmSync(dir, { recursive: true, force: true })
+      } catch {
+        /* a leftover temp dir is not worth failing over */
+      }
+    }
     if (previous.repo === undefined) delete process.env.DSH_INVENTORY_UPDATE_REPO
     else process.env.DSH_INVENTORY_UPDATE_REPO = previous.repo
     if (previous.home === undefined) delete process.env.DSH_HOME
