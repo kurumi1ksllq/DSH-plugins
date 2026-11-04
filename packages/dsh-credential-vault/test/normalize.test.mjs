@@ -183,7 +183,10 @@ test('a version 1 vault still reads with the new metadata defaults', () => {
 test('emptyVault starts at the current version with no entries', () => {
   const vault = emptyVault()
   assert.equal(vault.version, VAULT_VERSION)
-  assert.deepEqual(vault.entries, {})
+  assert.deepEqual(Object.keys(vault.entries), [])
+  // Entries are deliberately prototype-free (issue #48): a bare `entries['toString']`
+  // lookup must not resolve through Object.prototype.
+  assert.equal(Object.getPrototypeOf(vault.entries), null)
 })
 
 test('writeVault/readVault round-trip the normalized metadata', () => {

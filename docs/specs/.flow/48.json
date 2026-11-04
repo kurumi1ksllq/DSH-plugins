@@ -1,0 +1,40 @@
+{
+  "issue": 48,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T01:06:16.994Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "危险键名拒绝 + 无原型读 + hasOwn",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "元数据校验接入 store 与 API",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "提示词二次防御",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档 + 版本 0.3.1",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

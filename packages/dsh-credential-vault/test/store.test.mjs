@@ -69,7 +69,10 @@ test('vault file is 0600 and round-trips', () => {
     writeVault(dir, vault)
     const mode = statSync(join(dir, 'vault.json')).mode & 0o777
     assert.equal(mode, 0o600)
-    assert.deepEqual(readVault(dir), vault)
+    const back = readVault(dir)
+    assert.equal(back.version, 1)
+    // Spread into a plain object: readVault returns prototype-free entries.
+    assert.deepEqual({ ...back.entries }, vault.entries)
     assert.ok(existsSync(`${join(dir, 'vault.json')}.tmp-0`) === false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -79,7 +82,9 @@ test('vault file is 0600 and round-trips', () => {
 test('readVault on a missing file returns an empty vault', () => {
   const dir = tempDir()
   try {
-    assert.deepEqual(readVault(dir), { version: VAULT_VERSION, entries: {} })
+    const vault = readVault(dir)
+    assert.equal(vault.version, VAULT_VERSION)
+    assert.deepEqual(Object.keys(vault.entries), [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

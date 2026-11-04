@@ -48,6 +48,71 @@ export function slugOf(name) {
 }
 
 /**
+ * Field limits for the metadata that reaches the system prompt.
+ *
+ * `service` and `aliases` are interpolated verbatim into every prompt assembly,
+ * so a newline there could start a new instruction line. They are therefore
+ * single-line and short. `note` is exempt from the newline rule (it is prose for
+ * humans and never enters the prompt) but still length-capped.
+ */
+export const META_LIMITS = {
+  service: 64,
+  aliasLength: 64,
+  aliasCount: 16,
+  username: 128,
+  url: 512,
+  note: 512,
+}
+
+const CONTROL_CHARS = /[\r\n\u0000-\u001f\u007f]/
+
+/** A single-line string within `max` characters, or null when empty. */
+function checkSingleLine(field, value, max) {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'string') throw new Error(`invalid ${field}: must be a string`)
+  const text = value.trim()
+  if (text.length === 0) return null
+  if (CONTROL_CHARS.test(text)) throw new Error(`invalid ${field}: must not contain line breaks or control characters`)
+  if (text.length > max) throw new Error(`invalid ${field}: longer than ${max} characters`)
+  return text
+}
+
+/**
+ * Validate and normalize the optional metadata of one credential.
+ *
+ * Throws instead of silently truncating: a user who typed too much must learn
+ * that nothing was stored, not discover a shortened value later.
+ * @param {{service?: unknown, aliases?: unknown, username?: unknown, url?: unknown, note?: unknown}} meta
+ * @returns {{service: string|null, aliases: string[], username: string|null, url: string|null, note: string|null}}
+ */
+export function validateMeta(meta = {}) {
+  const service = checkSingleLine('service', meta.service, META_LIMITS.service)
+  const username = checkSingleLine('username', meta.username, META_LIMITS.username)
+  const url = checkSingleLine('url', meta.url, META_LIMITS.url)
+
+  let note = null
+  if (meta.note !== undefined && meta.note !== null) {
+    if (typeof meta.note !== 'string') throw new Error('invalid note: must be a string')
+    const trimmed = meta.note.trim()
+    if (trimmed.length > META_LIMITS.note) throw new Error(`invalid note: longer than ${META_LIMITS.note} characters`)
+    note = trimmed.length > 0 ? trimmed : null
+  }
+
+  const aliases = normalizeAliases(meta.aliases)
+  if (aliases.length > META_LIMITS.aliasCount) {
+    throw new Error(`invalid aliases: at most ${META_LIMITS.aliasCount} entries`)
+  }
+  for (const alias of aliases) {
+    if (CONTROL_CHARS.test(alias)) throw new Error('invalid aliases: must not contain line breaks or control characters')
+    if (alias.length > META_LIMITS.aliasLength) {
+      throw new Error(`invalid aliases: each alias must be at most ${META_LIMITS.aliasLength} characters`)
+    }
+  }
+
+  return { service, aliases, username, url, note }
+}
+
+/**
  * Normalize a user-maintained alias list: keep only non-empty strings, trim
  * them, and drop entries that fold to the same key (first spelling wins).
  * @param {unknown} aliases
@@ -79,12 +144,30 @@ export function vaultFilePath(dir) {
 }
 
 /** Validate a credential name: non-empty, printable, no path separators. */
+/**
+ * Names that are `Object.prototype` own properties cannot be used as vault keys.
+ *
+ * `entries` is a plain-object map keyed by credential name, so `__proto__` writes
+ * the prototype instead of an entry (the credential silently vanishes while
+ * `entries` starts answering for a name that was never stored), and `toString`
+ * makes every lookup walk the prototype chain and return a phantom credential.
+ * The guard is a deny-list of the finite, well-known set rather than a charset
+ * whitelist, which would reject legitimate names like `阿里云 ECS 密码`.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isDangerousKey(name) {
+  return name === '__proto__' || Object.hasOwn(Object.prototype, name)
+}
+
+/** Validate a credential name: non-empty, printable, no separators, not a prototype key. */
 export function isValidName(name) {
   return (
     typeof name === 'string' &&
     name.trim().length > 0 &&
     name.length <= 128 &&
-    !/[\r\n/\\\u0000-\u001f]/.test(name)
+    !/[\r\n/\\\u0000-\u001f]/.test(name) &&
+    !isDangerousKey(name)
   )
 }
 
@@ -140,7 +223,23 @@ export function openSecret(key, sealedBase64) {
 
 /** Empty in-memory vault shape. */
 export function emptyVault() {
-  return { version: VAULT_VERSION, entries: {} }
+  return { version: VAULT_VERSION, entries: Object.create(null) }
+}
+
+/**
+ * Copy one parsed `entries` object into a prototype-free map.
+ *
+ * JSON.parse already stores `__proto__` as an own property (so parsing alone
+ * cannot pollute), but every downstream `entries[name]` lookup would still
+ * consult the prototype chain. A null-prototype object makes an unknown name a
+ * plain `undefined` instead of a phantom hit.
+ * @param {Record<string, unknown>} parsed
+ * @returns {Record<string, unknown>}
+ */
+function adoptEntries(parsed) {
+  const entries = Object.create(null)
+  for (const key of Object.keys(parsed)) entries[key] = parsed[key]
+  return entries
 }
 
 /** Read and parse vault.json; a missing file is an empty vault. */
@@ -151,7 +250,7 @@ export function readVault(dir) {
   if (!parsed || typeof parsed !== 'object' || typeof parsed.entries !== 'object' || parsed.entries === null) {
     throw new Error(`vault file at ${file} has no entries object`)
   }
-  return { version: typeof parsed.version === 'number' ? parsed.version : VAULT_VERSION, entries: parsed.entries }
+  return { version: typeof parsed.version === 'number' ? parsed.version : VAULT_VERSION, entries: adoptEntries(parsed.entries) }
 }
 
 /** Write vault.json atomically (temp file + rename) with 0600 permissions. */

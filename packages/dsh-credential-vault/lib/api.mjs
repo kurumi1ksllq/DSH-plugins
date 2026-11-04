@@ -12,7 +12,7 @@
 
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson } from './http.mjs'
 import { readAudit, trimAudit } from './audit.js'
-import { KINDS } from './store.js'
+import { KINDS, validateMeta } from './store.js'
 
 /** Fixed text for an unexpected store failure; never the raw error message. */
 const STORE_FAILED_MESSAGE = 'the credential store rejected the request'
@@ -61,12 +61,20 @@ export function createApiHandler(service) {
         const secret = typeof body?.secret === 'string' ? body.secret : ''
         if (secret.length > 64 * 1024) throw new ApiError(413, 'secret-too-large', 'secret exceeds 64 KiB')
         const kind = typeof body?.kind === 'string' && KINDS.includes(body.kind) ? body.kind : 'other'
-        const meta = {
-          service: typeof body?.service === 'string' && body.service.trim().length > 0 ? body.service.trim() : null,
-          aliases: Array.isArray(body?.aliases) ? body.aliases.filter((alias) => typeof alias === 'string') : [],
-          username: typeof body?.username === 'string' ? body.username : null,
-          url: typeof body?.url === 'string' ? body.url : null,
-          note: typeof body?.note === 'string' ? body.note : null,
+        // Same rules the store applies: `service` and `aliases` reach the system
+        // prompt verbatim, so a newline or an oversized value must be refused here
+        // too — with a 400 the panel can explain, not a store-level 500.
+        let meta
+        try {
+          meta = validateMeta({
+            service: body?.service ?? null,
+            aliases: body?.aliases ?? [],
+            username: body?.username ?? null,
+            url: body?.url ?? null,
+            note: body?.note ?? null,
+          })
+        } catch (error) {
+          throw new ApiError(400, 'invalid-metadata', error.message)
         }
         // The panel sends "other" for an unknown kind; anything the enum does not
         // know must be refused rather than silently downgraded.

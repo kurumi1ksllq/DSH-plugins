@@ -15,13 +15,37 @@ export const HINT_SECTION_NAME = 'dsh-credential-vault:hint'
 /** How many entries the index lists before truncating. Bounds the prompt cost. */
 export const HINT_INDEX_LIMIT = 50
 
+/**
+ * Strip the last chance for prompt injection out of one metadata string.
+ *
+ * The store validates these on write, but a vault written by an older build (or
+ * edited by hand) can still hold a newline, and this text goes into EVERY prompt
+ * assembly — so the index never trusts its input: control characters become
+ * spaces and the value is capped.
+ * @param {unknown} value
+ * @param {number} max
+ * @returns {string}
+ */
+function flatten(value, max) {
+  if (typeof value !== 'string') return ''
+  const flat = value.replace(/[\r\n\t\u0000-\u001f\u007f]+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat
+}
+
+/** Hard cap for one rendered index line, so a wide vault cannot balloon the prompt. */
+const INDEX_LINE_MAX = 200
+
 /** One line of the credential index: names and metadata only, never a value. */
 function indexLine(entry) {
-  const details = [entry.kind ?? 'other']
-  if (typeof entry.service === 'string' && entry.service.length > 0) details.push(entry.service)
-  const aliases = Array.isArray(entry.aliases) ? entry.aliases.filter((alias) => typeof alias === 'string' && alias.length > 0) : []
+  const details = [flatten(entry.kind ?? 'other', 32) || 'other']
+  const service = flatten(entry.service, 64)
+  if (service.length > 0) details.push(service)
+  const aliases = Array.isArray(entry.aliases)
+    ? entry.aliases.map((alias) => flatten(alias, 64)).filter((alias) => alias.length > 0).slice(0, 8)
+    : []
   const suffix = aliases.length > 0 ? `; aliases: ${aliases.join(', ')}` : ''
-  return `- ${entry.name} (${details.join(', ')}${suffix})`
+  const line = `- ${flatten(entry.name, 64) || '(unnamed)'} (${details.join(', ')}${suffix})`
+  return line.length > INDEX_LINE_MAX ? `${line.slice(0, INDEX_LINE_MAX)}…` : line
 }
 
 /**
