@@ -67,7 +67,7 @@ profile `/root/.dsh/profiles/web/package.json` 里有两条独立的车道:
 
 4 个 registry 包:`dsh-context@0.79.0`、`dsh-tool-search@0.1.9`、`dsh-plugin-save-token@2.4.1`、`@wxg-prc-cpg/browser-skill-dsh-plugin@0.4.0`。
 
-未安装(不算更新,算安装决策):`dev-flow-skill`、`dsh-git-bash-tool`(后者 Windows 专属,在本机属于 `blocked`)。
+未安装(不算更新,算安装决策):`dsh-git-bash-tool`(Windows 专属,在本机属于 `blocked`)。`dev-flow-skill` 已于 2026-11-04 装上(#47),`check-profile` 的 bundle 数由 5 变 6。
 
 > 复核:`for l in /root/.dsh/profiles/web/node_modules/{*,@local/*}; do [ -L "$l" ] && echo "$l -> $(readlink -f "$l")"; done`
 

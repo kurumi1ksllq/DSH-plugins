@@ -35,11 +35,33 @@ node --test packages/dev-flow-skill/test/*.test.mjs
 
 ## 安装
 
-profile 的 `package.json` 加一行 link，重启 DSH；SKILL.md 期望位于 DSH 的 skill 目录（`~/.dsh/skills/dev-flow/SKILL.md`，以实际目录为准）：
+两件事都要做：**profile 声明它**，**宿主才能加载**。只做第一件不会出现 skill，只做第二件 DSH 启动时就会因为找不到包而报错。
+
+### 1. profile 声明（`dsh.profile.bundles` 必须同时有）
 
 ```json
-"dev-flow-skill": "link:../../packages/dev-flow-skill"
+"dependencies": {
+  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill"
+},
+"dsh": {
+  "profile": {
+    "bundles": ["dev-flow-skill"]
+  }
+}
 ```
+
+这一行让插件的 `apply` 跑起来：它把 `dev-flow` 注册进 `ctx.skills`，正文读包内的 `SKILL.md`。**需要一次 profile 重新组合才生效**（重启 DSH 或等宿主重载）。
+
+### 2. 或者只走文件系统（免重启）
+
+`@deepseek-ai/dsh-skill-filesystem` 默认扫描 `<DSH_HOME>/skills`（rank 400），且 `watch: true`、`watchFollowSymlinks: true`。把包目录软链过去即可，**不需要重启**：
+
+```bash
+mkdir -p ~/.dsh/skills
+ln -sfn /path/to/DSH-plugins/packages/dev-flow-skill ~/.dsh/skills/dev-flow
+```
+
+两条路径都指向同一个 `SKILL.md`，内容同源；同时装上时 runtime 注册优先，`register` 对同名项是 first-wins 并记一条警告。
 
 项目 AGENTS.md 建议加一行保证路由：
 

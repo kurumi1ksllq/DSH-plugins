@@ -38,21 +38,21 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
   "dsh-git-status": "link:/path/to/DSH-plugins/packages/dsh-git-status",
   "dsh-inventory": "link:/path/to/DSH-plugins/packages/dsh-inventory",
   "@local/dsh-prompt-inject": "link:/path/to/DSH-plugins/packages/dsh-prompt-inject",
-  "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin"
+  "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin",
+  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill"
 }
 ```
 
-按需再补这两条（同样要写进第 3 步的 `bundles`，否则不加载）：
+按需再补这条（同样要写进第 3 步的 `bundles`，否则不加载）：
 
 ```json
 "dependencies": {
-  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill",
   "dsh-git-bash-tool": "link:/path/to/DSH-plugins/packages/dsh-git-bash-tool"
 }
 ```
 
 - `dsh-websearch-failover` 的 `/plugin` 后缀不能少——仓库根不是 bundle。
-- `dev-flow-skill` 只注册 skill（包目录内的 `SKILL.md`），不新增工具。
+- `dev-flow-skill` 只注册 skill（包目录内的 `SKILL.md`），不新增工具；装上后会话目录会出现 `dev-flow`。若不想重启 DSH，改用 `~/.dsh/skills/dev-flow` 软链，`skill-filesystem` 会自动发现。
 - `dsh-git-bash-tool` 是 Windows 专属（把 shell 换成 Git Bash、关掉 pwsh 工具），Linux/macOS 不要加。
 - 要装哪个就留哪个，删掉一行等于不装。
 
