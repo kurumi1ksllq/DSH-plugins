@@ -12,6 +12,8 @@ import { join } from 'node:path'
 
 import { CONTROL_CHARS, isValidName, readVault } from '../lib/store.js'
 import { createVaultStore } from '../lib/vault-store.js'
+import { apply } from '../index.js'
+import { readAudit } from '../lib/audit.js'
 import { buildHintText } from '../lib/hint.js'
 
 function tempDir() {
@@ -309,6 +311,88 @@ test('#50 a pre-existing fixed-name backup is cleaned up on the next rotation', 
     const backups = readdirSync(dir).filter((name) => name.startsWith('master.key.bak'))
     assert.ok(backups.length <= 1, `legacy backup must be cleaned, found: ${backups.join(', ')}`)
     assert.equal(store.reveal('a').secret, 'v1')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---- review round: panel must be able to OPEN an unsafe entry (#52 escape hatch)
+
+test('#52 GET /entry on an unsafe name returns structured 409, not 500', async () => {
+  const dir = tempDir()
+  try {
+    writeLegacyVault(dir, ['constructor', 'real'])
+    const store = createVaultStore(dir)
+    const handler = createApiHandler({ store })
+
+    const req = {
+      method: 'GET',
+      url: `${API_BASE}/entry?name=constructor`,
+      headers: { host: 'h:1', origin: 'http://h:1', 'sec-fetch-site': 'same-origin' },
+    }
+    const captured = { status: 0, payload: null }
+    await handler(req, {
+      writeHead(status) { captured.status = status },
+      end(text) { captured.payload = JSON.parse(text) },
+    })
+
+    assert.equal(captured.status, 409, 'structured conflict, not a 500')
+    assert.equal(captured.payload.error, 'unsafe-name')
+    assert.match(captured.payload.message, /unsafe name/)
+    // The same request for a healthy entry keeps working.
+    const ok = { status: 0, payload: null }
+    await handler(
+      { ...req, url: `${API_BASE}/entry?name=real` },
+      { writeHead(s) { ok.status = s }, end(t) { ok.payload = JSON.parse(t) } },
+    )
+    assert.equal(ok.status, 200)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---- review round: unsafe reads must leave a rejected audit record -----------
+
+function auditFakeContext() {
+  const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const shellEnv = {
+    register(contributor) {
+      registered.contributors.push(contributor)
+      return () => {}
+    },
+  }
+  return {
+    registered,
+    systemPrompt: { section: (section) => registered.sections.push(section) },
+    effect(fn) { fn() },
+    tools: { register: (tool) => registered.tools.push(tool) },
+    webServer: { register: () => {} },
+    inject(names, callback) {
+      return names.includes('shellEnv') ? callback({ shellEnv }) : () => {}
+    },
+  }
+}
+
+test('#52 get/reveal on an unsafe name write a rejected audit record', async () => {
+  const dir = tempDir()
+  try {
+    const ctx = auditFakeContext()
+    apply(ctx, { vaultDir: dir })
+    writeLegacyVault(dir, ['constructor'])
+    const tool = ctx.registered.tools[0]
+    const exec = { agent: { session: { header: { id: 's-audit' } } } }
+
+    await assert.rejects(() => tool.execute({ action: 'get', name: 'constructor' }, exec), /unsafe name/)
+    await assert.rejects(() => tool.execute({ action: 'reveal', name: 'constructor' }, exec), /unsafe name/)
+
+    const audit = readAudit(dir, 10)
+    assert.equal(audit.length, 2)
+    for (const record of audit) {
+      assert.equal(record.outcome, 'rejected')
+      assert.equal(record.reason, 'unsafe name')
+      assert.equal(record.sessionId, 's-audit')
+      assert.equal(record.name, 'constructor')
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

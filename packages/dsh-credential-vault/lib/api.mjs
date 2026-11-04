@@ -21,7 +21,19 @@ const STORE_FAILED_MESSAGE = 'the credential store rejected the request'
 export function entryPayload(store, queryName) {
   const name = typeof queryName === 'string' ? queryName.trim() : ''
   if (name.length === 0) throw new ApiError(400, 'invalid-name', 'name is required')
-  const found = store.get(name)
+  let found
+  try {
+    found = store.get(name)
+  } catch (error) {
+    // An unsafe-name entry is kept on disk but refused by the store (issue #52).
+    // The panel needs to OPEN this entry to rename or delete it, so the error
+    // must be a structured response — a 500 here would make the entry invisible
+    // and un-deletable, locking the promised escape hatch.
+    if (/unsafe name/.test(error.message)) {
+      throw new ApiError(409, 'unsafe-name', error.message)
+    }
+    throw error
+  }
   if (found === null) throw new ApiError(404, 'not-found', `no credential named ${JSON.stringify(name)}`)
   return { ok: true, entry: found }
 }

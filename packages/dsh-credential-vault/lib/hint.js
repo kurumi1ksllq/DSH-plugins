@@ -39,8 +39,9 @@ const INDEX_ALIAS_LIMIT = 8
  * Hard cap for the metadata part of one line (the name is never truncated).
  *
  * Sized to fit the worst LEGAL metadata without dropping anything visible:
- * `(token, <64 service>; aliases: <8 × 64 aliases>)` measures ~612 characters.
- * A cap below that silently hid the last aliases (issue #56).
+ * `(database, <64 service>; aliases: <8 × 64 aliases>)` measures 616 characters,
+ * and the whole line (name of 128 + "- " prefix) reaches 747. A cap below 616
+ * silently hid the last aliases (issue #56).
  */
 const INDEX_DETAILS_MAX = 640
 

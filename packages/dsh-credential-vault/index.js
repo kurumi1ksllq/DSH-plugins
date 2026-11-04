@@ -166,7 +166,7 @@ export function apply(ctx, config = {}) {
         }
         if (action === 'get' || action === 'use' || action === 'reveal') {
           const credName = typeof args?.name === 'string' ? args.name.trim() : ''
-          if (!isValidName(credName)) {
+          if (!isValidName(credName) && !store.has(credName)) {
             appendAudit(dir, {
               name: credName || null,
               outcome: 'rejected',
@@ -207,7 +207,23 @@ export function apply(ctx, config = {}) {
             )
           }
           if (action === 'get') {
-            const found = store.get(resolved.name)
+            let found
+            try {
+              found = store.get(resolved.name)
+            } catch (error) {
+              // An unsafe-name entry is refused by the store; the audit must show
+              // the attempt was made and why it failed (spec §2.1).
+              appendAudit(dir, {
+                name: resolved.name,
+                outcome: 'rejected',
+                source: 'tool',
+                action,
+                sessionId: sessionIdOf(exec),
+                resolvedBy: resolved.resolvedBy,
+                reason: 'unsafe name',
+              })
+              throw error
+            }
             appendAudit(dir, {
               name: resolved.name,
               outcome: found === null ? 'missing' : 'ok',
@@ -262,7 +278,21 @@ export function apply(ctx, config = {}) {
               appendAudit(dir, { name: resolved.name, outcome: 'rejected', source: 'tool', reason: 'no session id' })
               throw new Error('credential: "use" requires an agent session')
             }
-            const revealed = store.reveal(resolved.name)
+            let revealed
+            try {
+              revealed = store.reveal(resolved.name)
+            } catch (error) {
+              appendAudit(dir, {
+                name: resolved.name,
+                outcome: 'rejected',
+                source: 'tool',
+                action,
+                sessionId,
+                resolvedBy: resolved.resolvedBy,
+                reason: 'unsafe name',
+              })
+              throw error
+            }
             if (revealed === null) throw new Error(`credential: no credential named "${resolved.name}"`)
             const grant = grants.issue(sessionId, resolved.name, revealed.secret)
             appendAudit(dir, {
@@ -286,7 +316,21 @@ export function apply(ctx, config = {}) {
             }
           }
           if (action === 'reveal') {
-            const revealed = store.reveal(resolved.name)
+            let revealed
+            try {
+              revealed = store.reveal(resolved.name)
+            } catch (error) {
+              appendAudit(dir, {
+                name: resolved.name,
+                outcome: 'rejected',
+                source: 'tool',
+                action,
+                sessionId: sessionIdOf(exec),
+                resolvedBy: resolved.resolvedBy,
+                reason: 'unsafe name',
+              })
+              throw error
+            }
             appendAudit(dir, {
               name: resolved.name,
               outcome: revealed === null ? 'missing' : 'ok',

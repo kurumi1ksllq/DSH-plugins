@@ -46,8 +46,9 @@ export function createVaultStore(dir) {
 
   function entry(name) {
     const vault = readVault(dir)
-    // Defence-in-depth only: `readVault` already returns prototype-free entries
-    // and drops dangerous keys, so this guards against a future change that makes
+    // Defence-in-depth only: `readVault` returns prototype-free entries and
+    // KEEPS dangerous keys (issue #52 — they are user data), so an own key can
+    // be a real entry. This guard exists for a future change that makes
     // `entries` a plain object again.
     if (!Object.hasOwn(vault.entries, name)) return null
     const found = vault.entries[name]
@@ -159,6 +160,17 @@ export function createVaultStore(dir) {
           updatedAt: value.updatedAt ?? null,
         }))
         .sort((a, b) => a.name.localeCompare(b.name))
+    },
+
+    /**
+     * Existence check WITHOUT the unsafe-name read guard: the tool layer needs to
+     * tell "a legacy entry with a dangerous name" apart from "a typo", because the
+     * former must reach the store's read guard (and its audit trail) while the
+     * latter is rejected up front.
+     */
+    has(name) {
+      const vault = readVault(dir)
+      return Object.hasOwn(vault.entries, name)
     },
 
     /** One masked entry or null. */
