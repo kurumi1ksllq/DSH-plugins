@@ -1,0 +1,55 @@
+{
+  "issue": 51,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-04T13:03:46.449Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "T1 稳定 id + vault v3 + readVault 版本上界",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "T2 lib/envelope.mjs 信封加解密",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "T3 lib/merge.mjs 两阶段合并",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "T4 export/import API",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "T5 面板导出/导入 UI",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "T6 bin/vault-sync.mjs CLI",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "T7 文档与版本 0.5.0/0.8.0",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

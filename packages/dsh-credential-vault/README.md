@@ -34,6 +34,11 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
   凭据只能通过 `action:"use"` 拿到的 `DSH_CRED_*` 变量使用；禁止把值拼进
   URL / remote / 命令行参数 / 文件 / 消息；禁止 `echo` / `printenv` 打印变量；
   `reveal` 仅在用户明确要求时使用。
+- **导出 / 导入（0.5.0）**：整库凭据打包成**口令加密的 `.dsvault` 信封**
+  （scrypt N=2¹⁷ + AES-256-GCM，header 进 AAD），用于跨设备同步。导入按**稳定 id**
+  去重（同名不同内容的凭据报告冲突、绝不覆盖），导入端用本机 master.key 重新加密。
+  面板有导出/导入表单；CLI 为 `bin/vault-sync.mjs`（`pnpm vault:export` / `vault:import`），
+  口令只从 stdin 读，**没有环境变量入口**。威胁模型见下文「已知限制」。
 - **管理界面（在「工具管理」页里）**：`dsh-inventory` 的**工具管理**页有「凭据保险库」分区与同名
   分段标签：凭据列表（掩码预览）+ 详情 + 新增/编辑/删除 + 主密钥轮换 + 使用日志。
   本 bundle 的浏览器半区只注册 `credential-vault` 命名空间的文案字典，**不再注册侧边栏槽位**。
@@ -123,6 +128,12 @@ spill 2、`.git/config` 1、`/tmp` 2）。原因很直接：只要明文进入�
   "进程内从不出现明文"不是，也不可能是（要注入就必须先解封）。
 - **`shellEnv` 缺失时 `use` 会明确报错**，不会静默退化到 `reveal`。
 - **历史残留需要手动清理**：见下面的清理脚本。
+- **导出文件（0.5.0）离线可破解**：口令强度直接决定安全性；文件泄露 + 口令泄露 =
+  全库泄露。建议走私密渠道传输，导完即删。
+- **回滚攻击防不住**：拿旧的导出文件用 overwrite 模式重导，能把已轮换的凭据换回旧值
+  （导入时会提示「本机较新」，但拦不住显式覆盖）。记为已知限制。
+- **导出/导入端点非认证**：同源校验只防浏览器 CSRF；本机任何进程（含 agent）都能调用。
+- **`master.key.bak`**：`rotateKey` 会留一份明文旧密钥，确认新密钥可用后应手动删除。
 
 ## 清理历史明文
 
@@ -157,7 +168,7 @@ node scripts/scrub-session-secrets.mjs --roots A,B  # 额外/自定义扫描根
 pnpm --filter dsh-credential-vault test
 ```
 
-158 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
+197 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
 `normalizeKey` / `slug` / 别名去重 / slug 撞名拒绝 / v1 旧库兼容、五级命中
 （exact→slug→alias→service→keyword）与 `ambiguous` 不猜、动态提示词（函数求值 +
 索引 + 硬规则）、`use` 的零明文返回与按会话注入（含 TTL 过期、跨会话隔离、

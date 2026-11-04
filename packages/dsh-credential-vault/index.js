@@ -375,7 +375,7 @@ export function apply(ctx, config = {}) {
 
   // kind 'exact' per route: the web app's listener serves exact routes; the
   // prefix kind registered from a hot-reloaded subtree never became reachable.
-  const apiHandler = createApiHandler({ store })
+  const apiHandler = createApiHandler({ store, dir })
   for (const [routePath, method] of [
     [`${API_BASE}/list`, 'GET'],
     [`${API_BASE}/entry`, 'GET'],
@@ -383,6 +383,8 @@ export function apply(ctx, config = {}) {
     [`${API_BASE}/set`, 'POST'],
     [`${API_BASE}/delete`, 'POST'],
     [`${API_BASE}/rotate`, 'POST'],
+    [`${API_BASE}/export`, 'POST'],
+    [`${API_BASE}/import`, 'POST'],
   ]) {
     ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: routePath, handler: apiHandler }))
   }

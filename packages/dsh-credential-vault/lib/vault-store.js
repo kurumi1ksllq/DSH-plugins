@@ -2,7 +2,7 @@
 // Both the HTTP API and the `credential` tool use this; only `reveal` returns
 // plaintext, and only the tool path calls it.
 
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, openSync, renameSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import {
   KINDS,
@@ -118,6 +118,7 @@ export function createVaultStore(dir) {
           return {
             name,
             slug: slugOf(name),
+            id: value.id ?? null,
             unsafeName,
             kind: value.kind ?? 'other',
             service: value.service ?? null,
@@ -148,6 +149,7 @@ export function createVaultStore(dir) {
         .map(([name, value]) => ({
           name,
           slug: slugOf(name),
+          id: value.id ?? null,
           unsafeName: isDangerousKey(name),
           kind: value.kind ?? 'other',
           service: value.service ?? null,
@@ -210,6 +212,7 @@ export function createVaultStore(dir) {
       const now = new Date().toISOString()
       const previous = vault.entries[name]
       vault.entries[name] = {
+        id: previous?.id ?? randomUUID(),
         kind,
         secret: sealSecret(key, secret),
         username: meta.username,
@@ -276,8 +279,67 @@ export function createVaultStore(dir) {
     },
 
     /**
-     * The only path that produces plaintext. The `credential` tool calls this;
-     * the HTTP API must not.
+     * Batch export: the ONLY bulk path that produces plaintext. Returns full
+     * entries (all metadata + secrets) for the export file; a damaged entry is
+     * skipped and counted rather than failing the whole export (spec §4.0).
+     */
+    exportEntries() {
+      const vault = readVault(dir)
+      const entries = []
+      let corrupt = 0
+      for (const [name, value] of Object.entries(vault.entries)) {
+        let secret
+        try {
+          secret = openSecret(key, value.secret)
+        } catch {
+          corrupt += 1
+          continue
+        }
+        entries.push({
+          id: value.id ?? null,
+          name,
+          kind: value.kind ?? 'other',
+          service: value.service ?? null,
+          aliases: normalizeAliases(value.aliases),
+          username: value.username ?? null,
+          url: value.url ?? null,
+          note: value.note ?? null,
+          createdAt: value.createdAt ?? null,
+          updatedAt: value.updatedAt ?? null,
+          secret,
+        })
+      }
+      return { entries, corrupt }
+    },
+
+    /**
+     * Atomically apply a merged import batch: seal every entry with THIS vault's
+     * key, back up the current file once, then a single writeVault.
+     */
+    applyImport(writes) {
+      const vault = readVault(dir)
+      const now = new Date().toISOString()
+      for (const entry of writes) {
+        vault.entries[entry.name] = {
+          id: entry.id,
+          kind: entry.kind ?? 'other',
+          secret: sealSecret(key, entry.secret),
+          username: entry.username ?? null,
+          url: entry.url ?? null,
+          note: entry.note ?? null,
+          service: entry.service ?? null,
+          aliases: normalizeAliases(entry.aliases),
+          createdAt: entry.createdAt ?? now,
+          updatedAt: entry.updatedAt ?? now,
+        }
+      }
+      vault.version = VAULT_VERSION
+      writeVault(dir, vault)
+    },
+
+    /**
+     * The only path that produces plaintext for a SINGLE credential. The
+     * `credential` tool calls this; the HTTP API must not.
      */
     reveal(name) {
       assertSafeRead(name)
@@ -285,6 +347,7 @@ export function createVaultStore(dir) {
       if (found === null) return null
       return {
         name,
+        id: found.id ?? null,
         kind: found.kind ?? 'other',
         username: found.username ?? null,
         url: found.url ?? null,

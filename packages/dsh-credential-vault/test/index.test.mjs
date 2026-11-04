@@ -47,7 +47,9 @@ test('apply registers the tool, the hint section and the API route', async () =>
     assert.equal(ctx.registered.tools.length, 1)
     assert.equal(ctx.registered.tools[0].name, TOOL_NAME)
     assert.ok(ctx.registered.sections.some((section) => section.name === 'dsh-credential-vault:hint'))
-    assert.equal(ctx.registered.routes.length, 6)
+    assert.equal(ctx.registered.routes.length, 8)
+    assert.ok(ctx.registered.routes.some((r) => r.path.endsWith('/export')))
+    assert.ok(ctx.registered.routes.some((r) => r.path.endsWith('/import')))
     for (const route of ctx.registered.routes) {
       assert.equal(route.kind, 'exact')
       assert.ok(route.path.startsWith(API_BASE))
