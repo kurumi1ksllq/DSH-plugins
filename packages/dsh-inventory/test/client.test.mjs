@@ -114,7 +114,15 @@ function makeReactRuntime() {
     }
     return tree
   }
-  return { React, render }
+  // Seed hook slots before the first render so a component that reads a fetched
+  // value can be rendered deterministically (the runtime has no async scheduler).
+  const seedState = (values) => {
+    values.forEach((value, index) => {
+      stateHooks[index] = value
+    })
+  }
+
+  return { React, render, seedState }
 }
 
 function textOf(node) {
@@ -227,10 +235,17 @@ test('client registers a sidebar entry plus a main panel and renders both states
 
   // A sidebar entry and its main panel, keyed together so selecting one routes
   // the shell to the other.
-  assert.equal(injections.length, 2)
-  assert.deepEqual(injections.map((injection) => injection.name), ['sidebar.panellist', 'main'])
+  // Two for this panel's own UI, two for the Plugins page's detail slots
+  // (issue #45): the update button and its "update available" tag.
+  assert.equal(injections.length, 4)
+  assert.deepEqual(injections.map((injection) => injection.name), [
+    'sidebar.panellist',
+    'main',
+    'plugins.detail.actions',
+    'plugins.detail.badge',
+  ])
   for (const injection of injections) injection.factory()
-  assert.equal(registrations.length, 2)
+  assert.equal(registrations.length, 4)
 
   const sidebar = registrations.find((entry) => entry.spec.name === 'sidebar.panellist')
   const main = registrations.find((entry) => entry.spec.name === 'main')
@@ -1923,4 +1938,71 @@ test('the credential editor offers database, service, aliases and a slug preview
   const detailText = textOf(open())
   assert.match(detailText, /github/, 'the detail card must show the service')
   assert.match(detailText, /GitHub_Token/, 'the detail card must show the alias chips')
+})
+
+test('the update slots stay silent for a package this checkout does not carry', async () => {
+  // Rendered, not inspected: both entries must produce nothing for a package that
+  // is not in this checkout's bundle list, which is what keeps every other
+  // plugin's page pixel-identical. Official bundles are excluded before any
+  // request is made, so opening their pages costs nothing.
+  const { React, render } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL(`../client.js?v=update-slots`, import.meta.url).href)
+  const plugin = loaded.factory(() => React)
+
+  const requests = []
+  globalThis.fetch = async (url) => {
+    requests.push(String(url))
+    return { ok: true, status: 200, json: async () => ({ ok: true, bundles: [], last: null }) }
+  }
+  const t = (key) => key
+  const action = plugin.__pluginUpdateAction
+  const badge = plugin.__pluginUpdateBadge
+  assert.equal(typeof action, 'function')
+  assert.equal(typeof badge, 'function')
+
+  for (const subject of [
+    { kind: 'bundle', pkg: { name: '@deepseek-ai/dsh-base', installed: true } },
+    { kind: 'item', id: 'settings' },
+    { kind: 'row', pkg: { name: 'dsh-inventory', installed: true }, row: { rowId: 'x', moduleName: 'y', enabled: true } },
+    { kind: 'bundle', pkg: { name: 'dsh-inventory', installed: false } },
+  ]) {
+    assert.equal(resolveTree(render(action, { subject, t })), null, `action rendered for ${JSON.stringify(subject)}`)
+    assert.equal(resolveTree(render(badge, { subject, t })), null, `badge rendered for ${JSON.stringify(subject)}`)
+  }
+  assert.deepEqual(requests, [], 'a foreign or official page must not trigger a request')
+})
+
+test('the update action offers the target version once the host reports one', async () => {
+  const { React, render, seedState } = makeReactRuntime()
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (definition) => (loaded = definition) } }
+  await import(new URL(`../client.js?v=update-action`, import.meta.url).href)
+  const plugin = loaded.factory(() => React)
+  // The real dictionary renders "更新到 {version}"; a key-echoing `t` would make
+  // the version assertion vacuous.
+  const dictionary = { updateTo: 'update to {version}', updateCurrent: 'already current', updateDone: 'updated' }
+  const t = (key) => dictionary[key] ?? key
+  const subject = { kind: 'bundle', pkg: { name: 'dsh-inventory', installed: true } }
+
+  // What the host answers for a checkout that is one version behind.
+  const status = {
+    ok: true,
+    bundles: [{ name: 'dsh-inventory', version: '0.6.0', nextVersion: '0.7.0', updatable: true }],
+    last: null,
+  }
+
+  // The component also fetches on mount; answer with the same status so the
+  // render loop settles on it rather than on a stale stub from another test.
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => status })
+
+  seedState([status])
+  const tree = resolveTree(render(plugin.__pluginUpdateAction, { subject, t }))
+  assert.match(textOf(tree), /update to 0\.7\.0/, 'the button must name the target version')
+
+  // Up to date: no button, and the page says so instead of showing nothing.
+  seedState([{ ...status, bundles: [{ ...status.bundles[0], nextVersion: '0.6.0', updatable: false }] }])
+  const current = resolveTree(render(plugin.__pluginUpdateAction, { subject, t }))
+  assert.match(textOf(current), /already current/)
 })

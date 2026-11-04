@@ -19,7 +19,22 @@
  *                                 global skill root (its SKILL.md flag).
  */
 
-import { accessSync, constants as FS, existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, rmdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  accessSync,
+  constants as FS,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  rmdirSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -41,6 +56,20 @@ import { setSkillEnabled } from './lib/skill-toggle.js'
 import { writePatchEnabled } from './lib/global-patch.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
+import {
+  changedFiles,
+  checkUpdatable,
+  gitIn,
+  localBundles,
+  moveCheckout,
+  needsBuild,
+  needsInstall,
+  probeTargetEntries,
+  readCheckoutState,
+  relationTo,
+  remoteVersionsAt,
+  runUpdate,
+} from './lib/plugin-update.js'
 import { syncApply, syncConfigure, syncPreview, syncPublish, syncStatus } from './lib/sync-service.js'
 
 export const name = 'dsh-inventory'
@@ -56,6 +85,8 @@ export const SYNC_ROUTE = '/inventory/sync'
 export const SYNC_CONFIG_ROUTE = '/inventory/sync/config'
 export const SYNC_PREVIEW_ROUTE = '/inventory/sync/preview'
 export const SYNC_APPLY_ROUTE = '/inventory/sync/apply'
+export const PLUGIN_UPDATE_ROUTE = '/inventory/plugin-update'
+export const PLUGIN_UPDATE_APPLY_ROUTE = '/inventory/plugin-update/apply'
 
 const MCP_CLIENT_MODULE = '@deepseek-ai/dsh-mcp-client'
 
@@ -1170,6 +1201,248 @@ async function handleSyncPreview(ctx) {
   return { status: 200, payload: { ok: true, ...syncPreview({ snapshot }) } }
 }
 
+/** Run a command in `cwd`; a failure is a value. */
+function runIn(cwd, file, args, timeoutMs) {
+  try {
+    const stdout = execFileSync(file, args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+      maxBuffer: 8 * 1024 * 1024,
+    })
+    return { ok: true, stdout }
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n').slice(-3).join(' ') : ''
+    return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
+  }
+}
+
+/**
+ * The checkout this plugin is running from.
+ *
+ * Not `pluginRepoRoot()`: that one is where the *sync* lane clones a repository
+ * into (`$DSH_HOME/plugin-repo`). The update button has to move the tree the
+ * profile actually loads, so it asks git for the top level above this file.
+ *
+ * @returns {string|null} absolute path, or null when this install is not a git
+ *   checkout (a copied bundle inside a profile has no history to update from).
+ */
+function pluginCheckoutRoot() {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const top = gitIn(here, ['rev-parse', '--show-toplevel'])
+  if (top.ok !== true || top.stdout.trim().length === 0) return null
+  const root = top.stdout.trim()
+  // A checkout that merely CONTAINS this bundle is not ours to move: the repo
+  // may have been cloned inside another repository, or $HOME may itself be one.
+  // Requiring our own packages/<name>/package.json keeps `git fetch` off
+  // strangers' trees.
+  const own = gitIn(root, ['show', 'HEAD:packages/dsh-inventory/package.json'])
+  if (own.ok !== true) return null
+  try {
+    return JSON.parse(own.stdout).name === 'dsh-inventory' ? root : null
+  } catch {
+    return null
+  }
+}
+
+/** Where the last outcome lives. On disk, because a self-update kills the module. */
+function lastUpdatePath() {
+  return join(dshHome(), 'plugin-update', 'last.json')
+}
+
+function readLastUpdate() {
+  try {
+    return JSON.parse(readFileSync(lastUpdatePath(), 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function writeLastUpdate(value) {
+  const file = lastUpdatePath()
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
+  } catch (error) {
+    ctxLoggerWarn(`plugin-update: cannot write ${file}: ${error?.message ?? error}`)
+  }
+}
+
+/** `logger?.warn` without requiring a ctx in module scope. */
+let warnSink = null
+function ctxLoggerWarn(message) {
+  if (typeof warnSink === 'function') warnSink(message)
+}
+
+/** The remote-tracking ref the update follows. */
+const UPDATE_TARGET = 'origin/main'
+
+async function handlePluginUpdate(ctx, req) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'GET') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+
+  const repo = pluginCheckoutRoot()
+  if (repo === null) {
+    return {
+      status: 200,
+      payload: {
+        ok: false,
+        error: 'this plugin is not running from a git checkout, so there is nothing to update from',
+        last: readLastUpdate(),
+      },
+    }
+  }
+
+  // Reading the remote needs a fetch. A failure here still leaves the local side
+  // worth reporting: the panel shows the checkout's state and says why the remote
+  // side is unknown.
+  const fetched = gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
+  const state = readCheckoutState(repo)
+  const { relation, ahead, behind } = relationTo(repo, UPDATE_TARGET)
+  const local = localBundles(repo)
+  const remote = fetched.ok === true ? remoteVersionsAt(repo, UPDATE_TARGET) : {}
+
+  return {
+    status: 200,
+    payload: {
+      ok: true,
+      repo,
+      branch: state.branch ?? null,
+      head: state.head ?? null,
+      clean: state.clean === true,
+      dirty: state.dirty ?? [],
+      relation,
+      ahead,
+      behind,
+      ...(fetched.ok === true ? {} : { fetchError: fetched.error }),
+      bundles: local.map((item) => ({
+        name: item.name,
+        version: item.version,
+        nextVersion: remote[item.name] ?? null,
+        updatable: typeof remote[item.name] === 'string' && remote[item.name] !== item.version,
+      })),
+      last: readLastUpdate(),
+    },
+  }
+}
+
+async function handlePluginUpdateApply(ctx, req, res) {
+  const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
+  if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
+  warnSink = typeof ctx.logger?.warn === 'function' ? ctx.logger.warn.bind(ctx.logger) : null
+
+  const repo = pluginCheckoutRoot()
+  if (repo === null) {
+    return { status: 400, payload: { ok: false, error: 'this plugin is not running from its own git checkout' } }
+  }
+
+  const fetched = gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
+  if (fetched.ok !== true) {
+    return { status: 400, payload: { ok: false, stage: 'fetch', detail: fetched.error } }
+  }
+
+  const target = gitIn(repo, ['rev-parse', UPDATE_TARGET])
+  if (target.ok !== true) {
+    return { status: 400, payload: { ok: false, stage: 'target', detail: target.error } }
+  }
+
+  const local = localBundles(repo)
+  const remote = remoteVersionsAt(repo, UPDATE_TARGET)
+  const gate = checkUpdatable({
+    state: readCheckoutState(repo),
+    local,
+    remote,
+    targetHead: target.stdout.trim(),
+    relation: relationTo(repo, UPDATE_TARGET).relation,
+  })
+
+  // The probe runs on the TARGET's files, before anything moves, because a
+  // failed replacement is not recoverable: dsh-hmr stops the old version and does
+  // not restore it.
+  if (gate.ok === true) {
+    const moving = new Set((gate.changed ?? []).map((item) => item.name))
+    const dirs = []
+    for (const item of local) {
+      if (moving.size > 0 && !moving.has(item.name)) continue
+      const found = gitIn(repo, ['ls-tree', '-r', '--name-only', UPDATE_TARGET, 'packages'])
+      if (found.ok !== true) continue
+      const hit = found.stdout
+        .split('\n')
+        .find((path) => /^packages\/[^/]+\/package\.json$/.test(path) && path.includes(item.name))
+      if (hit !== undefined) dirs.push(hit.replace(/\/package\.json$/, ''))
+    }
+    const probe = probeTargetEntries(repo, UPDATE_TARGET, dirs)
+    if (probe.ok !== true) {
+      const failed = { ok: false, stage: 'probe', detail: `the new code does not parse: ${JSON.stringify(probe.failures)}` }
+      writeLastUpdate({ at: Date.now(), ...failed })
+      return { status: 400, payload: failed }
+    }
+  }
+
+  const from = readCheckoutState(repo).head
+  const hmr = ctx.get('hmr')
+  const reconcilable =
+    hmr !== undefined && typeof hmr?.runExclusive === 'function' ? () => hmr.runExclusive(() => hmr.reconcileProfile()) : undefined
+
+  const result = await runUpdate({
+    gate,
+    moveCheckout: async () => {
+      const moved = await moveCheckout(repo, { remote: 'origin', ref: 'main' })
+      if (moved.ok !== true) return moved
+
+      // A moved lockfile means the profile's node_modules no longer matches the
+      // code that is about to be recomposed; and the generated engine copies are
+      // gitignored, so a checkout alone leaves websearch without its files.
+      const files = changedFiles(repo, moved.from, moved.to)
+      const undo = (why) => {
+        // Nothing has been recomposed yet, so the old code is still running: put
+        // the tree back and report the failure instead of leaving a half-updated
+        // checkout for the next recomposition to load.
+        const restored = gitIn(repo, ['reset', '--hard', '--quiet', moved.from])
+        return { ok: false, error: `${why}${restored.ok === true ? ' (checkout restored)' : ' (restore FAILED)'}` }
+      }
+      if (needsInstall(files)) {
+        const installed = await runIn(repo, 'pnpm', ['install', '--prefer-offline'], 300_000)
+        if (installed.ok !== true) return undo(`pnpm install failed: ${installed.error}`)
+      }
+      if (needsBuild(files)) {
+        const built = await runIn(repo, 'pnpm', ['build:websearch'], 180_000)
+        if (built.ok !== true) return undo(`build:websearch failed: ${built.error}`)
+      }
+      return moved
+    },
+    // Answer with the mover's real outcome: a failed fetch or a refused
+    // fast-forward must reach the browser as a failure. The recomposition has not
+    // happened yet, so the payload says "accepted", never "applied".
+    respond: (moved) => {
+      const payload =
+        moved?.ok === true
+          ? {
+              ok: true,
+              accepted: true,
+              from: moved.from,
+              to: moved.to,
+              changed: moved.changed ?? [],
+              note: 'recomposing now; reload this page in a moment',
+            }
+          : {
+              ok: gate.ok === true,
+              accepted: false,
+              ...(gate.ok === true ? { reason: 'move-failed' } : { reason: gate.reason }),
+              detail: moved?.error ?? gate.detail,
+            }
+      sendJson(res, 200, payload)
+      writeLastUpdate({ at: Date.now(), stage: 'accepted', ...payload })
+    },
+    reconcile: reconcilable,
+  })
+
+  writeLastUpdate({ at: Date.now(), ...result })
+  invalidateSnapshot()
+  return { status: 200, payload: result }
+}
+
 async function handleSyncApply(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
@@ -1291,6 +1564,35 @@ export function apply(ctx) {
       },
     }),
   )
+
+  const updateRoutes = [
+    { path: PLUGIN_UPDATE_ROUTE, handler: handlePluginUpdate, label: '插件更新检查' },
+    { path: PLUGIN_UPDATE_APPLY_ROUTE, handler: handlePluginUpdateApply, label: '插件更新' },
+  ]
+  for (const route of updateRoutes) {
+    ctx.effect(() =>
+      ctx.webServer.register({
+        kind: 'exact',
+        path: route.path,
+        handler: async (req, res) => {
+          try {
+            if (isForbiddenOrigin(req)) {
+              sendJson(res, 403, { ok: false, error: 'forbidden-origin' })
+              return
+            }
+            const { status, payload } = await route.handler(ctx, req, res)
+            // A handler that already answered (the update path) must not be
+            // written to twice.
+            if (res.writableEnded !== true) sendJson(res, status, payload)
+          } catch (error) {
+            if (res.writableEnded !== true) {
+              sendJson(res, 500, { ok: false, error: `${route.label}失败：${error?.message ?? error}` })
+            }
+          }
+        },
+      }),
+    )
+  }
 
   const syncRoutes = [
     { path: SYNC_ROUTE, handler: handleSync, label: '同步状态' },

@@ -1,0 +1,45 @@
+{
+  "issue": 45,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-04T08:16:22+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "lib/plugin-update.js:门禁+版本判定+ff-only 推进",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "host 路由 GET/POST + 先响应后重组合",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "client slot 注册(actions + badge)",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文案键 + confirm-before-run",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "版本 0.7.0 + README + verify",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
