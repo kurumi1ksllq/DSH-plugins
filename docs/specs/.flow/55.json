@@ -1,8 +1,8 @@
 {
   "issue": 55,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-04T06:06:39.769Z",
+  "stage": "done",
+  "updatedAt": "2026-11-04T10:54:50.201Z",
   "batch": {
     "branch": "issue-52-vault-hotfix",
     "issues": [
@@ -60,6 +60,6 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
