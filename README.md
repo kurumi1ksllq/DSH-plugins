@@ -30,7 +30,7 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
 
-必装的 5 条，与当前线上 profile 一致。包名不需要改；路径写 clone 到的绝对路径（把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`）：
+本仓库共 6 个 bundle,下面 6 条都要写(线上 profile 目前装了前 5 个,`dev-flow-skill` 待补,见 #47)。包名不需要改；路径写 clone 到的绝对路径（把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`）：
 
 ```json
 "dependencies": {

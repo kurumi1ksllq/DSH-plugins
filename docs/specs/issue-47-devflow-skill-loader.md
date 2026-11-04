@@ -51,3 +51,32 @@
 - `pnpm verify` 绿(版本纪律 + patch 存在)。
 - 反向验证:把 `apply` 里的 `ctx.skills.register` 删掉,新测试必须变红。
 - 现场:`check-profile` 报 6 个 bundle;会话 skill 目录出现 `dev-flow`。
+
+## 6. 双轴 review 的裁决(2026-11-04,用户批 A + C1)
+
+review 报 10 条,9 条成立、1 条误报(PR 里的变异数字经复现为 5/3/3,与 PR 一致)。全部采纳,同分支追加修复:
+
+| # | 发现 | 处理 |
+| --- | --- | --- |
+| 1 | `update-scheme.md:70` 把「打算做」写成「已装上、5→6」,而 profile 里 `grep -c dev-flow-skill` = 0 | 改为「只走文件系统路径(软链已建、免重启);profile 行尚未加,`check-profile` 仍是 5」 |
+| 2 | 根 README 写「必装的 5 条」但代码块已 6 行 | 改为「共 6 个 bundle,线上已装前 5 个,`dev-flow-skill` 待补」 |
+| 3 | `inject: ['skills']` 让「缺 skills 就 warn」的降级分支不可达(实测缺服务时 cordis 根本不调 `apply`) | **用户裁决 C1**:保留 `inject`,删掉降级分支与对应用例;注释改为「缺服务时该 row 保持 inactive」 |
+| 4 | 缺 `SKILL.md` 时 `readSkillBody` 裸抛 ENOENT,spec 声称有测试但没写 | `readSkillSource(path)` try/catch 包成 `[dev-flow-skill] cannot read the skill body at <path>: …`;补测试调用**模块自己的**读取函数 |
+| 5 | 注册正文含 YAML frontmatter,而 filesystem provider 给的是 `parsed.body.trim()` | 新增 `parseSkill()`,注册前剥 frontmatter;实测 `content.startsWith('---') === false` |
+| 6 | 缺 `source` 时 `get()` 抛错,但测试没断言(变异删 source → 0 红) | 测试改用**真实 `SkillRegistry`** 端到端 `apply → get`;无运行时环境时退化为「按宿主规则校验」的严格桩,并补 `source` 断言。变异删 source → 3 红 |
+| 7 | 包 README「两件事都要做」与「或者只走文件系统」自相矛盾 | 改成两条**互斥**路线表 + 「同装时 catalog 按 rank 合并,警告由收集阶段打」 |
+| 8 | 手写正则解析 frontmatter,多行 description 会静默截断 | `parseSkill` 支持折行续接;缺 description 直接抛错而非回退 `'dev-flow'`;补折行用例 |
+| 9 | 「崩宿主」是过强断言(`cordis-plugin-loader:88` 是 `.catch(logger.error)`,症状是该 row 激活失败) | 提交信息与 PR 正文改为「该 row 激活失败、skill 不出现」 |
+| 10 | PR 变异数字不可复现(称 5/3/3,复核称 3/1/1) | **误报**:按原改法复现为 5/3/3;本轮的变异表全部重测,数字见下 |
+
+**最终变异验证**(改坏实现 → 必须红):
+
+| 变异 | 红条数 |
+| --- | --- |
+| 去掉 `ctx.skills.register` 调用 | 6 |
+| 去掉 `source: 'bundled'` | 3 |
+| 注册原始文件(带 frontmatter) | 3 |
+| 去掉 frontmatter 折行续接 | 3 |
+| 读取失败不报路径 | 3 |
+
+新增可运行证据:用真实 `SkillRegistry` 跑 `apply → get('dev-flow')`,结果 `name=dev-flow / source=bundled / provider=runtime`,`content` 不含 frontmatter。
