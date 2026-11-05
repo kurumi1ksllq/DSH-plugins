@@ -148,10 +148,47 @@ test('a forbidden service read falls back to the session header', async () => {
 
 test('the cleanup removes the listener', () => {
   const { ctx, listeners } = fakeCtx()
-  const cleanup = apply(ctx, { logFile: '' })
+  // apply() registers its cleanup through ctx.effect, whose returned disposer
+  // is what cordis invokes on plugin unload — not apply's return value.
+  let effectCleanup
+  const effect = ctx.effect.bind(ctx)
+  ctx.effect = (fn) => {
+    effectCleanup = effect(fn)
+    return effectCleanup
+  }
+  apply(ctx, { logFile: '' })
   assert.equal(typeof listeners.get('agent/created'), 'function')
-  if (typeof cleanup === 'function') cleanup()
-  assert.ok(true, 'cleanup must not throw')
+  assert.equal(typeof effectCleanup, 'function', 'the effect callback must return a disposer')
+  effectCleanup()
+  // Issue #75: the test name promised listener removal — assert it, so a
+  // no-op cleanup (double mounting after HMR) turns this red.
+  assert.equal(listeners.get('agent/created'), undefined, 'cleanup must remove the agent/created listener')
+})
+
+/**
+ * Issue #71: gate.js forwards `config.serverNameSuffix` into planMount. The
+ * lib-level tests inject the suffix directly; this test pins the wiring — a
+ * dropped pass-through would mount under the plain name again, silently
+ * breaking the documented `mountedAs` contract (README:303).
+ */
+test('the gate forwards serverNameSuffix to the mounted server name', async () => {
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const mountedNames = []
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = (_mod, serverConfig) => {
+    mountedNames.push(serverConfig?.serverName)
+    return Promise.resolve({ dispose() {} })
+  }
+
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile, serverNameSuffix: '-ws' })
+  const agent = { id: 'gate-suffix', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  await dispatch(listeners, logs, agent)
+
+  assert.ok(logs.some(([, message]) => message.includes('mount agent=gate-suffix')), 'the gate must attempt the mount')
+  assert.deepEqual(mountedNames, ['officecli-ws'], 'the configured suffix must reach the mounted serverName')
 })
 
 test('a mount that resolves after mountTimeoutMs is disposed when the agent is gone', async () => {
