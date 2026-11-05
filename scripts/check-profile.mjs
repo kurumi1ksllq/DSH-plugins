@@ -124,6 +124,16 @@ function checkoutOf(dir) {
   }
 }
 
+/** Same file on disk, whatever the spelling (Git for Windows reports `/` where node builds `\\`, drive letters may differ in case). */
+function sameLocation(a, b) {
+  if (a === b) return true
+  try {
+    return realpathSync(a) === realpathSync(b)
+  } catch {
+    return false
+  }
+}
+
 /** Commit of one checkout, or null when it is not a git tree. */
 function commitOf(dir) {
   try {
@@ -252,9 +262,11 @@ for (const name of [...SHIPPED.keys()].sort()) {
   const checkout = checkoutOf(real)
   const commit = checkout === null ? null : commitOf(checkout)
   const expected = resolve(REPO, SHIPPED.get(name))
-  if (checkout === REPO && real === expected) {
+  const sameCheckout = checkout !== null && sameLocation(checkout, REPO)
+  const sameDir = sameLocation(real, expected)
+  if (sameCheckout && sameDir) {
     results.push({ name, kind: 'ok', version: manifest.version, detail: `${real} @ ${commit ?? 'no-git'}` })
-  } else if (checkout === REPO) {
+  } else if (sameCheckout) {
     // Right checkout, wrong directory: a name wired to another package in this
     // repository. Reporting this as ok was the worst possible outcome — a
     // wiring check that green-lights crossed wires, and prints the other
