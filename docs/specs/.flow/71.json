@@ -1,13 +1,31 @@
 {
   "issue": 71,
   "grade": "standard",
-  "stage": "spec",
-  "updatedAt": "2026-11-06T02:10:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-06T04:21:30+08:00",
   "tickets": [
-    { "id": 1, "title": "TDD 实现", "state": "todo" },
-    { "id": 2, "title": "四件套+PR+CI", "state": "todo" }
+    {
+      "id": 1,
+      "title": "TDD 实现",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "四件套+PR(PR79)+CI",
+      "state": "done"
+    }
   ],
-  "ci": { "run": 0, "max": 2, "status": "unknown" },
-  "review": { "state": "not-started", "axes": 2 },
-  "merge": { "authorized": false }
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  },
+  "pr": "PR79"
 }
