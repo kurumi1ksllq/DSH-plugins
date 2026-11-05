@@ -81,6 +81,21 @@ test('readWorkspaceMcp reports a valid declaration with the mounted name', () =>
   assert.equal(result.servers[0].detail, 'officecli.exe')
 })
 
+/**
+ * Issue #74: a hand-written `{"servers": {}}` is valid JSON with a valid
+ * structure — the panel must show an empty "ok" state, not a parse error.
+ * (assign.js even deletes an emptied declaration file so the panel reads it as
+ * missing; a manual empty object must not read as broken either.)
+ */
+test('readWorkspaceMcp reports an empty-but-valid declaration as ok with no servers', () => {
+  const dir = workspaceWith('{ "servers": {} }')
+  const result = readWorkspaceMcp(dir)
+  assert.equal(result.status, 'ok')
+  assert.match(result.file, /mcp\.json$/)
+  assert.deepEqual(result.servers, [])
+  assert.equal(result.error, undefined)
+})
+
 test('readWorkspaceMcp reports an invalid declaration instead of throwing', () => {
   const dir = workspaceWith('{ "servers": ')
   const result = readWorkspaceMcp(dir)
