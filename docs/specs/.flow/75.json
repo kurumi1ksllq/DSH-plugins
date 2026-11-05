@@ -1,0 +1,13 @@
+{
+  "issue": 75,
+  "grade": "standard",
+  "stage": "spec",
+  "updatedAt": "2026-11-06T02:10:00+08:00",
+  "tickets": [
+    { "id": 1, "title": "TDD 实现", "state": "todo" },
+    { "id": 2, "title": "四件套+PR+CI", "state": "todo" }
+  ],
+  "ci": { "run": 0, "max": 2, "status": "unknown" },
+  "review": { "state": "not-started", "axes": 2 },
+  "merge": { "authorized": false }
+}
