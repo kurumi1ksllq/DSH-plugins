@@ -283,6 +283,45 @@ async function post(handler, body, { method = 'POST' } = {}) {
   return { status, body: text.length > 0 ? JSON.parse(text) : null }
 }
 
+/**
+ * Issue #71: the snapshot must read the gate row's `serverNameSuffix` back
+ * from the loader (index.js reads the `dsh-inventory/gate` row's config), so
+ * the panel's `mountedAs` matches what the gate will actually mount — the
+ * contract README:303 promises. A broken read-back must turn this red.
+ */
+test('the snapshot carries the gate suffix on mcp rows and as a top-level field', async () => {
+  const fixture = makeAssignContext()
+  try {
+    // Wrap get() so the loader also reports the gate row with a suffix config.
+    const get = fixture.ctx.get.bind(fixture.ctx)
+    fixture.ctx.get = (name) => {
+      if (name === 'loader') {
+        return {
+          entries: () => [
+            ...get(name).entries(),
+            {
+              id: 'inventory-gate',
+              options: { name: 'dsh-inventory/gate', config: { serverNameSuffix: '-ws' } },
+            },
+          ],
+        }
+      }
+      return get(name)
+    }
+
+    const added = await post(fixture.route.handler, { kind: 'mcp', action: 'add', name: 'officecli', workspace: fixture.workspace })
+    assert.equal(added.status, 200)
+
+    const snapshot = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    assert.equal(snapshot.body.gateServerNameSuffix, '-ws', 'the suffix must be read back from the gate row')
+    const row = snapshot.body.workspaces[0].mcp.servers.find((server) => server.name === 'officecli')
+    assert.ok(row, 'the declaration must be listed')
+    assert.equal(row.mountedAs, 'officecli-ws', 'mountedAs must carry the same suffix the gate will use')
+  } finally {
+    fixture.restore()
+  }
+})
+
 test('assign route rejects the wrong method and malformed bodies', async () => {
   const fixture = makeAssignContext()
   try {
