@@ -651,6 +651,23 @@ function registeredWorkspaces(ctx) {
   }
 }
 
+/**
+ * The default workspace, in the same shape the registry reports, only when the
+ * registry does not already carry it.
+ *
+ * The snapshot synthesizes this card from `$DSH_HOME/storages/workspace.json`
+ * when the registry omits it (or the registry service is down); a write path
+ * that only matched the registry would show a card whose switches always
+ * answer 404. The two sides must agree — every workspace the panel lists must
+ * be assignable (issue #72).
+ */
+function defaultWorkspaceEntry(ctx) {
+  const id = readDefaultWorkspace()?.id
+  if (id === undefined) return undefined
+  if (registeredWorkspaces(ctx).some((entry) => entry?.id === id)) return undefined
+  return readDefaultWorkspace()
+}
+
 function findWorkspace(ctx, requested) {
   if (typeof requested !== 'string' || requested.trim() === '') return undefined
   let key
@@ -659,11 +676,20 @@ function findWorkspace(ctx, requested) {
   } catch {
     return undefined
   }
-  for (const entry of registeredWorkspaces(ctx)) {
+  const registered = registeredWorkspaces(ctx)
+  for (const entry of registered) {
     try {
       if (pathKey(entry.path) === key) return entry
     } catch {
       // An unparsable registered path cannot match a request.
+    }
+  }
+  const fallback = defaultWorkspaceEntry(ctx)
+  if (fallback?.path !== undefined) {
+    try {
+      if (pathKey(fallback.path) === key) return { id: fallback.id, title: fallback.title ?? '', path: fallback.path }
+    } catch {
+      // An unparsable default path cannot match either.
     }
   }
   return undefined
@@ -964,15 +990,23 @@ function relinkWorkspaceSkill(workspaceDir, { name, from, to }) {
   return false
 }
 
-/** Repair every registered workspace that linked one of the moved skills. */
+/** Repair every registered workspace (and the synthesized default one) that linked a moved skill. */
 function relinkWorkspaces(ctx, moved) {
   const registry = ctx.get('workspaceRegistry')
-  if (registry === undefined || registry === null || typeof registry.list !== 'function') return
   let entries = []
-  try {
-    entries = registry.list() ?? []
-  } catch {
-    return
+  if (registry !== undefined && registry !== null && typeof registry.list === 'function') {
+    try {
+      entries = registry.list() ?? []
+    } catch {
+      entries = []
+    }
+  }
+  // The snapshot also synthesizes the default workspace card when the registry
+  // omits it; a link there must be repaired too, or the panel would show the
+  // dangling row that the view promises to keep honest (issue #72).
+  const fallback = defaultWorkspaceEntry(ctx)
+  if (fallback?.path !== undefined && !entries.some((entry) => entry?.id === fallback.id)) {
+    entries = [...entries, fallback]
   }
   for (const entry of entries) {
     const dir = typeof entry?.path === 'string' && entry.path.length > 0 ? entry.path : null

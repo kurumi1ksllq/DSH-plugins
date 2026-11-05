@@ -229,6 +229,7 @@ function makeAssignContext({ skillName = 'demo-skill', scope = 'vault' } = {}) {
         }
       }
       if (name === 'tools') return { schemas: () => [] }
+      if (fixture.registryOverride !== undefined && name === 'workspaceRegistry') return fixture.registryOverride
       if (name === 'workspaceRegistry') return { list: () => [{ id: 'ws-1', title: 'fixture', path: workspace }] }
       return undefined
     },
@@ -243,11 +244,13 @@ function makeAssignContext({ skillName = 'demo-skill', scope = 'vault' } = {}) {
     },
   }
   apply(ctx)
-  return {
+  const fixture = {
     workspace,
     routes,
+    ctx,
     route: routes.find((item) => item.path === ASSIGN_ROUTE),
     snapshotRoute: routes.find((item) => item.path === SNAPSHOT_ROUTE),
+    registryOverride: undefined,
     restore() {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key]
@@ -255,6 +258,7 @@ function makeAssignContext({ skillName = 'demo-skill', scope = 'vault' } = {}) {
       }
     },
   }
+  return fixture
 }
 
 async function post(handler, body, { method = 'POST' } = {}) {
@@ -316,6 +320,43 @@ test('assigning an MCP writes the declaration and invalidates the snapshot cache
     const removed = await post(fixture.route.handler, { kind: 'mcp', action: 'remove', name: 'officecli', workspace: fixture.workspace })
     assert.equal(removed.status, 200)
     assert.equal(existsSync(join(fixture.workspace, '.dsh', 'mcp.json')), false)
+  } finally {
+    fixture.restore()
+  }
+})
+
+/**
+ * Issue #72: the snapshot synthesizes the default workspace from
+ * `$DSH_HOME/storages/workspace.json` when the registry does not list it, but
+ * `findWorkspace` only matched the registry — the card was visible while its
+ * switches always answered 404. The write path must fall back to the same
+ * default record (and relink must cover it) so every card the panel shows can
+ * complete an add/remove round trip.
+ */
+test('the synthesized default workspace is assignable when the registry omits it', async () => {
+  const fixture = makeAssignContext()
+  try {
+    // Simulate a registry outage: an empty list, plus a default-workspace
+    // record in DSH storage that only the snapshot's synthesis reads.
+    fixture.registryOverride = { list: () => [] }
+    mkdirSync(join(fixture.workspace, 'storages'), { recursive: true })
+    writeFileSync(
+      join(fixture.workspace, 'storages', 'workspace.json'),
+      JSON.stringify({ global: { defaultWorkspaceId: 'default-ws' }, tables: { workspaces: { 'default-ws': { path: fixture.workspace, title: 'default' } } } }),
+    )
+    // DSH_HOME must point at the storage the snapshot reads.
+    process.env.DSH_HOME = fixture.workspace
+
+    const snapshot = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    const card = snapshot.body.workspaces.find((entry) => entry.id === 'default-ws')
+    assert.ok(card !== undefined, 'the default workspace must be synthesized into the snapshot')
+    assert.equal(card.default, true)
+
+    const added = await post(fixture.route.handler, { kind: 'mcp', action: 'add', name: 'officecli', workspace: fixture.workspace })
+    assert.equal(added.status, 200, `the default workspace must be assignable, got: ${JSON.stringify(added.body)}`)
+
+    const removed = await post(fixture.route.handler, { kind: 'mcp', action: 'remove', name: 'officecli', workspace: fixture.workspace })
+    assert.equal(removed.status, 200)
   } finally {
     fixture.restore()
   }
