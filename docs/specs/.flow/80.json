@@ -1,12 +1,12 @@
 {
   "issue": 80,
   "grade": "trivial",
-  "stage": "dev",
-  "updatedAt": "2026-11-06T05:39:20+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-06T05:48:12+08:00",
   "tickets": [
     { "id": 1, "title": ".gitignore 追加 .codegraph/ 与 docs/dev-flow-handover.md", "state": "done" }
   ],
-  "ci": { "status": "unknown" },
-  "review": { "state": "not-started" },
-  "merge": { "authorized": false }
+  "ci": { "run": 0, "max": 2, "status": "green" },
+  "review": { "state": "done", "axes": 0, "note": "trivial 裁剪:用户分级确认时明示 trivial(选项含 trivial 裁剪 review)" },
+  "merge": { "authorized": true }
 }
