@@ -1,0 +1,12 @@
+{
+  "issue": 80,
+  "grade": "trivial",
+  "stage": "dev",
+  "updatedAt": "2026-11-06T05:39:20+08:00",
+  "tickets": [
+    { "id": 1, "title": ".gitignore 追加 .codegraph/ 与 docs/dev-flow-handover.md", "state": "done" }
+  ],
+  "ci": { "status": "unknown" },
+  "review": { "state": "not-started" },
+  "merge": { "authorized": false }
+}

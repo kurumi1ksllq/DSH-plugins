@@ -24,3 +24,5 @@ scripts/.inv*.json
 # Handoff notes and per-session state are local working material, not shipped
 # source: they name session ids and go stale. Never commit them.
 .dsh/
+.codegraph/
+docs/dev-flow-handover.md
