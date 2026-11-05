@@ -185,7 +185,9 @@ export function planMount(cwd, options = {}) {
   }
   const names = Object.keys(parsed.servers);
   if (names.length === 0) {
-    return { ...empty, root: found.root, file: found.file, reason: 'declaration lists no mountable servers' };
+    // A structurally valid declaration with zero entries: not an error, so
+    // callers can tell "empty on purpose" from "unparsable" (issue #74).
+    return { ...empty, root: found.root, file: found.file, empty: true, reason: 'declaration lists no mountable servers' };
   }
   return {
     mount: true,

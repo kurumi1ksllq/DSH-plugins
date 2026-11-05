@@ -146,6 +146,9 @@ export function readWorkspaceMcp(dir, { serverNameSuffix = '' } = {}) {
     }))
     return { status: 'ok', file: plan.file ?? null, servers }
   }
+  // A valid declaration with zero entries reads as an empty "ok", not a parse
+  // failure: the file exists and says "this workspace declares nothing" (#74).
+  if (plan.empty === true) return { status: 'ok', file: plan.file ?? null, servers: [] }
   if (plan.file === undefined) return { status: 'missing', file: null, servers: [] }
   return { status: 'invalid', file: plan.file, servers: [], error: plan.reason }
 }
