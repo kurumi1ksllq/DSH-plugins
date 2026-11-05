@@ -304,6 +304,21 @@ test('registers a system-prompt section explaining workspace-scoped MCP', () => 
   assert.match(section.text, /\.dsh\/mcp\.json/, 'the section must name the declaration file')
   assert.match(section.text, /mcp__/, 'the section must name the tool prefix the model will see')
   assert.match(section.text, /next session|new session/i, 'the section must say when an edit takes effect')
+  // Issue #69: the mounted name is `<name>` + the suffix the snapshot reports,
+  // which is empty on a default install. The section must never promise a
+  // concrete `-ws` suffix again — gate.js ships with serverNameSuffix '' and the
+  // old unconditional claim made the model expect `mcp__<name>-ws__*` tools.
+  assert.match(section.text, /gateServerNameSuffix/, 'the section must point at the snapshot field that carries the suffix')
+  assert.doesNotMatch(section.text, /`-ws`/, 'no unconditional -ws suffix claim (it is a deployment override, not the default)')
+  // Issue #69: duplicate serverName is rejected by the runtime, so re-declaring
+  // a globally enabled server must be called out, not described as "a second copy".
+  assert.match(section.text, /never re-declare|do not re-declare/i, 'the section must warn against re-declaring a globally enabled server')
+  // Issue #70: the "workspace switch is the only control" rule holds for MCP,
+  // but NOT for skills — global-root skills are overview-owned whatever their state.
+  assert.match(section.text, /SKILLS/, 'the section must split the rule per capability')
+  assert.match(section.text, /only vault skills can be enabled per workspace/i, 'the skill rule must say vault-only')
+  // Issue #73: the vault also holds single-file skills; the link instruction must cover both.
+  assert.match(section.text, /<name>\.md/, 'the section must name the single-file vault form')
 })
 
 test('project skill roots follow the nearest .git, not the workspace directory', () => {

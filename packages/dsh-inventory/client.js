@@ -143,6 +143,7 @@ window.__ModuleLoader__.load({
       wsEnabledCount: '已开',
       wsGlobalMounted: '全局已挂载',
       wsGlobalDuplicate: '重复挂载',
+      wsSameNameConflict: '与全局同名',
       wsGlobalShort: '全局',
       wsGlobalSkillsFold: '全局已可用',
       wsGlobalSkillsFoldHint: '这些技能在所有工作区都已加载，开关在总览页',
@@ -465,6 +466,7 @@ window.__ModuleLoader__.load({
       wsEnabledCount: 'on',
       wsGlobalMounted: 'mounted globally',
       wsGlobalDuplicate: 'mounted twice',
+      wsSameNameConflict: 'same name as global',
       wsGlobalShort: 'global',
       wsGlobalSkillsFold: 'Available everywhere',
       wsGlobalSkillsFoldHint: 'these skills load in every workspace; the switch lives on the overview page',
@@ -1656,7 +1658,12 @@ window.__ModuleLoader__.load({
           row.declaredEntry?.mountedAs && row.declaredEntry.mountedAs !== row.name
             ? h(Badge, { label: `${t('wsMountedAs')} ${row.declaredEntry.mountedAs}`, tone: 'success', dot: true })
             : null,
-          row.locked && row.isDeclared ? h(Badge, { label: t('wsGlobalDuplicate'), tone: 'warning', dot: true }) : null,
+          // The suffix decides what a same-name declaration means: with a
+          // gate suffix both copies mount (tools double up); without one the
+          // runtime rejects the second serverName, so nothing extra mounts.
+          row.locked && row.isDeclared
+            ? h(Badge, { label: t(data?.gateServerNameSuffix ? 'wsGlobalDuplicate' : 'wsSameNameConflict'), tone: 'warning', dot: true })
+            : null,
           row.locked
             ? h('span', { style: S.lockLabel }, h(Icon, { name: 'lock', size: 14 }), ` ${t('wsGlobalMounted')}`)
             : h(Switch, {
