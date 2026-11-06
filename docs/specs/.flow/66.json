@@ -1,0 +1,21 @@
+{
+  "issue": 66,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-06T08:02:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "抽 assertOwnerOnly helper 并平台化 4 处断言",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "反向验证 + 四件套",
+      "state": "done"
+    }
+  ],
+  "merge": {
+    "authorized": false
+  }
+}

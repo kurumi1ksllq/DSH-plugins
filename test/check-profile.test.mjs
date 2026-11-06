@@ -318,3 +318,42 @@ test('a dot-named profile directory is discovered, not silently invisible', () =
     rmSync(home, { recursive: true, force: true })
   }
 })
+
+test('a git toplevel spelled differently but pointing at this checkout still counts as ours', () => {
+  // Git for Windows reports the toplevel with forward slashes while node's
+  // resolve builds backslashes, so string identity fails on a machine where
+  // the wiring is actually correct. This case reproduces the shape portably:
+  // a fake `git` that answers --show-toplevel with a *symlink* spelling of
+  // this repository — same directory, different string. The check must compare
+  // filesystem identity, not characters.
+  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:../repo' } })
+  const shim = join(dir, 'bin')
+  const repoAlias = join(dir, 'repo-link')
+  mkdirSync(shim, { recursive: true })
+  symlinkSync(ROOT, repoAlias)
+  writeFileSync(
+    join(shim, 'git'),
+    [
+      '#!/bin/sh',
+      'for arg in "$@"; do',
+      '  if [ "$arg" = "--show-toplevel" ]; then echo "$FAKE_GIT_TOPLEVEL"; exit 0; fi',
+      'done',
+      'for d in $(echo "$FAKE_REAL_PATH" | tr \' :\' \'\n\'); do',
+      '  if [ -x "$d/git" ]; then exec "$d/git" "$@"; fi',
+      'done',
+      'exit 127',
+    ].join('\n'),
+    { mode: 0o755 },
+  )
+  try {
+    symlinkSync(join(ROOT, 'packages', 'dsh-git-status'), join(dir, 'node_modules', 'dsh-git-status'))
+    const result = spawnSync(process.execPath, [SCRIPT, '--profile', dir, '--json'], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${shim}:${process.env.PATH ?? ''}`, FAKE_GIT_TOPLEVEL: repoAlias, FAKE_REAL_PATH: process.env.PATH ?? '' },
+    })
+    assert.equal(result.status, 0, result.out)
+    assert.equal(row(safeJson(result.stdout), 'dsh-git-status')?.kind, 'ok')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

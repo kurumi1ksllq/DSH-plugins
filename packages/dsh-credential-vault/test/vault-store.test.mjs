@@ -1,7 +1,8 @@
 // Tests for lib/vault-store.js — the store facade used by both tool and API.
 import { test } from 'node:test'
+import { assertOwnerOnly } from './owner-mode.mjs'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -98,8 +99,7 @@ test('rotateKey re-encrypts every entry under a new key', () => {
     assert.equal(resealed, 2)
     assert.equal(store.reveal('a').secret, 'alpha')
     assert.equal(store.reveal('b').secret, 'beta')
-    const keyMode = statSync(join(dir, 'master.key')).mode & 0o777
-    assert.equal(keyMode, 0o600)
+    assertOwnerOnly(join(dir, 'master.key'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
