@@ -182,8 +182,9 @@ test('patchLayerOf reports home over profile, and null when neither defines the 
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: home }), 'profile')
   assert.equal(patchLayerOf({ id: 'mcp-officecli', profilePatch: profile, homePatch: home }), 'home')
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: both }), 'home', 'the last applied layer wins')
-  assert.equal(patchLayerOf({ id: 'dsh-inventory', profilePatch: null, homePatch: null }), 'null')
-  assert.equal(patchLayerOf({ id: 'never-seen', profilePatch: profile, homePatch: home }), 'null')
+  assert.equal(patchLayerOf({ id: 'dsh-inventory', profilePatch: null, homePatch: null }), null)
+  assert.equal(patchLayerOf({ id: 'never-seen', profilePatch: profile, homePatch: home }), null)
+  assert.equal(patchLayerOf({ id: 'never-seen', profilePatch: null, homePatch: null }), null)
 })
 
 test('patchLayerOf matches quoted ids and ignores unrelated id mentions', () => {
@@ -191,5 +192,5 @@ test('patchLayerOf matches quoted ids and ignores unrelated id mentions', () => 
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: null }), 'profile')
   // A config value that merely contains the id must not count as a definition.
   const noise = '- id: other\n  config:\n    name: rea-mcp\n'
-  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: noise, homePatch: null }), 'null')
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: noise, homePatch: null }), null)
 })

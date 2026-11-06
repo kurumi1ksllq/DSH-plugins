@@ -529,28 +529,33 @@ async function loadSnapshot(ctx) {
   // and its own SKILL.md can be written — the flag lives in that file.
   const manager = pluginManager(ctx)
   const patchPath = profilePatchPath(ctx)
-  const mcpSwitchable = manager !== undefined || (patchPath !== null && isWritableFile(patchPath))
-  const skillSwitchable = globalSkillRoots().some((root) => isWritableFile(root.dir))
-  snapshot.globalToggle = {
-    mcp: mcpSwitchable,
-    skill: skillSwitchable,
-    via: manager !== undefined ? 'pluginManager' : mcpSwitchable ? 'patch' : null,
-  }
   const homePatch = join(dshHome(), 'cordis.patch.yml')
   const patchTexts = {
-    profilePatch: patchPath !== null && existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : null,
-    homePatch: existsSync(homePatch) ? readFileSync(homePatch, 'utf8') : null,
+    profilePatch: readPatchText(patchPath) ?? null,
+    homePatch: readPatchText(homePatch) ?? null,
+  }
+  const homePatchWritable = writablePatchTarget(homePatch)
+  const profilePatchWritable = patchPath !== null && writablePatchTarget(patchPath)
+  const skillSwitchable = globalSkillRoots().some((root) => isWritableFile(root.dir))
+  snapshot.globalToggle = {
+    // A row is switchable when SOME patch layer can take its override (the
+    // toggle route picks the right one per row) or the manager can apply it
+    // live.
+    mcp: manager !== undefined || profilePatchWritable || homePatchWritable,
+    skill: skillSwitchable,
+    via: manager !== undefined ? 'pluginManager' : profilePatchWritable || homePatchWritable ? 'patch' : null,
   }
   for (const entry of snapshot.mcp) {
-    entry.toggleable = mcpSwitchable
-    entry.disabledReason = mcpSwitchable ? null : 'no-writable-profile'
-    // Where the row is defined decides where its switch writes: `bundle` rows
-    // keep the historical profile-patch override.
-    // `snapshot.mcp` rows are rebuilt with `entryId` (not the loader `id`),
-    // so derive the patch id from that.
-    entry.source = { home: 'home-patch', profile: 'profile-patch', null: 'bundle' }[
-      patchLayerOf({ id: String(entry.entryId ?? '').replace(/^include:/, ''), ...patchTexts })
-    ]
+    // `snapshot.mcp` rows are rebuilt with `entryId` (not the loader `id`), so
+    // derive the patch id the same way the toggle route does. A row without a
+    // string entryId cannot be classified: it keeps the bundle fallback.
+    const layer = typeof entry.entryId === 'string'
+      ? patchLayerOf({ id: patchIdOf({ options: { id: entry.entryId } }), ...patchTexts })
+      : null
+    const writable = layer === 'home' ? homePatchWritable : profilePatchWritable
+    entry.source = layer === 'home' ? 'home-patch' : layer === 'profile' ? 'profile-patch' : 'bundle'
+    entry.toggleable = manager !== undefined || writable
+    entry.disabledReason = entry.toggleable ? null : 'no-writable-patch'
   }
   for (const skill of snapshot.skills) {
     const global = GLOBAL_SKILL_SOURCES.has(skill.source)
@@ -881,6 +886,31 @@ async function toggleGlobalMcp(ctx, name, enabled) {
 }
 
 /**
+ * Patch file text. `null` when the file is absent; `undefined` when it exists
+ * but cannot be read (a directory squatting on the path, permissions) — the
+ * caller must not guess a layer it cannot see.
+ */
+function readPatchText(file) {
+  if (file === null || !existsSync(file)) return null
+  try {
+    return readFileSync(file, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+/** A patch write target must be a regular file now, or creatable in its directory. */
+function writablePatchTarget(file) {
+  try {
+    if (existsSync(file)) return statSync(file).isFile() && accessSync(file, FS.W_OK) === undefined
+    accessSync(dirname(file), FS.W_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * The patch file a global-switch override for `id` must land in: the home
  * patch when that layer defines the id, the profile patch otherwise (the
  * historical behaviour, still right for bundle and profile-patch ids).
@@ -889,13 +919,20 @@ async function toggleGlobalMcp(ctx, name, enabled) {
 function patchTargetFor(ctx, id) {
   const profilePatch = profilePatchPath(ctx)
   const homePatch = join(dshHome(), 'cordis.patch.yml')
-  const layer = patchLayerOf({
-    id,
-    profilePatch: existsSync(profilePatch) ? readFileSync(profilePatch, 'utf8') : null,
-    homePatch: existsSync(homePatch) ? readFileSync(homePatch, 'utf8') : null,
-  })
-  if (layer === 'home' && (existsSync(homePatch) ? isWritableFile(homePatch) : isWritableFile(dirname(homePatch)))) {
-    return homePatch
+  const profileText = readPatchText(profilePatch)
+  const homeText = readPatchText(homePatch)
+  if (profileText === undefined || homeText === undefined) {
+    // A layer we cannot read might define the id; writing anywhere would be a
+    // guess, and a wrong guess is the dead write this route exists to avoid.
+    return null
+  }
+  const layer = patchLayerOf({ id, profilePatch: profileText, homePatch: homeText })
+  if (layer === 'home') {
+    // Falling back to the profile patch here would silently resurrect the bug
+    // this route exists to fix: the compositor drops a profile-layer disable
+    // for an id the home layer inserts. A 400 is honest; a 200 with a dead
+    // write is not.
+    return writablePatchTarget(homePatch) ? homePatch : null
   }
   return profilePatch
 }

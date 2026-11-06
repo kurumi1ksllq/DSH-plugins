@@ -129,12 +129,12 @@ export function writePatchEnabled(file, { id, enabled }) {
  * the home definition decides the final state.
  * @param {{id: string, profilePatch: string|null, homePatch: string|null}} input
  *   raw patch file texts (`null` when the file does not exist).
- * @returns {'home'|'profile'|'null'} `null` as a string: no patch layer defines it.
+ * @returns {'home'|'profile'|null} `null` when no patch layer defines the id.
  */
 export function patchLayerOf({ id, profilePatch, homePatch }) {
   if (definesId(homePatch, id)) return 'home'
   if (definesId(profilePatch, id)) return 'profile'
-  return 'null'
+  return null
 }
 
 /**
@@ -149,10 +149,11 @@ function definesId(text, id) {
   const lines = text.split(/\r?\n/)
   for (let index = 0; index < lines.length; index += 1) {
     if (!/^-(?:\s|$)/.test(lines[index])) continue
+    // Only `- id: <value>` counts. A bare sequence item (`- rea-mcp`) is not:
+    // setPatchEnabled can only flip id/disabled blocks, so promising `home`
+    // for a bare item would send the toggle somewhere it cannot land.
     const first = ID_LINE.exec(lines[index])
     if (first !== null && unquote(first[1]) === id) return true
-    // An id-only line (`- rea-mcp`) is a valid sequence entry too.
-    if (/^-\s+(.+)$/.exec(lines[index])?.[1]?.trim().replace(/^["']|["']$/g, '') === id) return true
   }
   return false
 }

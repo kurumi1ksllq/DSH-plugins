@@ -463,6 +463,7 @@ function makeGlobalContext({
   pluginManager,
   mcpServers = [{ id: 'mcp-officecli', server: 'officecli' }],
   runtimeSkills = [],
+  profilePatchBlocked = false,
 } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'inv-global-home-'))
   const userSkillFile = writeSkillFixture(join(home, 'skills'), 'demo-skill', 'global fixture')
@@ -476,7 +477,14 @@ function makeGlobalContext({
     JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
   )
   const patchPath = join(profileDir, 'cordis.patch.yml')
-  writeFileSync(patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n', 'utf8')
+  if (profilePatchBlocked) {
+    // Tests run as root: chmod cannot make a path unwritable for root, so
+    // block it structurally — the patch "file" is a directory, which no write
+    // can pass, and every existsSync/isWritableFile probe fails honestly.
+    mkdirSync(patchPath, { recursive: true })
+  } else {
+    writeFileSync(patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n', 'utf8')
+  }
 
   const previous = {
     DSH_HOME: process.env.DSH_HOME,
@@ -1380,6 +1388,50 @@ test('an MCP row no patch layer defines is labelled bundle', async () => {
     assert.equal(status, 200)
     const row = body.mcp.find((entry) => entry.server === 'officecli')
     assert.equal(row.source, 'bundle')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a home-defined id with an unwritable home patch is a 400, not a dead write', async () => {
+  // Falling back to the profile patch would resurrect the original bug (the
+  // compositor drops a profile disable for a home insert), so the route must
+  // refuse honestly.
+  const fixture = makeGlobalContext({ mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }] })
+  try {
+    // Tests run as root on this machine, where chmod-based unwritability is a
+    // no-op (root bypasses permission bits). Block the write at the path
+    // level instead: `writeFileSync` on an existing *directory* fails for
+    // every user, so make the home patch path a directory.
+    const homePatchPath = join(fixture.home, 'cordis.patch.yml')
+    mkdirSync(homePatchPath, { recursive: true })
+
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
+    assert.equal(off.status, 400, `expected refusal, got ${JSON.stringify(off.body)}`)
+    assert.equal(off.body.ok, false)
+    assert.equal(readFileSync(fixture.patchPath, 'utf8').includes('rea-mcp'), false, 'and must not fall back to the profile patch')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a home-patch row stays switchable when only the profile patch is unwritable', async () => {
+  // The whole point of the layer split: an install where the profile directory
+  // is read-only but $DSH_HOME is writable must not lock the home rows away.
+  const fixture = makeGlobalContext({
+    mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }],
+    profilePatchBlocked: true,
+  })
+  try {
+    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- id: rea-mcp\n  disabled: false\n', 'utf8')
+
+    const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    assert.equal(status, 200)
+    const byServer = new Map(body.mcp.map((row) => [row.server, row]))
+    assert.equal(byServer.get('rea')?.toggleable, true, 'a home-patch row must stay switchable')
+    assert.equal(byServer.get('rea')?.source, 'home-patch')
+    assert.equal(byServer.get('officecli')?.toggleable, false, 'a profile-patch row with no writable profile is locked')
+    assert.equal(byServer.get('officecli')?.disabledReason, 'no-writable-patch')
   } finally {
     fixture.restore()
   }

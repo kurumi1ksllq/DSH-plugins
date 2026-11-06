@@ -8,7 +8,8 @@
 `rea setup` 注册的 rea-mcp）生效。根因：开关固定写 profile patch，而 DSH 核心合成顺序
 （`dsh-app-boot` `readProfilePatches`）为 bundle → profile patch → **home patch** → overlays，
 home patch 的 insert 在 profile patch 的 disable 覆盖之后应用，覆盖对未 insert 的 id
-静默跳过（`cordis-plugin-include` `applyPatches`），该行永远 enabled。
+告警后跳过（`cordis-plugin-include` `applyPatches`：`warn("patch: entry %C not found")`
+后 continue），该行永远 enabled。
 
 ## 2. 方案
 
@@ -21,8 +22,11 @@ home patch 的 insert 在 profile patch 的 disable 覆盖之后应用，覆盖�
    在线路径不变。
 3. **来源标注**：snapshot 的每条 MCP 行新增 `source` 字段：`home-patch` / `profile-patch` /
    `bundle`（按 2.1 的判定，未命中两个 patch 文件即 bundle）；总览页渲染该标签。
-4. **工作区分配语义**：本 spec 审视后**不变更**——「仅注册/工作区分配」逻辑不感知定义层，
-   维持现状；如后续需要单独开 issue。
+4. **工作区分配语义**：本 spec 审视后**不变更**，理由：「仅注册/工作区分配」走的是
+   `lib/assign.js` 的声明文件（profile 目录下 mcp 声明），与 patch 层 enablement 是两条
+   独立机制；定义层的 disable 只影响全局挂载，不影响声明文件的存在性。issue 要求的
+   「同步审视」结论即此：现状语义自洽，无需改动；如后续发现声明文件也可能散落多层，
+   单独开 issue 处理。
 
 ## 3. 边界
 
