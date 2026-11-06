@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, seven independently versioned bundles. Every entry names the
+One repository, eight independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 

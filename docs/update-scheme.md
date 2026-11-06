@@ -16,7 +16,7 @@
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
 
 - 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
-- 范围:`/root/DSH-plugins` 的 7 个 bundle(调查当时为 8 个,含已退役的 `dsh-ctx-guard`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+- 范围:`/root/DSH-plugins` 的 8 个 bundle(调查当时为 8 个,含已退役的 `dsh-ctx-guard`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 
@@ -166,7 +166,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 
 - **L1** `dsh --profile web --dump-config`:校验 profile/bundle 解析、patch 读取与 YAML、`engines.dsh` 兼容(含豁免)、patch 合并。**不 import 任何插件模块**。耗时 0.25s。
 - **L2** 进程内 import 全部 209 个组合行(装 launcher 同一份 runtime resolution):实测 `imported ok: 183, failures: 0`;把某包入口改成 import 一个不存在的文件后 → `failures: 1` 且 exit 1,**而同一时刻 L1 完全看不见**(exit 0、stderr 空)。耗时 4s。
-- **L3** `dsh headless` **不能**当预检:它加载的是 base+headless,**不含本仓库这 7 个 bundle**;换成 `dsh --profile web --port 0` 就是起第二个 Web 宿主,抢 profile 的 pnpm 文件锁与会话。
+- **L3** `dsh headless` **不能**当预检:它加载的是 base+headless,**不含本仓库的任何 bundle**;换成 `dsh --profile web --port 0` 就是起第二个 Web 宿主,抢 profile 的 pnpm 文件锁与会话。
 - **L4** 一次真实重组合 = 与线上完全相同的替换链路,失败判定看服务日志 `restart required:` 与插件页 fiber `active|failed`。
 
 **代价(最重要的一条)**:HMR 的替换是**先卸旧、再装新**,而

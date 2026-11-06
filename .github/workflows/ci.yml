@@ -28,7 +28,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # dsh-deep-ptc-mode (upstream) requires node >=24; every other
+          # bundle declares ^22.19.0 || >=24.0.0, so the whole workspace runs
+          # on the newer line. See docs/specs/deep-ptc-integration.md.
+          node-version: 24
           cache: pnpm
 
       - name: Install

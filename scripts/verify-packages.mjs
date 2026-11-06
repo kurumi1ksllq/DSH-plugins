@@ -29,6 +29,7 @@ const EXPECTED = [
   ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
   ['dsh-git-status', 'dsh-git-status'],
   ['dsh-inventory', 'dsh-inventory'],
+  ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
   ['dev-flow-skill', 'dev-flow-skill'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
@@ -74,8 +75,21 @@ for (const [bundleName, relDir] of EXPECTED) {
     problems.push(`${bundleName}: main ${manifest.main} missing`)
   }
   if (manifest.dsh?.client !== undefined) {
-    const clientEntry = join(dir, 'client.js')
-    if (!existsSync(clientEntry)) problems.push(`${bundleName}: declares a web client but client.js is missing`)
+    // The host (dsh-client-modules) resolves a bundle's web client through
+    // `exports["./client"]`, accepting a string or a one-level conditional
+    // with a string `default`. A root `client.js` is just where existing
+    // bundles happen to point; the export is the contract.
+    const clientExport = manifest.exports?.['./client']
+    const clientRel = typeof clientExport === 'string'
+      ? clientExport
+      : typeof clientExport?.default === 'string'
+        ? clientExport.default
+        : undefined
+    if (clientRel === undefined) {
+      problems.push(`${bundleName}: declares a web client but exports no "./client" entry (the host cannot resolve it)`)
+    } else if (!existsSync(join(dir, clientRel))) {
+      problems.push(`${bundleName}: exports["./client"] -> ${clientRel} missing`)
+    }
   }
   notes.push(`${bundleName}@${manifest.version} -> packages/${relDir}`)
 }
