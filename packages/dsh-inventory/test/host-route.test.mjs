@@ -1326,7 +1326,7 @@ test('a home-patch-defined MCP toggle writes the home patch, not the profile one
     // patch's disable can never reach, because the compositor applies the home
     // layer after the profile one.
     const homePatchPath = join(fixture.home, 'cordis.patch.yml')
-    writeFileSync(homePatchPath, '- id: rea-mcp\n  options:\n    name: @deepseek-ai/dsh-mcp-client\n    config:\n      serverName: rea\n      transport: stdio\n      command: rea\n', 'utf8')
+    writeFileSync(homePatchPath, '- insert:\n    - id: rea-mcp\n      options:\n        name: @deepseek-ai/dsh-mcp-client\n        config:\n          serverName: rea\n          transport: stdio\n          command: rea\n')
 
     const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
     assert.equal(off.status, 200, off.body.error ?? '')
@@ -1350,7 +1350,7 @@ test('an id defined in both patches resolves to the home layer', async () => {
   const fixture = makeGlobalContext()
   try {
     const homePatchPath = join(fixture.home, 'cordis.patch.yml')
-    writeFileSync(homePatchPath, '- id: mcp-officecli\n  disabled: false\n', 'utf8')
+    writeFileSync(homePatchPath, '- id: mcp-officecli\n  name: @deepseek-ai/dsh-mcp-client\n  disabled: false\n', 'utf8')
 
     const off = await post(fixture.route.handler, { kind: 'mcp', name: 'officecli', enabled: false })
     assert.equal(off.status, 200)
@@ -1368,8 +1368,8 @@ test('the snapshot labels each MCP row with its definition source', async () => 
   try {
     // officecli lives in the fixture profile patch; rea-mcp is defined in the
     // home patch (the rea setup shape) — the row must say which is which.
-    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- id: rea-mcp\n  disabled: false\n', 'utf8')
-    writeFileSync(fixture.patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n- id: mcp-officecli\n  disabled: false\n', 'utf8')
+    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- insert:\n    - id: rea-mcp\n      options:\n        name: @deepseek-ai/dsh-mcp-client\n        config:\n          serverName: rea\n          transport: stdio\n          command: rea\n')
+    writeFileSync(fixture.patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n- id: mcp-officecli\n  options:\n    name: @deepseek-ai/dsh-mcp-client\n    config:\n      serverName: officecli\n', 'utf8')
 
     const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
     assert.equal(status, 200)
@@ -1423,7 +1423,7 @@ test('a home-patch row stays switchable when only the profile patch is unwritabl
     profilePatchBlocked: true,
   })
   try {
-    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- id: rea-mcp\n  disabled: false\n', 'utf8')
+    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- insert:\n    - id: rea-mcp\n      options:\n        name: @deepseek-ai/dsh-mcp-client\n        config:\n          serverName: rea\n          transport: stdio\n          command: rea\n')
 
     const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
     assert.equal(status, 200)
@@ -1448,7 +1448,7 @@ test('a home-patch-defined id skips the pluginManager even when one exists', asy
   })
   try {
     const homePatchPath = join(fixture.home, 'cordis.patch.yml')
-    writeFileSync(homePatchPath, '- id: rea-mcp\n  disabled: false\n', 'utf8')
+    writeFileSync(homePatchPath, '- insert:\n    - id: rea-mcp\n      options:\n        name: @deepseek-ai/dsh-mcp-client\n        config:\n          serverName: rea\n          transport: stdio\n          command: rea\n')
 
     const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
     assert.equal(off.status, 200, off.body.error ?? '')
