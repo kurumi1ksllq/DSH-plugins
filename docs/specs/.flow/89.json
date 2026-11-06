@@ -1,0 +1,14 @@
+{
+  "issue": 89,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-06T21:00:00+08:00",
+  "tickets": [
+    { "id": 1, "title": "definedIds 缩进感知扫描", "state": "done" },
+    { "id": 2, "title": "fixture 更新为真实定义形态", "state": "done" },
+    { "id": 3, "title": "反向验证 + 四件套 + 版本", "state": "done" }
+  ],
+  "ci": { "run": 0, "max": 2, "status": "green" },
+  "review": { "state": "done", "axes": 0 },
+  "merge": { "authorized": true }
+}
