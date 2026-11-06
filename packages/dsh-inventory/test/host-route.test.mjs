@@ -1436,3 +1436,53 @@ test('a home-patch row stays switchable when only the profile patch is unwritabl
     fixture.restore()
   }
 })
+
+test('a home-patch-defined id skips the pluginManager even when one exists', async () => {
+  // The built-in manager writes the profile patch only (dsh-plugin-manager
+  // `writePluginEnabled` opens `profile.patchPath`), and the compositor applies
+  // the home patch after the profile one — so a manager write for a home id is
+  // the dead write #82 was about. The layer decision must come first.
+  const fixture = makeGlobalContext({
+    pluginManager: { setPluginEnabled: () => true },
+    mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }],
+  })
+  try {
+    const homePatchPath = join(fixture.home, 'cordis.patch.yml')
+    writeFileSync(homePatchPath, '- id: rea-mcp\n  disabled: false\n', 'utf8')
+
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
+    assert.equal(off.status, 200, off.body.error ?? '')
+    assert.equal(off.body.via, 'patch', 'the manager path would write the wrong layer')
+    assert.equal(off.body.live, false, 'a home-patch write has no hot reload; it lands on the next start')
+    assert.equal(off.body.path, homePatchPath)
+    assert.deepEqual(fixture.calls, [], 'the manager must not be called for a home-patch id')
+    assert.match(readFileSync(homePatchPath, 'utf8'), /- id: rea-mcp\n[ \t]+disabled: true/)
+    assert.equal(readFileSync(fixture.patchPath, 'utf8').includes('rea-mcp'), false)
+
+    // A re-enable goes through the same path and flips the home block back.
+    const on = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: true })
+    assert.equal(on.status, 200)
+    assert.equal(on.body.via, 'patch')
+    assert.match(readFileSync(homePatchPath, 'utf8'), /- id: rea-mcp\n[ \t]+disabled: false/)
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a profile-patch-defined id still goes through the pluginManager when present', async () => {
+  // officecli is defined in the fixture profile patch: the manager's own write
+  // target, so the live path stays intact.
+  const fixture = makeGlobalContext({
+    pluginManager: { setPluginEnabled: () => true },
+    mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }],
+  })
+  try {
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'officecli', enabled: false })
+    assert.equal(off.status, 200)
+    assert.equal(off.body.via, 'pluginManager')
+    assert.deepEqual(fixture.calls, [['mcp-officecli', false]])
+    assert.equal(existsSync(join(fixture.home, 'cordis.patch.yml')), false, 'no home patch was touched')
+  } finally {
+    fixture.restore()
+  }
+})

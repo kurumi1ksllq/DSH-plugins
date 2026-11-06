@@ -838,8 +838,19 @@ async function toggleGlobalMcp(ctx, name, enabled) {
     return { status: 404, payload: { ok: false, error: `没有全局 MCP 服务器 ${name}` } }
   }
 
+  // The layer decision comes before the manager: the built-in
+  // `dsh-plugin-manager` persists into the profile patch only, and the
+  // compositor applies the home patch after the profile one — a manager write
+  // for a home-patch id is the dead write this route exists to avoid. Those
+  // ids go through the layered patch fallback below, and they are pending
+  // writes (`live: false`): the home layer is not hot-reloaded.
   const manager = pluginManager(ctx)
-  if (manager !== undefined) {
+  const layerDecides = patchLayerOf({
+    id: patchIdOf(entry),
+    profilePatch: readPatchText(profilePatchPath(ctx)) ?? null,
+    homePatch: readPatchText(join(dshHome(), 'cordis.patch.yml')) ?? null,
+  }) === 'home'
+  if (manager !== undefined && !layerDecides) {
     if ((entry.disabled !== true) === enabled) {
       return { status: 200, payload: { ok: true, kind: 'mcp', name, enabled, changed: false, live: true } }
     }
