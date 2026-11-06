@@ -119,6 +119,10 @@ window.__ModuleLoader__.load({
       hiddenSkillsHint: '显示已隐藏的技能，再点一次收起',
       wsOverview: '总览',
       wsWorkspaces: '工作区',
+      // Nav-rail group headers (issue #91).
+      navRailLabel: '工具管理导航',
+      navGroupOverview: '概览',
+      navGroupConfig: '配置',
       wsNoWorkspaces: '还没有工作区。先在侧边栏新建或打开一个目录。',
       wsUnavailable: 'workspaceRegistry 不可用，无法列出工作区。',
       wsUnavailableDir: '目录不可用',
@@ -516,6 +520,10 @@ window.__ModuleLoader__.load({
       updateDone: 'Updated',
       updateFailed: 'Update failed',
       syncView: 'Sync',
+      // Nav-rail group headers (issue #91).
+      navRailLabel: 'Tools navigation',
+      navGroupOverview: 'Overview',
+      navGroupConfig: 'Configuration',
       syncTitle: 'Cross-machine sync',
       syncSubtitle: 'Diff against the manifest repository and install only what you tick. Publishing uploads the plugin/MCP/skill list; secrets and host paths are stripped.',
       syncNotConfigured: 'No manifest repository configured yet. Enter owner/repo or a repository URL, save, then reload.',
@@ -750,12 +758,22 @@ window.__ModuleLoader__.load({
         width: '100%',
         height: '100%',
         minHeight: 0,
-        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
         color: C.text,
         font: 'inherit',
         padding: 0,
+      },
+      // The scroll host of the rail layout: the sticky nav and the rail stay
+      // put while only this column scrolls. Children declare flexShrink: 0 so
+      // an expanded section can never be clipped away (issue #33's regression).
+      scrollHost: {
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 auto',
+        minWidth: 0,
+        minHeight: 0,
+        overflowY: 'auto',
       },
       // Translucent chrome: content scrolls under it (Apple "material").
       nav: {
@@ -816,32 +834,46 @@ window.__ModuleLoader__.load({
       h1: { ...T.large },
       subtitle: { ...T.caption, color: C.secondary, margin: 0, maxWidth: '62ch' },
       controls: { display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 0 0', flexWrap: 'wrap', flexShrink: 0 },
-      seg: {
-        display: 'inline-flex',
+      // Left navigation rail (issue #91). A fixed 196px column beside the main
+      // list; groups are caption-styled headers, the active item is the
+      // inverted pill (the only selected treatment that survives the accent
+      // token inverting between themes).
+      rail: {
+        display: 'flex',
+        flexDirection: 'column',
         gap: '2px',
-        padding: '2px',
-        borderRadius: '10px',
-        background: C.fill,
+        width: '196px',
         flexShrink: 0,
+        padding: '10px 10px 14px',
+        boxSizing: 'border-box',
+        borderRight: `1px solid ${C.hairline}`,
+        background: C.fill,
       },
-      segBtn: {
-        minHeight: '30px',
-        padding: '0 16px',
+      railGroup: { ...T.captionStrong, color: C.secondary, padding: '14px 10px 4px' },
+      railItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        minHeight: '34px',
+        padding: '0 10px',
         border: 'none',
         borderRadius: '8px',
         background: 'transparent',
         color: C.secondary,
-        fontSize: '13px',
+        fontSize: '13.5px',
         fontWeight: 500,
+        textAlign: 'left',
         cursor: 'pointer',
-        transition: `background-color 200ms ${EASE}, color 200ms ${EASE}`,
+        flexShrink: 0,
       },
-      segBtnActive: {
+      railItemActive: {
         background: C.invertedFill,
         color: C.invertedText,
         fontWeight: 600,
         boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
       },
+      railItemLabel: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' },
+      railItemCount: { ...T.caption, fontVariantNumeric: 'tabular-nums', opacity: 0.75, flexShrink: 0 },
       chip: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -1199,8 +1231,8 @@ window.__ModuleLoader__.load({
 @media (hover: hover) {
   .inv-hide:hover { color: var(--dsw-alias-label-primary, #111827); opacity: 1; }
 }
-.inv-switch, .inv-btn, .inv-seg-btn, .inv-row { outline: none; }
-.inv-switch:focus-visible, .inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-row[data-interactive="true"]:focus-visible {
+.inv-switch, .inv-btn, .inv-seg-btn, .inv-rail-item, .inv-row { outline: none; }
+.inv-switch:focus-visible, .inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-rail-item:focus-visible, .inv-row[data-interactive="true"]:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 45%, transparent);
   outline-offset: 2px;
   border-radius: 10px;
@@ -1210,12 +1242,16 @@ window.__ModuleLoader__.load({
   background: var(--dsw-alias-bg-layer-2, #fff);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 35%, transparent);
 }
+.inv-rail-item { transition: background-color 200ms ${EASE}, color 200ms ${EASE}; }
+@media (hover: hover) {
+  .inv-rail-item:not(.inv-rail-active):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 10%, transparent); }
+}
 .inv-section-body { animation: inv-section-in 200ms ${EASE}; }
 @keyframes inv-section-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .inv-spin { animation: inv-spin 720ms linear infinite; }
 @keyframes inv-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .inv-row, .inv-switch, .inv-switch > span, .inv-seg-btn, .inv-search-wrap { transition-duration: 0ms !important; }
+  .inv-row, .inv-switch, .inv-switch > span, .inv-seg-btn, .inv-rail-item, .inv-search-wrap { transition-duration: 0ms !important; }
   .inv-section-body { animation: none; }
   .inv-spin { animation-duration: 1.6s; }
 }
@@ -1325,6 +1361,57 @@ window.__ModuleLoader__.load({
         event.preventDefault()
         run()
       }
+    }
+
+    /**
+     * Left navigation rail (issue #91): the six views in two labelled groups.
+     * `groups` is `[{ title, items: [{ key, label, count? }] }]` in render
+     * order, `title`/`label` already translated; `active` is the current view
+     * key and `onSelect(key)` routes it. Pure shell — the keys are the panel's
+     * existing view ids, so no routing state lives here. Each item button
+     * carries `aria-label: item.label` (name without the count) so callers and
+     * tests can target rows by view name, independent of the count text.
+     */
+    function NavRail({ label, groups, active, onSelect }) {
+      const items = groups.flatMap((group) =>
+        group.items.map((item) => ({
+          ...item,
+          groupTitle: group.title,
+          active: item.key === active,
+          onSelect: () => onSelect(item.key),
+        })),
+      )
+      let lastGroup = null
+      return h(
+        'nav',
+        { style: S.rail, 'aria-label': label },
+        items.map((item) => {
+          const head =
+            item.groupTitle === lastGroup
+              ? null
+              : h('div', { key: `g-${item.groupTitle}`, style: S.railGroup }, item.groupTitle)
+          lastGroup = item.groupTitle
+          return [
+            head,
+            h(
+              'button',
+              {
+                key: `i-${item.key}`,
+                type: 'button',
+                style: { ...S.railItem, ...(item.active ? S.railItemActive : {}) },
+                className: item.active ? 'inv-rail-item inv-rail-active' : 'inv-rail-item',
+                'aria-label': item.label,
+                'aria-current': item.active ? 'page' : 'false',
+                onClick: item.onSelect,
+              },
+              h('span', { style: S.railItemLabel }, item.label),
+              typeof item.count === 'number'
+                ? h('span', { style: S.railItemCount }, String(item.count))
+                : null,
+            ),
+          ]
+        }),
+      )
     }
 
     function Icon({ name, size = 18, style }) {
@@ -4033,77 +4120,6 @@ window.__ModuleLoader__.load({
             ),
       )
 
-      const segmented = h(
-        'div',
-        { style: S.seg, role: 'group', 'aria-label': t('title') },
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'global' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'global' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('global'),
-          },
-          t('wsOverview'),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'workspaces' || view === 'workspace' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'workspaces' || view === 'workspace' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('workspaces'),
-          },
-          t('wsWorkspaces'),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'sync' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'sync' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('sync'),
-          },
-          t('syncView'),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'providers' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'providers' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('providers'),
-          },
-          t('providerSection'),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'prompt' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'prompt' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('prompt'),
-          },
-          t('promptSection'),
-        ),
-        h(
-          'button',
-          {
-            type: 'button',
-            'aria-pressed': view === 'credentials' ? 'true' : 'false',
-            style: { ...S.segBtn, ...(view === 'credentials' ? S.segBtnActive : {}) },
-            className: 'inv-seg-btn',
-            onClick: () => setView('credentials'),
-          },
-          t('credentialSection'),
-        ),
-      )
-
       const stamp = h(
         'span',
         { style: S.stamp },
@@ -4467,139 +4483,179 @@ window.__ModuleLoader__.load({
         ),
       ]
 
+      // Left navigation rail (issue #91): the six views in two groups. Counts
+      // mirror what the views will show; the workspace detail keeps the
+      // highlight on 工作区 because it is the same view state.
+      const navRail = h(NavRail, {
+        label: t('navRailLabel'),
+        active: view === 'workspace' ? 'workspaces' : view,
+        onSelect: setView,
+        groups: [
+          {
+            title: t('navGroupOverview'),
+            items: [
+              { key: 'global', label: t('wsOverview'), count: packages.length + mcp.length + skills.length },
+              { key: 'workspaces', label: t('wsWorkspaces'), count: workspaceList.length },
+            ],
+          },
+          {
+            title: t('navGroupConfig'),
+            items: [
+              { key: 'sync', label: t('syncView') },
+              { key: 'providers', label: t('providerSection') },
+              { key: 'prompt', label: t('promptSection') },
+              { key: 'credentials', label: t('credentialSection') },
+            ],
+          },
+        ],
+      })
+
       return h(
         'div',
         {
           style: S.root,
-          onScroll: (event) => {
-            const next = event.currentTarget.scrollTop > 24
-            if (next !== scrolled) setScrolled(next)
-          },
         },
         nav,
         h(
           'div',
-          { style: S.page },
-          // (the page column is a fixed 780px list width on purpose: the tool
-          // survey reads like an inset list, and the live sections follow it)
+          { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
+          navRail,
           h(
             'div',
-            { style: S.hero },
+            {
+              // The scroll host: the rail stays put while the main column
+              // scrolls under the sticky nav. Takes over S.root's old role.
+              style: S.scrollHost,
+              onScroll: (event) => {
+                const next = event.currentTarget.scrollTop > 24
+                if (next !== scrolled) setScrolled(next)
+              },
+            },
             h(
-              'h3',
-              { style: S.h1 },
-              view === 'sync'
-                ? t('syncTitle')
-                : view === 'providers'
-                  ? t('providerSection')
-                  : view === 'prompt'
-                    ? t('promptSection')
-                    : view === 'credentials'
-                      ? t('credentialSection')
-                      : view === 'workspace' && activeWorkspace
-                      ? activeWorkspace.title
-                      : t('title'),
-            ),
-            view === 'sync'
-              ? h('p', { style: S.subtitle }, t('syncSubtitle'))
-              : view === 'providers'
-                ? h('p', { style: S.subtitle }, `${t('providerPriorityHint')} ${t('providerHint')}`)
-                : view === 'prompt'
-                  ? h('p', { style: S.subtitle }, t('promptDescription'))
-                  : view === 'credentials'
-                    ? h('p', { style: S.subtitle }, t('credentialHint'))
-                    : view === 'workspace' && activeWorkspace
-                      ? h(
-                          'div',
-                          { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
-                          h('span', { style: S.groupDir }, activeWorkspace.path),
-                          activeWorkspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
-                          activeWorkspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
-                        )
-                      : h('p', { style: S.subtitle }, t('subtitle')),
-          ),
-          h('div', { style: S.controls }, segmented, view === 'global' ? officialToggle : null, hiddenSkillsChip, isLiveView ? null : stamp),
-          view === 'sync' || isLiveView
-            ? null
-            : view === 'global'
-              ? searchField(query, setQuery, t('search'), t('search'))
-              : showList
-                ? searchField(wsQuery, setWsQuery, t('wsSearchList'), t('wsSearchList'))
-                : searchField(wsQuery, setWsQuery, t('wsSearch'), t('wsSearch')),
-          view === 'sync' || isLiveView ? null : view === 'global' ? stats : null,
-          view === 'global' && warnings.length > 0
-            ? h(
+              'div',
+              { style: S.page },
+              // (the page column is a fixed 780px list width on purpose: the tool
+              // survey reads like an inset list, and the live sections follow it)
+              h(
                 'div',
-                { style: { ...S.warn, marginTop: '14px' } },
-                h(Icon, { name: 'alert', size: 18 }),
+                { style: S.hero },
                 h(
+                  'h3',
+                  { style: S.h1 },
+                  view === 'sync'
+                    ? t('syncTitle')
+                    : view === 'providers'
+                      ? t('providerSection')
+                      : view === 'prompt'
+                        ? t('promptSection')
+                        : view === 'credentials'
+                          ? t('credentialSection')
+                          : view === 'workspace' && activeWorkspace
+                          ? activeWorkspace.title
+                          : t('title'),
+            ),
+              view === 'sync'
+                ? h('p', { style: S.subtitle }, t('syncSubtitle'))
+                : view === 'providers'
+                  ? h('p', { style: S.subtitle }, `${t('providerPriorityHint')} ${t('providerHint')}`)
+                  : view === 'prompt'
+                    ? h('p', { style: S.subtitle }, t('promptDescription'))
+                    : view === 'credentials'
+                      ? h('p', { style: S.subtitle }, t('credentialHint'))
+                      : view === 'workspace' && activeWorkspace
+                        ? h(
+                            'div',
+                            { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+                            h('span', { style: S.groupDir }, activeWorkspace.path),
+                            activeWorkspace.default === true ? h(Badge, { label: t('wsDefault'), tone: 'success', dot: true }) : null,
+                            activeWorkspace.available === false ? h(Badge, { label: t('wsUnavailableDir'), tone: 'danger', dot: true }) : null,
+                          )
+                        : h('p', { style: S.subtitle }, t('subtitle')),
+            ),
+            h('div', { style: S.controls }, view === 'global' ? officialToggle : null, hiddenSkillsChip, isLiveView ? null : stamp),
+            view === 'sync' || isLiveView
+              ? null
+              : view === 'global'
+                ? searchField(query, setQuery, t('search'), t('search'))
+                : showList
+                  ? searchField(wsQuery, setWsQuery, t('wsSearchList'), t('wsSearchList'))
+                  : searchField(wsQuery, setWsQuery, t('wsSearch'), t('wsSearch')),
+            view === 'sync' || isLiveView ? null : view === 'global' ? stats : null,
+            view === 'global' && warnings.length > 0
+              ? h(
                   'div',
-                  { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
-                  h('strong', { style: { fontWeight: 600 } }, t('warnings')),
-                  ...warnings.slice(0, 8).map((warning, index) => h('div', { key: `w-${index}` }, warning.message ?? warning.code)),
-                ),
-              )
-            : null,
-          isLiveView
-            ? h(
-                'div',
-                { style: { display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '12px', paddingBottom: '28px' } },
-                view === 'providers'
-                  ? h(WebSearchProviders, { key: 'providers', t })
-                  : view === 'credentials'
-                    ? h(CredentialVault, { key: 'credentials', t })
-                    : h(PromptInjector, { key: 'prompt', t }),
-              )
-            : view === 'sync'
-            ? h(SyncPanel, { key: 'sync-panel', t, onReloadSnapshot: () => load(true) })
-            : view === 'global'
-              ? [...liveSections, ...overviewSections]
-              : showList
-                ? h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace, query: wsQuery, hiddenSkills, showHiddenSkills })
-                : h(WorkspaceDetail, {
-                    key: 'ws-detail',
-                    t,
-                    data,
-                    workspace: activeWorkspace,
-                    busy: wsBusy,
-                    query: wsQuery,
-                    onAssign: runWorkspaceAction,
-                    hiddenSkills,
-                    showHiddenSkills,
-                    onSetSkillHidden: setSkillHidden,
-                    mcpOpen: detailOpen.mcp,
-                    skillsOpen: detailOpen.skills,
-                    onToggleMcp: () => toggleDetail('mcp'),
-                    onToggleSkills: () => toggleDetail('skills'),
-                  }),
-          wsError.length > 0
-            ? h(
-                'div',
-                { style: S.toast, role: 'alert' },
-                h(Icon, { name: 'alert', size: 18 }),
-                h('span', { style: { flex: '1 1 auto' } }, `${t('wsActionFailed')}: ${wsError}`),
-                h('button', { type: 'button', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
-              )
-            : null,
-          globalError.length > 0
-            ? h(
-                'div',
-                { style: S.toast, role: 'alert' },
-                h(Icon, { name: 'alert', size: 18 }),
-                h('span', { style: { flex: '1 1 auto' } }, `${t('globalToggleFailed')}: ${globalError}`),
-                h('button', { type: 'button', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
-              )
-            : null,
-          globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
-          vaultError.length > 0
-            ? h(
-                'div',
-                { style: S.toast, role: 'alert' },
-                h(Icon, { name: 'alert', size: 18 }),
-                h('span', { style: { flex: '1 1 auto' } }, `${t('vaultFailed')}: ${vaultError}`),
-                h('button', { type: 'button', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
-              )
-            : null,
+                  { style: { ...S.warn, marginTop: '14px' } },
+                  h(Icon, { name: 'alert', size: 18 }),
+                  h(
+                    'div',
+                    { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
+                    h('strong', { style: { fontWeight: 600 } }, t('warnings')),
+                    ...warnings.slice(0, 8).map((warning, index) => h('div', { key: `w-${index}` }, warning.message ?? warning.code)),
+                  ),
+                )
+              : null,
+            isLiveView
+              ? h(
+                  'div',
+                  { style: { display: 'flex', flexDirection: 'column', gap: '12px', paddingTop: '12px', paddingBottom: '28px' } },
+                  view === 'providers'
+                    ? h(WebSearchProviders, { key: 'providers', t })
+                    : view === 'credentials'
+                      ? h(CredentialVault, { key: 'credentials', t })
+                      : h(PromptInjector, { key: 'prompt', t }),
+                )
+              : view === 'sync'
+              ? h(SyncPanel, { key: 'sync-panel', t, onReloadSnapshot: () => load(true) })
+              : view === 'global'
+                ? [...liveSections, ...overviewSections]
+                : showList
+                  ? h(WorkspaceList, { key: 'ws-list', t, data, onEnter: openWorkspace, query: wsQuery, hiddenSkills, showHiddenSkills })
+                  : h(WorkspaceDetail, {
+                      key: 'ws-detail',
+                      t,
+                      data,
+                      workspace: activeWorkspace,
+                      busy: wsBusy,
+                      query: wsQuery,
+                      onAssign: runWorkspaceAction,
+                      hiddenSkills,
+                      showHiddenSkills,
+                      onSetSkillHidden: setSkillHidden,
+                      mcpOpen: detailOpen.mcp,
+                      skillsOpen: detailOpen.skills,
+                      onToggleMcp: () => toggleDetail('mcp'),
+                      onToggleSkills: () => toggleDetail('skills'),
+                    }),
+            wsError.length > 0
+              ? h(
+                  'div',
+                  { style: S.toast, role: 'alert' },
+                  h(Icon, { name: 'alert', size: 18 }),
+                  h('span', { style: { flex: '1 1 auto' } }, `${t('wsActionFailed')}: ${wsError}`),
+                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
+                )
+              : null,
+            globalError.length > 0
+              ? h(
+                  'div',
+                  { style: S.toast, role: 'alert' },
+                  h(Icon, { name: 'alert', size: 18 }),
+                  h('span', { style: { flex: '1 1 auto' } }, `${t('globalToggleFailed')}: ${globalError}`),
+                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
+                )
+              : null,
+            globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
+            vaultError.length > 0
+              ? h(
+                  'div',
+                  { style: S.toast, role: 'alert' },
+                  h(Icon, { name: 'alert', size: 18 }),
+                  h('span', { style: { flex: '1 1 auto' } }, `${t('vaultFailed')}: ${vaultError}`),
+                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
+                )
+              : null,
+            ),
+          ),
         ),
       )
     }

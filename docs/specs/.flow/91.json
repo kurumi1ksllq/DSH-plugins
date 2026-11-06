@@ -1,0 +1,14 @@
+{
+  "issue": 91,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-07T03:45:00+08:00",
+  "tickets": [
+    { "id": 1, "title": "rail 样式与组件 + locale 词条", "state": "done" },
+    { "id": 2, "title": "面板布局切换", "state": "done" },
+    { "id": 3, "title": "收尾:高亮保持测试 + 版本 + 四件套", "state": "done" }
+  ],
+  "ci": { "run": 0, "max": 2, "status": "green" },
+  "review": { "state": "pending-decision", "axes": 2 },
+  "merge": { "authorized": false }
+}
