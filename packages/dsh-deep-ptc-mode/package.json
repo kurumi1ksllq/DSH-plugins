@@ -1,0 +1,126 @@
+{
+  "name": "dsh-deep-ptc-mode",
+  "version": "1.7.3",
+  "description": "Lightweight adaptive Deep PTC: live host presets, plugin cooperation and interruptible jobs. / 轻量自适配深度 PTC：动态宿主预设、插件协作与官方兜底、后台可插话。",
+  "type": "module",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "agent-preset",
+    "ptc",
+    "agent-team",
+    "subagent",
+    "clarification",
+    "background-jobs",
+    "plugin-compatibility",
+    "tool-cooperation",
+    "official-ptc-fallback"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "lishize20040802-rgb",
+    "email": "lishize20040802@gmail.com",
+    "url": "https://github.com/lishize20040802-rgb"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurumi1ksllq/dsh-deep-ptc-mode.git"
+  },
+  "homepage": "https://github.com/lishize20040802-rgb/dsh-deep-ptc-mode#readme",
+  "bugs": {
+    "url": "https://github.com/lishize20040802-rgb/dsh-deep-ptc-mode/issues"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "lib",
+    "compatibility.json",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "assets/icon.png",
+    "TEST_REPORT.md"
+  ],
+  "engines": {
+    "node": ">=24",
+    "dsh": ">=0.2.2-rc.1"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-commands"
+      ]
+    }
+  },
+  "main": "lib/index.mjs",
+  "exports": {
+    ".": "./lib/index.mjs",
+    "./executor": "./lib/executor.mjs",
+    "./terminal": "./lib/terminal.mjs",
+    "./jobs-tool": "./lib/jobs-tool.mjs",
+    "./ask-user": "./lib/ask-user.mjs",
+    "./guard": "./lib/guard.mjs",
+    "./tool-compatibility": "./lib/tool-compatibility.mjs",
+    "./environment": "./lib/environment.mjs",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "check:upstream": "node scripts/check.mjs --upstream",
+    "check:parity": "node scripts/check-parity.mjs",
+    "prepack": "npm run check && npm test",
+    "sync:snapshot": "node scripts/sync-snapshot.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-web-app": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-base": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-commands": ">=0.2.2-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-renderer": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-web-app": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-base": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-commands": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "js-yaml": "4.3.2"
+  },
+  "devDependencies": {
+    "react": "18.3.1",
+    "react-test-renderer": "18.3.1"
+  }
+}
