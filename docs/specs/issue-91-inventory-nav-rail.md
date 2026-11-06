@@ -1,6 +1,7 @@
-# spec: 工具管理面板改左侧栏导航(master-detail)(#90)
+# spec: 工具管理面板改左侧栏导航(master-detail)(#91)
 
 > 停点2 产物。分级 **standard**。方向由用户在布局对比稿(现状 + A/B/C/D)中选定:方案 A。
+> 注:文件最初误挂 #90 名下,PR review 后更正;issue 编号以 #91 为准。
 
 ## 1. 目标
 

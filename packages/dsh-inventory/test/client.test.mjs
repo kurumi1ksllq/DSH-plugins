@@ -572,7 +572,7 @@ test('workspace tab lists workspaces, opens a detail page, and goes back', async
     assert.equal(typeof node.props['aria-label'], 'string', 'every overview switch must be named after its row')
   }
 
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
 
   let current = tree()
   assert.match(textOf(current), /Demo Workspace/, 'workspace card missing')
@@ -620,7 +620,7 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
   const panel = await bootPanel(workspaceSnapshot(), { version: 'switch-case' })
   const { tree, calls } = panel
 
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   let current = tree()
@@ -744,7 +744,7 @@ test('workspace detail switches POST the contract and respect locked rows', asyn
 test('workspace detail keeps rows on hairlines and the panel scrollable', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'hierarchy-case' })
 
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   const current = tree()
@@ -832,7 +832,7 @@ test('expandable rows answer the keyboard and expose aria-expanded', async () =>
 
 test('workspace detail search narrows rows and keeps the section headers', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'detail-search-case' })
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   findNode(tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   let current = tree()
@@ -849,7 +849,7 @@ test('workspace detail search narrows rows and keeps the section headers', async
 
 test('the workspace card reads 已开启/总数 for the same set the detail page lists', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'shared-count-case' })
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   // Both cards report "on/total" over the merged set (installed ∪ own), even a
   // workspace whose own roots are empty: shared skills are not reported as zero.
   const cards = []
@@ -988,7 +988,7 @@ test('one skill hides from its own row and the chip in the controls brings it ba
 
 test('a skill hidden on the overview is hidden on the workspace page too', async () => {
   const panel = await bootPanel(workspaceSnapshot(), { version: 'hide-skill-workspace-case' })
-  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   const detailRow = (name) => findNode(panel.tree(), (node) => node.props?.role === 'switch' && node.props['aria-label'] === name)
@@ -1015,7 +1015,7 @@ test('runtime-registered skills are never listed or counted', async () => {
 
 test('the workspace card and the detail page report the same skill count', async () => {
   const panel = await bootPanel(workspaceSnapshot(), { version: 'count-match-case' })
-  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   assert.match(textOf(panel.tree()), /技能 2\/3/, 'the card must read like the page: how many are on, out of all')
 
   findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
@@ -1275,7 +1275,7 @@ test('a registered-only MCP row says so instead of reading as mounted', async ()
 
 test('the default workspace is badged in the list and on its detail page', async () => {
   const { tree } = await bootPanel(workspaceSnapshot(), { version: 'default-workspace-case' })
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
 
   let current = tree()
   const defaultCard = findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace'))
@@ -1363,7 +1363,7 @@ test('workspace detail locks globally reachable skills and only switches vault s
     { name: 'vault-skill', description: 'parked', source: 'vault', global: false, vaulted: true, disabled: false, edges: [] },
   ]
   const panel = await bootPanel(snapshot, { version: 'global-skill-case' })
-  findNode(panel.tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(panel.tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   findNode(panel.tree(), (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
 
   // Globally reachable skills sit behind one collapsed header: they have no
@@ -2151,26 +2151,29 @@ test('nav rail renders two groups with counts and highlights the current view', 
   assert.ok(rail, 'nav rail missing')
   assert.match(textOf(rail), /概览/)
   assert.match(textOf(rail), /配置/)
-  const items = []
-  eachNode(rail, (node) => {
-    if (node.type === 'button' && node.props?.['aria-current'] !== undefined) items.push(node)
-  })
-  assert.equal(items.length, 6, `expected six rail items, got ${items.length}`)
-  // Overview is the default view: highlighted, and its count is packages+mcp+skills.
-  const overview = items.find((node) => textOf(node).startsWith('总览'))
+  // Rail items are reachable by view name (`aria-label` carries the label
+  // without the count), so tests never depend on the count text to find them.
+  const railItem = (view) =>
+    findNode(rail, (node) => node.type === 'button' && node.props?.['aria-label'] === view)
+  const overview = railItem('总览')
   assert.ok(overview, 'overview rail item missing')
+  // Exact counts, so a wrong number turns the test red: this fixture shows
+  // 3 packages + 1 MCP + 2 skills = 6, and the base snapshot has no workspaces.
+  assert.equal(textOf(overview), '总览 6', 'overview count must read packages+mcp+skills')
   assert.equal(overview.props['aria-current'], 'page', 'overview must be the highlighted default')
-  // The rail count is the same filtered number the statistics strip shows
-  // (3 packages + 1 MCP + 2 skills in this fixture).
-  assert.match(textOf(overview), /6/, 'overview count must read packages+mcp+skills')
-  // Workspaces counts workspaces (the base SNAPSHOT has none: the item still
-  // renders its zero); the four config items carry no count.
-  assert.match(textOf(items.find((node) => textOf(node).startsWith('工作区'))), /\d/, 'workspaces item must carry its count')
+  assert.equal(textOf(railItem('工作区')), '工作区 0', 'workspaces item must carry its zero count')
+  assert.equal(railItem('工作区').props['aria-current'], 'false', 'workspaces must not be highlighted while overview is active')
+  // The four config items carry no count and are not highlighted either.
   for (const label of ['同步', 'Web 搜索提供方', '提示词注入', '凭据保险库']) {
-    const item = items.find((node) => textOf(node).startsWith(label))
+    const item = railItem(label)
     assert.ok(item, `${label} rail item missing`)
     assert.equal(item.props['aria-current'], 'false', `${label} must not be highlighted while overview is active`)
   }
+  const railButtons = []
+  eachNode(rail, (node) => {
+    if (node.type === 'button' && node.props?.['aria-label'] !== undefined) railButtons.push(node)
+  })
+  assert.equal(railButtons.length, 6, `expected six rail items, got ${railButtons.length}`)
 })
 
 test('nav rail switches views and keeps the workspace highlight through the detail page', async () => {
@@ -2180,23 +2183,25 @@ test('nav rail switches views and keeps the workspace highlight through the deta
     const rail = findNode(current, (node) => node.props?.['aria-label'] === '工具管理导航')
     const found = []
     eachNode(rail, (node) => {
-      if (node.type === 'button' && node.props?.['aria-current'] !== undefined) found.push(node)
+      if (node.type === 'button' && node.props?.['aria-label'] !== undefined) found.push(node)
     })
     return found
   }
 
   // Rail click routes to the workspace list, same as the old tab did.
-  findNode(tree(), (node) => node.type === 'button' && textOf(node).startsWith('工作区')).props.onClick()
+  findNode(tree(), (node) => node.type === 'button' && node.props?.['aria-label'] === '工作区').props.onClick()
   let current = tree()
   assert.match(textOf(current), /Demo Workspace/, 'rail click must open the workspace list')
-  let ws = railItems(current).find((node) => textOf(node).startsWith('工作区'))
+  // Exact count: this fixture declares two workspaces.
+  let ws = railItems(current).find((node) => node.props?.['aria-label'] === '工作区')
   assert.equal(ws.props['aria-current'], 'page', 'workspaces must be highlighted on the list')
+  assert.equal(textOf(ws), '工作区 2', 'workspaces item must carry the workspace count')
 
   // Opening a detail page keeps the highlight on 工作区.
   findNode(current, (node) => node.props?.role === 'button' && textOf(node).includes('Demo Workspace')).props.onClick()
   current = tree()
   assert.match(textOf(current), /工作区列表/, 'detail page missing')
-  ws = railItems(current).find((node) => textOf(node).startsWith('工作区'))
+  ws = railItems(current).find((node) => node.props?.['aria-label'] === '工作区')
   assert.equal(ws.props['aria-current'], 'page', 'workspaces must stay highlighted on the detail page')
 
   // Back on the rail: a config view mounts its own panel. Resolving the vault
@@ -2204,7 +2209,7 @@ test('nav rail switches views and keeps the workspace highlight through the deta
   // panel's state slots (the dedicated credential tests boot the component on
   // its own for that reason), so the routing is asserted on the rail element's
   // `active` prop — the same value the resolved rail turns into aria-current.
-  findNode(current, (node) => node.type === 'button' && textOf(node).startsWith('凭据保险库')).props.onClick()
+  findNode(current, (node) => node.type === 'button' && node.props?.['aria-label'] === '凭据保险库').props.onClick()
   const raw = rawTree()
   const railElement = findNode(raw, (node) => typeof node.type === 'function' && node.props?.label === '工具管理导航')
   assert.ok(railElement, 'nav rail element missing from the raw tree')

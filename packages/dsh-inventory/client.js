@@ -847,7 +847,7 @@ window.__ModuleLoader__.load({
         padding: '10px 10px 14px',
         boxSizing: 'border-box',
         borderRight: `1px solid ${C.hairline}`,
-        background: 'color-mix(in srgb, var(--dsw-alias-bg-layer-2, #fff) 55%, transparent)',
+        background: C.fill,
       },
       railGroup: { ...T.captionStrong, color: C.secondary, padding: '14px 10px 4px' },
       railItem: {
@@ -874,32 +874,6 @@ window.__ModuleLoader__.load({
       },
       railItemLabel: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' },
       railItemCount: { ...T.caption, fontVariantNumeric: 'tabular-nums', opacity: 0.75, flexShrink: 0 },
-      seg: {
-        display: 'inline-flex',
-        gap: '2px',
-        padding: '2px',
-        borderRadius: '10px',
-        background: C.fill,
-        flexShrink: 0,
-      },
-      segBtn: {
-        minHeight: '30px',
-        padding: '0 16px',
-        border: 'none',
-        borderRadius: '8px',
-        background: 'transparent',
-        color: C.secondary,
-        fontSize: '13px',
-        fontWeight: 500,
-        cursor: 'pointer',
-        transition: `background-color 200ms ${EASE}, color 200ms ${EASE}`,
-      },
-      segBtnActive: {
-        background: C.invertedFill,
-        color: C.invertedText,
-        fontWeight: 600,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
-      },
       chip: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -1391,9 +1365,12 @@ window.__ModuleLoader__.load({
 
     /**
      * Left navigation rail (issue #91): the six views in two labelled groups.
-     * `items` is `[{ key, label, count, group, active, onSelect }]` in render
-     * order; `group` values arrive already translated. Pure shell — the keys
-     * are the panel's existing view ids, so no routing state lives here.
+     * `groups` is `[{ title, items: [{ key, label, count? }] }]` in render
+     * order, `title`/`label` already translated; `active` is the current view
+     * key and `onSelect(key)` routes it. Pure shell — the keys are the panel's
+     * existing view ids, so no routing state lives here. Each item button
+     * carries `aria-label: item.label` (name without the count) so callers and
+     * tests can target rows by view name, independent of the count text.
      */
     function NavRail({ label, groups, active, onSelect }) {
       const items = groups.flatMap((group) =>
@@ -1423,6 +1400,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 style: { ...S.railItem, ...(item.active ? S.railItemActive : {}) },
                 className: item.active ? 'inv-rail-item inv-rail-active' : 'inv-rail-item',
+                'aria-label': item.label,
                 'aria-current': item.active ? 'page' : 'false',
                 onClick: item.onSelect,
               },
@@ -4536,10 +4514,6 @@ window.__ModuleLoader__.load({
         'div',
         {
           style: S.root,
-          onScroll: (event) => {
-            const next = event.currentTarget.scrollTop > 24
-            if (next !== scrolled) setScrolled(next)
-          },
         },
         nav,
         h(
