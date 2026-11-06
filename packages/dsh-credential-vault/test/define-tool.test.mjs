@@ -96,8 +96,8 @@ test('the real defineTool and the fallback agree on the public shape', () => {
 
 test('the plugin registers its credential tool without the real package present', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'vault-notools-'))
-  const previous = process.env.DSH_CREDENTIAL_VAULT_DIR
-  process.env.DSH_CREDENTIAL_VAULT_DIR = dir
+  const previous = process.env.DSH_HOME
+  process.env.DSH_HOME = dir
   try {
     const { apply, TOOL_NAME } = await import('../index.js')
     const registered = []
@@ -115,8 +115,8 @@ test('the plugin registers its credential tool without the real package present'
     assert.equal(typeof registered[0].execute, 'function')
     assert.ok(sections.length > 0, 'the system-prompt section must still be contributed')
   } finally {
-    if (previous === undefined) delete process.env.DSH_CREDENTIAL_VAULT_DIR
-    else process.env.DSH_CREDENTIAL_VAULT_DIR = previous
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
     rmSync(dir, { recursive: true, force: true })
   }
 })
