@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { setPatchEnabled, writePatchEnabled } from '../lib/global-patch.js'
+import { patchLayerOf, setPatchEnabled, writePatchEnabled } from '../lib/global-patch.js'
 
 /**
  * `setPatchEnabled` edits a profile `cordis.patch.yml` by hand: comments and
@@ -168,4 +168,29 @@ test('writePatchEnabled flips an existing block and keeps its neighbours', () =>
   assert.equal(blocks.length, 1)
   assert.equal(blocks[0].disabled, 'true')
   assert.ok(text.endsWith('\n'))
+})
+
+test('patchLayerOf reports home over profile, and null when neither defines the id', () => {
+  // The compositor applies profile first, home last: a home insert lands after
+  // any profile disable, so the layer that actually decides the final state is
+  // the home one. `null` means the id comes from a bundle (or nothing) — the
+  // caller keeps writing the profile patch in that case.
+  const profile = '- id: dsh-inventory\n  disabled: false\n- id: rea-mcp\n  disabled: true\n'
+  const home = '- id: mcp-officecli\n  disabled: false\n'
+  const both = '- id: rea-mcp\n  disabled: false\n'
+
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: home }), 'profile')
+  assert.equal(patchLayerOf({ id: 'mcp-officecli', profilePatch: profile, homePatch: home }), 'home')
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: both }), 'home', 'the last applied layer wins')
+  assert.equal(patchLayerOf({ id: 'dsh-inventory', profilePatch: null, homePatch: null }), null)
+  assert.equal(patchLayerOf({ id: 'never-seen', profilePatch: profile, homePatch: home }), null)
+  assert.equal(patchLayerOf({ id: 'never-seen', profilePatch: null, homePatch: null }), null)
+})
+
+test('patchLayerOf matches quoted ids and ignores unrelated id mentions', () => {
+  const profile = '- id: "rea-mcp"\n  disabled: false\n'
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: null }), 'profile')
+  // A config value that merely contains the id must not count as a definition.
+  const noise = '- id: other\n  config:\n    name: rea-mcp\n'
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: noise, homePatch: null }), null)
 })

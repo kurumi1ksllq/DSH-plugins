@@ -463,6 +463,7 @@ function makeGlobalContext({
   pluginManager,
   mcpServers = [{ id: 'mcp-officecli', server: 'officecli' }],
   runtimeSkills = [],
+  profilePatchBlocked = false,
 } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'inv-global-home-'))
   const userSkillFile = writeSkillFixture(join(home, 'skills'), 'demo-skill', 'global fixture')
@@ -476,7 +477,14 @@ function makeGlobalContext({
     JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
   )
   const patchPath = join(profileDir, 'cordis.patch.yml')
-  writeFileSync(patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n', 'utf8')
+  if (profilePatchBlocked) {
+    // Tests run as root: chmod cannot make a path unwritable for root, so
+    // block it structurally — the patch "file" is a directory, which no write
+    // can pass, and every existsSync/isWritableFile probe fails honestly.
+    mkdirSync(patchPath, { recursive: true })
+  } else {
+    writeFileSync(patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n', 'utf8')
+  }
 
   const previous = {
     DSH_HOME: process.env.DSH_HOME,
@@ -1308,5 +1316,123 @@ test('the apply route updates the checkout it is pointed at, and only that one',
     else process.env.DSH_INVENTORY_UPDATE_REPO = previous.repo
     if (previous.home === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previous.home
+  }
+})
+
+test('a home-patch-defined MCP toggle writes the home patch, not the profile one', async () => {
+  const fixture = makeGlobalContext({ mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }] })
+  try {
+    // rea setup writes into `$DSH_HOME/cordis.patch.yml`: an insert the profile
+    // patch's disable can never reach, because the compositor applies the home
+    // layer after the profile one.
+    const homePatchPath = join(fixture.home, 'cordis.patch.yml')
+    writeFileSync(homePatchPath, '- id: rea-mcp\n  options:\n    name: @deepseek-ai/dsh-mcp-client\n    config:\n      serverName: rea\n      transport: stdio\n      command: rea\n', 'utf8')
+
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
+    assert.equal(off.status, 200, off.body.error ?? '')
+    assert.equal(off.body.ok, true)
+    assert.equal(off.body.via, 'patch')
+    assert.equal(off.body.path, homePatchPath, 'the override must land in the layer that defines the id')
+
+    const homeText = readFileSync(homePatchPath, 'utf8')
+    assert.match(homeText, /- id: rea-mcp\n[ \t]+disabled: true/, 'home patch must carry the disable')
+    assert.equal(readFileSync(fixture.patchPath, 'utf8').includes('rea-mcp'), false, 'profile patch must stay clean')
+
+    const on = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: true })
+    assert.equal(on.status, 200)
+    assert.match(readFileSync(homePatchPath, 'utf8'), /- id: rea-mcp\n[ \t]+disabled: false/, 're-enable flips the home block back')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('an id defined in both patches resolves to the home layer', async () => {
+  const fixture = makeGlobalContext()
+  try {
+    const homePatchPath = join(fixture.home, 'cordis.patch.yml')
+    writeFileSync(homePatchPath, '- id: mcp-officecli\n  disabled: false\n', 'utf8')
+
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'officecli', enabled: false })
+    assert.equal(off.status, 200)
+    assert.equal(off.body.path, homePatchPath)
+    assert.match(readFileSync(homePatchPath, 'utf8'), /- id: mcp-officecli\n[ \t]+disabled: true/)
+    // The profile patch still carries only its original fixture block.
+    assert.equal((readFileSync(fixture.patchPath, 'utf8').match(/- id: mcp-officecli/g) ?? []).length, 0)
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('the snapshot labels each MCP row with its definition source', async () => {
+  const fixture = makeGlobalContext({ mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }] })
+  try {
+    // officecli lives in the fixture profile patch; rea-mcp is defined in the
+    // home patch (the rea setup shape) — the row must say which is which.
+    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- id: rea-mcp\n  disabled: false\n', 'utf8')
+    writeFileSync(fixture.patchPath, '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n- id: mcp-officecli\n  disabled: false\n', 'utf8')
+
+    const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    assert.equal(status, 200)
+    const byServer = new Map(body.mcp.map((row) => [row.server, row]))
+    assert.equal(byServer.get('officecli')?.source, 'profile-patch')
+    assert.equal(byServer.get('rea')?.source, 'home-patch')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('an MCP row no patch layer defines is labelled bundle', async () => {
+  const fixture = makeGlobalContext()
+  try {
+    const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    assert.equal(status, 200)
+    const row = body.mcp.find((entry) => entry.server === 'officecli')
+    assert.equal(row.source, 'bundle')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a home-defined id with an unwritable home patch is a 400, not a dead write', async () => {
+  // Falling back to the profile patch would resurrect the original bug (the
+  // compositor drops a profile disable for a home insert), so the route must
+  // refuse honestly.
+  const fixture = makeGlobalContext({ mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }] })
+  try {
+    // Tests run as root on this machine, where chmod-based unwritability is a
+    // no-op (root bypasses permission bits). Block the write at the path
+    // level instead: `writeFileSync` on an existing *directory* fails for
+    // every user, so make the home patch path a directory.
+    const homePatchPath = join(fixture.home, 'cordis.patch.yml')
+    mkdirSync(homePatchPath, { recursive: true })
+
+    const off = await post(fixture.route.handler, { kind: 'mcp', name: 'rea', enabled: false })
+    assert.equal(off.status, 400, `expected refusal, got ${JSON.stringify(off.body)}`)
+    assert.equal(off.body.ok, false)
+    assert.equal(readFileSync(fixture.patchPath, 'utf8').includes('rea-mcp'), false, 'and must not fall back to the profile patch')
+  } finally {
+    fixture.restore()
+  }
+})
+
+test('a home-patch row stays switchable when only the profile patch is unwritable', async () => {
+  // The whole point of the layer split: an install where the profile directory
+  // is read-only but $DSH_HOME is writable must not lock the home rows away.
+  const fixture = makeGlobalContext({
+    mcpServers: [{ id: 'mcp-officecli', server: 'officecli' }, { id: 'rea-mcp', server: 'rea' }],
+    profilePatchBlocked: true,
+  })
+  try {
+    writeFileSync(join(fixture.home, 'cordis.patch.yml'), '- id: rea-mcp\n  disabled: false\n', 'utf8')
+
+    const { status, body } = await call(fixture.snapshotRoute.handler, { method: 'GET', url: `${SNAPSHOT_ROUTE}?refresh=1` })
+    assert.equal(status, 200)
+    const byServer = new Map(body.mcp.map((row) => [row.server, row]))
+    assert.equal(byServer.get('rea')?.toggleable, true, 'a home-patch row must stay switchable')
+    assert.equal(byServer.get('rea')?.source, 'home-patch')
+    assert.equal(byServer.get('officecli')?.toggleable, false, 'a profile-patch row with no writable profile is locked')
+    assert.equal(byServer.get('officecli')?.disabledReason, 'no-writable-patch')
+  } finally {
+    fixture.restore()
   }
 })

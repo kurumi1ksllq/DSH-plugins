@@ -1,0 +1,40 @@
+{
+  "issue": 82,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-06T09:30:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "lib/global-patch 判定层纯函数 + 测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "toggleGlobalMcp 按 layer 写入 + 路由测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "snapshot source 字段 + UI 标签",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "反向验证 + 四件套 + 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
