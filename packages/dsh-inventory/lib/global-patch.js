@@ -121,3 +121,38 @@ export function writePatchEnabled(file, { id, enabled }) {
   writeFileSync(file, next.text.endsWith('\n') ? next.text : next.text + eol, 'utf8')
   return { path: file, changed: true }
 }
+
+/**
+ * Which patch layer defines a loader id, per the compositor's order
+ * (bundle patches, then the profile patch, then the home patch last).
+ * The home layer is applied over the profile one, so when both name the id
+ * the home definition decides the final state.
+ * @param {{id: string, profilePatch: string|null, homePatch: string|null}} input
+ *   raw patch file texts (`null` when the file does not exist).
+ * @returns {'home'|'profile'|'null'} `null` as a string: no patch layer defines it.
+ */
+export function patchLayerOf({ id, profilePatch, homePatch }) {
+  if (definesId(homePatch, id)) return 'home'
+  if (definesId(profilePatch, id)) return 'profile'
+  return 'null'
+}
+
+/**
+ * Whether a patch text contains a top-level `- id: <value>` entry for `id`.
+ * Quoted ids match their unquoted form; a mention deeper in a block (a config
+ * value, a comment) is not a definition.
+ * @param {string|null} text
+ * @param {string} id
+ */
+function definesId(text, id) {
+  if (typeof text !== 'string' || text.length === 0) return false
+  const lines = text.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^-(?:\s|$)/.test(lines[index])) continue
+    const first = ID_LINE.exec(lines[index])
+    if (first !== null && unquote(first[1]) === id) return true
+    // An id-only line (`- rea-mcp`) is a valid sequence entry too.
+    if (/^-\s+(.+)$/.exec(lines[index])?.[1]?.trim().replace(/^["']|["']$/g, '') === id) return true
+  }
+  return false
+}

@@ -51,7 +51,7 @@ import { collectWorkspaces, readDefaultWorkspace, sharedSkillRoots } from './lib
 import { assignMcp, assignSkill, mcpFileOf, projectRootOf, readDeclaration, removeMcp, removeSkill } from './lib/assign.js'
 import { normalizeDir, pathKey } from './lib/workspace-gate.js'
 import { setSkillEnabled } from './lib/skill-toggle.js'
-import { writePatchEnabled } from './lib/global-patch.js'
+import { patchLayerOf, writePatchEnabled } from './lib/global-patch.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir } from './lib/vault.js'
 import { BUILTIN_TOOLS, CLI_NAMES, detectDeferred } from './lib/tool-owners.js'
 import {
@@ -536,9 +536,21 @@ async function loadSnapshot(ctx) {
     skill: skillSwitchable,
     via: manager !== undefined ? 'pluginManager' : mcpSwitchable ? 'patch' : null,
   }
+  const homePatch = join(dshHome(), 'cordis.patch.yml')
+  const patchTexts = {
+    profilePatch: patchPath !== null && existsSync(patchPath) ? readFileSync(patchPath, 'utf8') : null,
+    homePatch: existsSync(homePatch) ? readFileSync(homePatch, 'utf8') : null,
+  }
   for (const entry of snapshot.mcp) {
     entry.toggleable = mcpSwitchable
     entry.disabledReason = mcpSwitchable ? null : 'no-writable-profile'
+    // Where the row is defined decides where its switch writes: `bundle` rows
+    // keep the historical profile-patch override.
+    // `snapshot.mcp` rows are rebuilt with `entryId` (not the loader `id`),
+    // so derive the patch id from that.
+    entry.source = { home: 'home-patch', profile: 'profile-patch', null: 'bundle' }[
+      patchLayerOf({ id: String(entry.entryId ?? '').replace(/^include:/, ''), ...patchTexts })
+    ]
   }
   for (const skill of snapshot.skills) {
     const global = GLOBAL_SKILL_SOURCES.has(skill.source)
@@ -847,9 +859,13 @@ async function toggleGlobalMcp(ctx, name, enabled) {
     }
   }
 
-  const patchPath = profilePatchPath(ctx)
+  // The compositor applies the profile patch first and the home patch last, so
+  // an override in the profile layer can never reach an id the home layer
+  // inserts (the disable runs before the insert exists and is silently
+  // dropped). Write the override into the layer that actually defines the id.
+  const patchPath = patchTargetFor(ctx, patchIdOf(entry))
   if (patchPath === null) {
-    return { status: 400, payload: { ok: false, error: '没有可写的 profile patch 文件，无法持久化全局开关' } }
+    return { status: 400, payload: { ok: false, error: '没有可写的 patch 文件，无法持久化全局开关' } }
   }
   let result
   try {
@@ -862,6 +878,26 @@ async function toggleGlobalMcp(ctx, name, enabled) {
     status: 200,
     payload: { ok: true, kind: 'mcp', name, enabled, changed: result.changed, live: false, via: 'patch', path: patchPath },
   }
+}
+
+/**
+ * The patch file a global-switch override for `id` must land in: the home
+ * patch when that layer defines the id, the profile patch otherwise (the
+ * historical behaviour, still right for bundle and profile-patch ids).
+ * @returns {string|null} absolute path, or null when no writable target exists.
+ */
+function patchTargetFor(ctx, id) {
+  const profilePatch = profilePatchPath(ctx)
+  const homePatch = join(dshHome(), 'cordis.patch.yml')
+  const layer = patchLayerOf({
+    id,
+    profilePatch: existsSync(profilePatch) ? readFileSync(profilePatch, 'utf8') : null,
+    homePatch: existsSync(homePatch) ? readFileSync(homePatch, 'utf8') : null,
+  })
+  if (layer === 'home' && (existsSync(homePatch) ? isWritableFile(homePatch) : isWritableFile(dirname(homePatch)))) {
+    return homePatch
+  }
+  return profilePatch
 }
 
 /** Names the runtime skill registry reports; these have no disk file to edit. */
