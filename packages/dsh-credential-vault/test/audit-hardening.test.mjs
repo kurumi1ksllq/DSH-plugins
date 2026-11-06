@@ -5,8 +5,9 @@
 // the safe `use` path or the plaintext `reveal` escape hatch. It still never
 // records a value, and the file is private to the owner.
 import { test } from 'node:test'
+import { assertOwnerOnly } from './owner-mode.mjs'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -45,8 +46,7 @@ test('the audit file is private to its owner', () => {
   const dir = tempDir()
   try {
     appendAudit(dir, { name: 'github-token', outcome: 'ok', source: 'tool' })
-    const mode = statSync(join(dir, 'audit.log')).mode & 0o777
-    assert.equal(mode, 0o600)
+    assertOwnerOnly(join(dir, 'audit.log'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

@@ -1,7 +1,8 @@
 // Tests for lib/store.js — sealing, masking, file permissions, validation.
 import { test } from 'node:test'
+import { assertOwnerOnly } from './owner-mode.mjs'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, statSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -28,8 +29,7 @@ test('master key is created once, 32 bytes, mode 0600', () => {
     const first = loadOrCreateMasterKey(dir)
     assert.equal(first.key.length, 32)
     assert.equal(first.created, true)
-    const mode = statSync(join(dir, 'master.key')).mode & 0o777
-    assert.equal(mode, 0o600)
+    assertOwnerOnly(join(dir, 'master.key'))
     const second = loadOrCreateMasterKey(dir)
     assert.equal(second.created, false)
     assert.deepEqual(second.key, first.key)
@@ -67,8 +67,7 @@ test('vault file is 0600 and round-trips', () => {
   try {
     const vault = { version: 1, entries: { a: { secret: 'x' } } }
     writeVault(dir, vault)
-    const mode = statSync(join(dir, 'vault.json')).mode & 0o777
-    assert.equal(mode, 0o600)
+    assertOwnerOnly(join(dir, 'vault.json'))
     const back = readVault(dir)
     assert.equal(back.version, 1)
     // Spread into a plain object: readVault returns prototype-free entries.
