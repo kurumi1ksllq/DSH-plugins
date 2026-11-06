@@ -1,0 +1,18 @@
+{
+  "issue": 96,
+  "grade": "standard",
+  "stage": "spec",
+  "updatedAt": "2026-11-07T06:35:00+08:00",
+  "tickets": [
+    { "id": 1, "title": "定名骨架:packages/dsh-stall-governor 包骨架 + cordis.patch.yml", "state": "todo" },
+    { "id": 2, "title": "搬 governor 引擎:G1/G2 纯逻辑 + 目标键 + 软停策略 + 设置 schema", "state": "todo" },
+    { "id": 3, "title": "搬 cot-anchor 引擎:五判定器 + INVALID_ARGS + 纪律段 + 提取器,soft-cut 单点决策", "state": "todo" },
+    { "id": 4, "title": "事件层:四元组 + evidenceSeq,清理死事件常量", "state": "todo" },
+    { "id": 5, "title": "client.js 合并设置页(schema 驱动)", "state": "todo" },
+    { "id": 6, "title": "测试体系:伪内核 waterfall + 事故夹具 + 契约测试", "state": "todo" },
+    { "id": 7, "title": "登记八件套 + 版本纪律 + pnpm verify && pnpm test 全绿", "state": "todo" }
+  ],
+  "ci": { "run": 0, "max": 2, "status": "unknown" },
+  "review": { "state": "not-started", "axes": 2 },
+  "merge": { "authorized": false }
+}
