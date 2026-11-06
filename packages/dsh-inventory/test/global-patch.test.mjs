@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { patchLayerOf, setPatchEnabled, writePatchEnabled } from '../lib/global-patch.js'
+import { definedIds, patchLayerOf, setPatchEnabled, writePatchEnabled } from '../lib/global-patch.js'
 
 /**
  * `setPatchEnabled` edits a profile `cordis.patch.yml` by hand: comments and
@@ -174,12 +174,14 @@ test('patchLayerOf reports home over profile, and null when neither defines the 
   // The compositor applies profile first, home last: a home insert lands after
   // any profile disable, so the layer that actually decides the final state is
   // the home one. `null` means the id comes from a bundle (or nothing) — the
-  // caller keeps writing the profile patch in that case.
+  // caller keeps writing the profile patch in that case. Definitions are full
+  // entries or insert children; the bare `id/disabled` profile block below is
+  // the override shape this module writes and must never claim a layer.
   const profile = '- id: dsh-inventory\n  disabled: false\n- id: rea-mcp\n  disabled: true\n'
-  const home = '- id: mcp-officecli\n  disabled: false\n'
-  const both = '- id: rea-mcp\n  disabled: false\n'
+  const home = '- id: mcp-officecli\n  name: "@deepseek-ai/dsh-mcp-client"\n  disabled: false\n'
+  const both = '- insert:\n    - id: rea-mcp\n      name: "@deepseek-ai/dsh-mcp-client"\n'
 
-  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: home }), 'profile')
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: home }), null, 'the profile rea-mcp block is a bare override — it must not claim the layer')
   assert.equal(patchLayerOf({ id: 'mcp-officecli', profilePatch: profile, homePatch: home }), 'home')
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: both }), 'home', 'the last applied layer wins')
   assert.equal(patchLayerOf({ id: 'dsh-inventory', profilePatch: null, homePatch: null }), null)
@@ -188,9 +190,62 @@ test('patchLayerOf reports home over profile, and null when neither defines the 
 })
 
 test('patchLayerOf matches quoted ids and ignores unrelated id mentions', () => {
-  const profile = '- id: "rea-mcp"\n  disabled: false\n'
+  const profile = '- id: "rea-mcp"\n  name: "@deepseek-ai/dsh-mcp-client"\n'
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: null }), 'profile')
   // A config value that merely contains the id must not count as a definition.
   const noise = '- id: other\n  config:\n    name: rea-mcp\n'
   assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: noise, homePatch: null }), null)
+})
+
+test('definedIds sees insert-nested definitions and full top-level entries, never bare overrides', () => {
+  // The rea setup shape: a top-level insert whose children define the rows.
+  const home = [
+    '# machine-local overrides',
+    '- insert:',
+    '    - id: rea-mcp',
+    '      name: "@deepseek-ai/dsh-mcp-client"',
+    '      options:',
+    '        config:',
+    '          serverName: rea',
+    '          transport: stdio',
+    '          command: rea',
+    '',
+  ].join('\n')
+  assert.deepEqual([...definedIds(home)], ['rea-mcp'])
+
+  // A full top-level entry (fields beyond disabled) defines its id.
+  const profile = '- id: llm-deepseek\n  config:\n    baseURL: http://127.0.0.1:3065\n'
+  assert.deepEqual([...definedIds(profile)], ['llm-deepseek'])
+
+  // Bare id/disabled blocks are overrides this module writes, not definitions.
+  const dead = '- id: rea-mcp\n  disabled: true\n'
+  assert.deepEqual([...definedIds(dead)], [])
+})
+
+test('definedIds only counts the shallowest children of an insert block', () => {
+  // config lists nested INSIDE an insert child carry their own `- id:` lines;
+  // those are data, not definitions.
+  const home = [
+    '- insert:',
+    '    - id: rea-mcp',
+    '      options:',
+    '        config:',
+    '          models:',
+    '            - id: shadow-model',
+    '              name: Shadow',
+    '',
+  ].join('\n')
+  assert.deepEqual([...definedIds(home)], ['rea-mcp'])
+})
+
+test('patchLayerOf resolves the real #89 shape: home insert over a stale profile dead entry', () => {
+  // Before #89 both defects stacked: the insert went unseen AND the dead
+  // manager write claimed the profile layer, so the toggle kept routing to the
+  // manager. The definition must win over the residue.
+  const profile = '# profile patch (fixture)\n- id: dsh-inventory\n  disabled: false\n- id: rea-mcp\n  disabled: true\n'
+  const home = '- insert:\n    - id: rea-mcp\n      name: "@deepseek-ai/dsh-mcp-client"\n'
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: home }), 'home')
+
+  // With no insert anywhere, the dead entry alone must not claim the layer.
+  assert.equal(patchLayerOf({ id: 'rea-mcp', profilePatch: profile, homePatch: null }), null)
 })

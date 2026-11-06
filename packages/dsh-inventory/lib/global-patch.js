@@ -132,28 +132,75 @@ export function writePatchEnabled(file, { id, enabled }) {
  * @returns {'home'|'profile'|null} `null` when no patch layer defines the id.
  */
 export function patchLayerOf({ id, profilePatch, homePatch }) {
-  if (definesId(homePatch, id)) return 'home'
-  if (definesId(profilePatch, id)) return 'profile'
+  if (definedIds(homePatch).has(id)) return 'home'
+  if (definedIds(profilePatch).has(id)) return 'profile'
   return null
 }
 
 /**
- * Whether a patch text contains a top-level `- id: <value>` entry for `id`.
- * Quoted ids match their unquoted form; a mention deeper in a block (a config
- * value, a comment) is not a definition.
+ * The ids one patch text DEFINES — entries that introduce a loader row, not the
+ * bare `{id, disabled}` overrides this module (and the plugin manager) writes.
+ * Two shapes count:
+ * - a top-level `- id: X` entry carrying fields beyond `disabled`
+ *   (name/options/config — the hand-edited and gateway shapes), and
+ * - ids nested in a top-level `- insert:` sequence at the children's own
+ *   indentation (the shape `rea setup` writes into the home patch).
+ * A bare `{id, disabled}` block is an override marker: counting it would let a
+ * stale dead write (#88-era manager residue) claim the layer and poison the
+ * routing forever.
+ *
+ * Line-based on purpose: patch files are user-editable YAML where comments must
+ * survive, and this module never adds a runtime dependency. Flow-style
+ * collections (`- {id: x}`) are not recognized — conservative, they just read
+ * as "not defined here".
  * @param {string|null} text
- * @param {string} id
+ * @returns {Set<string>} defined ids, unquoted.
  */
-function definesId(text, id) {
-  if (typeof text !== 'string' || text.length === 0) return false
+export function definedIds(text) {
+  const ids = new Set()
+  if (typeof text !== 'string' || text.length === 0) return ids
   const lines = text.split(/\r?\n/)
+  const starts = []
   for (let index = 0; index < lines.length; index += 1) {
-    if (!/^-(?:\s|$)/.test(lines[index])) continue
-    // Only `- id: <value>` counts. A bare sequence item (`- rea-mcp`) is not:
-    // setPatchEnabled can only flip id/disabled blocks, so promising `home`
-    // for a bare item would send the toggle somewhere it cannot land.
-    const first = ID_LINE.exec(lines[index])
-    if (first !== null && unquote(first[1]) === id) return true
+    if (/^-(?:\s|$)/.test(lines[index])) starts.push(index)
   }
-  return false
+  for (let s = 0; s < starts.length; s += 1) {
+    const from = starts[s]
+    const to = s + 1 < starts.length ? starts[s + 1] : lines.length
+    const head = ID_LINE.exec(lines[from])
+    if (head !== null) {
+      // A definition carries fields beyond `disabled`; id+disabled only is the
+      // override shape `setPatchEnabled` writes.
+      let defines = false
+      for (let index = from + 1; index < to; index += 1) {
+        const field = FIELD_LINE.exec(lines[index])
+        if (field !== null && field[1] !== 'disabled') {
+          defines = true
+          break
+        }
+      }
+      if (defines) ids.add(unquote(head[1]))
+      continue
+    }
+    if (!/^-(?:\s*)insert:\s*(#.*)?$/.test(lines[from])) continue
+    // Direct children of the insert sequence sit at the shallowest `- ` indent
+    // inside the block; deeper `- id:` lines are data (config lists), not rows.
+    let childIndent = null
+    const children = []
+    for (let index = from + 1; index < to; index += 1) {
+      const item = /^(\s*)-(?:\s|$)/.exec(lines[index])
+      if (item === null) continue
+      const indent = item[1].length
+      if (childIndent === null || indent < childIndent) {
+        childIndent = indent
+        children.length = 0
+      }
+      if (indent === childIndent) children.push(index)
+    }
+    for (const index of children) {
+      const nested = ID_LINE.exec(lines[index].trim())
+      if (nested !== null) ids.add(unquote(nested[1]))
+    }
+  }
+  return ids
 }
