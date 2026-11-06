@@ -1,8 +1,8 @@
 {
   "issue": 94,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-07T07:25:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-07T07:38:00+08:00",
   "tickets": [
     { "id": 1, "title": "fork 上游到 kurumi1ksllq", "state": "done" },
     { "id": 2, "title": "拷贝上游为 packages/dsh-deep-ptc-mode", "state": "done" },
@@ -15,6 +15,7 @@
   ],
   "ci": { "run": 0, "max": 2, "status": "green" },
   "review": { "state": "done", "axes": 2 },
-  "merge": { "authorized": false },
+  "merge": { "authorized": true },
+  "mergeCommit": "112f653",
   "notes": "停点2 重新确认：verify-packages client 检查改为 exports[\"./client\"]（用户已批准）。双轴 review 完成：3 条误报已核实排除（README 片段、上游 package.json、TEST_REPORT/fixtures），5 条真问题已修（反向测试 6 例、语义对齐宿主、.flow 过期、README:91、update-scheme 集合差异、spec 勘误 8→7）。"
 }
