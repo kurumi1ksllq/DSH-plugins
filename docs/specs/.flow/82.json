@@ -2,7 +2,7 @@
   "issue": 82,
   "grade": "standard",
   "stage": "ci",
-  "updatedAt": "2026-11-06T09:20:00+08:00",
+  "updatedAt": "2026-11-06T09:30:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -28,7 +28,7 @@
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
     "state": "pending-decision",
