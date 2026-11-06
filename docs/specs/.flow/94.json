@@ -1,8 +1,8 @@
 {
   "issue": 94,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-07T06:35:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-07T07:15:00+08:00",
   "tickets": [
     { "id": 1, "title": "fork 上游到 kurumi1ksllq", "state": "done" },
     { "id": 2, "title": "拷贝上游为 packages/dsh-deep-ptc-mode", "state": "done" },
@@ -11,10 +11,10 @@
     { "id": 5, "title": "ci.yml node 22→24", "state": "done" },
     { "id": 6, "title": "文档契约更新 7→8（红→绿）", "state": "done" },
     { "id": 7, "title": "全量验收 pnpm verify && pnpm test", "state": "done" },
-    { "id": 8, "title": "push → PR → CI → 双轴 review", "state": "todo" }
+    { "id": 8, "title": "push → PR → CI → 双轴 review", "state": "done" }
   ],
-  "ci": { "run": 0, "max": 2, "status": "unknown" },
-  "review": { "state": "not-started", "axes": 2 },
+  "ci": { "run": 0, "max": 2, "status": "green" },
+  "review": { "state": "pending-decision", "axes": 2 },
   "merge": { "authorized": false },
-  "notes": "停点2 重新确认：verify-packages client 检查改为 exports[\"./client\"]（用户已批准）。P1-6 两条红为 lockfile 未提交的预期红，commit 后自愈。"
+  "notes": "停点2 重新确认：verify-packages client 检查改为 exports[\"./client\"]（用户已批准）。双轴 review 完成：3 条误报已核实排除（README 片段、上游 package.json、TEST_REPORT/fixtures），5 条真问题已修（反向测试 6 例、语义对齐宿主、.flow 过期、README:91、update-scheme 集合差异、spec 勘误 8→7）。"
 }

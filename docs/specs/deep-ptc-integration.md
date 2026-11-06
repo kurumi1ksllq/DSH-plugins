@@ -22,7 +22,7 @@
   - `scripts/check-profile.mjs`：`SHIPPED` 映射加一行；
   - `.github/workflows/ci.yml`：node-version 22 → 24（上游 engines 要求 node>=24，现有包声明兼容 24）；
   - 根 `package.json` 描述 seven → eight；
-  - `README.md` / `AGENTS.md` / `CHANGELOG.md` / `docs/update-scheme.md` / `docs/update-checkout.md` 计数与清单更新（7 → 8）；
+  - `README.md` / `AGENTS.md` / `CHANGELOG.md` / `docs/update-scheme.md` / `docs/update-checkout.md` 计数与清单更新（7 → 8）；其中 `update-checkout.md` 是带 commit 锁定的历史执行记录，无需改数，保留原样；
   - `test/docs-contract.test.mjs`：计数断言同步（见 TDD 说明）；
   - `pnpm-lock.yaml`：新增 importer 与 `js-yaml` / `react` / `react-test-renderer` 条目。
 
@@ -31,7 +31,7 @@
 1. `packages/dsh-deep-ptc-mode` 为自描述 bundle：`verify-packages` 输出 `dsh-deep-ptc-mode@1.7.3 -> packages/dsh-deep-ptc-mode`。
 2. `pnpm install` 通过；`pnpm-lock.yaml` 含 `packages/dsh-deep-ptc-mode` importer 与 `js-yaml@4.3.2` 条目；不含 `@deepseek-ai/*` 的注册表依赖条目。
 3. `pnpm verify` 全绿（含 check-bundle-versions 对新包 engines.dsh / test script 的检查）。
-4. `pnpm test` 全绿：上游自带 8 个测试文件全部通过 + 仓库级 docs-contract 等测试通过。
+4. `pnpm test` 全绿：上游自带 7 个测试文件全部通过 + 仓库级 docs-contract 等测试通过。
 5. 文档契约：README / AGENTS.md / CHANGELOG / update-scheme 的 bundle 计数 = 8，且 README bundles 清单含 `dsh-deep-ptc-mode`。
 6. GitHub 存在 fork `kurumi1ksllq/dsh-deep-ptc-mode`。
 7. PR 通过 CI + 双轴 review。

@@ -88,7 +88,7 @@ cd ~/.dsh/profiles/<profile> && pnpm install --prefer-offline
 node ~/DSH-plugins/scripts/check-profile.mjs   # 期望 profile ok: N linked bundle(s)、无告警
 ```
 
-N 等于你实际留下的 link 条数（5 条必装 + 你选的可选包；当前线上 profile 是 5）。数量对不上，说明第 2 步和第 3 步没对齐。
+N 等于你实际留下的 link 条数（7 条必装 + 你选的可选包；当前线上 profile 是 6）。数量对不上，说明第 2 步和第 3 步没对齐。
 
 首次接线需要重启一次 DSH（冷启动才会读新的 `package.json`）——**按仓库硬规则，重启必须先拿到用户明确批准**（见 `AGENTS.md` 与 `docs/update-checkout.md`）。重启后在 Web GUI 插件页确认每个插件都是 `active`。
 
