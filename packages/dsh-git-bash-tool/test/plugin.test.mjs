@@ -53,6 +53,13 @@ test('isSupported is true only on Windows', () => {
   assert.equal(plugin.isSupported(), process.platform === 'win32')
 })
 
+test('the default Git Bash path keeps its documented shape (#105 D1)', () => {
+  // 防回归:默认路径必须是单层反斜杠的 Windows Git Bash 绝对路径
+  // (曾因生成层转义错层,值里出现双反斜杠,PATH 回退与改写目标都会失准)
+  assert.match(plugin.DEFAULT_GIT_BASH, /^C:\\Program Files\\Git\\bin\\bash\.exe$/)
+  assert.equal(plugin.DEFAULT_GIT_BASH.includes('\\\\'), false, '值里不允许双反斜杠')
+})
+
 test('a bare bash argv[0] is rewritten to the absolute Git Bash path', () => {
   const { shell } = mount({ spawnSpec: (spec, argv) => ({ spec, argv }) })
   const out = shell.spawnSpec({}, ['bash', '-c', 'echo hi'], 1024)

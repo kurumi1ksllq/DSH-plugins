@@ -28,7 +28,7 @@
 import { existsSync } from 'node:fs'
 
 /** Git for Windows' bash. Absolute on purpose: the whole point is to avoid PATH lookup. */
-const DEFAULT_GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
+export const DEFAULT_GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
 /** Git for Windows' MSYS bin directory, used only by the PATH fallback. */
 const GIT_BIN = 'C:\\Program Files\\Git\\usr\\bin'
