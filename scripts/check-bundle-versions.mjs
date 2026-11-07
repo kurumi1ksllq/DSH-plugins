@@ -76,6 +76,7 @@ function collectBundles() {
   return { bundles, rootManifest }
 }
 
+const changelogText = existsSync(join(ROOT, 'CHANGELOG.md')) ? readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8') : null
 const problems = []
 const notes = []
 const { bundles, rootManifest } = collectBundles()
@@ -111,6 +112,19 @@ for (const { dir, manifest } of bundles) {
       const changed = git(['status', '--porcelain', '--', rel])
       if (changed !== null && changed.length > 0) {
         problems.push(`${label} (${name}): ${tag} is tagged but the bundle has uncommitted changes — bump the version`)
+      }
+    }
+  }
+
+  // 4. every tagged version of this bundle has a CHANGELOG entry (root CHANGELOG.md)
+  if (inGit && changelogText !== null) {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    for (const tag of tags) {
+      if (!tag.startsWith(name + '@')) continue
+      const ver = tag.slice(name.length + 1)
+      const re = new RegExp('^### [^\\n]*' + escapedName + '\\b[^\\n]*\\b' + ver.replace(/\./g, '\\.') + '\\b', 'm')
+      if (!re.test(changelogText)) {
+        problems.push(label + ' (' + name + '): tag ' + tag + ' has no CHANGELOG entry')
       }
     }
   }

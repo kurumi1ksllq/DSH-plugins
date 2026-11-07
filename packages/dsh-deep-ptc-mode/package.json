@@ -1,6 +1,6 @@
 {
   "name": "dsh-deep-ptc-mode",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "Lightweight adaptive Deep PTC: live host presets, plugin cooperation and interruptible jobs. / 轻量自适配深度 PTC：动态宿主预设、插件协作与官方兜底、后台可插话。",
   "type": "module",
   "keywords": [
@@ -81,14 +81,27 @@
     "sync:snapshot": "node scripts/sync-snapshot.mjs"
   },
   "peerDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.4",
+    "@deepseek-ai/dsh-base": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-bash-local": "*",
+    "@deepseek-ai/dsh-bash-sandbox": "*",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-commands": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-persona": "*",
+    "@deepseek-ai/dsh-pwsh-local": "*",
+    "@deepseek-ai/dsh-pwsh-sandbox": "*",
+    "@deepseek-ai/dsh-session": "*",
+    "@deepseek-ai/dsh-skill": "*",
+    "@deepseek-ai/dsh-tool-ask-user": "*",
+    "@deepseek-ai/dsh-tool-bash": "*",
+    "@deepseek-ai/dsh-tool-executor-ptc": "*",
+    "@deepseek-ai/dsh-tool-jobs": "*",
+    "@deepseek-ai/dsh-tool-pwsh": "*",
+    "@deepseek-ai/dsh-tool-skill": "*",
     "@deepseek-ai/dsh-web-app": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-base": ">=0.2.2-rc.1",
-    "@deepseek-ai/dsh-client-ui-commands": ">=0.2.2-rc.1"
+    "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/schemastery": {

@@ -2,12 +2,12 @@
   "issue": 98,
   "grade": "standard",
   "stage": "dev",
-  "updatedAt": "2026-11-07T15:54:07.536Z",
+  "updatedAt": "2026-11-07T16:15:15.223Z",
   "tickets": [
     {
       "id": 1,
       "title": "宿主引用声明化",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {

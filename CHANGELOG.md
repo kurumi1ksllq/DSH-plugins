@@ -10,6 +10,31 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ---
 
+### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
+
+- 三个契约测试(#exports the host services/#defaults apply/#config overrides)此前直接读宿主真实 `
+~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。
+零产品改动;隔离后 23/23 全绿,且与宿主状态无关。
+
+
+### dsh-credential-vault 0.5.3 — 宿主引用声明化 (T0.1/#98)
+
+- `peerDependencies` 补 `@deepseek-ai/dsh-tools`(lib/define-tool.js 的 lazy require 此前未声明,违反 0 侵入 B 项)。行为零变化。
+
+### dsh-inventory 0.9.1 — 宿主引用声明化 + 删 app.asar 兜底 (T0.1/#98)
+
+- `peerDependencies` 补 `@deepseek-ai/dsh-mcp-client`;删除 gate.js 的 `process.resourcesPath/app.asar` 私有路径硬拼兜底(改走 `config.mcpClientEntry` 与宿主 resolver)。
+- 仓库级新增 `test/host-deps.test.mjs`:运行时代码里任何 `@deepseek-ai/*` 字面量引用必须已在 package.json 声明。
+
+### dsh-deep-ptc-mode 1.7.4 — 宿主引用声明化 (T0.1/#98)
+
+- `optional peerDependencies` 补齐 13 个宿主包(session/skill/tool-bash/tool-pwsh/bash-local/bash-sandbox/pwsh-local/pwsh-sandbox/tool-jobs/tool-ask-user/persona/tool-executor-ptc/tool-skill)。全部沿用宿主解析 + fail-open,行为零变化。
+
+### dsh-stall-governor 0.1.1 — 宿主引用声明化 (T0.1/#98)
+
+- `optional peerDependencies` 补 `@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-agent-loop`(此前仅依赖元包声明)。
+
+
 ## Unreleased
 
 ### dsh-stall-governor 0.1.0 — 失速治理单包双引擎(#96)
@@ -247,3 +272,87 @@ described.
 ### dev-flow-skill 0.1.0
 
 - Development flow skill bundle.
+
+---
+
+<!-- 以下为 T0.2 依 git log 补写的历史发版条目(补记,原发版时漏记)。按 tag 时间升序。 -->
+
+### @local/dsh-prompt-inject 0.1.0 — 补记(2026-11-02)
+
+- · feat(gate): verify the code that is actually loaded, not the checkout · docs: workspace README, per-package test script, profile probe · feat: five DSH bundles in one workspace
+
+### dev-flow-skill 0.2.0 — 补记(2026-11-03)
+
+- · feat(git-status): 面板改造为 dev-flow 任务板 (#27)
+
+### dsh-git-status 0.2.0 — 补记(2026-11-03)
+
+- · feat(git-status): 面板改造为 dev-flow 任务板 (#27)
+
+### dsh-git-status 0.2.1 — 补记(2026-11-03)
+
+- · test(git-status): 把测私有函数的用例改成黑盒行为测试 (#33)
+
+### @local/dsh-prompt-inject 0.2.0 — 补记(2026-11-03)
+
+- · chore(tools-page): 文档死引用、补回三条编辑器测试、删死字典键、inventory 0.5.0 · refactor(tools-page): 删除迁移后残留的死 UI,并把测试断言搬去新家 · wip(tools-page): 导入已有 UI 整合改动(功能主体完成,收尾待修)
+
+### dev-flow-skill 0.2.2 — 补记(2026-11-04)
+
+- · fix(dev-flow-skill): 让 bundle 真能注册 skill,照 README 装不再崩 (#47) (#59)
+
+### dev-flow-skill 0.2.3 — 补记(2026-11-04)
+
+- · fix(credential-vault): 收口 #49 审查遗留 8 项(#50 #52-#58) (#63)
+
+### dsh-credential-vault 0.3.0 — 补记(2026-11-04)
+
+- · feat(credential-vault): 规范化存储 + 模糊命中 + 零明文使用路径 (#41)
+
+### dsh-credential-vault 0.4.0 — 补记(2026-11-04)
+
+- · fix(credential-vault): 原型污染 + 元数据无校验（现存线上缺陷） (#49)
+
+### dsh-credential-vault 0.4.1 — 补记(2026-11-04)
+
+- · fix(credential-vault): 收口 #49 审查遗留 8 项(#50 #52-#58) (#63)
+
+### dsh-inventory 0.6.0 — 补记(2026-11-04)
+
+- · feat(credential-vault): 规范化存储 + 模糊命中 + 零明文使用路径 (#41)
+
+### dsh-inventory 0.8.0 — 补记(2026-11-04)
+
+- · feat(credential-vault): 导出/导入(口令加密信封 + 按 id 去重 + 面板与 CLI) (#64)
+
+### dsh-credential-vault 0.5.1 — 补记(2026-11-06)
+
+- · test(credential-vault): define-tool 测试隔离改用 DSH_HOME(#68) (#83)
+
+### dsh-credential-vault 0.5.2 — 补记(2026-11-06)
+
+- · test(credential-vault): 文件 mode 断言加平台闸，Windows 上不再必挂 (#85)
+
+### dsh-inventory 0.8.4 — 补记(2026-11-06)
+
+- · test(inventory): 补强工作区测试四处缺口(#71 #75) (#79) · fix(inventory): 合法空声明在面板显示为正常空态(#74) (#78) · fix(inventory): 默认工作区写路径与视图对称(#72) (#77)
+
+### dsh-inventory 0.8.5 — 补记(2026-11-06)
+
+- · fix(inventory): MCP 全局开关写入定义该 id 的 patch 层 (#86)
+
+### dsh-inventory 0.8.6 — 补记(2026-11-06)
+
+- · fix(inventory): manager 分支前判层,home patch id 绕过 manager(#87) (#88)
+
+### dsh-inventory 0.8.7 — 补记(2026-11-06)
+
+- · fix(inventory): definedIds 识别 insert 嵌套定义，死覆盖条目不再毒化判层 (#90)
+
+### dsh-deep-ptc-mode 1.7.3 — 补记(2026-11-07)
+
+- · 集成上游 dsh-deep-ptc-mode@1.7.3 为第八个 bundle (#95)
+
+### dsh-inventory 0.9.0 — 补记(2026-11-07)
+
+- · dsh-inventory: 工具管理面板改左侧栏导航(master-detail)布局 (#92)

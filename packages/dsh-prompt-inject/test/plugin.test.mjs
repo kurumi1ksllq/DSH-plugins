@@ -190,18 +190,21 @@ test('icon is a self-contained 64x64 SVG', () => {
 // Host plugin: system-prompt section + webServer route
 // ---------------------------------------------------------------------------
 
-test('exports the host services and registers one dynamic section', () => {
-  assert.deepEqual(plugin.inject, ['systemPrompt', 'webServer'])
-  assert.equal(typeof plugin.apply, 'function')
+test('exports the host services and registers one dynamic section', async () => {
+  // 状态路径必须隔离:插件会把宿主真实 state.json 的持久化文本当作 currentText(T0.3)
+  await withTempProfile(async () => {
+    assert.deepEqual(plugin.inject, ['systemPrompt', 'webServer'])
+    assert.equal(typeof plugin.apply, 'function')
 
-  const { sections } = bootHost()
-  assert.equal(sections.length, 1)
-  const [section] = sections
-  assert.equal(section.name, 'demo:prompt-inject')
-  assert.equal(section.order, 3500)
-  assert.equal(section.interpolate, false, 'interpolate must be false')
-  assert.equal(typeof section.text, 'function', 'text must be a getter so edits apply without re-registering')
-  assert.equal(section.text(), plugin.DEFAULT_TEXT)
+    const { sections } = bootHost()
+    assert.equal(sections.length, 1)
+    const [section] = sections
+    assert.equal(section.name, 'demo:prompt-inject')
+    assert.equal(section.order, 3500)
+    assert.equal(section.interpolate, false, 'interpolate must be false')
+    assert.equal(typeof section.text, 'function', 'text must be a getter so edits apply without re-registering')
+    assert.equal(section.text(), plugin.DEFAULT_TEXT)
+  })
 })
 
 test('registers the exact HTTP state route through ctx.effect', async () => {
@@ -215,7 +218,9 @@ test('registers the exact HTTP state route through ctx.effect', async () => {
   })
 })
 
-test('defaults apply when config is omitted, empty or null', () => {
+test('defaults apply when config is omitted, empty or null', async () => {
+  // 状态路径必须隔离(T0.3)
+  await withTempProfile(async () => {
   for (const [label, config] of [
     ['omitted', undefined],
     ['empty', {}],
@@ -228,9 +233,12 @@ test('defaults apply when config is omitted, empty or null', () => {
     assert.equal(sections[0].order, 3500, `${label}: order default lost`)
     assert.equal(sections[0].text(), plugin.DEFAULT_TEXT, `${label}: default text lost`)
   }
+  })
 })
 
-test('config overrides name, order and text; invalid values fall back', () => {
+test('config overrides name, order and text; invalid values fall back', async () => {
+  // 状态路径必须隔离(T0.3)
+  await withTempProfile(async () => {
   {
     const { ctx, sections } = createHostCtx()
     plugin.apply(ctx, { name: 'custom:section', order: 1200, text: 'custom text' })
@@ -246,6 +254,7 @@ test('config overrides name, order and text; invalid values fall back', () => {
     assert.equal(sections[0].order, 3500)
     assert.equal(sections[0].text(), plugin.DEFAULT_TEXT)
   }
+  })
 })
 
 test('injected text keeps literal placeholders untouched', () => {

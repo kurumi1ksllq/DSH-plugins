@@ -67,22 +67,6 @@ async function loadMcpClient(emit, config) {
     specifiers.push(pathToFileURL(config.mcpClientEntry).href)
   }
   specifiers.push('@deepseek-ai/dsh-mcp-client')
-  if (typeof process.resourcesPath === 'string' && process.resourcesPath !== '') {
-    specifiers.push(
-      pathToFileURL(
-        path.join(
-          process.resourcesPath,
-          'app.asar',
-          'dsh',
-          'node_modules',
-          '@deepseek-ai',
-          'dsh-mcp-client',
-          'lib',
-          'index.js',
-        ),
-      ).href,
-    )
-  }
 
   const attempts = []
   for (const specifier of specifiers) {
