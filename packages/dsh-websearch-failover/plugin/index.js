@@ -32,6 +32,7 @@ import {
   setBalance,
   setEnabled as setEnabledRuntime,
   writeRuntime,
+  createMutex,
 } from './lib/runtime.mjs'
 import { probeBalance } from './lib/balance.mjs'
 import { API_BASE, createApiHandler } from './lib/api.mjs'
@@ -218,8 +219,16 @@ export function apply(ctx, config = {}) {
     return snapshot()
   }
 
-  /** Probe balances for every provider (or the given ids) in parallel. */
-  async function refresh(ids) {
+  /** Probe balances for every provider (or the given ids) in parallel.
+   * Serialized through a mutex: two concurrent POSTs used to interleave at the
+   * probe await and their read-modify-write of runtime.json would drop the
+   * other's balance readings (#103 T1.web). */
+  const refreshMutex = createMutex()
+  function refresh(ids) {
+    return refreshMutex.run(() => doRefresh(ids))
+  }
+
+  async function doRefresh(ids) {
     const targets = readRawProviders()
     const only = Array.isArray(ids) && ids.length > 0 ? new Set(ids.filter((id) => typeof id === 'string')) : null
     const selected = only ? targets.filter((provider) => only.has(provider.id)) : targets

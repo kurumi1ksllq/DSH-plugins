@@ -1,0 +1,25 @@
+{
+  "issue": 104,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-07T18:14:12.116Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "websearch refresh 并发串行化",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

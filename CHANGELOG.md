@@ -12,6 +12,50 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+
+
+### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
+
+- **confined(沙箱)分支的 bash 改写此前静默失效**:沙箱把真实 argv 包在第一个
+  `--` 分隔符后,旧实现只看 argv[0]。现在按位处理第一个 `--` 后的裸 bash。
+- **Git Bash 缺失降级**:挂载时探测二进制,缺失告警并走 PATH 前置回退;
+  `gitBashPath` 可注入(测试跨平台确定性);默认路径形状有断言防转义回归。
+
+### dsh-websearch-failover 0.3.1 — refresh 并发互斥 (#104)
+
+- **refresh 的 read-modify-write 互斥化**:两个并发 POST /api/refresh 在 probeBalance 的
+  await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
+  (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
+  同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
+
+
+One repository, nine independently versioned bundles. Every entry names the
+bundle it belongs to; the tag on each release is `<package-name>@<version>`
+(for example `dsh-inventory@0.2.0`).
+
+Version discipline (enforced by `node scripts/check-bundle-versions.mjs`, wired
+into `pnpm verify`): **changing a bundle's code requires bumping its version**.
+A bundle whose directory has changes after its version tag fails the gate.
+
+---
+
+## Unreleased
+
+<<<<<<< HEAD
+### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
+
+- **confined(沙箱)分支的 bash 改写此前静默失效**:沙箱把真实 argv 包在第一个
+  `--` 分隔符后,旧实现只看 argv[0]。现在按位处理第一个 `--` 后的裸 bash。
+- **Git Bash 缺失降级**:挂载时探测二进制,缺失告警并走 PATH 前置回退;
+  `gitBashPath` 可注入(测试跨平台确定性);默认路径形状有断言防转义回归。
+
+### dsh-websearch-failover 0.3.1 — refresh 并发互斥 (#104)
+
+- **refresh 的 read-modify-write 互斥化**:两个并发 POST /api/refresh 在 probeBalance 的
+  await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
+  (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
+  同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
+=======
 ### dsh-credential-vault 0.5.4 — 并发守卫/审计原子性/rotate 恢复/授权清除 (#103)
 
 - **rotate 崩溃恢复真实可达**:rotateKey 先把重封好的 vault 落为 vault.json.new 再换 key,
@@ -30,6 +74,7 @@ A bundle whose directory has changes after its version tag fails the gate.
   新增 agent/disposed 监听(agent 消失才 dispose 其 fiber);
   重复派发不再重置已追踪 fibers(0.9.2 追加)。
 - 测试:4 条新红线(窗口内挂载存活/迟到挂载存活追踪/disposed 即时清除/重复派发不丢)。
+>>>>>>> origin/main
 
 ### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
 

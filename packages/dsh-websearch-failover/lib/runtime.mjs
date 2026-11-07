@@ -194,3 +194,21 @@ export function setBalance(runtime, id, balance) {
     updatedAt: Date.now(),
   }
 }
+
+/**
+ * A promise-chain mutex: every queued run starts only after the previous one
+ * settles, and a failing run never poisons the queue (#103 T1.web). The
+ * refresh route uses this so two concurrent POST /api/refresh calls cannot
+ * interleave their read-modify-write of runtime.json (last-writer used to
+ * drop the other's balance readings).
+ */
+export function createMutex() {
+  let tail = Promise.resolve()
+  return {
+    run(fn) {
+      const run = tail.then(fn)
+      tail = run.then(() => {}, () => {})
+      return run
+    },
+  }
+}
