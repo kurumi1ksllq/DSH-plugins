@@ -29,3 +29,10 @@ test('README states that git evidence overrides a stale state file', () => {
 test('README still claims read-only behaviour', () => {
   assert.ok(README.includes('只读'))
 })
+
+test('README documents no dead package names after the merge (#110 P2-4)', () => {
+  // 反向验证:合并后两份 README 都不得再指向已删除的包名/路径,
+  // 否则照文档操作必失败(P2-3 的死指令曾经全绿漏网)
+  assert.equal(README.includes('dev-flow-skill'), false, 'README-git-status 不得再写 dev-flow-skill')
+  assert.equal(README.includes('packages/dsh-git-status'), false, 'README-git-status 不得再写 packages/dsh-git-status')
+})

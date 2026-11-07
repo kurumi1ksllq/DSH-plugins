@@ -1,6 +1,6 @@
 // PART 1 — header, locales
 /**
- * dsh-git-status — browser half.
+ * dev-flow — browser half.
  *
  * Adds a left-sidebar entry (id `git-status`) with a full-height main panel.
  * Reads `GET /git-status/snapshot` from the host half and renders four grouped
@@ -1170,7 +1170,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
     }
 
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-git-status: dictionaries')
+      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dev-flow: dictionaries')
       const t = ctx.locale.bind(NS)
 
       // Sidebar entry and main panel share the same id/key (same contract as
@@ -1212,7 +1212,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
     }
 
     return {
-      name: 'dsh-git-status',
+      name: 'dev-flow',
       inject: ['slots', 'locale', 'layout'],
       apply,
     }

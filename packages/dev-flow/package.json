@@ -7,8 +7,10 @@
   "main": "index.js",
   "exports": {
     ".": "./index.js",
+    "./client": "./client.js",
     "./lint": "./lib/lint.mjs",
     "./git-status": "./git-status-host.js",
+    "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
@@ -26,6 +28,15 @@
   "dsh": {
     "bundle": {
       "patch": "cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-locale"
+      ]
     }
   },
   "scripts": {
@@ -34,5 +45,7 @@
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0"
-  }
+  },
+  "icon": "icon.svg",
+  "private": true
 }

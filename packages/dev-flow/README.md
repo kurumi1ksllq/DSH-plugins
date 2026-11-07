@@ -1,4 +1,4 @@
-# dev-flow-skill
+# dev-flow
 
 DeepSeek Harness 的工程流程 skill：**issue → branch → TDD → PR → CI → review → merge**。
 
@@ -29,8 +29,8 @@ skill 是纯文档，最脆的失败模式是"改一句文案把闸门改没了"
 ## 测试
 
 ```bash
-node --test packages/dev-flow-skill/test/*.test.mjs
-# 或 pnpm --filter dev-flow-skill test
+node --test packages/dev-flow/test/*.test.mjs
+# 或 pnpm --filter dev-flow test
 ```
 
 ## 安装
@@ -48,11 +48,11 @@ node --test packages/dev-flow-skill/test/*.test.mjs
 
 ```json
 "dependencies": {
-  "dev-flow-skill": "link:/path/to/DSH-plugins/packages/dev-flow-skill"
+  "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow"
 },
 "dsh": {
   "profile": {
-    "bundles": ["dev-flow-skill"]
+    "bundles": ["dev-flow"]
   }
 }
 ```
@@ -65,7 +65,7 @@ node --test packages/dev-flow-skill/test/*.test.mjs
 
 ```bash
 mkdir -p ~/.dsh/skills
-ln -sfn /path/to/DSH-plugins/packages/dev-flow-skill ~/.dsh/skills/dev-flow
+ln -sfn /path/to/DSH-plugins/packages/dev-flow ~/.dsh/skills/dev-flow
 ```
 
 这个软链不需要改 profile，也不需要重启：监视器在根目录尚不存在时会先盯着最近的祖先目录（`~/.dsh`），目录一出现就重新解析并刷新目录。

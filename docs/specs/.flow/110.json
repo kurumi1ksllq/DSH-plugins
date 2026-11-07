@@ -1,8 +1,8 @@
 {
   "issue": 110,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-07T20:29:09.932Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T20:46:49.605Z",
   "tickets": [
     {
       "id": 1,
