@@ -9,7 +9,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import * as plugin from '../index.js'
+import * as plugin from '../lib-gitbash.js'
 
 const GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
 

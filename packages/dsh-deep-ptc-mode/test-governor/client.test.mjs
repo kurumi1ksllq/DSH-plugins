@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const clientPath = join(here, '..', 'client.js')
+const clientPath = join(here, '..', 'governor-client.js')
 const client = readFileSync(clientPath, 'utf8')
 
 test('client 语法可解析(node --check)', () => {

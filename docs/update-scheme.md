@@ -16,7 +16,7 @@
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
 
 - 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
-- 范围:`/root/DSH-plugins` 的 7 个 bundle(调查当时为 8 个,含已退役的 `dsh-ctx-guard`;现有集合含 `dsh-deep-ptc-mode` 与 `dsh-stall-governor`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+- 范围:`/root/DSH-plugins` 的 5 个 bundle(调查当时为 8 个;现集合为六包合并后的五包:dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 
@@ -122,7 +122,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 | P1-7 | 版本无纪律:全历史仅 1 次 bump;`plugin/` 0.2.0 与仓库根 `websearch-dsh-plugin` 0.3.0 是同一个东西的两个版本号 | 定「改代码必须 bump」+ 自动检查 |
 | P1-8 | `dsh-git-bash-tool` 无 test、无 scripts 块,`pnpm -r --if-present` 静默跳过 | 补最小 test + verify 断言每包必须有 `scripts.test` |
 | P1-9 | 当时 8 个包都没有 `engines.dsh`/DSH peer → 版本兼容检查**从不触发**,没有保护 | 补 `engines.dsh`;当前运行时是 `0.2.1-rc.5` |
-| P1-10 | 无 CI(`.github` 不存在);README 说「六个插件」(当时)实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
+| P1-10 | 无 CI(`.github` 不存在);README 说「五个插件」(当时)实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
 | P1-11 | registry 车道已有一处真实落后:`@wxg-prc-cpg/browser-skill-dsh-plugin` 装 0.4.0,最新 0.4.1 | 见 §4.3 |
 | P1-12 | 更新路径未脚本化,全靠手工 `git fetch` | 见 §4.2 |
 

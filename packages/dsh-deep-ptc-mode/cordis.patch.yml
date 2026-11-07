@@ -1,7 +1,30 @@
-# Host-side settings register a scoped deep-ptc preset.
+# Host-side settings register a scoped deep-ptc preset; the absorbed
+# stall-governor and git-bash-tool rows keep their historical row ids, with
+# name pointing at subpath exports of this package (never the main entry, so
+# nothing is loaded three times).
 - insert:
     - id: deep-ptc-settings
       name: dsh-deep-ptc-mode
       config:
         environment: auto
         wslDistribution: ''
+# Row overrides absorbed from dsh-git-bash-tool: enable the bash tool, disable
+# the pwsh tool. The timeoutMs is restated verbatim: a patch hit replaces the
+# row config wholesale.
+- id: bash-sandbox
+  name: '@deepseek-ai/dsh-bash-sandbox'
+  disabled: false
+  config:
+    timeoutMs: 60000
+- id: pwsh-sandbox
+  disabled: true
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: false
+- id: tool-pwsh
+  disabled: true
+- insert:
+    - id: dsh-stall-governor
+      name: dsh-deep-ptc-mode/governor
+    - id: git-bash-tool
+      name: dsh-deep-ptc-mode/git-bash

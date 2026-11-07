@@ -12,7 +12,7 @@ const pathB = join(dir, "b.json");
 const pathC = join(dir, "c.json");
 writeFileSync(pathB, "{oops not json", "utf8"); // 损坏文件
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = pathA;
-const { apply } = await import("../lib/index.js");
+const { apply } = await import("../lib-governor.js");
 
 function createCtx() {
 	const handlers = new Map();

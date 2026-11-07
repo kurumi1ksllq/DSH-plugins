@@ -36,7 +36,7 @@ fs.mkdirSync(tempHome, { recursive: true });
 const factory = new Function(
 	"randomUUID", "appendFileSync", "existsSync", "mkdirSync", "readFileSync", "statSync", "unlinkSync", "writeFileSync",
 	"homedir", "join", "createRequire", "BlockAssembler", "createUserMessage",
-	`${readEvalSource(new URL("../lib/index.js", import.meta.url))}; return { apply };`
+	`${readEvalSource(new URL("../lib-governor.js", import.meta.url))}; return { apply };`
 );
 
 const BlockAssembler = function () { this.parts = []; };

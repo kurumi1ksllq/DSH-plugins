@@ -1,6 +1,6 @@
 # DSH-plugins
 
-一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
+一个仓库，五个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
 **这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管，都不在这里；这里只说 profile 接上去所需的最小接线。
 
@@ -8,9 +8,7 @@
 | --- | --- | --- |
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
 | [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
-| [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
-| [`packages/dsh-stall-governor`](packages/dsh-stall-governor) | `dsh-stall-governor` | 失速治理单包双引擎：「跨步骤」步级/支线熔断（shadow 先行）+「单流内」生成退化软切与工具参数错误恢复指引、命令执行纪律段；内核缺软切钩子时能力横幅如实降级，设置页 `/plugins/stall-governor/settings` |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 
 `packages/dsh-websearch-failover` 是 websearch 的仓库根（含 `lib/`、`scripts/`、`test/`），真正装进 DSH 的 bundle 是它下面的 [`plugin/`](packages/dsh-websearch-failover/plugin)。
@@ -29,7 +27,7 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
 
-本仓库共 9 个 bundle:下面 8 条是必装(`dsh-git-bash-tool` 是 Windows 专属可选项;`dsh-websearch-failover` 走 `/plugin` 子目录)。包名不需要改；路径写 clone 到的绝对路径（把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`）：
+本仓库共 5 个 bundle,下面全部必装(`dsh-websearch-failover` 走 `/plugin` 子目录)。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
 
 ```json
 "dependencies": {
@@ -38,22 +36,14 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
   "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin",
   "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow",
   "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
-  "dsh-stall-governor": "link:/path/to/DSH-plugins/packages/dsh-stall-governor"
 }
 ```
 
 按需再补这条（同样要写进第 3 步的 `bundles`，否则不加载）：
-
-```json
-"dependencies": {
-  "dsh-git-bash-tool": "link:/path/to/DSH-plugins/packages/dsh-git-bash-tool"
-}
-```
-
 - `dsh-websearch-failover` 的 `/plugin` 后缀不能少——仓库根不是 bundle。
 - `dev-flow` 只注册 skill（包目录内的 `SKILL.md`），不新增工具；装上后会话目录会出现 `dev-flow`。若不想重启 DSH，改用 `~/.dsh/skills/dev-flow` 软链，`skill-filesystem` 会自动发现。
 - `dsh-deep-ptc-mode` 是 Agent 模式（preset）插件：新增「深度PTC模式」会话模式，不新增任务工具。安装后需重启 DSH 并新建会话才能在模式选择器里看到它。
-- `dsh-git-bash-tool` 是 Windows 专属（把 shell 换成 Git Bash、关掉 pwsh 工具），Linux/macOS 不要加。
+- `dsh-deep-ptc-mode` 已内置 Git Bash 替换(原 `dsh-git-bash-tool`,#105):Windows 上自动换 shell、关 pwsh 工具;Linux/macOS 的 bash 路径行为不受影响。
 - 要装哪个就留哪个，删掉一行等于不装。
 
 ### 3. 把包名写进 `dsh.profile.bundles`
@@ -68,9 +58,7 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
       "dsh-websearch-failover",
       "dsh-credential-vault",
       "dev-flow",
-      "dsh-git-bash-tool",
       "dsh-deep-ptc-mode",
-      "dsh-stall-governor"
     ]
   }
 }
@@ -95,7 +83,7 @@ N 等于你实际留下的 link 条数（7 条必装 + 你选的可选包；当�
 
 ```bash
 pnpm install          # 一次装齐 workspace 依赖
-pnpm test             # 七个包全部测试
+pnpm test             # 五个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
@@ -113,7 +101,7 @@ pnpm verify           # 校验每个包仍是合法 bundle
 ## 边界
 
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第八个 bundle。
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第六个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
 - `scripts/verify-packages.mjs` 只校验 `packages/` 内部，不检查任何 profile。宿主怎么接线是宿主的事。
 

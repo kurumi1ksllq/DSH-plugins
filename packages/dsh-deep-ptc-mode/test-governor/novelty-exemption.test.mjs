@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = join(tmpdir(), `gov-nov-${process.pid}-${Date.now()}.json`);
-const { createSessionState, noteEvent, evaluateG1 } = await import("../lib/index.js");
+const { createSessionState, noteEvent, evaluateG1 } = await import("../lib-governor.js");
 
 /** 推进一个只读步：有 reasoning、成功的 read、无文本、无文件变更。 */
 function readStep(state, step, filePath, reasoning) {

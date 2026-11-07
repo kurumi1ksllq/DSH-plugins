@@ -25,13 +25,11 @@ importers:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
 
-  packages/dsh-git-bash-tool: {}
 
 
   packages/dsh-inventory: {}
 
 
-  packages/dsh-stall-governor: {}
 
   packages/dsh-websearch-failover: {}
 
