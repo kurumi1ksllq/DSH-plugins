@@ -160,7 +160,7 @@ describe('skill body parsing', () => {
     // A `files` list missing SKILL.md, or a half-built `link:` target, must say
     // which file is missing rather than surface a bare ENOENT. This calls the
     // module's own reader — a re-implemented try/catch here would test nothing.
-    const dir = mkdtempSync(join(tmpdir(), 'dev-flow-skill-'))
+    const dir = mkdtempSync(join(tmpdir(), 'dev-flow-'))
     try {
       const probe = join(dir, 'missing', 'SKILL.md')
       assert.throws(

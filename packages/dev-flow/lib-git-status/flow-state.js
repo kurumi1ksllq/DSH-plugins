@@ -34,14 +34,14 @@ export const CI_STATUSES = ['green', 'red', 'none', 'unknown']
 /** Review runs once (two axes) and then waits for the user's ruling. */
 export const REVIEW_STATES = ['not-started', 'running', 'pending-decision', 'done']
 
-const FLOW_DIR = ['docs', 'specs', '.flow']
+export const FLOW_DIR = ['docs', 'specs', '.flow']
 
 /**
  * Absolute path of one issue's flow file inside a repo.
  * The number is validated by callers; this is the single place that spells the
  * directory out, so the reader and any future writer cannot drift apart.
- * Deliberately NOT exported: the directory layout is an implementation detail.
- * Callers prove the location by reading through `readFlowState`.
+ * Exported so the skill side (writer) and the doc contract test share one
+ * constant instead of three drifted copies of the same path (#110 P3c).
  * @returns {string}
  */
 function flowStatePath(repoDir, issue) {
@@ -68,12 +68,13 @@ function toCount(value) {
 
 function parseTickets(raw) {
   if (raw === undefined) return []
-  if (!Array.isArray(raw)) return null
+  if (!Array.isArray(raw)) return []
+  // 单票降级(#110 P3a):一张坏票剔除,其余好票照常呈现。
   const out = []
   for (const ticket of raw) {
-    if (!ticket || typeof ticket !== 'object') return null
-    if (!Number.isInteger(ticket.id)) return null
-    if (!isEnum(ticket.state, TICKET_STATES)) return null
+    if (!ticket || typeof ticket !== 'object') continue
+    if (!Number.isInteger(ticket.id)) continue
+    if (!isEnum(ticket.state, TICKET_STATES)) continue
     out.push({
       id: ticket.id,
       title: typeof ticket.title === 'string' ? ticket.title : '',
@@ -114,21 +115,26 @@ function parseMerge(raw) {
 export function normalizeFlowState(raw, issue) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   if (raw.issue !== issue) return null
-  if (!isEnum(raw.grade, GRADES)) return null
-  if (!isEnum(raw.stage, STAGES)) return null
-  const tickets = parseTickets(raw.tickets)
-  if (tickets === null) return null
-  const ci = parseCi(raw.ci)
-  if (raw.ci !== undefined && raw.ci !== null && ci === null) return null
-  const review = parseReview(raw.review)
-  if (raw.review !== undefined && raw.review !== null && review === null) return null
-  const merge = parseMerge(raw.merge)
-  if (raw.merge !== undefined && raw.merge !== null && merge === null) return null
+  // A future file version is the ONE whole-file refusal: every field below it
+  // may mean something this build cannot guess, so degrading per-field would
+  // present invented facts. v:1 and files written before v existed are v1 (#110 P3a).
+  if (raw.v !== undefined && raw.v !== 1) return null
+  // Unknown enums degrade per-field (#110 P3a): the file's other fields stay
+  // present and the board judges staleness from git evidence, instead of
+  // discarding a recorded state over one out-of-contract value.
+  const grade = isEnum(raw.grade, GRADES) ? raw.grade : null
+  const stage = isEnum(raw.stage, STAGES) ? raw.stage : null
+  const tickets = parseTickets(raw.tickets) ?? []
+  const ci = raw.ci === undefined || raw.ci === null ? null : parseCi(raw.ci)
+  const review = raw.review === undefined || raw.review === null ? null : parseReview(raw.review)
+  const merge = raw.merge === undefined || raw.merge === null ? null : parseMerge(raw.merge)
   return {
     issue,
-    grade: raw.grade,
-    stage: raw.stage,
+    v: 1,
+    grade,
+    stage,
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
+    specPath: typeof raw.specPath === 'string' && raw.specPath.length > 0 ? raw.specPath : null,
     tickets,
     ci,
     review,

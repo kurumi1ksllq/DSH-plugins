@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import vm from 'node:vm'
 
+import { buildTaskBoard } from '../lib-git-status/task-board.js'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const source = readFileSync(join(here, '..', 'client.js'), 'utf8')
 
@@ -87,7 +89,10 @@ function render(snap) {
     if (entry !== undefined) return entry
     return args.length > 0 ? `${k}:${args.join(',')}` : String(k)
   }
-  return Panel({ t, sessionId: 's1', initialSnap: snap })
+  // 宿主与客户端同包同发:面板只信宿主预计算的 board(镜像已砍,#110 P3b)。
+  // 测试用真实的 lib-git-status/task-board.js 计算板面,与生产数据流一致。
+  const withBoard = snap && !snap.board ? { ...snap, board: buildTaskBoard(snap) } : snap
+  return Panel({ t, sessionId: 's1', initialSnap: withBoard })
 }
 
 function walk(node, out, depth = 0) {

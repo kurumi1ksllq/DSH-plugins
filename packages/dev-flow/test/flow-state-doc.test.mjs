@@ -5,6 +5,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { lintSkill, LINT_RULES } from '../lib/lint.mjs'
+import { FLOW_DIR, STAGES } from '../lib-git-status/flow-state.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SKILL = readFileSync(join(HERE, '..', 'SKILL.md'), 'utf8')
@@ -21,11 +22,11 @@ describe('dev-flow writes its own task state (issue #26)', () => {
   })
 
   it('SKILL.md names the exact file path the panel reads', () => {
-    assert.ok(SKILL.includes('docs/specs/.flow/<issue>.json'), 'the path must match lib/flow-state.js')
+    assert.ok(SKILL.includes(FLOW_DIR.join('/') + '/<issue>.json'), 'the path must match lib-git-status/flow-state.js (shared FLOW_DIR)')
   })
 
   it('SKILL.md lists the eight stage values the board renders', () => {
-    for (const stage of ['intake', 'spec', 'dev', 'pr', 'ci', 'review', 'merge', 'done']) {
+    for (const stage of STAGES) {
       assert.ok(SKILL.includes(stage), `missing stage value ${stage}`)
     }
   })

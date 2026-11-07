@@ -92,28 +92,72 @@ test('readFlowState returns null on malformed JSON without throwing', async () =
   await rejectsAfterAccepting('{ not json')
 })
 
-test('readFlowState rejects an unknown stage', async () => {
-  await rejectsAfterAccepting({ ...valid, stage: 'shipped' })
+// #110 P3a:未知枚举从「整文件拒绝」改为「单字段降级」——
+// 文件其余字段照常呈现,坏字段以 null/剔除呈现,面板按 git 证据判 stale。
+test('an unknown stage degrades to null but keeps the rest of the file', async () => {
+  const dir = repoWith(26, { ...valid, stage: 'shipped' })
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null, 'the file must survive an unknown stage')
+  assert.equal(state.stage, null)
+  assert.equal(state.grade, valid.grade)
+  assert.deepEqual(state.tickets.map((t) => t.id), valid.tickets.map((t) => t.id))
 })
 
-test('readFlowState rejects an unknown grade', async () => {
-  await rejectsAfterAccepting({ ...valid, grade: 'medium' })
+test('an unknown grade degrades to null but keeps the stage', async () => {
+  const dir = repoWith(26, { ...valid, grade: 'medium' })
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null)
+  assert.equal(state.grade, null)
+  assert.equal(state.stage, valid.stage)
 })
 
-test('readFlowState rejects an unknown ticket state', async () => {
-  await rejectsAfterAccepting({ ...valid, tickets: [{ id: 1, title: 'x', state: 'blocked' }] })
+test('a ticket with an unknown state is dropped, its siblings survive', async () => {
+  const dir = repoWith(26, {
+    ...valid,
+    tickets: [
+      { id: 1, title: 'good', state: 'done' },
+      { id: 2, title: 'bad', state: 'blocked' },
+    ],
+  })
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null)
+  assert.deepEqual(state.tickets.map((t) => t.id), [1])
+})
+
+test('an unknown CI status degrades the ci block to null', async () => {
+  const dir = repoWith(26, { ...valid, ci: { run: 1, max: 2, status: 'flaky' } })
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null)
+  assert.equal(state.ci, null)
+  assert.equal(state.stage, valid.stage)
+})
+
+test('an unknown review state degrades the review block to null', async () => {
+  const dir = repoWith(26, { ...valid, review: { state: 'shrug', axes: 2 } })
+  const state = await readFlowState(dir, 26)
+  assert.notEqual(state, null)
+  assert.equal(state.review, null)
+})
+
+test('a future version field is refused; v:1 and legacy absence are accepted', async () => {
+  const future = repoWith(26, { ...valid, v: 2 })
+  assert.equal(await readFlowState(future, 26), null, 'an unknown file version must be refused wholesale')
+  const v1 = repoWith(26, { ...valid, v: 1 })
+  assert.notEqual(await readFlowState(v1, 26), null, 'v:1 must be accepted')
+  const legacy = repoWith(26, valid)
+  assert.notEqual(await readFlowState(legacy, 26), null, 'files written before v existed stay valid')
+})
+
+test('specPath passes through when it is a string and degrades otherwise', async () => {
+  const withPath = repoWith(26, { ...valid, specPath: 'docs/specs/some-topic.md' })
+  const state = await readFlowState(withPath, 26)
+  assert.equal(state.specPath, 'docs/specs/some-topic.md')
+  const without = repoWith(26, { ...valid, specPath: 42 })
+  assert.equal((await readFlowState(without, 26)).specPath, null)
 })
 
 test('readFlowState rejects a non-integer issue', async () => {
   await rejectsAfterAccepting({ ...valid, issue: '26' })
-})
-
-test('readFlowState rejects an unknown CI status', async () => {
-  await rejectsAfterAccepting({ ...valid, ci: { run: 1, max: 2, status: 'flaky' } })
-})
-
-test('readFlowState rejects an unknown review state', async () => {
-  await rejectsAfterAccepting({ ...valid, review: { state: 'shrug', axes: 2 } })
 })
 
 test('readFlowState rejects a request whose issue escapes the flow directory', async () => {

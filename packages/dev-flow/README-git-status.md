@@ -117,7 +117,7 @@ Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到�
 profile 的 `package.json` 加一行：
 
 ```json
-"dsh-git-status": "link:../../packages/dev-flow"
+"dev-flow": "link:../../packages/dev-flow"
 ```
 
 然后 `pnpm install`，重启 DSH。
