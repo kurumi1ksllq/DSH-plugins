@@ -45,7 +45,7 @@ fail-open、有界预算、事故夹具回归),且 governor 已经在消费 cot-
 
 | 能力 | 来源 | 建议保留度 |
 | --- | --- | --- |
-| 软切五判定器 + overLongCoT 兜底 | cot-anchor L5069-5374 | **保留**,整体搬运;预算 6/20/3 仍在内核移植段,插件只回 budgetClass/cutClass 且两字段同值 |
+| 软切五判定器 + overLongCoT 兜底 | cot-anchor L5069-5374 | **保留**,整体搬运;预算 6/20/3 仍在内核移植段,插件回 budgetClass(预算桶名)与 cutClass(内核 softCutBudgetKey 可识别名),三分支映射冻结:pseudoTool→confirmed-pseudo/pseudoTool,repeat/numberRunaway→confirmed-repeat/confirmed-repeat,churn/transition/external→heuristic/heuristic(勘误:原「两字段同值」与上游代码不符,2026-11-07 review 裁决) |
 | INVALID_ARGS 恢复指引注入 | cot-anchor L5379-5410 | **保留**(现役唯一 post-execute 注入) |
 | 命令执行纪律固定段 | cot-anchor L891-901/L4289 | **保留**,order=20000 不变 |
 | 结论提取器 extractConclusions 及 Tier1/Tier2 打分 | cot-anchor L462-516 | **保留**——虽然注入主路径已移除,它仍是软切 transition 分支的回流前置;不建议擅自恢复"每工具结果注入"主路径(那就是把已知自反馈事故重新引入) |
@@ -100,7 +100,7 @@ fail-open、有界预算、事故夹具回归),且 governor 已经在消费 cot-
 | fail-open 验证 | test-integration.mjs:61-65(GOVERNOR_BAD_PAYLOAD=null payload) | 每个钩子至少一条 null/坏 payload 断言 |
 | 设置 schema 驱动 | settings.test.mjs(GET 全量、clamp、env>json>默认) | schema 数量断言(合并后项目数会变,断言按新 schema 定) |
 
-**必须保留的契约测试**:soft-cut budgetClass/cutClass 同值;`agent/soft-cut-suppressed` 载荷契约;终态豁免词元表不外溢;G2 滑窗衰减与 turn 隔离;伪工具锚不复述标签。
+**必须保留的契约测试**:soft-cut budgetClass/cutClass 三分支冻结映射(pseudoTool→confirmed-pseudo/pseudoTool 等,见 §2.2 勘误);`agent/soft-cut-suppressed` 载荷契约;终态豁免词元表不外溢;G2 滑窗衰减与 turn 隔离;伪工具锚不复述标签。
 
 ## 6. 未决项 / 未验证(实现前须逐条处理)
 
@@ -143,7 +143,7 @@ fail-open、有界预算、事故夹具回归),且 governor 已经在消费 cot-
 | 未决项 | 决策 |
 | --- | --- |
 | §6-1 包名 | **dsh-stall-governor**(cordis 行 id / PLUGIN_SOURCE.kind=`plugin:dsh-stall-governor` / 路由前缀 `/plugins/stall-governor` / settings.section order=997 / 存储文件 `storages/stall-governor.json`) |
-| §6-2 G1 灰度 | 保持 shadow 默认(与上游默认一致);伪内核双引擎实测软停→硬拦链路作为测试项,硬拦经设置开启 |
+| §6-2 G1 灰度 | 保持 shadow 默认(注:上游 v0.2.2 代码默认 g1g2,此为**有意偏离**——pre-step 与 goal 自动续跑并存未验证;CHANGELOG 已如实记录);伪内核双引擎实测软停→硬拦链路作为测试项,硬拦经设置开启 |
 | §6-3 harvest/学习模式 | **砍掉**(用户确认):连同 harvest 路由与 LLM 提炼一并移除,仅保留 extractConclusions 及其依赖常量 |
 | §6-4 dsh-derive-watcher | 实测本机 web/headless 两 profile 均未安装 derive-watcher/cot-anchor/governor,`ctx.provide("cotAnchor")` 无真实调用方;新包以 `ctx.provide("stallGovernor",{requestSoftCut})` 预留接口,不迁移旧名 |
 | §6-5 PENDING_DEPENDENCIES | 摘除:soft-cut-suppressed 载荷契约由本包自己承担,watchdog 心跳事件名以本包实际发射为准 |

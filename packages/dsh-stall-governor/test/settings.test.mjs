@@ -83,7 +83,8 @@ test("POST clamp + 非法回退 + 未知键丢弃 + 持久化落盘", async () =
 	const handler = route(ctx);
 	const { body } = await callPost(handler, { settings: {
 		g1aZeroSteps: 999, g1bFingerprintSteps: "abc", mode: "g2",
-		notifyChannels: ["GUI", "nope"], g1AutoResumeSwitchAction: "yes", bogusKey: 1
+		notifyChannels: ["GUI", "nope"], g1AutoResumeSwitchAction: "yes", bogusKey: 1,
+		g1aSuccessRatioMax: 0.25
 	} });
 	assert.equal(body.ok, true);
 	assert.equal(body.saved, true, "持久化成功");
@@ -92,6 +93,9 @@ test("POST clamp + 非法回退 + 未知键丢弃 + 持久化落盘", async () =
 	assert.equal(body.settings.mode, "g2", "合法模式生效");
 	assert.deepEqual(body.settings.notifyChannels, ["GUI"], "未知渠道过滤");
 	assert.equal(body.settings.g1AutoResumeSwitchAction, true, "非布尔回退原值");
+	// D7 口径反向断言:比值键保留小数(Math.round 会把 0.25 抬成 1→clamp 到 min 0,
+	// G1-A 滑窗判据静默失效——#96 review 轴1 问题3 实测复现过该路径)。
+	assert.equal(body.settings.g1aSuccessRatioMax, 0.25, "比值键不被取整");
 	assert.ok(!("bogusKey" in body.settings), "未知键丢弃");
 	const onDisk = JSON.parse(readFileSync(pathA, "utf8"));
 	assert.equal(onDisk.mode, "g2", "落盘内容与响应一致");

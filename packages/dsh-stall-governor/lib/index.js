@@ -306,7 +306,10 @@ function applySettings(raw) {
 			// 设置卡 POST 前无 env，保存仍即时生效；测试无 env，同语义。
 			if (envOwnedKeys.has(key)) warn.push(`${key} 由 env 固定，忽略持久化值`);
 			else {
-				const n = Math.round(Number(v));
+				// D7 口径:仅整型默认键取整;比值类键保留小数精度(0.25 抬成 1 再 clamp 到 min 0,
+				// 阈值永远落空——与 anchor 侧 applyRuntimeSettings 的 D7 修复同因同果)。
+				const round = Number.isInteger(GOVERNOR_SETTINGS_DEFAULTS[key]) ? Math.round : Number;
+				const n = round(Number(v));
 				if (Number.isFinite(n)) CONFIG[key] = Math.min(spec.max, Math.max(spec.min, n));
 				else warn.push(`${key} 非数值回退 ${CONFIG[key]}`);
 			}
@@ -315,7 +318,7 @@ function applySettings(raw) {
 	if (warn.length > 0) logStatic({ at: "settings-invalid", warnings: warn });
 	return settingsSnapshot();
 }
-/** 当前设置快照（11 项）。 */
+/** 当前设置快照(14 项)。 */
 function settingsSnapshot() {
 	const out = {};
 	for (const spec of GOVERNOR_SETTINGS_SCHEMA) {
@@ -493,6 +496,9 @@ function normalizeCommandKey(raw) {
 	const head = (firstSegment.match(/^(?:[>&;]*\s*)*([A-Za-z0-9_.\\/-]+)/) || [])[1] || firstSegment.slice(0, 40);
 	// 语料 = 首段全部参数（含 -Filter 等命名参数）；`&&` 链不切分，整链进哈希。
 	const corpus = dir ? `${dir}::${firstSegment}` : firstSegment;
+	// §3-10 边界(上游 P1-21 同口径):`#args:<fnv1a>` 空串兜底只覆盖未知工具分支;
+	// 已知工具主字段缺失时得到每工具恒定键(如 grep::#811c9dc5)。改口径会动黄金键
+	// 基线与 compress-targetkey 契约,如需普适兜底须连基线一并重新标定。
 	const digest = fnv1aHex(corpus);
 	return `${head}#${digest}`;
 }
