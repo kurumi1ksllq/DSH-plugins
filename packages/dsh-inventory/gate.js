@@ -163,7 +163,7 @@ export function apply(ctx, rawConfig) {
     // start it, return undefined immediately, and let the dispatch continue.
     const off = ctx.on('agent/created', ({ agent }) => {
       const agentId = agent?.id ?? '<unknown>'
-      mounted.set(agentId, [])
+      if (!mounted.has(agentId)) mounted.set(agentId, [])
       void (async () => {
         try {
           const cwd = readCwd(agent)

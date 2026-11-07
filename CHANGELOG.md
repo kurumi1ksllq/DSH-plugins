@@ -12,6 +12,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.9.2 — gate 快速挂载竞态修复 (#102)
+
+- **workspace MCP 挂载在默认配置下整体不可用的根因修复**:late-fiber 兜底的
+  mounted.has() 检查先于 mounted.set 入微任务队列,窗口内完成的挂载全部被当场卸载。
+  mounted 条目改为 agent/created 预登记,快/慢/迟到 fiber 一律追踪;
+  新增 agent/disposed 监听(agent 消失才 dispose 其 fiber);
+  重复派发不再重置已追踪 fibers(0.9.2 追加)。
+- 测试:4 条新红线(窗口内挂载存活/迟到挂载存活追踪/disposed 即时清除/重复派发不丢)。
+
 ### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
 
 - 三个契约测试(§exports the host services / §defaults apply / §config overrides)此前直接读宿主真实 `~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。零产品改动;隔离后 23/23 全绿,且与宿主状态无关。
