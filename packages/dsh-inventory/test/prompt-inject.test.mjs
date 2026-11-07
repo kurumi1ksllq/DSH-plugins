@@ -1,16 +1,16 @@
 /**
- * Contract tests for dsh-inventory.
+ * Contract tests for the prompt-inject half absorbed into dsh-inventory (#111).
  *
  * Everything here runs on plain Node: a fake Cordis context captures the
  * system-prompt section and the webServer route, and a fake HTTP request /
  * response pair drives the route handler without listening on a socket.
- * `client.js` is executed through `node:vm` with a stubbed
- * `window.__ModuleLoader__`, so no real Harness runtime is needed either.
+ * The old client half (a zero-consumer dictionary) was removed with the merge;
+ * the live editor renders from dsh-inventory's own client.js.
  *
- * Run with: node --test prompt-inject/test/plugin.test.mjs
+ * Run with: node --test test/prompt-inject.test.mjs
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -122,7 +122,7 @@ async function withTempProfile(fn) {
 // Package / static assets
 // ---------------------------------------------------------------------------
 
-test('prompt-inject implementation is wired into the dsh-inventory manifest (#110/T2.inv)', () => {
+test('prompt-inject implementation is wired into the dsh-inventory manifest (#111/T2.inv)', () => {
   const pkg = JSON.parse(read('package.json'))
 
   // The absorbing package owns the manifest; the migrated half must be reachable
@@ -142,13 +142,18 @@ test('prompt-inject implementation is wired into the dsh-inventory manifest (#11
   ])
 })
 
-test('bundle patch is a single insert row for the plugin', () => {
+test('the bundle patch keeps its three rows in one insert block (#111)', () => {
   const rows = read('cordis.patch.yml')
     .split(/\r?\n/)
     .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
-  const rowIdx = rows.indexOf('    - id: prompt-inject')
-  assert.ok(rowIdx > -1, 'the prompt-inject row must be present')
-  assert.equal(rows[rowIdx + 1], '      name: "dsh-inventory/prompt-inject"')
+  assert.equal(rows[0], '- insert:', 'a single insert block')
+  assert.equal(rows.filter((r) => r.trim() === '- insert:').length, 1, 'no second insert block (spec 单块多行口径)')
+  const ids = rows.filter((r) => /- id: /.test(r)).map((r) => r.trim().slice(6))
+  assert.deepEqual(ids, ['inventory', 'inventory-gate', 'prompt-inject'])
+  for (const line of rows) {
+    assert.ok(!line.includes('\t'), 'YAML must use spaces, not tabs')
+    assert.ok(!/config:/.test(line), 'patch must not add config overrides')
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -444,74 +449,49 @@ test('falls back to DSH_HOME when DSH_PROFILE_DIR is absent', async () => {
 // Client plugin (vm, ModuleLoader format)
 // ---------------------------------------------------------------------------
 
-const fakeReact = {
-  createElement(type, props, ...children) {
-    return { type, props: props || {}, children }
-  },
-  useState(initial) {
-    return [initial, () => {}]
-  },
-  useEffect() {},
-  useCallback(fn) {
-    return fn
-  },
-  useRef(value) {
-    return { current: value }
-  },
-  Fragment: 'Fragment',
-}
+test('a whitespace-only text is rejected with 400, not stored', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    const res = await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: '   \n\t  ' }) })
+    assert.equal(res.status, 400, 'whitespace-only must be invalid-text')
+    assert.deepEqual(res.json, { error: 'invalid-text' })
+    const after = await callRoute(host.route.handler, { method: 'GET' })
+    assert.notEqual(after.json.text.trim(), '', 'the stored text must be untouched')
+  })
+})
 
-function loadClientDefinition() {
-  const source = read('prompt-inject-client.js')
-  let definition = null
-  const window = {
-    __ModuleLoader__: {
-      load(value) {
-        definition = value
-      },
-    },
-  }
-  const sandbox = { window, console, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout }
-  vm.runInNewContext(source, sandbox, { filename: 'prompt-inject-client.js' })
-  assert.ok(definition, 'prompt-inject-client.js must call window.__ModuleLoader__.load')
-  return { definition, source }
-}
+test('persisting leaves exactly one .bak generation of the previous state (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'first version' }) })
+    const stateFile = host.route.stateFile ?? null
+    // 直接以文件系统为准:POST 两次后应存在 .bak,内容是第一版
+    await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'second version' }) })
+    const profileDir = process.env.DSH_PROFILE_DIR
+    const bak = readFileSync(join(profileDir, STATE_FILE) + '.bak', 'utf8')
+    assert.equal(JSON.parse(bak).text, 'first version', '.bak must hold the previous generation')
+    const cur = readFileSync(join(profileDir, STATE_FILE), 'utf8')
+    assert.equal(JSON.parse(cur).text, 'second version')
+  })
+})
 
-function createClientCtx() {
-  const slotRegistrations = []
-  const localeRegistrations = []
-  const layoutCalls = []
-  const effects = []
-  const ctx = {
-    effect(callback) {
-      const disposer = callback()
-      effects.push(disposer)
-      return disposer
-    },
-    locale: {
-      register(namespace, dictionaries) {
-        localeRegistrations.push({ namespace, dictionaries })
-        return () => {}
-      },
-      bind(namespace) {
-        return (key) => `${namespace}:${key}`
-      },
-    },
-    slots: {
-      inject(name, callback) {
-        slotRegistrations.push({ name, registration: callback() })
-        return () => {}
-      },
-      register(options, component) {
-        return { options, component }
-      },
-    },
-    layout: {
-      selectPanel(panel) {
-        layoutCalls.push(panel)
-      },
-    },
-  }
-  return { ctx, slotRegistrations, localeRegistrations, layoutCalls, effects }
-}
+test('an oversized body answers 413 and drains the request (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    // readJsonBody 的上限是 body 字节(256KiB),不是 text 字符数:
+    // 超 256KiB 的原始 body 才走 413 路径(答案后立即排空请求流)。
+    const big = JSON.stringify({ text: 'x'.repeat(300 * 1024) })
+    const res = await callRoute(host.route.handler, { method: 'POST', body: big })
+    assert.equal(res.status, 413)
+  })
+})
 
+test('a text longer than MAX_TEXT_LENGTH answers 400 invalid-text (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    // 小 body 内的超长 text:JSON 合法、字节不超限,但 text 字段超上限
+    const res = await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'x'.repeat(MAX_TEXT_LENGTH + 10) }) })
+    assert.equal(res.status, 400)
+    assert.deepEqual(res.json, { error: 'invalid-text' })
+  })
+})

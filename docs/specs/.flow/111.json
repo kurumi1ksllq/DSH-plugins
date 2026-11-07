@@ -1,17 +1,17 @@
 {
   "issue": 111,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-07T21:18:02.096Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T22:10:27.189Z",
   "tickets": [
     {
       "id": 1,
       "title": "吸收 prompt-inject(12 条契约)",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
     "status": "unknown"
   },

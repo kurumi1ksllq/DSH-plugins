@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, eight independently versioned bundles. Every entry names the
+One repository, seven independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -20,8 +20,8 @@ A bundle whose directory has changes after its version tag fails the gate.
   持久化三级回退、VERIFICATION.md 全部原样。
 - **locale 单一事实源落地(H3)**:prompt-inject 的 `prompt-inject` NS 死字典与其
   client 半区(编辑器早已用 inventory NS)不迁移——零消费死配置随包删除。
-- 捆入修复:超限请求销毁 socket、空白文本服务端校验、.bak 一代、
-  ifUpdatedAt 乐观并发(审计既定项)。
+- 捆入修复:空白文本服务端校验(trim)、.bak 一代、413 应答后立即排空请求流;
+  ifUpdatedAt 乐观并发未做,移后续票(#111 评论区裁决)。
 
 ### dev-flow 0.3.0 — 吸收 dsh-git-status,包名改 dev-flow(原子迁移,#110)
 
@@ -50,15 +50,6 @@ A bundle whose directory has changes after its version tag fails the gate.
   同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
 
 
-One repository, nine independently versioned bundles. Every entry names the
-bundle it belongs to; the tag on each release is `<package-name>@<version>`
-(for example `dsh-inventory@0.2.0`).
-
-Version discipline (enforced by `node scripts/check-bundle-versions.mjs`, wired
-into `pnpm verify`): **changing a bundle's code requires bumping its version**.
-A bundle whose directory has changes after its version tag fails the gate.
-
----
 
 ## Unreleased
 

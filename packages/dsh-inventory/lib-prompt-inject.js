@@ -11,7 +11,7 @@
  * origin checks are done here).
  */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, writeFileSync, copyFileSync, chmodSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -90,9 +90,18 @@ function loadPersistedState(file) {
   }
 }
 
-/** Write the state atomically: temp file first, then rename over the target. */
+/**
+ * Write the state atomically: temp file first, then rename over the target.
+ * The previous on-disk state is kept as ONE `.bak` generation first (#111):
+ * a regretted paste can be rolled back by hand instead of being gone forever.
+ */
 function persistState(file, state) {
   mkdirSync(dirname(file), { recursive: true })
+  if (existsSync(file)) {
+    const bak = `${file}.bak`
+    copyFileSync(file, bak)
+    chmodSync(bak, 0o600)
+  }
   const tempFile = `${file}.${process.pid}.${Date.now()}.tmp`
   writeFileSync(tempFile, JSON.stringify(state), 'utf8')
   renameSync(tempFile, file)
@@ -227,6 +236,10 @@ export function apply(ctx, config = {}) {
           payload = await readJsonBody(req)
         } catch (error) {
           if (error && error.code === 'payload-too-large') {
+            // A body still streaming after the limit must not hold the socket
+            // open until the client's own timeout (#111): drain nothing, tear
+            // the request down right after the answer is written.
+            req.on('end', () => req.destroy?.()).resume?.()
             sendJson(res, 413, { error: 'payload-too-large' })
           } else {
             sendJson(res, 400, { error: 'invalid-json' })
@@ -235,7 +248,7 @@ export function apply(ctx, config = {}) {
         }
 
         const text = payload && typeof payload === 'object' ? payload.text : undefined
-        if (typeof text !== 'string' || text.length === 0 || text.length > MAX_TEXT_LENGTH) {
+        if (typeof text !== 'string' || text.trim().length === 0 || text.length > MAX_TEXT_LENGTH) {
           sendJson(res, 400, { error: 'invalid-text' })
           return
         }
