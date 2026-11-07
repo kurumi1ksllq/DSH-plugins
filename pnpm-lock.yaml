@@ -33,6 +33,8 @@ importers:
 
   packages/dsh-prompt-inject: {}
 
+  packages/dsh-stall-governor: {}
+
   packages/dsh-websearch-failover: {}
 
 packages:

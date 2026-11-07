@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, eight independently versioned bundles. Every entry names the
+One repository, nine independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -11,6 +11,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 ---
 
 ## Unreleased
+
+### dsh-stall-governor 0.1.0 — 失速治理单包双引擎(#96)
+
+- 合并上游 dsh-cot-anchor v0.4.2 与 dsh-step-governor v0.2.2 为单一 bundle:共享装配、设置、client、事件设施。
+- 保留:软切五判定器 + overLongCoT 兜底(probeKernelHook 三态门控)、INVALID_ARGS/ToolArgsError 恢复指引注入、命令执行纪律段(order 20000)、extractConclusions 提取器;G1-A 三子判据 + G1-B 指纹 + G1-C 硬顶、G2-A/G2-B + 目标键归一化 + 终态豁免、软停优先策略、`agent/soft-cut-suppressed` 高置信升级闭环。
+- 砍掉:LLM 提炼 / CoT 采集(harvest)/ 学习模式(~800 行 + 1 路由;注入主路径移除后非现役能力,#96 §6-3)。
+- 新 id:包名/行 id/`plugin:dsh-stall-governor`/路由 `/plugins/stall-governor/settings`/存储 `storages/stall-governor.json`/settings.section order 997;`ctx.provide("stallGovernor")` 合并两上游服务。
+- G1 默认 shadow:agent/pre-step 与 goal 自动续跑驱动的并存顺序未经验证(#96 §6-2);deviation 自上游代码默认 g1g2,可经设置开启。
+- governor 的 PENDING_DEPENDENCIES 摘除(soft-cut-suppressed 载荷契约由本包自持);watchdog 心跳机器移除(无真实 watcher 生态,预留 stallGovernor 两服务为接口)。
+- 有界内存修复:上游 churn/shingle 指纹集合跨 turn 从未清理,合并后在 turn 边界同口径清零(§3-9)。
 
 ### dsh-inventory 0.7.1 — 更新路由的测试不再改真实仓库
 
