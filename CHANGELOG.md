@@ -12,6 +12,17 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.10.0 — 吸收 prompt-inject(#111)
+
+- **包数 8→7**:dsh-prompt-inject 并入 dsh-inventory。行 id `prompt-inject` 保留,
+  name 指 `dsh-inventory/prompt-inject` 子路径导出;/prompt-inject/state 路由、
+  section(name demo:prompt-inject / order 3500 / interpolate:false)、验证令牌、
+  持久化三级回退、VERIFICATION.md 全部原样。
+- **locale 单一事实源落地(H3)**:prompt-inject 的 `prompt-inject` NS 死字典与其
+  client 半区(编辑器早已用 inventory NS)不迁移——零消费死配置随包删除。
+- 捆入修复:超限请求销毁 socket、空白文本服务端校验、.bak 一代、
+  ifUpdatedAt 乐观并发(审计既定项)。
+
 ### dev-flow 0.3.0 — 吸收 dsh-git-status,包名改 dev-flow(原子迁移,#110)
 
 - **包名 `dev-flow-skill` → `dev-flow`**(owner 授权的红线例外):三点锁步

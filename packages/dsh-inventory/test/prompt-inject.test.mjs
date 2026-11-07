@@ -1,5 +1,5 @@
 /**
- * Contract tests for @local/dsh-prompt-inject.
+ * Contract tests for dsh-inventory.
  *
  * Everything here runs on plain Node: a fake Cordis context captures the
  * system-prompt section and the webServer route, and a fake HTTP request /
@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgDir = join(here, '..')
 const read = (name) => readFileSync(join(pkgDir, name), 'utf8')
 
-const plugin = await import(pathToFileURL(join(pkgDir, 'index.js')).href)
+const plugin = await import(pathToFileURL(join(pkgDir, 'lib-prompt-inject.js')).href)
 
 const STATE_ROUTE = '/prompt-inject/state'
 const STATE_FILE = 'prompt-inject.state.json'
@@ -122,25 +122,15 @@ async function withTempProfile(fn) {
 // Package / static assets
 // ---------------------------------------------------------------------------
 
-test('package manifest is a valid DSH bundle and client package', () => {
+test('prompt-inject implementation is wired into the dsh-inventory manifest (#110/T2.inv)', () => {
   const pkg = JSON.parse(read('package.json'))
 
-  assert.equal(pkg.name, '@local/dsh-prompt-inject')
-  assert.equal(pkg.version, '0.2.1')
-  assert.equal(pkg.private, true)
-  assert.equal(pkg.type, 'module')
-  assert.equal(pkg.main, 'index.js')
-  assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
-  assert.ok(existsSync(join(pkgDir, pkg.dsh.bundle.patch)), 'bundle patch must exist')
-
-  assert.equal(pkg.exports['.'], './index.js')
-  assert.equal(pkg.exports['./client'], './client.js')
-  assert.ok(pkg.exports['./locale/*.json'], 'locale export missing')
-  assert.ok(pkg.exports['./icon'], 'icon export missing')
-
-  for (const required of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'README.md']) {
-    assert.ok(pkg.files.includes(required), `files must include ${required}`)
-  }
+  // The absorbing package owns the manifest; the migrated half must be reachable
+  // through its subpath export and declared in files.
+  assert.equal(pkg.name, 'dsh-inventory')
+  assert.equal(pkg.exports['./prompt-inject'], './lib-prompt-inject.js')
+  assert.ok(pkg.files.includes('lib-prompt-inject.js'), 'files must include lib-prompt-inject.js')
+  assert.ok(pkg.files.includes('VERIFICATION.md'), 'files must include VERIFICATION.md')
   assert.ok(pkg.files.includes('locale/*.json'), 'files must include locale/*.json')
 
   assert.equal(pkg.dsh.client.platform, 'web')
@@ -152,38 +142,13 @@ test('package manifest is a valid DSH bundle and client package', () => {
   ])
 })
 
-test('locale files carry real plugin metadata', () => {
-  for (const locale of ['en', 'zh']) {
-    const data = JSON.parse(read(`locale/${locale}.json`))
-    assert.equal(typeof data.meta.title, 'string')
-    assert.equal(typeof data.meta.description, 'string')
-    assert.ok(data.meta.title.trim().length > 0, `${locale} title empty`)
-    assert.ok(data.meta.description.trim().length > 0, `${locale} description empty`)
-    assert.ok(data.meta.description.length > 20, `${locale} description looks like a placeholder`)
-    assert.ok(/dsh-prompt-inject/.test(data.meta.title), `${locale} title should name the plugin`)
-  }
-})
-
 test('bundle patch is a single insert row for the plugin', () => {
-  const lines = read('cordis.patch.yml')
+  const rows = read('cordis.patch.yml')
     .split(/\r?\n/)
     .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
-
-  assert.equal(lines[0], '- insert:')
-  assert.equal(lines[1], '    - id: prompt-inject')
-  assert.equal(lines[2], '      name: "@local/dsh-prompt-inject"')
-  assert.equal(lines.length, 3, 'patch must not add config overrides')
-  for (const line of lines) {
-    assert.ok(!line.includes('\t'), 'YAML must use spaces, not tabs')
-  }
-})
-
-test('icon is a self-contained 64x64 SVG', () => {
-  const svg = read('icon.svg')
-  assert.match(svg, /^<svg[^>]*width="64"[^>]*height="64"/)
-  assert.match(svg, /viewBox="0 0 64 64"/)
-  const withoutNamespace = svg.replace(/xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, '')
-  assert.doesNotMatch(withoutNamespace, /https?:\/\//i, 'icon must not reference external resources')
+  const rowIdx = rows.indexOf('    - id: prompt-inject')
+  assert.ok(rowIdx > -1, 'the prompt-inject row must be present')
+  assert.equal(rows[rowIdx + 1], '      name: "dsh-inventory/prompt-inject"')
 })
 
 // ---------------------------------------------------------------------------
@@ -497,7 +462,7 @@ const fakeReact = {
 }
 
 function loadClientDefinition() {
-  const source = read('client.js')
+  const source = read('prompt-inject-client.js')
   let definition = null
   const window = {
     __ModuleLoader__: {
@@ -507,8 +472,8 @@ function loadClientDefinition() {
     },
   }
   const sandbox = { window, console, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout }
-  vm.runInNewContext(source, sandbox, { filename: 'client.js' })
-  assert.ok(definition, 'client.js must call window.__ModuleLoader__.load')
+  vm.runInNewContext(source, sandbox, { filename: 'prompt-inject-client.js' })
+  assert.ok(definition, 'prompt-inject-client.js must call window.__ModuleLoader__.load')
   return { definition, source }
 }
 
@@ -550,54 +515,3 @@ function createClientCtx() {
   return { ctx, slotRegistrations, localeRegistrations, layoutCalls, effects }
 }
 
-test('client.js is a ModuleLoader module that only requires react', () => {
-  const { definition, source } = loadClientDefinition()
-  assert.equal(definition.id, '@local/dsh-prompt-inject')
-  assert.equal(typeof definition.factory, 'function')
-
-  const required = []
-  const moduleExports = definition.factory((id) => {
-    required.push(id)
-    if (id === 'react') return fakeReact
-    throw new Error(`unexpected require: ${id}`)
-  })
-
-  assert.deepEqual(required, ['react'], 'client must not require Harness packages')
-  // Arrays created inside the vm sandbox have another realm's prototype, so
-  // copy into this realm before the strict comparison.
-  // The editor moved to the Tools page (dsh-inventory), so the client half only
-  // owns its dictionary now — no slots, no layout, no shell dependency.
-  assert.deepEqual(Array.from(moduleExports.inject), ['locale'])
-  assert.equal(typeof moduleExports.apply, 'function')
-  assert.match(source, /\/prompt-inject\/state/)
-  assert.match(source, /POST/)
-  assert.doesNotMatch(source, /@deepseek-ai\/dsh-client/)
-  assert.doesNotMatch(source, /\bimport\s/)
-})
-
-test('client registers zh/en dictionaries and owns no sidebar panel any more', () => {
-  const { definition } = loadClientDefinition()
-  const moduleExports = definition.factory((id) => {
-    if (id === 'react') return fakeReact
-    throw new Error(`unexpected require: ${id}`)
-  })
-  const { ctx, localeRegistrations, effects } = createClientCtx()
-  moduleExports.apply(ctx)
-
-  // One dictionary, registered inside ctx.effect so a reload tears it down.
-  assert.equal(effects.length, 1, 'the registration must run in ctx.effect')
-  assert.equal(localeRegistrations.length, 1)
-  const [{ namespace, dictionaries }] = localeRegistrations
-  assert.equal(namespace, 'prompt-inject')
-  assert.deepEqual(Object.keys(dictionaries).sort(), ['en', 'zh'])
-
-  // The Tools page reads these exact keys through the `prompt-inject` namespace,
-  // so a rename here would silently degrade the editor to raw keys.
-  for (const locale of ['zh', 'en']) {
-    const dict = dictionaries[locale]
-    for (const key of ['title', 'description', 'placeholder', 'confirm', 'saving', 'saved', 'loading']) {
-      assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
-      assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
-    }
-  }
-})
