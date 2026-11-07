@@ -475,7 +475,7 @@ test('the CHANGELOG header states the bundle count packages/ actually holds', ()
   // The header drifted to "eight" while the workspace held seven, and nothing
   // covered CHANGELOG at all.
   const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
-  const words = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight' }
+  const words = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine' }
   const claimed = changelog.match(/One repository, ([a-z]+) independently versioned bundles/)
   assert.ok(claimed, 'CHANGELOG must state how many bundles the repository holds')
   assert.equal(

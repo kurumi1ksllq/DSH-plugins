@@ -16,7 +16,7 @@
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
 
 - 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
-- 范围:`/root/DSH-plugins` 的 8 个 bundle(调查当时也是 8 个,但集合不同:当时含已退役的 `dsh-ctx-guard`、不含 `dsh-deep-ptc-mode`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+- 范围:`/root/DSH-plugins` 的 9 个 bundle(调查当时为 8 个,含已退役的 `dsh-ctx-guard`;现有集合含 `dsh-deep-ptc-mode` 与 `dsh-stall-governor`) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 

@@ -45,6 +45,7 @@ const SHIPPED = new Map([
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['@local/dsh-prompt-inject', 'packages/dsh-prompt-inject'],
   ['dev-flow-skill', 'packages/dev-flow-skill'],
+  ['dsh-stall-governor', 'packages/dsh-stall-governor'],
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover/plugin'],
 ])
 

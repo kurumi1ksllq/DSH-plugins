@@ -46,6 +46,7 @@ const EXPECTED = [
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
   ['dev-flow-skill', 'dev-flow-skill'],
+  ['dsh-stall-governor', 'dsh-stall-governor'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
 ]
 
