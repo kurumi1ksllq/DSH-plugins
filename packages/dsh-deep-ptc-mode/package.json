@@ -94,6 +94,7 @@
     "sync:snapshot": "node scripts/sync-snapshot.mjs"
   },
   "peerDependencies": {
+    "@deepseek-ai/dsh-agent-loop": "*",
     "@deepseek-ai/dsh-base": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-bash-local": "*",
     "@deepseek-ai/dsh-bash-sandbox": "*",
@@ -102,6 +103,7 @@
     "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": ">=0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "*",
     "@deepseek-ai/dsh-persona": "*",
     "@deepseek-ai/dsh-pwsh-local": "*",
     "@deepseek-ai/dsh-pwsh-sandbox": "*",
@@ -154,6 +156,12 @@
       "optional": true
     },
     "@deepseek-ai/dsh-tool-skill": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-agent-loop": {
       "optional": true
     }
   },
