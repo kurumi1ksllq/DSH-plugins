@@ -2,7 +2,7 @@
   "issue": 105,
   "grade": "standard",
   "stage": "ci",
-  "updatedAt": "2026-11-07T18:29:26.136Z",
+  "updatedAt": "2026-11-07T19:03:51.181Z",
   "tickets": [
     {
       "id": 1,
@@ -16,7 +16,7 @@
     "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "pending-decision",
     "axes": 2
   },
   "merge": {
