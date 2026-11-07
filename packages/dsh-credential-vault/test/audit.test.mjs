@@ -82,3 +82,31 @@ test('trimAudit is a no-op on a missing file', () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+
+// ---- #103 D2/D11:审计文件的原子收缩与权限收紧 ----
+import { chmodSync, statSync, writeFileSync } from 'node:fs'
+import { AUDIT_FILE } from '../lib/audit.js'
+
+test('trimAudit rewrites the trimmed file atomically with 0600 even if it was 0644', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'audit-trim-'))
+  const file = join(dir, AUDIT_FILE)
+  const lines = []
+  for (let i = 0; i < AUDIT_MAX_LINES + 50; i += 1) lines.push(JSON.stringify({ at: 't', name: 'n' + i }))
+  writeFileSync(file, lines.join('\n') + '\n')
+  chmodSync(file, 0o644)
+  trimAudit(dir)
+  const after = readFileSync(file, 'utf8').split('\n').filter(Boolean)
+  assert.equal(after.length, AUDIT_MAX_LINES)
+  assert.equal(statSync(file).mode & 0o777, 0o600, 'the rewritten file must be 0600 (D2)')
+  assert.equal(existsSync(file + '.tmp-'), false, 'no temp file may linger')
+})
+
+test('appendAudit tightens a legacy 0644 audit file to 0600', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'audit-mode-'))
+  const file = join(dir, AUDIT_FILE)
+  writeFileSync(file, '')
+  chmodSync(file, 0o644)
+  appendAudit(dir, { name: 'x', outcome: 'ok' })
+  assert.equal(statSync(file).mode & 0o777, 0o600, 'append must tighten the mode (D11)')
+})
