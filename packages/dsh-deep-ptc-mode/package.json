@@ -104,28 +104,43 @@
     "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/schemastery": {
+    "@deepseek-ai/dsh-bash-local": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-ui-renderer": {
+    "@deepseek-ai/dsh-bash-sandbox": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-ui-settings": {
+    "@deepseek-ai/dsh-persona": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-ui-slots": {
+    "@deepseek-ai/dsh-pwsh-local": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-locale": {
+    "@deepseek-ai/dsh-pwsh-sandbox": {
       "optional": true
     },
-    "@deepseek-ai/dsh-web-app": {
+    "@deepseek-ai/dsh-session": {
       "optional": true
     },
-    "@deepseek-ai/dsh-base": {
+    "@deepseek-ai/dsh-skill": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-ui-commands": {
+    "@deepseek-ai/dsh-tool-ask-user": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-bash": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-executor-ptc": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-jobs": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-pwsh": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-skill": {
       "optional": true
     }
   },

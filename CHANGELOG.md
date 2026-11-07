@@ -10,11 +10,11 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ---
 
+## Unreleased
+
 ### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
 
-- 三个契约测试(#exports the host services/#defaults apply/#config overrides)此前直接读宿主真实 `
-~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。
-零产品改动;隔离后 23/23 全绿,且与宿主状态无关。
+- 三个契约测试(§exports the host services / §defaults apply / §config overrides)此前直接读宿主真实 `~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。零产品改动;隔离后 23/23 全绿,且与宿主状态无关。
 
 
 ### dsh-credential-vault 0.5.3 — 宿主引用声明化 (T0.1/#98)
@@ -23,19 +23,17 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ### dsh-inventory 0.9.1 — 宿主引用声明化 + 删 app.asar 兜底 (T0.1/#98)
 
-- `peerDependencies` 补 `@deepseek-ai/dsh-mcp-client`;删除 gate.js 的 `process.resourcesPath/app.asar` 私有路径硬拼兜底(改走 `config.mcpClientEntry` 与宿主 resolver)。
+- `peerDependencies` 补 `@deepseek-ai/dsh-mcp-client`;**删除** gate.js 的 `process.resourcesPath/app.asar` 私有路径硬拼兜底(只删未加:剩余两条尝试为 `config.mcpClientEntry` 与裸 specifier,均为既有路径)。Desktop 上 MCP 视图依赖宿主 resolver 覆盖该导入;未在 Desktop 实机验证,若视图降级需恢复该兜底或补 config 默认值。
 - 仓库级新增 `test/host-deps.test.mjs`:运行时代码里任何 `@deepseek-ai/*` 字面量引用必须已在 package.json 声明。
 
 ### dsh-deep-ptc-mode 1.7.4 — 宿主引用声明化 (T0.1/#98)
 
-- `optional peerDependencies` 补齐 13 个宿主包(session/skill/tool-bash/tool-pwsh/bash-local/bash-sandbox/pwsh-local/pwsh-sandbox/tool-jobs/tool-ask-user/persona/tool-executor-ptc/tool-skill)。全部沿用宿主解析 + fail-open,行为零变化。
+- 补 13 个**可选** peer(`peerDependenciesMeta.optional`,dsh-session/dsh-skill/dsh-tool-bash/dsh-tool-pwsh/dsh-bash-local/dsh-bash-sandbox/dsh-pwsh-local/dsh-pwsh-sandbox/dsh-tool-jobs/dsh-tool-ask-user/dsh-persona/dsh-tool-executor-ptc/dsh-tool-skill)。全部沿用宿主解析 + fail-open,行为零变化。
 
 ### dsh-stall-governor 0.1.1 — 宿主引用声明化 (T0.1/#98)
 
-- `optional peerDependencies` 补 `@deepseek-ai/dsh-llm`、`@deepseek-ai/dsh-agent-loop`(此前仅依赖元包声明)。
+- 补 2 个**可选** peer(`peerDependenciesMeta.optional`:dsh-llm、dsh-agent-loop,此前仅依赖元包声明)。惰性导入均 try/catch fail-open,行为零变化。
 
-
-## Unreleased
 
 ### dsh-stall-governor 0.1.0 — 失速治理单包双引擎(#96)
 
@@ -301,7 +299,7 @@ described.
 
 - · fix(dev-flow-skill): 让 bundle 真能注册 skill,照 README 装不再崩 (#47) (#59)
 
-### dev-flow-skill 0.2.3 — 补记(2026-11-04)
+### dev-flow-skill 0.2.3 — 补记(2026-11-03,SKILL.md 增补「实现阶段不得改写 spec」条款,#48 教训;该 PR 同时含 credential-vault 收口提交,主题串里出现属同一 PR)(2026-11-04)
 
 - · fix(credential-vault): 收口 #49 审查遗留 8 项(#50 #52-#58) (#63)
 
@@ -324,6 +322,13 @@ described.
 ### dsh-inventory 0.8.0 — 补记(2026-11-04)
 
 - · feat(credential-vault): 导出/导入(口令加密信封 + 按 id 去重 + 面板与 CLI) (#64)
+
+### dsh-credential-vault 0.5.0 — 补记(2026-11-04)
+- · feat(credential-vault): 导出/导入(口令加密信封 + 按 id 去重 + 面板与 CLI) (#64)
+
+### dsh-inventory 0.3.0 — 补记(2026-11-02,首个 tag)
+- · feat(inventory): cross-machine sync, replacing dsh-plugin-sync(10-31)
+- · fix(inventory+plugins): apply REVIEW-FIXES.md findings (P0-1..P2-14)(11-01)
 
 ### dsh-credential-vault 0.5.1 — 补记(2026-11-06)
 
