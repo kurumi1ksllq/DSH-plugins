@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { branchesOf, recentCommitsOf, remotesOf, statusOf } from '../lib/git-info.js'
-import { pickWorkspace, nearestGitRoot, hasGitDir, sessionCwdOf } from '../lib/workspace.js'
-import { forgeHintFor, slugFromRemoteUrl } from '../lib/gh.js'
-import { getSnapshot, invalidateSnapshot } from '../lib/snapshot.js'
+import { branchesOf, recentCommitsOf, remotesOf, statusOf } from '../lib-git-status/git-info.js'
+import { pickWorkspace, nearestGitRoot, hasGitDir, sessionCwdOf } from '../lib-git-status/workspace.js'
+import { forgeHintFor, slugFromRemoteUrl } from '../lib-git-status/gh.js'
+import { getSnapshot, invalidateSnapshot } from '../lib-git-status/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
 

@@ -173,7 +173,7 @@ const bundle = loadClient()
 captureDictionary()
 
 test('client bundle exports the expected shape', () => {
-  assert.equal(bundle.name, 'dsh-git-status')
+  assert.equal(bundle.name, 'dev-flow')
   assert.deepEqual([...bundle.inject], ['slots', 'locale', 'layout'])
 })
 

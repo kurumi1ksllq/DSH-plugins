@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { buildTaskBoard, issueFromBranch } from '../lib/task-board.js'
+import { buildTaskBoard, issueFromBranch } from '../lib-git-status/task-board.js'
 
 /** A snapshot shaped like getSnapshot()'s `git` block plus forge data. */
 function snap(overrides = {}) {

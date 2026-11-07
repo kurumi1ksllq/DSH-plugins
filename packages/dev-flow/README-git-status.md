@@ -1,4 +1,4 @@
-# dsh-git-status
+# dev-flow 任务板面板(原 dsh-git-status,已并入 dev-flow 包)
 
 DeepSeek Harness 插件：当前工作区是 git 项目时，侧栏多一个 **Git** 面板，把它变成一个 **dev-flow 任务板**——一屏看清有哪些 issue 没处理、每个任务到了哪一步、哪些在等你出手。
 
@@ -117,7 +117,7 @@ Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到�
 profile 的 `package.json` 加一行：
 
 ```json
-"dsh-git-status": "link:../../packages/dsh-git-status"
+"dev-flow": "link:../../packages/dev-flow"
 ```
 
 然后 `pnpm install`，重启 DSH。
@@ -125,7 +125,7 @@ profile 的 `package.json` 加一行：
 ## 测试
 
 ```bash
-pnpm --filter dsh-git-status test
+pnpm --filter dev-flow test
 ```
 
 覆盖：

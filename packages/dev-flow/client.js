@@ -1,6 +1,6 @@
 // PART 1 — header, locales
 /**
- * dsh-git-status — browser half.
+ * dev-flow — browser half.
  *
  * Adds a left-sidebar entry (id `git-status`) with a full-height main panel.
  * Reads `GET /git-status/snapshot` from the host half and renders four grouped
@@ -14,7 +14,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-git-status',
+  id: 'dev-flow',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -816,162 +816,16 @@ function DiffView({ t, sessionId, path, statusSha }) {
 
     // PART 4 — task board (dev-flow)
     /**
-     * The board is a projection of the snapshot onto dev-flow's stages. The
-     * heavy lifting lives in the host half (`lib/task-board.js`) so the browser
-     * bundle stays a renderer; this file only turns the answer into rows.
-     *
-     * Board data arrives pre-computed on the snapshot (`board`), falling back to
-     * recomputing locally when an older host sends only raw fields — the panel
-     * must never render an empty board just because the two halves disagree on
-     * version.
+     * The board is a projection of the snapshot onto dev-flow's stages, computed
+     * entirely in the host half (`lib-git-status/task-board.js`). Host and client
+     * ship in the SAME package, so there is no version skew to guard: a snapshot
+     * without a pre-computed board renders as an empty board instead of a
+     * locally-mirrored guess (the mirror carried its own off-flow defect, #110 P3b).
      */
     function boardOf(snap) {
-      if (snap?.board) return snap.board
-      return buildBoardLocally(snap)
+      return snap?.board ?? { columns: [], needsUser: [], offFlow: [], forgeHint: snap?.forgeHint ?? null }
     }
 
-    /**
-     * Mirror of `lib/task-board.js` for older hosts. Deliberately small: only
-     * the stage derivation and the off-flow check, which is what the render
-     * needs to stay useful.
-     */
-    function buildBoardLocally(snap) {
-      const STAGES = ['intake', 'spec', 'dev', 'pr', 'ci', 'review', 'merge', 'done']
-      const git = snap?.git ?? {}
-      const branches = Array.isArray(git.branches) ? git.branches : []
-      const issues = Array.isArray(snap?.issues) ? snap.issues : []
-      const prs = Array.isArray(snap?.prs) ? snap.prs : []
-      const merged = Array.isArray(snap?.mergedPrs) ? snap.mergedPrs : []
-      const checks = snap?.checks && typeof snap.checks === 'object' ? snap.checks : {}
-      // Over HTTP the state arrives as a plain object keyed by issue number; in
-      // tests it may be a Map. Accept both rather than silently reading nothing.
-      const rawStates = snap?.flowStates
-      const flowStateOf = (key) => {
-        if (!rawStates) return null
-        if (typeof rawStates.get === 'function') return rawStates.get(key) ?? null
-        return rawStates[key] ?? null
-      }
-
-      const issueOf = (name) => {
-        const m = /^issue-(\d+)-/.exec(typeof name === 'string' ? name : '')
-        if (!m) return null
-        const n = Number(m[1])
-        return Number.isInteger(n) && n > 0 ? n : null
-      }
-
-      const byIssue = new Map()
-      for (const b of branches) {
-        const n = issueOf(b?.name)
-        if (n !== null && !byIssue.has(n)) byIssue.set(n, b)
-      }
-      const keys = new Set()
-      for (const i of issues) if (Number.isInteger(i?.number)) keys.add(i.number)
-      for (const n of byIssue.keys()) keys.add(n)
-
-      const cards = []
-      for (const key of keys) {
-        const issue = issues.find((i) => i?.number === key) ?? null
-        const branch = byIssue.get(key) ?? null
-        const pr = prs.find((x) => x?.headRefName === branch?.name) ?? null
-        const mergedPr = pr === null ? merged.find((x) => x?.headRefName === branch?.name) ?? null : null
-        const checkState = pr === null ? undefined : checks[pr.number]
-        const flow = flowStateOf(key)
-        let stage
-        if (mergedPr) stage = 'done'
-        else if (pr) stage = checkState === 'red' || checkState === undefined || checkState === 'unknown' ? 'ci' : flow?.review?.state === 'done' ? 'merge' : 'review'
-        else if ((branch?.ahead ?? 0) > 0) stage = 'pr'
-        else if (branch) stage = 'dev'
-        else if (issue) stage = 'intake'
-        else stage = 'spec'
-        cards.push({
-          issue: key,
-          title: issue !== null ? issue.title : branch?.name ?? '',
-          url: issue?.url ?? null,
-          grade: flow?.grade ?? null,
-          stage,
-          stageIndex: STAGES.indexOf(stage),
-          columnCount: STAGES.length,
-          stale: flow !== null && flow?.stage !== stage,
-          flowStage: flow?.stage ?? null,
-          hasBranch: Boolean(branch),
-          branchName: branch?.name ?? null,
-          ahead: branch?.ahead ?? 0,
-          prNumber: pr?.number ?? null,
-          prUrl: pr?.url ?? null,
-          prDraft: pr?.isDraft === true,
-          checks: checkState ?? 'unknown',
-          tickets: flow?.tickets ?? [],
-          ci: flow?.ci ?? null,
-          review: flow?.review ?? null,
-          merge: flow?.merge ?? null,
-        })
-      }
-
-      // Mirrors offFlowOf() in lib/task-board.js: dirty trunk, unnamed branch, or
-      // an issue-<n>-* branch whose issue does not exist. The latter two do not
-      // require a dirty tree — committed work on a stray branch is still unrouted.
-      const status = git?.status ?? {}
-      const dirty = Number.isInteger(status.dirty) ? status.dirty : 0
-      const branchName = typeof status.branch === 'string' && status.branch.length > 0 ? status.branch : '(detached)'
-      const currentBranch = git?.currentBranch ?? status.branch
-      let offFlow = []
-      if (dirty > 0 && (currentBranch === 'main' || currentBranch === 'master')) {
-        offFlow = [{ branch: currentBranch, reason: 'dirty-main', files: dirty }]
-      } else if (currentBranch === null || currentBranch === undefined || status.detached === true) {
-        if (dirty > 0) offFlow = [{ branch: branchName, reason: 'unnamed-branch', files: dirty }]
-      } else if (currentBranch !== 'main' && currentBranch !== 'master') {
-        const n = issueOf(currentBranch)
-        const known = Array.isArray(snap?.issues) ? new Set(snap.issues.map((i) => i?.number)) : null
-        if (n === null) offFlow = [{ branch: currentBranch, reason: 'unnamed-branch', files: dirty }]
-        else if (known !== null && !known.has(n)) offFlow = [{ branch: currentBranch, reason: 'unknown-issue', files: dirty, issue: n }]
-      }
-
-      const needsUser = []
-      for (const c of cards) {
-        if (c.issue !== null && !c.hasBranch && c.stage === 'intake') needsUser.push({ kind: 'intake-confirm', issue: c.issue, prNumber: null, severity: 'info' })
-      }
-      for (const c of cards) {
-        if (c.checks !== 'red') continue
-        const run = c.ci?.run
-        const max = c.ci?.max ?? 2
-        if (Number.isInteger(run) && run >= max) needsUser.push({ kind: 'ci-red-escalated', issue: c.issue, prNumber: c.prNumber, severity: 'blocker' })
-      }
-      for (const c of cards) {
-        if (c.review?.state !== 'done' || c.merge?.authorized === true || c.prNumber === null) continue
-        needsUser.push({ kind: 'merge-gate', issue: c.issue, prNumber: c.prNumber, severity: 'blocker' })
-      }
-      if (Object.values(checks).some((state) => state === 'none')) needsUser.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
-      needsUser.sort((a, b) => (a.severity === 'blocker' ? 0 : 1) - (b.severity === 'blocker' ? 0 : 1))
-      const limited = needsUser.slice(0, 3)
-      for (const card of cards) {
-        card.action = limited.find((n) => n.issue !== null && n.issue === card.issue) ?? null
-      }
-
-      return {
-        columns: STAGES.map((stage) => ({
-          stage,
-          cards: cards.filter((c) => c.stage === stage),
-          empty: emptyKeyOf(stage),
-        })),
-        needsUser: limited,
-        offFlow,
-        forgeHint: snap?.forgeHint ?? null,
-      }
-    }
-
-    function emptyKeyOf(stage) {
-      switch (stage) {
-        case 'intake': return 'no-unconfirmed-issue'
-        case 'spec': return 'no-spec-pending'
-        case 'dev': return 'nothing-in-tdd'
-        case 'pr': return 'no-branch-awaiting-push'
-        case 'ci': return 'no-pr-in-ci'
-        case 'review': return 'no-review-pending'
-        case 'merge': return 'no-pr-awaiting-merge'
-        case 'done': return 'nothing-merged-yet'
-        default: return ''
-      }
-    }
 
     /** Eight dots: filled up to the card's stage, so progress is readable at a glance. */
     function ProgressDots({ card }) {
@@ -1170,7 +1024,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
     }
 
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-git-status: dictionaries')
+      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dev-flow: dictionaries')
       const t = ctx.locale.bind(NS)
 
       // Sidebar entry and main panel share the same id/key (same contract as
@@ -1212,7 +1066,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
     }
 
     return {
-      name: 'dsh-git-status',
+      name: 'dev-flow',
       inject: ['slots', 'locale', 'layout'],
       apply,
     }

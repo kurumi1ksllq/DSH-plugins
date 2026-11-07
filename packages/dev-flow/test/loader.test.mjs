@@ -1,6 +1,6 @@
 // The bundle's host half.
 //
-// Before this file existed, `dev-flow-skill` shipped a `cordis.patch.yml` that
+// Before this file existed, the skill package shipped a `cordis.patch.yml` that
 // inserted a row whose `main` was `lib/lint.mjs` — a module that exports a
 // linter and nothing else. Cordis refuses such a row ("invalid plugin, expect
 // function or object with an \"apply\" method"), so the entry failed to
@@ -28,7 +28,7 @@ const SKILL = readFileSync(join(PACKAGE_ROOT, 'SKILL.md'), 'utf8')
 /**
  * The runtime this bundle targets, if this checkout can see it.
  *
- * `dev-flow-skill` has no runtime dependency (it is a document bundle), so a
+ * The skill package has no runtime dependency (it is a document bundle), so a
  * bare `import('@deepseek-ai/dsh-skill')` resolves only when the check runs
  * inside a DSH runtime tree. Absent that, these tests still must not let a
  * broken definition through: `makeStrictRegistry` below enforces the same
@@ -78,10 +78,10 @@ function makeStrictRegistry() {
   }
 }
 
-describe('dev-flow-skill host plugin', () => {
+describe('dev-flow host plugin', () => {
   it('is loadable as a cordis plugin', () => {
     // The exact shape cordis accepts: a named plugin object with `apply`.
-    assert.equal(plugin.name, 'dev-flow-skill')
+    assert.equal(plugin.name, 'dev-flow')
     assert.equal(typeof plugin.apply, 'function')
     assert.deepEqual(plugin.inject, ['skills'])
   })
@@ -160,12 +160,12 @@ describe('skill body parsing', () => {
     // A `files` list missing SKILL.md, or a half-built `link:` target, must say
     // which file is missing rather than surface a bare ENOENT. This calls the
     // module's own reader — a re-implemented try/catch here would test nothing.
-    const dir = mkdtempSync(join(tmpdir(), 'dev-flow-skill-'))
+    const dir = mkdtempSync(join(tmpdir(), 'dev-flow-'))
     try {
       const probe = join(dir, 'missing', 'SKILL.md')
       assert.throws(
         () => plugin.readSkillSource(probe),
-        (error) => error.message.includes(probe) && error.message.includes('[dev-flow-skill]'),
+        (error) => error.message.includes(probe) && error.message.includes('[dev-flow]'),
       )
     } finally {
       rmSync(dir, { recursive: true, force: true })

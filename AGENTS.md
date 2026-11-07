@@ -1,7 +1,7 @@
 # 本仓库的开发约定
 
 这个文件告诉每一个新会话：在本仓库改东西要按什么规矩来。
-完整规则在 `packages/dev-flow-skill/SKILL.md`，这里是入口与不可协商的部分。
+完整规则在 `packages/dev-flow/SKILL.md`，这里是入口与不可协商的部分。
 
 ## 改代码必须先走 dev-flow（强制）
 
@@ -72,9 +72,8 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 
 | 路径 | 内容 |
 | --- | --- |
-| `packages/*` | 九个可独立 `link:` 的 bundle，各自有 `package.json` / `cordis.patch.yml` / 版本号 / 测试 |
-| `packages/dev-flow-skill` | 开发流程 skill 本身（规则源） |
-| `packages/dsh-git-status` | 任务板面板（读 `.flow` 状态） |
+| `packages/*` | 八个可独立 `link:` 的 bundle，各自有 `package.json` / `cordis.patch.yml` / 版本号 / 测试 |
+| `packages/dev-flow` | 开发流程 skill（规则源）+ dev-flow 任务板面板（读 `.flow` 状态） |
 | `packages/dsh-inventory` | 工具管理页（凭据 / 搜索提供方 / 提示词三个分段） |
 | `docs/specs/` | 每个 issue 的 spec（停点2 产物） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
@@ -83,6 +82,6 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 
 ## 注意
 
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第十个 bundle
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第九个 bundle
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件
 - **未经用户明确批准，严禁重启 DSH 进程**（详见全局 `~/.dsh/AGENTS.md`）

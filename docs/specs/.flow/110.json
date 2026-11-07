@@ -1,0 +1,25 @@
+{
+  "issue": 110,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T20:46:49.605Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "改名+吸收原子迁移",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

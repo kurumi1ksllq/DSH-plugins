@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import vm from 'node:vm'
 
-import { getSnapshot, invalidateSnapshot } from '../lib/snapshot.js'
+import { getSnapshot, invalidateSnapshot } from '../lib-git-status/snapshot.js'
 
 /**
  * The end-to-end contract the two halves actually share.

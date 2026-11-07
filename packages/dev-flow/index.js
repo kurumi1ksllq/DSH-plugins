@@ -1,5 +1,5 @@
 /**
- * dev-flow-skill — host half.
+ * dev-flow — host half.
  *
  * The skill itself is a prose document (`SKILL.md`). This module is what makes
  * a profile able to load it: cordis rejects a bundle row whose entry exports
@@ -16,14 +16,14 @@
  * same file depending on which provider won.
  *
  * Surface: one skill registration, no tools, no routes.
- * @module dev-flow-skill
+ * @module dev-flow
  */
 
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const name = 'dev-flow-skill'
+export const name = 'dev-flow'
 
 /**
  * Cordis injects a dependency only when it is listed here — and, importantly,
@@ -57,7 +57,7 @@ export function readSkillSource(path = skillPath()) {
     // Nothing else in this module can fail for a packaging reason, so name the
     // path here: `files` missing SKILL.md, a half-built `link:` target, and a
     // permission error all surface as this one line instead of a bare ENOENT.
-    throw new Error(`[dev-flow-skill] cannot read the skill body at ${path}: ${error.message}`)
+    throw new Error(`[dev-flow] cannot read the skill body at ${path}: ${error.message}`)
   }
 }
 
@@ -74,11 +74,11 @@ export function readSkillSource(path = skillPath()) {
 export function parseSkill(text) {
   const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
   if (!normalized.startsWith('---\n')) {
-    throw new Error('[dev-flow-skill] SKILL.md must open with a YAML frontmatter block')
+    throw new Error('[dev-flow] SKILL.md must open with a YAML frontmatter block')
   }
   const end = normalized.indexOf('\n---', 3)
   if (end === -1) {
-    throw new Error('[dev-flow-skill] SKILL.md frontmatter is not terminated by a --- line')
+    throw new Error('[dev-flow] SKILL.md frontmatter is not terminated by a --- line')
   }
   const fields = {}
   let lastKey = null
@@ -107,7 +107,7 @@ export function apply(ctx) {
   if (typeof description !== 'string' || description.length === 0) {
     // A skill without a description is rejected by the registry anyway; failing
     // here names the file instead of leaving "requires a description" dangling.
-    throw new Error('[dev-flow-skill] SKILL.md frontmatter has no description')
+    throw new Error('[dev-flow] SKILL.md frontmatter has no description')
   }
   ctx.skills.register({
     name: SKILL_NAME,

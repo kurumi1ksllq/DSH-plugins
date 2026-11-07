@@ -1,7 +1,0 @@
-# Bundle patch layer for dsh-git-status.
-# One host-side row: a read-only git overview (branches, dirty state,
-# recent commits, open PRs / issues through the gh CLI when present).
-# No config; the snapshot route discovers the session workspace itself.
-- insert:
-    - id: git-status
-      name: "dsh-git-status"

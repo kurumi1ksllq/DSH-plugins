@@ -20,8 +20,8 @@
  *                                 launch environment and the process cwd.
  */
 
-import { isForbiddenOrigin } from './lib/http-guard.js'
-import { getDiffResult, getSnapshot } from './lib/snapshot.js'
+import { isForbiddenOrigin } from './lib-git-status/http-guard.js'
+import { getDiffResult, getSnapshot } from './lib-git-status/snapshot.js'
 
 export const name = 'dsh-git-status'
 

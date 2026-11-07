@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, nine independently versioned bundles. Every entry names the
+One repository, eight independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -11,6 +11,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 ---
 
 ## Unreleased
+
+### dev-flow 0.3.0 — 吸收 dsh-git-status,包名改 dev-flow(原子迁移,#110)
+
+- **包名 `dev-flow-skill` → `dev-flow`**(owner 授权的红线例外):三点锁步
+  (package.json ⇔ index.js export ⇔ patch 行 name)+ client 模块 id 同步。
+- **吸收任务板面板**:git-status host/client/lib/测试全部迁入,行 id `git-status`
+  与路由/locale/slot 契约原样;patch 第二行 name 指子路径导出。
+- `dsh.client` 声明与 icon 原样保留(面板仍出现在侧栏)。
+- 捆入:flow-state 契约测试拆 doc/reader 两文件;SHIPPED/EXPECTED/loads 等仓库引用
+  全量改名;CHANGELOG 头计数与各文档计数收口。
 
 
 

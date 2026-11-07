@@ -10,11 +10,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { relativeTime, statusShaOf } from '../lib/snapshot.js'
-import { fileDiffOf, redactRemoteUrl, remotesOf, statusOf } from '../lib/git-info.js'
-import { slugFromRemoteUrl } from '../lib/gh.js'
-import { isInsideRoot, isPlausibleRepoPath, resolveInsideRepo } from '../lib/path-guard.js'
-import { DEFAULT_MAX_BUFFER, runCommand } from '../lib/run.js'
+import { relativeTime, statusShaOf } from '../lib-git-status/snapshot.js'
+import { fileDiffOf, redactRemoteUrl, remotesOf, statusOf } from '../lib-git-status/git-info.js'
+import { slugFromRemoteUrl } from '../lib-git-status/gh.js'
+import { isInsideRoot, isPlausibleRepoPath, resolveInsideRepo } from '../lib-git-status/path-guard.js'
+import { DEFAULT_MAX_BUFFER, runCommand } from '../lib-git-status/run.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
 
