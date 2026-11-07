@@ -1569,7 +1569,7 @@ function splitSentences(text) {
 
 // --- D4/D5/D6 事件与校验基础设施 ---------------------------------------------
 // 插件侧可观测事件统一走 ctx.emit(eventName, payload)。事件名钉死（改名必须
-// 同步 docs/events.md），载荷统一携带 sessionId/turn/step/evidenceSeq 四元组；
+// 同步本仓 spec(docs/specs/cot-anchor-governor-merge.md)），载荷统一携带 sessionId/turn/step/evidenceSeq 四元组；
 // 纯函数提取器拿不到会话句柄时对应字段为 null（不省略，保证载荷形状稳定）。
 const EVENT_REFLOW_MISJUDGED = "cot-anchor/reflow-misjudged";
 const EVENT_POINT_TRUNCATED = "cot-anchor/point-truncated";
@@ -4633,7 +4633,9 @@ function apply(ctx, config) {
 		// confirmed-pseudo=3 三类独立有界预算；confirmed-pseudo 耗尽时内核
 		// hard-abort）。若插件较旧未返回该字段，内核 decideSoftCut 对缺失
 		// 一律按 "heuristic" 处理——缺省不漏判，只是占用启发式桶额度。
-		const upstream = await next();
+		let upstream = null;
+		try { upstream = await next(); } catch (e) { log({ at: "soft-cut", failOpen: true, error: String(e?.message || e) }); return null; }
+		try {
 		if (upstream?.kind === "cut") return upstream;
 		// 外部插件挂起的软切请求优先于内部五类检测器消费：这是显式外部干预，
 		// 独立于 settings.enableSoftCut 与各检测器开关（即使内部检测全关，
@@ -4916,12 +4918,18 @@ function apply(ctx, config) {
 			cutClass: "heuristic",
 			contexts: [buildAnchorContext(body, `cot-anchor: ${points.length} points (soft-cut)`)]
 		};
+		} catch (e) {
+			log({ at: "soft-cut", failOpen: true, error: String(e?.message || e) });
+			return upstream ?? null;
+		}
 		});
 	}
 	// tools/post-execute 仅保留工具参数校验失败（ToolArgsError / INVALID_ARGS）的
 	// 恢复指引注入；结论锚点的自动注入主路径已移除，其余结果一律原样透传。
 	ctx.on("tools/post-execute", async (exec, result, next) => {
-		const downstream = await next();
+		let downstream;
+		try { downstream = await next(); } catch (e) { log({ at: "post-execute", failOpen: true, error: String(e?.message || e) }); return downstream; }
+		try {
 
 // 缺陷 4（升级版）：工具参数校验失败（ToolArgsError / INVALID_ARGS）续步
 		// 兜底。独立错误分支：不依赖结论提取长度门槛与指纹去重——
@@ -4952,6 +4960,10 @@ function apply(ctx, config) {
 		// 结论自动注入主路径已移除：post-execute 仅保留上方工具参数错误恢复分支，
 		// 其余情形一律原样返回下游结果（next() 只在回调入口调用一次）。
 		return downstream;
+		} catch (e) {
+			log({ at: "post-execute", failOpen: true, error: String(e?.message || e) });
+			return downstream;
+		}
 	});
 
 	log({

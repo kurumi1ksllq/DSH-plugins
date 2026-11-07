@@ -40,6 +40,7 @@
 | `ctx.provide("cotAnchor")` / `ctx.provide("stepGovernor")` | `ctx.provide("stallGovernor", { requestSoftCut, denyToolCategory, rejectStep })` |
 | harvest 路由 + LLM 提炼 / CoT 采集 / 学习模式 | **已砍**(注入主路径移除后非现役能力) |
 | PENDING_DEPENDENCIES 三项 | 已摘除(soft-cut-suppressed 契约由本包自己持有) |
+| 事件名 `cot-anchor/*`(6 个)与 `governor/*`(3 个) | **有意保留上游前缀**:事件是观测流载荷,无消费者按插件名绑定;沿用上游名使上游文档/面板口径不失效(#96 review 轴1-5 裁决) |
 
 ## 安装
 

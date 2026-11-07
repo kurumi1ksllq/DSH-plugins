@@ -40,3 +40,31 @@ test('设置页挂载:新 id/新前缀/section order 997,无 harvest 残留', ()
   assert.equal(client.includes('HARVEST'), false, 'harvest UI 已砍(#96 §6-3)')
   assert.equal(client.includes('pendingDependencies'), false, 'PENDING_DEPENDENCIES 已摘除(#96 §6-5)')
 })
+
+test('client 真挂载冒烟:factory 执行 + slots.register 组件可渲染(引用完整性,反向验证)', () => {
+  // 字符串级测试抓不住「引用了未定义组件」这类运行时错误(曾实际发生:slot 注册行
+  // 引用 StepGovernorPanel 而定义是 StallGovernorPanel,挂载即 ReferenceError)。
+  // 这里用 stub React/slots 真跑一遍壳 → apply → 组件渲染。
+  const reactStub = {
+    createElement: (type, props, ...children) => ({ type, props, children }),
+    useState: (initial) => [initial, () => {}],
+    useEffect: () => {}
+  }
+  const requireStub = (name) => (name === 'react' ? reactStub : {})
+  let loaded = null
+  globalThis.window = { __ModuleLoader__: { load: (config) => { loaded = config } } }
+  try {
+    new Function('require', client)(requireStub)
+    assert.ok(loaded && typeof loaded.factory === 'function', 'ModuleLoader 壳捕获 config')
+    const registered = []
+    const slots = { inject: (name, fn) => fn(), register: (slot, component) => registered.push({ slot, component }) }
+    loaded.factory(requireStub).apply({ slots })
+    assert.equal(registered.length, 1, 'settings.section 注册一次')
+    assert.equal(registered[0].slot.id, 'stall-governor')
+    assert.equal(registered[0].slot.order, 997)
+    const element = registered[0].component()
+    assert.ok(element && typeof element === 'object', '面板组件可渲染(无未定义引用)')
+  } finally {
+    delete globalThis.window
+  }
+})

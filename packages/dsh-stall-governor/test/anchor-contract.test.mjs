@@ -259,6 +259,46 @@ test("③b turn 归零:观察者推进边界归零 + 同 turn 结算不误归零
 	assert.ok(bodyOf(soloNewTurn2).includes("本 turn 第 2 次空转"), "同 turn 第二次仍升级");
 });
 
+test("①g 伪工具锚不复述原始标签(自反馈三防 §3-4;spec §5 必须保留的契约)", async () => {
+	if (!softCutHandler) return test.skip("probe=absent");
+	const decision = await cutOf(PSEUDO_TOOL_CALL_UNIT);
+	const body = bodyOf(decision);
+	assert.ok(body.length > 0);
+	// 原始伪标签逐字出现在锚点里 = 模型会复读同样的伪格式;锚点必须只解释格式、不复述标签。
+	for (const raw of ["<seed:tool_call>", "<function name=", "<parameter name=", "</function>", "</seed:tool_call>"]) {
+		assert.equal(body.includes(raw), false, `锚点复述了原始标签 ${raw}`);
+	}
+});
+
+test("①h 事故反事实:超长复读在周期起点截停(trimTo),不全量落盘(spec §5 事故夹具回归)", async () => {
+	if (!softCutHandler) return test.skip("probe=absent");
+	// 上游事故:SHORT_CYCLE_UNIT 型复读在 ~19,360 字符处被截停,避免 75.3% 重复内容落盘。
+	// 反事实断言:同型文本重复 400 次(~23k 字符,超过事故截停点)必须 cut 且 trimTo 指向周期起点。
+	const text = SHORT_CYCLE_UNIT.repeat(400);
+	const decision = await cutOf(text, 1, "sess-incident");
+	assert.equal(decision?.kind, "cut", "复读必须被截停");
+	assert.equal(decision?.budgetClass, "confirmed-repeat");
+	assert.ok(
+		Number.isInteger(decision?.trimTo) && decision.trimTo > 0 && decision.trimTo < text.length,
+		`trimTo 指向周期起点(${decision?.trimTo} < ${text.length})`
+	);
+});
+
+test("①i fail-open:钩子体整体容错——毒化载荷不炸 waterfall(§3-2,反向验证)", async () => {
+	// agent/soft-cut:fullVisibleText getter 抛错 → catch 记 failOpen 后返回 upstream(不切、不炸)
+	if (!softCutHandler) return test.skip("probe=absent");
+	const poisonedPayload = { sessionId: "s-failopen", turn: 1, step: 0 };
+	Object.defineProperty(poisonedPayload, "fullVisibleText", { get() { throw new Error("poison-payload"); } });
+	const softCutResult = await softCutHandler(poisonedPayload, async () => null);
+	assert.equal(softCutResult, null, "soft-cut fail-open:返回 upstream(=null),不向内核抛错");
+	// tools/post-execute:result getter 抛错 → catch 后原样返回 downstream
+	const poisonedResult = {};
+	Object.defineProperty(poisonedResult, "isError", { get() { throw new Error("poison-result"); } });
+	const downstreamShape = { kind: "accept", additionalContexts: [] };
+	const out = await postExecuteHandler({ name: "pwsh" }, poisonedResult, async () => downstreamShape);
+	assert.deepEqual(out, downstreamShape, "post-execute fail-open:原样返回 downstream");
+});
+
 test("④ enableToolInject=false 对照组:错误分支不受总开关抑制(独立于开关)", async () => {
 	const tempHome2 = path.join(os.tmpdir(), "stall-governor-contract-off-" + randomUUID().slice(0, 8));
 	fs.mkdirSync(tempHome2, { recursive: true });

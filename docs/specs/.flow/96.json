@@ -1,8 +1,8 @@
 {
   "issue": 96,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-07T08:05:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-07T08:40:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -43,10 +43,10 @@
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "pending-decision",
     "axes": 2
   },
   "merge": {

@@ -296,10 +296,7 @@ window.__ModuleLoader__.load({
           .then(function (res) { return res.json() })
           .then(function (body) {
             if (!body || body.ok !== true) {
-              var detail = body && body.errors && body.errors.length
-                ? body.errors.join('；')
-                : ((body && body.error) || '未知错误')
-              setErrorMessage('保存失败：' + detail)
+              setErrorMessage('保存失败：' + ((body && body.error) || '未知错误'))
               return
             }
             setErrorMessage('')
@@ -307,11 +304,8 @@ window.__ModuleLoader__.load({
             setPayload(function (prev) {
               return Object.assign({}, prev, { settings: body.settings })
             })
-            var warns = body.warnings && body.warnings.length
-              ? '（' + body.warnings.join('；') + '）'
-              : ''
             setNotice(
-              (body.saved === false ? '已生效，但写入配置文件失败（重启后会恢复）' : '已保存并即时生效') + warns
+              body.saved === false ? '已生效，但写入配置文件失败（重启后会恢复）' : '已保存并即时生效'
             )
           })
           .catch(function (err) {
@@ -589,7 +583,7 @@ window.__ModuleLoader__.load({
       slots.inject('settings.section', function () {
         slots.register(
           { name: 'settings.section', id: 'stall-governor', label: '失速治理', order: 997 },
-          StepGovernorPanel
+          StallGovernorPanel
         )
       })
     }
