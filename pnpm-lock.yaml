@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  packages/dev-flow-skill: {}
+  packages/dev-flow: {}
 
   packages/dsh-credential-vault: {}
 

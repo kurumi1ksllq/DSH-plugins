@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const README = readFileSync(join(here, '..', 'README.md'), 'utf8')
+const README = readFileSync(join(here, '..', 'README-git-status.md'), 'utf8')
 
 test('README documents the task board, not the old card stack', () => {
   assert.ok(README.includes('任务板'), 'README must describe the task board')

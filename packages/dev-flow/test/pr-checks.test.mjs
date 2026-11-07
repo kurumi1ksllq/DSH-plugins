@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { classifyChecks, prChecks } from '../lib/gh.js'
+import { classifyChecks, prChecks } from '../lib-git-status/gh.js'
 
 /** Minimal `gh pr checks --json state` payloads. */
 const allGreen = JSON.stringify([

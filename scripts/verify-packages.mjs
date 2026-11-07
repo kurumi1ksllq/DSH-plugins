@@ -41,11 +41,10 @@ const META = new Set(['websearch-dsh-plugin'])
 const EXPECTED = [
   ['dsh-credential-vault', 'dsh-credential-vault'],
   ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
-  ['dsh-git-status', 'dsh-git-status'],
   ['dsh-inventory', 'dsh-inventory'],
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
-  ['dev-flow-skill', 'dev-flow-skill'],
+  ['dev-flow', 'dev-flow'],
   ['dsh-stall-governor', 'dsh-stall-governor'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
 ]

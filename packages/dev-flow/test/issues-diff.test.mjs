@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { fileDiffOf } from '../lib/git-info.js'
-import { getDiff } from '../lib/snapshot.js'
+import { fileDiffOf } from '../lib-git-status/git-info.js'
+import { getDiff } from '../lib-git-status/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
 

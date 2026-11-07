@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { getSnapshot, invalidateSnapshot } from '../lib/snapshot.js'
+import { getSnapshot, invalidateSnapshot } from '../lib-git-status/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
 

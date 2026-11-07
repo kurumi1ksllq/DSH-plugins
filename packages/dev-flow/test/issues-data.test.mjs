@@ -17,8 +17,8 @@ import {
   branchesOf,
   stashListOf,
   statusOf,
-} from '../lib/git-info.js'
-import { cacheKeyOf, getSnapshot, invalidateSnapshot } from '../lib/snapshot.js'
+} from '../lib-git-status/git-info.js'
+import { cacheKeyOf, getSnapshot, invalidateSnapshot } from '../lib-git-status/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
 

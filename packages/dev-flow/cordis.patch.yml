@@ -1,0 +1,10 @@
+# dev-flow bundle patch:the engineering-flow skill + its read-only task board.
+#
+# 1. The skill row (id/name dev-flow) mounts the SKILL.md loader.
+# 2. The board row keeps its historical row id `git-status` (the panel's config
+#    tree address); the implementation now lives in this package under the
+#    ./git-status subpath export.
+- id: dev-flow
+  name: dev-flow
+- id: git-status
+  name: dev-flow/git-status

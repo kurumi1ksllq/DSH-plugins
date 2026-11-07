@@ -14,7 +14,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-git-status',
+  id: 'dev-flow',
   factory(require) {
     const React = require('react')
     const h = React.createElement

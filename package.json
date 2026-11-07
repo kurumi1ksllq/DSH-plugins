@@ -2,7 +2,7 @@
   "name": "dsh-plugins-workspace",
   "private": true,
   "version": "0.0.0",
-  "description": "One repository, nine independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
+  "description": "One repository, eight independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,7 +12,7 @@
     "test:inventory": "pnpm --filter dsh-inventory run test",
     "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
     "test:prompt-inject": "node --test packages/dsh-prompt-inject/test/*.test.mjs",
-    "test:dev-flow": "node --test packages/dev-flow-skill/test/*.test.mjs",
+    "test:dev-flow": "node --test packages/dev-flow/test/*.test.mjs",
     "build:websearch": "pnpm --filter websearch-dsh-plugin run build",
     "check:websearch": "pnpm --filter websearch-dsh-plugin run build:check",
     "check:artifacts": "node scripts/check-artifacts.mjs",

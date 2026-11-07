@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { readFlowState, STAGES, GRADES, TICKET_STATES, CI_STATUSES, REVIEW_STATES } from '../lib/flow-state.js'
+import { readFlowState, STAGES, GRADES, TICKET_STATES, CI_STATUSES, REVIEW_STATES } from '../lib-git-status/flow-state.js'
 
 function repoWith(issueNumber, payload) {
   const dir = mkdtempSync(join(tmpdir(), 'flow-state-'))
