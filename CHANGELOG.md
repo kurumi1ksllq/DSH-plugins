@@ -12,6 +12,20 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
+
+- **confined(沙箱)分支的 bash 改写此前静默失效**:沙箱把真实 argv 包在第一个
+  `--` 分隔符后,旧实现只看 argv[0]。现在按位处理第一个 `--` 后的裸 bash。
+- **Git Bash 缺失降级**:挂载时探测二进制,缺失告警并走 PATH 前置回退;
+  `gitBashPath` 可注入(测试跨平台确定性);默认路径形状有断言防转义回归。
+
+### dsh-websearch-failover 0.3.1 — refresh 并发互斥 (#104)
+
+- **refresh 的 read-modify-write 互斥化**:两个并发 POST /api/refresh 在 probeBalance 的
+  await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
+  (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
+  同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
+
 ### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
 
 - 三个契约测试(§exports the host services / §defaults apply / §config overrides)此前直接读宿主真实 `~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。零产品改动;隔离后 23/23 全绿,且与宿主状态无关。

@@ -8,7 +8,7 @@ let pass = 0
 function ok(name, fn) {
   return Promise.resolve(fn()).then(() => {
     pass += 1
-    console.log(`PASS \${name}`)
+    console.log(`PASS ${name}`)
   })
 }
 
@@ -43,5 +43,5 @@ const tests = [
 
 const results = await Promise.allSettled(tests)
 for (const r of results) if (r.status === 'rejected') { console.error(r.reason); process.exit(1) }
-console.log(`mutex tests: \${pass}/\${tests.length} passed`)
+console.log(`mutex tests: ${pass}/${tests.length} passed`)
 if (pass !== tests.length) process.exit(1)
