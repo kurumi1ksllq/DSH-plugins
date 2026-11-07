@@ -1,0 +1,25 @@
+{
+  "issue": 100,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-07T15:54:07.538Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "prompt-inject 测试隔离",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
