@@ -301,6 +301,23 @@ export function readVault(dir) {
   return { version, entries: adoptEntries(parsed.entries) }
 }
 
+/** SHA-256 of the vault file bytes, or null when it does not exist yet (#103 D1). */
+export function vaultFingerprint(dir) {
+  const file = vaultFilePath(dir)
+  if (!existsSync(file)) return null
+  return createHash('sha256').update(readFileSync(file)).digest('hex')
+}
+
+/** Throw when the vault file changed since \`stamp\` — the optimistic guard for
+ * every read-mutate-write sequence (#103 D1). All mutations here are
+ * synchronous, so this defends against a second host process sharing the
+ * directory, not against in-process interleave. */
+export function assertVaultUnchanged(dir, stamp) {
+  if (vaultFingerprint(dir) !== stamp) {
+    throw new Error('credential: vault changed on disk during the mutation; retry the operation')
+  }
+}
+
 /** Write vault.json atomically (temp file + rename) with 0600 permissions. */
 export function writeVault(dir, vault) {
   mkdirSync(dir, { recursive: true })

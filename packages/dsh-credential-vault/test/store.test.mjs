@@ -17,6 +17,8 @@ import {
   sealSecret,
   verifySecret,
   writeVault,
+  vaultFingerprint,
+  assertVaultUnchanged,
 } from '../lib/store.js'
 
 function tempDir() {
@@ -100,4 +102,28 @@ test('isValidName rejects separators, control chars and empties', () => {
 
 test('KINDS covers the documented credential types', () => {
   assert.deepEqual(KINDS, ['password', 'token', 'api-key', 'ssh-key', 'database', 'other'])
+})
+
+
+// ---- #103 D1:乐观并发守卫(跨进程共享 $DSH_HOME 的最后防线) ----
+import { writeFileSync } from 'node:fs'
+
+test('vaultFingerprint hashes the vault file; missing file hashes as null', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'store-fp-'))
+  assert.equal(vaultFingerprint(dir), null, 'no vault.json yet')
+  writeVault(dir, { version: VAULT_VERSION, entries: {} })
+  const a = vaultFingerprint(dir)
+  assert.equal(typeof a, 'string')
+  writeVault(dir, { version: VAULT_VERSION, entries: { x: { secret: 's' } } })
+  assert.notEqual(vaultFingerprint(dir), a, 'different content, different fingerprint')
+})
+
+test('assertVaultUnchanged throws when the file changed since the stamp', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'store-guard-'))
+  writeVault(dir, { version: VAULT_VERSION, entries: {} })
+  const stamp = vaultFingerprint(dir)
+  assert.doesNotThrow(() => assertVaultUnchanged(dir, stamp))
+  // 模拟另一个宿主进程在同一目录上落了盘
+  writeFileSync(join(dir, 'vault.json'), JSON.stringify({ version: VAULT_VERSION, entries: { other: { secret: 'e' } } }))
+  assert.throws(() => assertVaultUnchanged(dir, stamp), /changed on disk/)
 })

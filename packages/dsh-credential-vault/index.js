@@ -65,6 +65,21 @@ export function apply(ctx, config = {}) {
   // Zero-plaintext path: `use` records a grant and `shellEnv` injects the value
   // into each shell call, so the secret never enters the conversation.
   const grants = createGrantTable({ ttlMs: options.grantTtlMs })
+  // Session grants are in-memory with a TTL; a session that ends should not
+  // keep its grants alive until the TTL expires (#103 D3). The host publishes
+  // agent disposal (cordis agent lifecycle), which is the session-end signal
+  // this plugin can observe without new host dependencies.
+  try {
+    if (typeof ctx.on === 'function') {
+      ctx.on('agent/disposed', (payload) => {
+        const disposedSession = payload?.agent?.session?.header?.id ?? payload?.session?.header?.id
+        if (typeof disposedSession === 'string' && disposedSession.length > 0) grants.clear(disposedSession)
+      })
+    }
+  } catch {
+    // A host context that refuses unread services simply has no disposal hook;
+    // grants then live until their TTL, exactly as before (#103 D3).
+  }
   let envRegister = null
   const envBridge = createEnvBridge({
     store,
@@ -166,7 +181,8 @@ export function apply(ctx, config = {}) {
         }
         if (action === 'get' || action === 'use' || action === 'reveal') {
           const credName = typeof args?.name === 'string' ? args.name.trim() : ''
-          if (!isValidName(credName) && !store.has(credName)) {
+          // The bypass below is intentional and pinned by test/index.test.mjs (issue #52):
+if (!isValidName(credName) && !store.has(credName)) {
             appendAudit(dir, {
               name: credName || null,
               outcome: 'rejected',

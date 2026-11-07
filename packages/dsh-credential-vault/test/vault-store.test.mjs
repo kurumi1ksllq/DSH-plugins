@@ -116,3 +116,31 @@ test('two stores on the same dir share the same master key', () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+
+// ---- #103 D4:rotate 崩溃窗口的启动恢复 ----
+import { readFileSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { sealSecret, openSecret } from '../lib/store.js'
+
+test('a crash between the rotate key swap and vault swap is recovered from the staged .new', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vault-recover-'))
+  const store = createVaultStore(dir)
+  store.set('a', { kind: 'token', secret: 'secret-a' })
+  store.set('b', { kind: 'token', secret: 'secret-b' })
+
+  // 构造崩溃现场:master.key 已换成 fresh,vault.json 还是旧 key 密文,
+  // vault.json.new 是用 fresh 重封的完整新状态(rotate 的两步 rename 之间崩掉)
+  const oldKey = readFileSync(join(dir, 'master.key'))
+  const fresh = randomBytes(32)
+  const staged = JSON.parse(readFileSync(join(dir, 'vault.json'), 'utf8'))
+  for (const value of Object.values(staged.entries)) {
+    value.secret = sealSecret(fresh, openSecret(oldKey, value.secret))
+  }
+  writeFileSync(join(dir, 'vault.json.new'), JSON.stringify(staged, null, 2))
+  writeFileSync(join(dir, 'master.key'), fresh)
+
+  const recovered = createVaultStore(dir)
+  const list = recovered.list()
+  assert.ok(list.length === 2 && list.every((entry) => !entry.corrupt), 'recovered store must read every entry without corruption')
+})

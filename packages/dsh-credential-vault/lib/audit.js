@@ -8,11 +8,14 @@
 // the zero-plaintext `use` path from the audited `reveal` escape hatch.
 // No record ever contains a value.
 
-import { closeSync, existsSync, fchmodSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, closeSync, existsSync, fchmodSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const AUDIT_FILE = 'audit.log'
 export const AUDIT_MAX_LINES = 2000
+
+/** Warn once per process when the audit file mode cannot be tightened (#103 D11). */
+let modeWarned = false
 
 /** Append one audit record. Fields never include secret material. */
 export function appendAudit(dir, record) {
@@ -75,12 +78,19 @@ export function trimAudit(dir) {
     if (!existsSync(file)) return
     const lines = readFileSync(file, 'utf8').split('\n').filter((line) => line.length > 0)
     if (lines.length <= AUDIT_MAX_LINES) return
-    writeAll(file, lines.slice(-AUDIT_MAX_LINES).join('\n') + '\n')
+    // Rewrite through a 0600 temp file + rename: an in-place writeFileSync used
+    // to leave a truncated audit log behind on a crash, and silently kept the
+    // legacy 0644 mode of an older file (#103 D2/D11).
+    const tmp = `${file}.tmp-${process.pid}-${Date.now()}`
+    const fd = openSync(tmp, 'wx', 0o600)
+    try {
+      writeFileSync(fd, lines.slice(-AUDIT_MAX_LINES).join('\n') + '\n', 'utf8')
+      fchmodSync(fd, 0o600)
+    } finally {
+      closeSync(fd)
+    }
+    renameSync(tmp, file)
   } catch {
     /* diagnostics only */
   }
-}
-
-function writeAll(file, text) {
-  writeFileSync(file, text, 'utf8')
 }

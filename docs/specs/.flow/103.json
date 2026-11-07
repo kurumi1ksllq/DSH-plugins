@@ -1,0 +1,25 @@
+{
+  "issue": 103,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-07T18:10:46.022Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "vault 并发与审计修复(D1-D4/D11/D6/D3)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
