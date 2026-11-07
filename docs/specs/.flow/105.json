@@ -1,0 +1,25 @@
+{
+  "issue": 105,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T19:03:51.181Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "git-bash confined 改写 + 存在性探测",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
