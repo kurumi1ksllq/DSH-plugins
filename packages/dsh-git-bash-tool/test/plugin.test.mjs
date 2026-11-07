@@ -13,6 +13,11 @@ import * as plugin from '../index.js'
 
 const GIT_BASH = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
+// The tests inject an existing binary as the rewrite target so the probe path
+// behaves identically on every platform; the rewrite is about the seam, not the
+// specific binary.
+const EFFECTIVE_GIT_BASH = process.execPath
+
 /**
  * Run `fn` with `process.platform` reporting win32.
  *
@@ -31,7 +36,7 @@ function asWindows(fn) {
 }
 
 /** Drive the plugin against a fake ctx and capture the patched spawnSpec. */
-function mount(ctxShell = {}) {
+function mount(ctxShell = {}, options = {}) {
   const shell = { ...ctxShell }
   const effects = []
   const ctx = {
@@ -40,7 +45,7 @@ function mount(ctxShell = {}) {
       cb({ shell, effect: (fn) => effects.push(fn()) })
     },
   }
-  asWindows(() => plugin.apply(ctx))
+  asWindows(() => plugin.apply(ctx, { gitBashPath: EFFECTIVE_GIT_BASH, ...options }))
   return { shell, effects }
 }
 
@@ -48,10 +53,17 @@ test('isSupported is true only on Windows', () => {
   assert.equal(plugin.isSupported(), process.platform === 'win32')
 })
 
+test('the default Git Bash path keeps its documented shape (#105 D1)', () => {
+  // 防回归:默认路径必须是单层反斜杠的 Windows Git Bash 绝对路径
+  // (曾因生成层转义错层,值里出现双反斜杠,PATH 回退与改写目标都会失准)
+  assert.match(plugin.DEFAULT_GIT_BASH, /^C:\\Program Files\\Git\\bin\\bash\.exe$/)
+  assert.equal(plugin.DEFAULT_GIT_BASH.includes('\\\\'), false, '值里不允许双反斜杠')
+})
+
 test('a bare bash argv[0] is rewritten to the absolute Git Bash path', () => {
   const { shell } = mount({ spawnSpec: (spec, argv) => ({ spec, argv }) })
   const out = shell.spawnSpec({}, ['bash', '-c', 'echo hi'], 1024)
-  assert.equal(out.argv[0], GIT_BASH)
+  assert.equal(out.argv[0], EFFECTIVE_GIT_BASH)
   assert.deepEqual(out.argv.slice(1), ['-c', 'echo hi'])
 })
 
@@ -87,4 +99,45 @@ test('without a spawnSpec seam it falls back instead of throwing', () => {
   const { effects } = mount({})
   assert.equal(effects.length, 1)
   assert.equal(typeof effects[0], 'function')
+})
+
+/**
+ * Issue #105: the sandboxed (confined) branch wraps the real argv after a
+ * `--` separator — [runner, ..., '--', 'bash', '-c', cmd] — so a rewrite that
+ * only looks at argv[0] silently misses every confined spawn. These tests pin
+ * the separator-aware rewrite and the missing-Git-Bash fallback.
+ */
+test('the element after the first -- separator is rewritten in confined spawns', () => {
+  const { shell } = mount({ spawnSpec: (spec, argv) => ({ spec, argv }) })
+  const out = shell.spawnSpec({}, ['acl-runner', '--profile', 'ws', '--', 'bash', '-c', 'echo hi'], 1024)
+  assert.equal(out.argv[0], 'acl-runner', 'the runner itself stays untouched')
+  assert.equal(out.argv[4], EFFECTIVE_GIT_BASH, 'the spawn target after -- is the rewrite target')
+  assert.deepEqual(out.argv.slice(5), ['-c', 'echo hi'])
+})
+
+test('a non-bash target after the -- separator is untouched', () => {
+  const { shell } = mount({ spawnSpec: (spec, argv) => ({ spec, argv }) })
+  const argv = ['acl-runner', '--', 'sh', '-c', 'whoami && bash -x ./run.sh']
+  const out = shell.spawnSpec({}, argv, 1024)
+  assert.deepEqual(out.argv, argv, 'only a bare bash target gets rewritten')
+})
+
+test('a missing Git Bash binary degrades to the PATH fallback with a warning', () => {
+  const warnings = []
+  const shell = {}
+  const ctx = {
+    logger: { debug() {}, warn: (m) => warnings.push(m), info() {} },
+    inject(_deps, cb) { cb({ shell, effect: (fn) => fn() }) },
+  }
+  const originalPath = process.env.PATH
+  const BS = String.fromCharCode(92)
+  try {
+    asWindows(() => plugin.apply(ctx, { gitBashPath: ['C:', 'definitely', 'missing', 'bash.exe'].join(BS) }))
+    assert.ok(warnings.some((m) => /git-bash-tool.*missing/i.test(m)), 'the missing binary must be reported')
+    assert.equal(shell.spawnSpec, undefined, 'no executor rewrite when the binary is missing')
+    assert.ok((process.env.PATH ?? '').split(';')[0].endsWith(['usr', 'bin'].join(BS)), 'the PATH fallback must take over')
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+  }
 })

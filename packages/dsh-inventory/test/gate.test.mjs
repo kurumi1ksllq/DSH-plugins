@@ -205,7 +205,13 @@ test('a mount that resolves after mountTimeoutMs is disposed when the agent is g
       resolveMount = () => resolve(lateFiber)
     })
 
-  const cleanup = apply(ctx, { logFile: '', mcpClientEntry: stubFile, mountTimeoutMs: 20 })
+  let cleanup
+  const effect = ctx.effect.bind(ctx)
+  ctx.effect = (fn) => {
+    cleanup = effect(fn)
+    return cleanup
+  }
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile, mountTimeoutMs: 20 })
   const agent = { id: 'gate-late', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
   listeners.get('agent/created')({ agent })
   // No decision line is written on the timeout path, so just wait out the
@@ -222,4 +228,118 @@ test('a mount that resolves after mountTimeoutMs is disposed when the agent is g
   resolveMount()
   await new Promise((resolve) => setTimeout(resolve, 20))
   assert.equal(lateFiber.disposed, true, 'the late fiber must be disposed, not leaked')
+})
+
+
+/**
+ * Issue #102: the late-fiber fallback used to dispose fast mounts too, because
+ * its mounted.has() check ran before mounted.set() ever did (microtask order).
+ * These two tests pin the contract the gate.js comment always claimed:
+ * a fiber is disposed when its agent is gone, and tracked while it lives.
+ */
+test('a mount that completes within the window stays alive while the agent lives', async () => {
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const fiber = { disposed: false, dispose() { this.disposed = true } }
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => Promise.resolve(fiber)
+
+  let cleanup
+  const effect = ctx.effect.bind(ctx)
+  ctx.effect = (fn) => {
+    cleanup = effect(fn)
+    return cleanup
+  }
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile })
+  const agent = { id: 'gate-fast', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  await dispatch(listeners, logs, agent)
+  assert.ok(logs.some(([, m]) => m.includes('mount agent=gate-fast')), 'the fast mount must be logged')
+  assert.equal(fiber.disposed, false, 'a fast mount must survive while the agent is alive')
+  if (typeof cleanup === 'function') cleanup()
+  assert.equal(fiber.disposed, true, 'the tracked fiber must be disposed at plugin teardown')
+})
+
+test('a mount that resolves after mountTimeoutMs stays tracked while the agent lives', async () => {
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const lateFiber = { disposed: false, dispose() { this.disposed = true } }
+  let resolveMount
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => new Promise((resolve) => { resolveMount = () => resolve(lateFiber) })
+
+  let cleanup
+  const effect = ctx.effect.bind(ctx)
+  ctx.effect = (fn) => {
+    cleanup = effect(fn)
+    return cleanup
+  }
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile, mountTimeoutMs: 20 })
+  const agent = { id: 'gate-late-alive', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  listeners.get('agent/created')({ agent })
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  assert.ok(logs.some(([, m]) => m.includes('mount slow agent=gate-late-alive')), 'the slow mount must be reported')
+
+  // The agent is still alive when the mount finally lands: it must be tracked,
+  // not disposed (the mounted.has() proxy could not know this before #102).
+  resolveMount()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(lateFiber.disposed, false, 'a late mount for a living agent must be tracked')
+
+  if (typeof cleanup === 'function') cleanup()
+  assert.equal(lateFiber.disposed, true, 'plugin teardown still disposes the tracked fiber')
+})
+
+test('a disposed agent disposes its late fiber (#106 A1 coverage)', async () => {
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const lateFiber = { disposed: false, dispose() { this.disposed = true } }
+  let resolveMount
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => new Promise((resolve) => { resolveMount = () => resolve(lateFiber) })
+
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile, mountTimeoutMs: 20 })
+  const agent = { id: 'gate-late-disposed', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  listeners.get('agent/created')({ agent })
+  await new Promise((resolve) => setTimeout(resolve, 60))
+
+  // The agent goes away through the host lifecycle event, not plugin teardown.
+  const disposedHandler = listeners.get('agent/disposed')
+  assert.equal(typeof disposedHandler, 'function', 'the gate must subscribe to agent/disposed')
+  disposedHandler({ agent })
+  resolveMount()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(lateFiber.disposed, true, 'a late mount for a disposed agent must be disposed')
+})
+
+test('a re-dispatched agent keeps its earlier tracked fibers (#106 A2)', async () => {
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const fiber1 = { disposed: false, dispose() { this.disposed = true } }
+  const fiber2 = { disposed: false, dispose() { this.disposed = true } }
+  let call = 0
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => Promise.resolve(call++ === 0 ? fiber1 : fiber2)
+
+  let cleanup
+  const effect = ctx.effect.bind(ctx)
+  ctx.effect = (fn) => { cleanup = effect(fn); return cleanup }
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile })
+  const agent = { id: 'gate-redis', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  await dispatch(listeners, logs, agent)
+  await dispatch(listeners, logs, agent)
+  // dispatch() 的日志判定对同 agent 的第二次派发有歧义(第一次的 mount 行已存在),
+  // 这里显式等第二条 mount 决策线再清理。
+  const mountLines = () => logs.filter(([, m]) => m.includes('mount agent=gate-redis')).length
+  for (let i = 0; i < 200 && mountLines() < 2; i += 1) await new Promise((r) => setTimeout(r, 5))
+  if (typeof cleanup === 'function') cleanup()
+  assert.equal(fiber1.disposed, true, 'the first fiber must survive the re-dispatch and be disposed at teardown')
+  assert.equal(fiber2.disposed, true, 'the second fiber must also be tracked')
 })
