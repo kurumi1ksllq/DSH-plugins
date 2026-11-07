@@ -89,13 +89,18 @@ const REQUEST_BODY_MAX_CHARS = 65536;
 function readRequestBody(req) {
 	return new Promise((resolve, reject) => {
 		let body = "";
+		let oversize = false;
 		req.on("data", (chunk) => {
+			if (oversize) return; // 超限后停止累积:内存护栏仍然有效
 			body += chunk;
 			if (body.length > REQUEST_BODY_MAX_CHARS) {
+				oversize = true;
 				const err = new Error("request body too large");
 				err.statusCode = 413;
 				reject(err);
-				if (typeof req.destroy === "function") req.destroy();
+				// 排空余下请求体让客户端发完,路由 catch 的 413 响应才能 flush 到线上
+				// (复审实测:req.destroy() 先拆 socket,客户端只读到连接重置)。
+				if (typeof req.resume === "function") req.resume();
 			}
 		});
 		req.on("end", () => {

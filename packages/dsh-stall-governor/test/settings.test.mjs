@@ -104,6 +104,16 @@ test("POST clamp + 非法回退 + 未知键丢弃 + 持久化落盘", async () =
 	assert.equal(g2.body.settings.g1aZeroSteps, 20);
 });
 
+test("超大请求体 → 413,内存护栏生效且状态码可达(§3-9)", async () => {
+	const ctx = createCtx(); apply(ctx);
+	const { status, body } = await callPost(route(ctx), { settings: { mode: "g2", pad: "x".repeat(70000) } });
+	assert.equal(status, 413, "超限 413");
+	assert.equal(body.ok, false);
+	// 服务端在 413 后仍存活:后续正常请求不受影响
+	const { status: status2 } = await callGet(route(ctx));
+	assert.equal(status2, 200);
+});
+
 test("损坏文件回退默认并标记 persisted=false", async () => {
 	process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = pathB;
 	const ctx = createCtx(); apply(ctx);
