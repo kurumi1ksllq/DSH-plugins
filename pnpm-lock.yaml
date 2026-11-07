@@ -30,7 +30,6 @@ importers:
 
   packages/dsh-inventory: {}
 
-  packages/dsh-prompt-inject: {}
 
   packages/dsh-stall-governor: {}
 

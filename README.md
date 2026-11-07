@@ -1,6 +1,6 @@
 # DSH-plugins
 
-一个仓库，八个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
+一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
 **这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管，都不在这里；这里只说 profile 接上去所需的最小接线。
 
@@ -10,7 +10,6 @@
 | [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
 | [`packages/dsh-git-bash-tool`](packages/dsh-git-bash-tool) | `dsh-git-bash-tool` | Windows 专属：把 shell 换成 Git Bash，并关掉 pwsh 工具 |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
-| [`packages/dsh-prompt-inject`](packages/dsh-prompt-inject) | `@local/dsh-prompt-inject` | 往所有 Agent 系统提示词注入一段可编辑文本，编辑器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-stall-governor`](packages/dsh-stall-governor) | `dsh-stall-governor` | 失速治理单包双引擎：「跨步骤」步级/支线熔断（shadow 先行）+「单流内」生成退化软切与工具参数错误恢复指引、命令执行纪律段；内核缺软切钩子时能力横幅如实降级，设置页 `/plugins/stall-governor/settings` |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 
@@ -36,7 +35,6 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
 "dependencies": {
   "dsh-credential-vault": "link:/path/to/DSH-plugins/packages/dsh-credential-vault",
   "dsh-inventory": "link:/path/to/DSH-plugins/packages/dsh-inventory",
-  "@local/dsh-prompt-inject": "link:/path/to/DSH-plugins/packages/dsh-prompt-inject",
   "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin",
   "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow",
   "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
@@ -67,7 +65,6 @@ pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被
   "profile": {
     "bundles": [
       "dsh-inventory",
-      "@local/dsh-prompt-inject",
       "dsh-websearch-failover",
       "dsh-credential-vault",
       "dev-flow",
@@ -98,7 +95,7 @@ N 等于你实际留下的 link 条数（7 条必装 + 你选的可选包；当�
 
 ```bash
 pnpm install          # 一次装齐 workspace 依赖
-pnpm test             # 八个包全部测试
+pnpm test             # 七个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
@@ -116,7 +113,7 @@ pnpm verify           # 校验每个包仍是合法 bundle
 ## 边界
 
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第九个 bundle。
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第八个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
 - `scripts/verify-packages.mjs` 只校验 `packages/` 内部，不检查任何 profile。宿主怎么接线是宿主的事。
 
