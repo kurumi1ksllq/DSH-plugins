@@ -3,7 +3,7 @@
 // plaintext, and only the tool path calls it.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import {
   KINDS,
   VAULT_VERSION,
@@ -56,9 +56,26 @@ export function createVaultStore(dir) {
       try {
         openSecret(key, canary.secret)
       } catch {
+        // Only adopt the staged file when it actually decrypts with the loaded
+        // key: a blind overwrite would turn ANY unseal failure (a corrupted
+        // entry, a broken key) into a wholesale vault replacement (#103 B2).
+        let stagedVerified = false
         const staged = `${vaultFilePath(dir)}.new`
         if (existsSync(staged)) {
-          renameSync(staged, vaultFilePath(dir))
+          try {
+            // The staged file was written sealed with the NEW key; verify by
+            // re-reading the canary from it through the same store machinery.
+            const stagedEntries = JSON.parse(readFileSync(staged, 'utf8')).entries ?? {}
+            const stagedCanary = Object.values(stagedEntries).find((value) => typeof value.secret === 'string' && value.secret.length > 0)
+            if (stagedCanary === undefined) throw new Error('staged vault has no verifiable entry')
+            openSecret(key, stagedCanary.secret)
+            stagedVerified = true
+          } catch (verifyError) {
+            throw new Error('credential: rotate recovery rejected the staged vault (' + verifyError.message + '); keeping the on-disk state untouched')
+          }
+          if (stagedVerified) {
+            renameSync(staged, vaultFilePath(dir))
+          }
         }
       }
     }
@@ -414,18 +431,24 @@ export function createVaultStore(dir) {
 
     /** Rotate the master key: re-seal every entry, replace master.key. */
     rotateKey() {
+      const stamp = vaultFingerprint(dir)
       const vault = readVault(dir)
       const fresh = randomBytes(MASTER_KEY_BYTES)
-      // Re-seal with the NEW key (decrypting with the old one) before anything
-      // is swapped, so a crash between the two writes leaves a consistent
-      // world: either the old key + old vault, or the new key + new vault.
+      // Re-seal with the NEW key (decrypting with the old one), then stage the
+      // re-sealed vault as vault.json.new BEFORE the key swap (#103 D4): the
+      // key rename and the vault rename become two adjacent operations, and a
+      // crash between them leaves new key + old vault + staged .new, which the
+      // load-time recovery adopts. The optimistic guard rules out a concurrent
+      // writer between the read and the stage.
       for (const [name, value] of Object.entries(vault.entries)) {
         if (typeof value.secret === 'string') vault.entries[name].secret = sealSecret(fresh, openSecret(key, value.secret))
       }
+      writePrivateFileSync(`${vaultFilePath(dir)}.new`, JSON.stringify(vault, null, 2) + '\n')
       copyFileSync(masterKeyPath(dir), `${masterKeyPath(dir)}.bak`)
       writePrivateFileSync(`${masterKeyPath(dir)}.new`, fresh)
       renameSync(`${masterKeyPath(dir)}.new`, masterKeyPath(dir))
-      writeVault(dir, vault)
+      assertVaultUnchanged(dir, stamp)
+      renameSync(`${vaultFilePath(dir)}.new`, vaultFilePath(dir))
       key = fresh
       return Object.keys(vault.entries).length
     },

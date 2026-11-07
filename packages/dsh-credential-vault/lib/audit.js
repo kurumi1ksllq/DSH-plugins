@@ -34,12 +34,23 @@ export function appendAudit(dir, record) {
   try {
     // The log names which credentials were read and when: keep it 0600 like the
     // vault itself, even when an older file was created with a wider mode.
-    const fd = openSync(join(dir, AUDIT_FILE), 'a', 0o600)
+    const file = join(dir, AUDIT_FILE)
+    const fd = openSync(file, 'a', 0o600)
     try {
       try {
         fchmodSync(fd, 0o600)
       } catch {
-        /* the append still matters more than the mode */
+        // fchmod on an append fd is refused on some platforms; fall back to a
+        // path chmod and warn once instead of silently keeping 0644 forever
+        // (observed in the field, #103 D11).
+        try {
+          chmodSync(file, 0o600)
+        } catch (chmodError) {
+          if (!modeWarned) {
+            modeWarned = true
+            console.warn('credential: audit log mode cannot be tightened to 0600 (' + chmodError.message + ')')
+          }
+        }
       }
       writeFileSync(fd, line, 'utf8')
     } finally {

@@ -12,6 +12,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-credential-vault 0.5.4 — 并发守卫/审计原子性/rotate 恢复/授权清除 (#103)
+
+- **rotate 崩溃恢复真实可达**:rotateKey 先把重封好的 vault 落为 vault.json.new 再换 key,
+  两个 rename 邻接;加载探针发现解封失败且 .new 可验证时才采纳,其它解封失败一律拒绝
+  (杜绝误覆盖)。乐观守卫(vaultFingerprint)覆盖全部六条写路径。
+- **审计日志**:trimAudit 改 0600 temp+rename;appendAudit fchmod 失败回退 chmodSync,
+  仍失败告警一次(不再静默保持 0644)。
+- **会话授权即时清除**:agent/disposed → grants.clear(sessionId)。
+- 勘误:六条变更路径全部同步,进程内交错不存在;守卫防共享 $DSH_HOME 的第二宿主进程。
+
 ### @local/dsh-prompt-inject 0.2.1 — 测试状态路径隔离 (T0.3/#100)
 
 - 三个契约测试(§exports the host services / §defaults apply / §config overrides)此前直接读宿主真实 `~/.dsh/prompt-inject/state.json`,宿主存过自定义文本就红。现在包 `withTempProfile` 隔离。零产品改动;隔离后 23/23 全绿,且与宿主状态无关。

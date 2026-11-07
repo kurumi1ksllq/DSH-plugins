@@ -181,7 +181,8 @@ export function apply(ctx, config = {}) {
         }
         if (action === 'get' || action === 'use' || action === 'reveal') {
           const credName = typeof args?.name === 'string' ? args.name.trim() : ''
-          // The bypass below is intentional and pinned by test/index.test.mjs (issue #52):
+          // The bypass below is intentional; the store-level guard is pinned in
+          // test/hotfix-041.test.mjs (issue #52):
 if (!isValidName(credName) && !store.has(credName)) {
             appendAudit(dir, {
               name: credName || null,
