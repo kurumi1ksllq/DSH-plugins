@@ -126,7 +126,7 @@ test('package manifest is a valid DSH bundle and client package', () => {
   const pkg = JSON.parse(read('package.json'))
 
   assert.equal(pkg.name, '@local/dsh-prompt-inject')
-  assert.equal(pkg.version, '0.2.0')
+  assert.equal(pkg.version, '0.2.1')
   assert.equal(pkg.private, true)
   assert.equal(pkg.type, 'module')
   assert.equal(pkg.main, 'index.js')
