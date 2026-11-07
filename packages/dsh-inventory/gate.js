@@ -145,8 +145,14 @@ export function apply(ctx, rawConfig) {
 
   emit('info', `${LOG} activated pid=${process.pid} config=${JSON.stringify(config)}`)
 
-  /** agentId -> Fiber[] mounted for that agent. */
+  /** agentId -> Fiber[] mounted for that agent. Entries are pre-registered at
+   * agent/created time so a fiber landing later (fast or late) is always
+   * tracked, never judged by a table the race could still be filling (#102). */
   const mounted = new Map()
+  /** agentIds whose agent was already disposed: their late fibers get disposed. */
+  const gone = new Set()
+  /** True once the plugin effect is torn down: every late fiber disposes. */
+  let closed = false
 
   ctx.effect(() => {
     // `agent/created` is a serial dispatch: the runtime awaits every listener's
@@ -157,6 +163,7 @@ export function apply(ctx, rawConfig) {
     // start it, return undefined immediately, and let the dispatch continue.
     const off = ctx.on('agent/created', ({ agent }) => {
       const agentId = agent?.id ?? '<unknown>'
+      mounted.set(agentId, [])
       void (async () => {
         try {
           const cwd = readCwd(agent)
@@ -179,7 +186,6 @@ export function apply(ctx, rawConfig) {
             return
           }
 
-          const fibers = []
           await Promise.all(Object.entries(plan.servers).map(async ([declaredName, serverConfig]) => {
             try {
               const mounting = Promise.resolve(agent.ctx.plugin(mod, serverConfig))
@@ -188,7 +194,7 @@ export function apply(ctx, rawConfig) {
                 config.mountTimeoutMs,
                 () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
               )
-              if (fiber !== undefined) fibers.push(fiber)
+              if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
               emit(
                 'info',
                 `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
@@ -200,15 +206,16 @@ export function apply(ctx, rawConfig) {
               mounting
                 .then((lateFiber) => {
                   if (lateFiber === undefined || lateFiber === null) return
-                  if (mounted.has(agentId)) {
-                    mounted.get(agentId).push(lateFiber)
-                  } else {
+                  if (closed || gone.has(agentId)) {
+                    // The agent or the plugin effect is gone: dispose, never leak.
                     try {
                       lateFiber?.dispose?.()
                     } catch {
-                      // Agent may already be disposed.
+                      // Already gone.
                     }
+                    return
                   }
+                  mounted.get(agentId)?.push(lateFiber)
                 })
                 .catch(() => {
                   // A late mount failure is only a leak risk; nothing to do.
@@ -217,16 +224,34 @@ export function apply(ctx, rawConfig) {
               emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
             }
           }))
-          if (fibers.length > 0) mounted.set(agentId, fibers)
         } catch (error) {
           emit('warn', `${LOG} gate error agent=${agentId}: ${String(error)}`)
         }
       })()
     })
 
+    const offDisposed = ctx.on('agent/disposed', (payload) => {
+      const id = payload?.agent?.id ?? payload?.id ?? (typeof payload === 'string' ? payload : undefined)
+      if (typeof id !== 'string') return
+      gone.add(id)
+      for (const fiber of mounted.get(id) ?? []) {
+        try {
+          fiber?.dispose?.()
+        } catch {
+          // Agent may already be disposed.
+        }
+      }
+      mounted.delete(id)
+    })
     return () => {
+      closed = true
       try {
         off?.()
+      } catch {
+        // Listener already gone.
+      }
+      try {
+        offDisposed?.()
       } catch {
         // Listener already gone.
       }
@@ -240,6 +265,7 @@ export function apply(ctx, rawConfig) {
         }
       }
       mounted.clear()
+      gone.clear()
     }
   }, 'dsh-inventory-gate.agents')
 }
