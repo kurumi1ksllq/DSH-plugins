@@ -1,13 +1,13 @@
 {
   "issue": 112,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-07T23:06:59.348Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T23:35:57.968Z",
   "tickets": [
     {
       "id": 1,
       "title": "吸收 stall-governor + git-bash-tool(七行 id 合并)",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
