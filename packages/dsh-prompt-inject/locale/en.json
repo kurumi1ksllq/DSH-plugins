@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Prompt Inject (dsh-prompt-inject)",
-    "description": "DeepSeek Harness bundle that injects an editable bilingual section into every agent system prompt, with a sidebar panel for editing and saving it live."
-  }
-}

@@ -1,0 +1,25 @@
+{
+  "issue": 111,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-07T22:12:21.213Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "吸收 prompt-inject(12 条契约)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

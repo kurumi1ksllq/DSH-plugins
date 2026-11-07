@@ -1,3 +1,5 @@
+> ⚠️ 2026-11-08 起 prompt-inject 已并入 dsh-inventory(#111)。以下为并入前的 0.1.0 历史验收记录,保留作勘误与证据链;当前契约以本仓库 spec 与测试为准。
+
 # 验证报告 — @local/dsh-prompt-inject
 
 - 任务：task-1（构建并安装提示词注入插件）

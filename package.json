@@ -11,7 +11,6 @@
     "test": "pnpm -r --if-present run test && node --test test/*.test.mjs",
     "test:inventory": "pnpm --filter dsh-inventory run test",
     "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
-    "test:prompt-inject": "node --test packages/dsh-prompt-inject/test/*.test.mjs",
     "test:dev-flow": "node --test packages/dev-flow/test/*.test.mjs",
     "build:websearch": "pnpm --filter websearch-dsh-plugin run build",
     "check:websearch": "pnpm --filter websearch-dsh-plugin run build:check",

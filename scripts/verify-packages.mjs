@@ -43,7 +43,6 @@ const EXPECTED = [
   ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
   ['dsh-inventory', 'dsh-inventory'],
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
-  ['@local/dsh-prompt-inject', 'dsh-prompt-inject'],
   ['dev-flow', 'dev-flow'],
   ['dsh-stall-governor', 'dsh-stall-governor'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],

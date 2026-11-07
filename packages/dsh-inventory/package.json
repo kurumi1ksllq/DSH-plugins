@@ -1,6 +1,6 @@
 {
   "name": "dsh-inventory",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "private": true,
   "description": "Inventory for DeepSeek Harness: installed plugin packages, loader rows, MCP servers, skills and tools — plus a per-workspace view that assigns or removes an MCP server / skill with one click. Adds an 'Inventory' tab under Settings > Plugins.",
   "type": "module",
@@ -11,7 +11,8 @@
     "./gate": "./gate.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./prompt-inject": "./lib-prompt-inject.js"
   },
   "files": [
     "index.js",
@@ -21,7 +22,10 @@
     "lib",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "lib-prompt-inject.js",
+    "VERIFICATION.md",
+    "README-prompt-inject.md"
   ],
   "dsh": {
     "manifestVersion": 1,

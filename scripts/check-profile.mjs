@@ -42,7 +42,6 @@ const SHIPPED = new Map([
   ['dsh-git-bash-tool', 'packages/dsh-git-bash-tool'],
   ['dsh-inventory', 'packages/dsh-inventory'],
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
-  ['@local/dsh-prompt-inject', 'packages/dsh-prompt-inject'],
   ['dev-flow', 'packages/dev-flow'],
   ['dsh-stall-governor', 'packages/dsh-stall-governor'],
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover/plugin'],
@@ -350,7 +349,7 @@ for (const entry of nodeModulesEntries(profileDir)) {
 // profile that links inventory without them shows a page whose tabs all answer
 // 404. A warning, not a failure: partially linked profiles are legitimate while
 // someone is trying one bundle out.
-const INVENTORY_SECTIONS = ['dsh-credential-vault', 'dsh-websearch-failover', '@local/dsh-prompt-inject']
+const INVENTORY_SECTIONS = ['dsh-credential-vault', 'dsh-websearch-failover']
 const linkedNames = new Set(results.filter((row) => row.kind !== 'fail').map((row) => row.name))
 if (linkedNames.has('dsh-inventory')) {
   const missing = INVENTORY_SECTIONS.filter((name) => !linkedNames.has(name))

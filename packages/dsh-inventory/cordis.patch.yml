@@ -15,8 +15,13 @@
 #
 # The inventory snapshot reads that suffix back from the loader, so the page
 # shows the name the gate will actually mount.
+#   prompt-inject   — the editable system-prompt section + /prompt-inject/state.
+#                     The historical row id is kept; the implementation now lives
+#                     in this package under the ./prompt-inject subpath export.
 - insert:
     - id: inventory
       name: "dsh-inventory"
     - id: inventory-gate
       name: "dsh-inventory/gate"
+    - id: prompt-inject
+      name: "dsh-inventory/prompt-inject"

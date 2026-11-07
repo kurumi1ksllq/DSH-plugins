@@ -1,4 +1,4 @@
-# @local/dsh-prompt-inject
+# prompt-inject(已并入 dsh-inventory,#111)
 
 DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段可编辑的中英双语演示段落，编辑界面在 **工具管理（dsh-inventory）** 页里（分段标签「提示词注入」，或总览里的同名分区），用于读取、修改并保存注入文本。段落里带有唯一验证令牌 `DSH-INJECT-7F3A-2026`。
 
@@ -19,7 +19,7 @@ DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段�
 
 文案要点：
 
-- 明确标注由本地插件 `@local/dsh-prompt-inject` 注入、仅作演示，不覆盖安全策略与权限规则；
+- 明确标注由本地插件 `dsh-inventory` 注入、仅作演示，不覆盖安全策略与权限规则；
 - 声明验证令牌 `DSH-INJECT-7F3A-2026`；
 - 行为约定：用户问"注入令牌是什么 / what is the injection token"时，只逐字回答该令牌、不加解释；其余情况下不主动提及本段，也不改变其他行为。
 
@@ -65,7 +65,7 @@ DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段�
 ```js
 // profile 的 patch 层示例（非本包自带）
 - id: prompt-inject
-  name: "@local/dsh-prompt-inject"
+  name: "dsh-inventory/prompt-inject"
   config:
     name: "demo:prompt-inject"   // 覆盖 section 名称
     order: 3500                  // 覆盖排序位置
@@ -88,7 +88,7 @@ DSH bundle：向该 profile 中**每个 Agent 的系统提示词**追加一段�
 - `locale/en.json`、`locale/zh.json` — 插件标题与描述（面板文案在 `client.js` 内）
 - `icon.svg` — 64×64 原创几何图标
 - `package.json` — 包声明（bundle patch + `dsh.client`）
-- `test/plugin.test.mjs` — 纯 Node 契约测试（fake ctx + `node:vm`）
+- `test/prompt-inject.test.mjs` — 纯 Node 契约测试（fake ctx + `node:vm`）
 
 ## 验证
 

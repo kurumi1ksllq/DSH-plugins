@@ -1,16 +1,16 @@
 /**
- * Contract tests for @local/dsh-prompt-inject.
+ * Contract tests for the prompt-inject half absorbed into dsh-inventory (#111).
  *
  * Everything here runs on plain Node: a fake Cordis context captures the
  * system-prompt section and the webServer route, and a fake HTTP request /
  * response pair drives the route handler without listening on a socket.
- * `client.js` is executed through `node:vm` with a stubbed
- * `window.__ModuleLoader__`, so no real Harness runtime is needed either.
+ * The old client half (a zero-consumer dictionary) was removed with the merge;
+ * the live editor renders from dsh-inventory's own client.js.
  *
- * Run with: node --test prompt-inject/test/plugin.test.mjs
+ * Run with: node --test test/prompt-inject.test.mjs
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const pkgDir = join(here, '..')
 const read = (name) => readFileSync(join(pkgDir, name), 'utf8')
 
-const plugin = await import(pathToFileURL(join(pkgDir, 'index.js')).href)
+const plugin = await import(pathToFileURL(join(pkgDir, 'lib-prompt-inject.js')).href)
 
 const STATE_ROUTE = '/prompt-inject/state'
 const STATE_FILE = 'prompt-inject.state.json'
@@ -122,25 +122,15 @@ async function withTempProfile(fn) {
 // Package / static assets
 // ---------------------------------------------------------------------------
 
-test('package manifest is a valid DSH bundle and client package', () => {
+test('prompt-inject implementation is wired into the dsh-inventory manifest (#111/T2.inv)', () => {
   const pkg = JSON.parse(read('package.json'))
 
-  assert.equal(pkg.name, '@local/dsh-prompt-inject')
-  assert.equal(pkg.version, '0.2.1')
-  assert.equal(pkg.private, true)
-  assert.equal(pkg.type, 'module')
-  assert.equal(pkg.main, 'index.js')
-  assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
-  assert.ok(existsSync(join(pkgDir, pkg.dsh.bundle.patch)), 'bundle patch must exist')
-
-  assert.equal(pkg.exports['.'], './index.js')
-  assert.equal(pkg.exports['./client'], './client.js')
-  assert.ok(pkg.exports['./locale/*.json'], 'locale export missing')
-  assert.ok(pkg.exports['./icon'], 'icon export missing')
-
-  for (const required of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'README.md']) {
-    assert.ok(pkg.files.includes(required), `files must include ${required}`)
-  }
+  // The absorbing package owns the manifest; the migrated half must be reachable
+  // through its subpath export and declared in files.
+  assert.equal(pkg.name, 'dsh-inventory')
+  assert.equal(pkg.exports['./prompt-inject'], './lib-prompt-inject.js')
+  assert.ok(pkg.files.includes('lib-prompt-inject.js'), 'files must include lib-prompt-inject.js')
+  assert.ok(pkg.files.includes('VERIFICATION.md'), 'files must include VERIFICATION.md')
   assert.ok(pkg.files.includes('locale/*.json'), 'files must include locale/*.json')
 
   assert.equal(pkg.dsh.client.platform, 'web')
@@ -152,38 +142,18 @@ test('package manifest is a valid DSH bundle and client package', () => {
   ])
 })
 
-test('locale files carry real plugin metadata', () => {
-  for (const locale of ['en', 'zh']) {
-    const data = JSON.parse(read(`locale/${locale}.json`))
-    assert.equal(typeof data.meta.title, 'string')
-    assert.equal(typeof data.meta.description, 'string')
-    assert.ok(data.meta.title.trim().length > 0, `${locale} title empty`)
-    assert.ok(data.meta.description.trim().length > 0, `${locale} description empty`)
-    assert.ok(data.meta.description.length > 20, `${locale} description looks like a placeholder`)
-    assert.ok(/dsh-prompt-inject/.test(data.meta.title), `${locale} title should name the plugin`)
-  }
-})
-
-test('bundle patch is a single insert row for the plugin', () => {
-  const lines = read('cordis.patch.yml')
+test('the bundle patch keeps its three rows in one insert block (#111)', () => {
+  const rows = read('cordis.patch.yml')
     .split(/\r?\n/)
     .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
-
-  assert.equal(lines[0], '- insert:')
-  assert.equal(lines[1], '    - id: prompt-inject')
-  assert.equal(lines[2], '      name: "@local/dsh-prompt-inject"')
-  assert.equal(lines.length, 3, 'patch must not add config overrides')
-  for (const line of lines) {
+  assert.equal(rows[0], '- insert:', 'a single insert block')
+  assert.equal(rows.filter((r) => r.trim() === '- insert:').length, 1, 'no second insert block (spec 单块多行口径)')
+  const ids = rows.filter((r) => /- id: /.test(r)).map((r) => r.trim().slice(6))
+  assert.deepEqual(ids, ['inventory', 'inventory-gate', 'prompt-inject'])
+  for (const line of rows) {
     assert.ok(!line.includes('\t'), 'YAML must use spaces, not tabs')
+    assert.ok(!/config:/.test(line), 'patch must not add config overrides')
   }
-})
-
-test('icon is a self-contained 64x64 SVG', () => {
-  const svg = read('icon.svg')
-  assert.match(svg, /^<svg[^>]*width="64"[^>]*height="64"/)
-  assert.match(svg, /viewBox="0 0 64 64"/)
-  const withoutNamespace = svg.replace(/xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, '')
-  assert.doesNotMatch(withoutNamespace, /https?:\/\//i, 'icon must not reference external resources')
 })
 
 // ---------------------------------------------------------------------------
@@ -479,125 +449,49 @@ test('falls back to DSH_HOME when DSH_PROFILE_DIR is absent', async () => {
 // Client plugin (vm, ModuleLoader format)
 // ---------------------------------------------------------------------------
 
-const fakeReact = {
-  createElement(type, props, ...children) {
-    return { type, props: props || {}, children }
-  },
-  useState(initial) {
-    return [initial, () => {}]
-  },
-  useEffect() {},
-  useCallback(fn) {
-    return fn
-  },
-  useRef(value) {
-    return { current: value }
-  },
-  Fragment: 'Fragment',
-}
-
-function loadClientDefinition() {
-  const source = read('client.js')
-  let definition = null
-  const window = {
-    __ModuleLoader__: {
-      load(value) {
-        definition = value
-      },
-    },
-  }
-  const sandbox = { window, console, fetch: () => Promise.reject(new Error('no network in tests')), setTimeout, clearTimeout }
-  vm.runInNewContext(source, sandbox, { filename: 'client.js' })
-  assert.ok(definition, 'client.js must call window.__ModuleLoader__.load')
-  return { definition, source }
-}
-
-function createClientCtx() {
-  const slotRegistrations = []
-  const localeRegistrations = []
-  const layoutCalls = []
-  const effects = []
-  const ctx = {
-    effect(callback) {
-      const disposer = callback()
-      effects.push(disposer)
-      return disposer
-    },
-    locale: {
-      register(namespace, dictionaries) {
-        localeRegistrations.push({ namespace, dictionaries })
-        return () => {}
-      },
-      bind(namespace) {
-        return (key) => `${namespace}:${key}`
-      },
-    },
-    slots: {
-      inject(name, callback) {
-        slotRegistrations.push({ name, registration: callback() })
-        return () => {}
-      },
-      register(options, component) {
-        return { options, component }
-      },
-    },
-    layout: {
-      selectPanel(panel) {
-        layoutCalls.push(panel)
-      },
-    },
-  }
-  return { ctx, slotRegistrations, localeRegistrations, layoutCalls, effects }
-}
-
-test('client.js is a ModuleLoader module that only requires react', () => {
-  const { definition, source } = loadClientDefinition()
-  assert.equal(definition.id, '@local/dsh-prompt-inject')
-  assert.equal(typeof definition.factory, 'function')
-
-  const required = []
-  const moduleExports = definition.factory((id) => {
-    required.push(id)
-    if (id === 'react') return fakeReact
-    throw new Error(`unexpected require: ${id}`)
+test('a whitespace-only text is rejected with 400, not stored', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    const res = await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: '   \n\t  ' }) })
+    assert.equal(res.status, 400, 'whitespace-only must be invalid-text')
+    assert.deepEqual(res.json, { error: 'invalid-text' })
+    const after = await callRoute(host.route.handler, { method: 'GET' })
+    assert.notEqual(after.json.text.trim(), '', 'the stored text must be untouched')
   })
-
-  assert.deepEqual(required, ['react'], 'client must not require Harness packages')
-  // Arrays created inside the vm sandbox have another realm's prototype, so
-  // copy into this realm before the strict comparison.
-  // The editor moved to the Tools page (dsh-inventory), so the client half only
-  // owns its dictionary now — no slots, no layout, no shell dependency.
-  assert.deepEqual(Array.from(moduleExports.inject), ['locale'])
-  assert.equal(typeof moduleExports.apply, 'function')
-  assert.match(source, /\/prompt-inject\/state/)
-  assert.match(source, /POST/)
-  assert.doesNotMatch(source, /@deepseek-ai\/dsh-client/)
-  assert.doesNotMatch(source, /\bimport\s/)
 })
 
-test('client registers zh/en dictionaries and owns no sidebar panel any more', () => {
-  const { definition } = loadClientDefinition()
-  const moduleExports = definition.factory((id) => {
-    if (id === 'react') return fakeReact
-    throw new Error(`unexpected require: ${id}`)
+test('persisting leaves exactly one .bak generation of the previous state (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'first version' }) })
+    const stateFile = host.route.stateFile ?? null
+    // 直接以文件系统为准:POST 两次后应存在 .bak,内容是第一版
+    await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'second version' }) })
+    const profileDir = process.env.DSH_PROFILE_DIR
+    const bak = readFileSync(join(profileDir, STATE_FILE) + '.bak', 'utf8')
+    assert.equal(JSON.parse(bak).text, 'first version', '.bak must hold the previous generation')
+    const cur = readFileSync(join(profileDir, STATE_FILE), 'utf8')
+    assert.equal(JSON.parse(cur).text, 'second version')
   })
-  const { ctx, localeRegistrations, effects } = createClientCtx()
-  moduleExports.apply(ctx)
+})
 
-  // One dictionary, registered inside ctx.effect so a reload tears it down.
-  assert.equal(effects.length, 1, 'the registration must run in ctx.effect')
-  assert.equal(localeRegistrations.length, 1)
-  const [{ namespace, dictionaries }] = localeRegistrations
-  assert.equal(namespace, 'prompt-inject')
-  assert.deepEqual(Object.keys(dictionaries).sort(), ['en', 'zh'])
+test('an oversized body answers 413 and drains the request (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    // readJsonBody 的上限是 body 字节(256KiB),不是 text 字符数:
+    // 超 256KiB 的原始 body 才走 413 路径(答案后立即排空请求流)。
+    const big = JSON.stringify({ text: 'x'.repeat(300 * 1024) })
+    const res = await callRoute(host.route.handler, { method: 'POST', body: big })
+    assert.equal(res.status, 413)
+  })
+})
 
-  // The Tools page reads these exact keys through the `prompt-inject` namespace,
-  // so a rename here would silently degrade the editor to raw keys.
-  for (const locale of ['zh', 'en']) {
-    const dict = dictionaries[locale]
-    for (const key of ['title', 'description', 'placeholder', 'confirm', 'saving', 'saved', 'loading']) {
-      assert.equal(typeof dict[key], 'string', `${locale}.${key} missing`)
-      assert.ok(dict[key].trim().length > 0, `${locale}.${key} empty`)
-    }
-  }
+test('a text longer than MAX_TEXT_LENGTH answers 400 invalid-text (#111)', async () => {
+  await withTempProfile(async () => {
+    const host = bootHost()
+    // 小 body 内的超长 text:JSON 合法、字节不超限,但 text 字段超上限
+    const res = await callRoute(host.route.handler, { method: 'POST', body: JSON.stringify({ text: 'x'.repeat(MAX_TEXT_LENGTH + 10) }) })
+    assert.equal(res.status, 400)
+    assert.deepEqual(res.json, { error: 'invalid-text' })
+  })
 })
