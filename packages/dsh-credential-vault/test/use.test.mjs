@@ -23,10 +23,13 @@ function tempDir() {
 /** A fake ctx whose shellEnv records contributors so tests can call resolve(). */
 function fakeContext({ withShellEnv = true, strictKeys = false } = {}) {
   const registered = { tools: [], sections: [], routes: [], contributors: [], disposed: 0 }
+  const listeners = new Map()
   const ctx = {
     registered,
+    listeners,
     systemPrompt: { section: (section) => registered.sections.push(section) },
     effect(fn) { fn() },
+    on(event, handler) { listeners.set(event, handler); return () => listeners.delete(event) },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },
   }
@@ -66,6 +69,29 @@ function execution(sessionId) {
 function latestContributor(ctx) {
   return ctx.registered.contributors[ctx.registered.contributors.length - 1]
 }
+
+test('a disposed session loses its grants immediately (#103 D3)', async () => {
+  const dir = tempDir()
+  try {
+    createVaultStore(dir).set('session-secret', { kind: 'token', secret: 'sv-live' })
+    const ctx = fakeContext()
+    apply(ctx, { vaultDir: dir })
+    const tool = ctx.registered.tools[0]
+    const sessionId = 'session-d3'
+    const execution = { agent: { session: { header: { id: sessionId } } } }
+    const result = await tool.execute({ action: 'use', name: 'session-secret' }, execution)
+    assert.equal(result.action, 'use')
+    const contributor = latestContributor(ctx)
+    const before = contributor.resolve(execution)
+    assert.equal(before[envVarFor('session-secret')], 'sv-live', 'the grant must serve the session before disposal')
+
+    ctx.listeners.get('agent/disposed')({ agent: execution.agent })
+    const after = contributor.resolve(execution)
+    assert.equal(after[envVarFor('session-secret')], undefined, 'the disposed session must lose its grant at once')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
 
 test('envVarFor derives an all-caps DSH_CRED_ name', () => {
   assert.equal(envVarFor('github-token'), 'DSH_CRED_GITHUB_TOKEN')

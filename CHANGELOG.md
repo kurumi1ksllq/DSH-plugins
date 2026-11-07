@@ -12,6 +12,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-credential-vault 0.5.4 — 并发守卫/审计原子性/rotate 恢复/授权清除 (#103)
+
+- **rotate 崩溃恢复真实可达**:rotateKey 先把重封好的 vault 落为 vault.json.new 再换 key,
+  两个 rename 邻接;加载探针发现解封失败且 .new 可验证时才采纳,其它解封失败一律拒绝
+  (杜绝误覆盖)。乐观守卫(vaultFingerprint)覆盖全部六条写路径。
+- **审计日志**:trimAudit 改 0600 temp+rename;appendAudit fchmod 失败回退 chmodSync,
+  仍失败告警一次(不再静默保持 0644)。
+- **会话授权即时清除**:agent/disposed → grants.clear(sessionId)。
+- 勘误:六条变更路径全部同步,进程内交错不存在;守卫防共享 $DSH_HOME 的第二宿主进程。
+
 ### dsh-inventory 0.9.2 — gate 快速挂载竞态修复 (#102)
 
 - **workspace MCP 挂载在默认配置下整体不可用的根因修复**:late-fiber 兜底的
