@@ -28,6 +28,12 @@ PS> bash -c "uname -s"
   - 不 import 任何 `@deepseek-ai/*`：不复制 host 的类，版本变化不会炸。
   - 沙箱、超时、输出截断、后台 job 全部沿用官方执行器，一行没改。
   - 万一将来的执行器没有 `spawnSpec`，退化为给 DSH 进程的 PATH 前置 `C:\Program Files\Git\usr\bin`（只影响本进程，不动系统 PATH）。
+  - **confined（沙箱）分支同样生效**：沙箱把真实 argv 包在第一个 `--` 分隔符之后
+    （`[runner, ..., --, bash, -c, cmd]`），重写按位处理该分隔符后的裸 `bash`（#105）。
+  - **Git Bash 缺失时降级**：挂载时探测二进制存在性，缺失则告警并走 PATH 前置回退，
+    不再改写 argv 指向不存在的路径（#105）。
+  - **已知边界**：`C:\Program Files\Git\bin\bash.exe` 是硬编码默认值，非 default
+    安装路径的 Git 依赖 PATH 回退生效。
 - `cordis.patch.yml`：开 `bash-sandbox` / `tool-bash`，关 `pwsh-sandbox` / `tool-pwsh`，并插入本插件行。
 
 结果：模型可见工具里只有 `bash`，没有 `pwsh`。PowerShell 泄漏不是遵守问题，是没有入口。
