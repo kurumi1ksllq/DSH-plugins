@@ -115,5 +115,5 @@ test('teardown during asynchronous registration releases the late definition exa
 });
 
 test('package and verified fixture checks pass', () => {
-  assert.equal(check().version, '1.7.3');
+  assert.equal(check().version, '1.7.4');
 });

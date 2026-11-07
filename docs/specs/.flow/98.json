@@ -1,0 +1,25 @@
+{
+  "issue": 98,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-07T17:01:25.802Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "宿主引用声明化",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
