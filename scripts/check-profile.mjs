@@ -40,7 +40,6 @@ const REPO = resolve(HERE, '..')
 const SHIPPED = new Map([
   ['dsh-credential-vault', 'packages/dsh-credential-vault'],
   ['dsh-git-bash-tool', 'packages/dsh-git-bash-tool'],
-  ['dsh-git-status', 'packages/dsh-git-status'],
   ['dsh-inventory', 'packages/dsh-inventory'],
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['@local/dsh-prompt-inject', 'packages/dsh-prompt-inject'],

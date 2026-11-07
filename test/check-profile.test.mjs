@@ -228,10 +228,10 @@ test('a stray link never claims to come from another checkout', () => {
 })
 
 test('a bundle served from another checkout is counted as a warning, not as ok', () => {
-  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:./elsewhere' } })
+  const dir = makeProfile({ dependencies: { 'dsh-credential-vault': 'link:./elsewhere' } })
   try {
     const elsewhere = fakeBundle(dir, 'elsewhere')
-    symlinkSync(elsewhere, join(dir, 'node_modules', 'dsh-git-status'))
+    symlinkSync(elsewhere, join(dir, 'node_modules', 'dsh-credential-vault'))
     const result = runText(dir)
     assert.equal(result.status, 0, result.out)
     // This is the number three docs quote as evidence, so pin what it counts:
@@ -245,18 +245,18 @@ test('a bundle served from another checkout is counted as a warning, not as ok',
 })
 
 test('a bundle wired to the wrong package in this checkout is a failure', () => {
-  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:./elsewhere' } })
+  const dir = makeProfile({ dependencies: { 'dsh-credential-vault': 'link:./elsewhere' } })
   try {
     // Right checkout, wrong directory: the shape a hand-edited profile
     // produces, and the one a "wiring check" must never green-light. The
     // target has to live in this checkout for the case to be reachable, so it
     // points at a sibling package this repository really ships.
     const sibling = join(ROOT, 'packages', 'dsh-inventory')
-    symlinkSync(sibling, join(dir, 'node_modules', 'dsh-git-status'))
+    symlinkSync(sibling, join(dir, 'node_modules', 'dsh-credential-vault'))
     const result = run(dir)
     assert.equal(result.status, 1, `crossed wires must fail:\n${result.out}`)
-    assert.equal(row(result.json, 'dsh-git-status')?.kind, 'fail')
-    assert.match(row(result.json, 'dsh-git-status').detail, /wrong bundle/)
+    assert.equal(row(result.json, 'dsh-credential-vault')?.kind, 'fail')
+    assert.match(row(result.json, 'dsh-credential-vault').detail, /wrong bundle/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -326,7 +326,7 @@ test('a git toplevel spelled differently but pointing at this checkout still cou
   // a fake `git` that answers --show-toplevel with a *symlink* spelling of
   // this repository — same directory, different string. The check must compare
   // filesystem identity, not characters.
-  const dir = makeProfile({ dependencies: { 'dsh-git-status': 'link:../repo' } })
+  const dir = makeProfile({ dependencies: { 'dsh-credential-vault': 'link:../repo' } })
   const shim = join(dir, 'bin')
   const repoAlias = join(dir, 'repo-link')
   mkdirSync(shim, { recursive: true })
@@ -346,13 +346,13 @@ test('a git toplevel spelled differently but pointing at this checkout still cou
     { mode: 0o755 },
   )
   try {
-    symlinkSync(join(ROOT, 'packages', 'dsh-git-status'), join(dir, 'node_modules', 'dsh-git-status'))
+    symlinkSync(join(ROOT, 'packages', 'dsh-credential-vault'), join(dir, 'node_modules', 'dsh-credential-vault'))
     const result = spawnSync(process.execPath, [SCRIPT, '--profile', dir, '--json'], {
       encoding: 'utf8',
       env: { ...process.env, PATH: `${shim}:${process.env.PATH ?? ''}`, FAKE_GIT_TOPLEVEL: repoAlias, FAKE_REAL_PATH: process.env.PATH ?? '' },
     })
     assert.equal(result.status, 0, result.out)
-    assert.equal(row(safeJson(result.stdout), 'dsh-git-status')?.kind, 'ok')
+    assert.equal(row(safeJson(result.stdout), 'dsh-credential-vault')?.kind, 'ok') // 行名来自 profile 声明,链接指向任意真实包即可
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

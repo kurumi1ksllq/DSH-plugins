@@ -27,7 +27,6 @@ importers:
 
   packages/dsh-git-bash-tool: {}
 
-  packages/dsh-git-status: {}
 
   packages/dsh-inventory: {}
 
