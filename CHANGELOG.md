@@ -20,7 +20,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - 新 id:包名/行 id/`plugin:dsh-stall-governor`/路由 `/plugins/stall-governor/settings`/存储 `storages/stall-governor.json`/settings.section order 997;`ctx.provide("stallGovernor")` 合并两上游服务。
 - G1 默认 shadow:agent/pre-step 与 goal 自动续跑驱动的并存顺序未经验证(#96 §6-2);deviation 自上游代码默认 g1g2,可经设置开启。
 - governor 的 PENDING_DEPENDENCIES 摘除(soft-cut-suppressed 载荷契约由本包自持);watchdog 心跳机器移除(无真实 watcher 生态,预留 stallGovernor 两服务为接口)。
-- 有界内存修复:上游 churn/shingle 指纹集合跨 turn 从未清理,合并后在 turn 边界同口径清零(§3-9)。
+- 有界内存修复:governor 侧 fingerprintShingles(shingle 指纹桶)上游跨 turn 从未清理,合并后在 turn 边界与 fingerprintSteps 同口径清零(§3-9;churn/overLong 计数的 turn 清零上游 cot-anchor v0.4.2 已有,原样继承)。
 
 ### dsh-inventory 0.7.1 — 更新路由的测试不再改真实仓库
 

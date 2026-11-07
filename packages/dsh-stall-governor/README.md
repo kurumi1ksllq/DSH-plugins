@@ -41,6 +41,7 @@
 | harvest 路由 + LLM 提炼 / CoT 采集 / 学习模式 | **已砍**(注入主路径移除后非现役能力) |
 | PENDING_DEPENDENCIES 三项 | 已摘除(soft-cut-suppressed 契约由本包自己持有) |
 | 事件名 `cot-anchor/*`(6 个)与 `governor/*`(3 个) | **有意保留上游前缀**:事件是观测流载荷,无消费者按插件名绑定;沿用上游名使上游文档/面板口径不失效(#96 review 裁决) |
+| 注入锚点的 source.summary `cot-anchor: …` 标签 | **有意保留**(模型可见字符串,事故夹具与「不复述标签」契约以原文固化,改写会让反事实断言失准);systemPrompt 段名已改 `dsh:stall-governor-exec-discipline`(非模型可见,不复用旧名) |
 
 ## 安装
 

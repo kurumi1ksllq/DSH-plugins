@@ -19,7 +19,10 @@
  *  - webServer 路由必须在 apply 期经模块级 inject=["webServer"] 就绪——apply 内软解析会让设置页静默 404。
  *  - fail-open:两个引擎的钩子体整体 try/catch,catch 记 {at, failOpen:true, error} 后放行。
  *  - 分类有界预算:6(heuristic)/20(confirmed-repeat)/3(confirmed-pseudo)由内核移植段持有;
- *    budgetClass 与 cutClass 必须同值;外部请求固定占 heuristic 额度。
+ *    budgetClass=预算桶名,cutClass=内核 softCutBudgetKey 可识别名,三分支映射冻结
+ *    (pseudoTool→confirmed-pseudo/pseudoTool,repeat/numberRunaway→confirmed-repeat/
+ *    confirmed-repeat,其余→heuristic/heuristic;pseudoTool 的 cutClass 必须写
+ *    "pseudoTool" 而非桶名,否则归入 heuristic 桶);外部请求固定占 heuristic 额度。
  *  - probeKernelHook 直读 @deepseek-ai/dsh-agent-loop 源码查钩子字面量:absent 不注册 + 启动 warn +
  *    设置页能力横幅如实上报(0.1.5-rc.3 移除 agent/soft-cut 的静默失效事故)。
  *
@@ -79,11 +82,22 @@ function sendJson(res, status, payload) {
 	res.end(JSON.stringify(payload));
 }
 
+/** Settings 请求体的安全上限:设置 payload 远小于此,超限即 413(§3-9 有界内存)。 */
+const REQUEST_BODY_MAX_CHARS = 65536;
+
 /** Collect and parse a JSON request body (empty body reads as `{}`). */
 function readRequestBody(req) {
 	return new Promise((resolve, reject) => {
 		let body = "";
-		req.on("data", (chunk) => { body += chunk; });
+		req.on("data", (chunk) => {
+			body += chunk;
+			if (body.length > REQUEST_BODY_MAX_CHARS) {
+				const err = new Error("request body too large");
+				err.statusCode = 413;
+				reject(err);
+				if (typeof req.destroy === "function") req.destroy();
+			}
+		});
 		req.on("end", () => {
 			try {
 				resolve(JSON.parse(body || "{}"));
@@ -1859,7 +1873,8 @@ const EXEC_DISCIPLINE_TEXT = [
 	"④ 起长任务前把精确 PID 落盘。⑤ 长任务按固定短间隔（≤10 秒）轮询等待，禁止盲等。",
 	"⑥ 命令结束必须核验：看退出码、看产物是否真的生成、看日志关键行，不以『命令跑了没报错』当成功。",
 	"⑦ 输出为空/被吞/返回 -1 时，第一动作是读该命令本应写出的报告或产物判成功，不要追加复查命令。",
-	"⑧ 同一命令同样参数失败最多重试 2 次，之后换办法或上报。"
+	"⑧ 同一命令同样参数失败最多重试 2 次，之后换办法或上报。",
+	"⑨ 本纪律仅适用于本 agent 自启的长任务与子进程；DSH 宿主进程的启停由用户人工管理，严禁本 agent 重启或终止宿主。"
 ].join("");
 
 /**
@@ -4545,7 +4560,7 @@ function apply(ctx, config) {
 	if (typeof ctx.inject === "function") ctx.inject(["systemPrompt"], (scope) => {
 		scope.effect(
 			() => scope.systemPrompt.context({
-				name: "dsh:cot-anchor-exec-discipline",
+				name: "dsh:stall-governor-exec-discipline",
 				order: EXEC_DISCIPLINE_CONTEXT_ORDER,
 				// FIX-09 开关（enableExecDisciplineBlock，默认开）从 post-execute 注入
 				// 迁移到这里：关掉则该段文本返回空串，内核装配快照时遇到空文本即省略
@@ -4616,7 +4631,7 @@ function apply(ctx, config) {
 					}
 					sendJson(res, 405, { ok: false, error: "method not allowed" });
 				} catch (error) {
-					sendJson(res, 500, { ok: false, error: String(error?.message ?? error) });
+					sendJson(res, error?.statusCode ?? 500, { ok: false, error: String(error?.message ?? error) });
 				}
 			}
 		});

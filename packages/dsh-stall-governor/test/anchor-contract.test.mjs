@@ -299,11 +299,14 @@ test("①i fail-open:钩子体整体容错——毒化载荷不炸 waterfall(§3
 	assert.deepEqual(out, downstreamShape, "post-execute fail-open:原样返回 downstream");
 });
 
-test("④ enableToolInject=false 对照组:错误分支不受总开关抑制(独立于开关)", async () => {
+// 注:上游 test-budget-class 的「enableToolInject=false 对照组」是空对照——该开关键
+// 在上游 v0.4.2 与本包都不存在,persisted override 被当未知键丢弃;这里保留挂载形态
+// 只为验证错误分支在独立实例上行为一致,不再暗示存在总开关。
+test("④ 错误分支不依赖任何设置开关(经持久化 override 挂载的独立实例)", async () => {
 	const tempHome2 = path.join(os.tmpdir(), "stall-governor-contract-off-" + randomUUID().slice(0, 8));
 	fs.mkdirSync(tempHome2, { recursive: true });
 	try {
-		const suppressed = mount(tempHome2, { enableToolInject: false });
+		const suppressed = mount(tempHome2, { bogusUnknownKey: false }); // 未知键被丢弃,等效默认配置
 		const postExecuteOff = suppressed.handlerOf("tools/post-execute");
 		const offErrorOut = await postExecuteOff(execPwsh, resultSpec, acceptNext);
 		const offErrorBody = offErrorOut?.additionalContexts?.find((c) => c?.source?.summary === "cot-anchor: tool-args-error")?.content?.[0]?.text ?? "";

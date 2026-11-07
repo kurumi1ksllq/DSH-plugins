@@ -9,6 +9,10 @@
  *    derive-watcher 本机未安装且无真实调用方(#96 §6-4 实测),预留接口由
  *    stallGovernor.requestSoftCut 承担。
  *
+ * 测试契约面声明(#96 review 轴2-3 裁决):工厂额外返回 requestExternalSoftCut /
+ * consumeExternalSoftCut / externalSoftCutPending —— 三者不在运行时导出面,但作为
+ * 「测试契约面」在此豁免禁测私有函数硬规则:TTL 过期语义需要注入时钟(consume 的
+ * now 参数),公开服务面无法表达;类比 BLOCK_CODES 属对外协议的豁免方式。
  * 覆盖:受理门(sessionId/能力门/设置门/挂起覆盖/anchorText 生成/归一化/ttl)、
  * 消费语义(一次性/TTL 注入时钟/无记录)、钩子现场(外部请求优先于内部检测、
  * budgetClass=heuristic、无 trimTo、事件载荷)、服务注册与 schema 成对。
