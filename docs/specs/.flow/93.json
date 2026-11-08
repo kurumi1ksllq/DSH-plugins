@@ -1,0 +1,35 @@
+{
+  "issue": 93,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-09T07:40:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "harness per-component 命名空间 + 循环内展开",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "rail 项精确枚举 + 反向验证",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "四件套收尾",
+      "state": "done"
+    }
+  ],
+  "note": "issue 已存在,跳过 gh issue create;纯测试改动循 #134 先例不升版本不打 tag；pnpm test 全绿(07:01)；pnpm verify 红点为宿主 profile 悬空链接(dsh-git-status/dsh-stall-governor 旧链接,既有,#135 范围)——干净路径 verify-clean 于提交后执行；修正:本机全量两次受并发互扰,独占复核后仅剩既有偶发(copySkill 环境敏感/TTL 负载敏感,均 stash 取证为 main 基线失败,与本 PR 无关)——权威闸门为 CI；反向验证留痕:临时改 client.js NavRail aria-current 三元为恒 false(git diff 1 file 2 lines)→ nav rail 两条测试全红(pass 0 fail 2)→ git checkout 还原 → 回绿(pass 2 fail 0),时间 07:05 前后；轴2 #3 已修:bootPanel rawTree 死代码+过时注释已删,rail 测试回绿；轴1 实证复核:改坏 client/30-shared-ui.js 源码不重建产物→rail 测试仍绿(pass 2),改构建产物 client.js 才红——反向验证对象=client.js(产物),已留痕;badge 断言恢复结构锚点(rowlessRow: dsh-doublecheck 行内含 无自身加载行),client 套件 45/45 绿;verify-clean 全绿见 07:33 日志(71/71,隔离 DSH_HOME)",
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green",
+    "latest": "pass @ f382e56 (PR #137)"
+  },
+  "stageAt": "2026-11-09T07:28:00+08:00",
+  "review": {
+    "state": "running",
+    "axes": 2
+  }
+}

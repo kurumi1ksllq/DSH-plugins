@@ -53,14 +53,25 @@ const SNAPSHOT = {
 }
 
 function makeReactRuntime() {
-  const stateHooks = []
-  const effectHooks = []
-  const callbackHooks = []
-  let stateCursor = 0
-  let effectCursor = 0
-  let callbackCursor = 0
+  // Per-component hook namespaces (issue #93): every component function owns
+  // its slot arrays, so a leaf mounted inside the panel tree (e.g. the
+  // credential vault) resolves without clobbering the panel's hook slots.
+  const namespaces = new WeakMap()
+  let current = null // the component function rendering right now
   let dirty = false
-  let effects = []
+  let effects = [] // effects scheduled during the current render round
+  let pendingSeed = null // seedState values for the next root component
+
+  const slotsOf = (component) => {
+    if (!namespaces.has(component)) {
+      namespaces.set(component, {
+        state: { values: [], cursor: 0 },
+        effect: { deps: [], cursor: 0 },
+        callback: { entries: [], cursor: 0 },
+      })
+    }
+    return namespaces.get(component)
+  }
 
   const depsChanged = (prev, next) => {
     if (prev === undefined || next === undefined) return true
@@ -73,53 +84,85 @@ function makeReactRuntime() {
       return { type, props: props ?? {}, children: children.flat(Infinity).filter((child) => child !== null && child !== undefined && child !== false) }
     },
     useState(initial) {
-      const index = stateCursor
-      stateCursor += 1
-      if (!(index in stateHooks)) stateHooks[index] = initial
+      const slots = slotsOf(current)
+      const index = slots.state.cursor
+      slots.state.cursor += 1
+      // seedState targets the first hook slot to run next, mirroring the old
+      // global-slot semantics: whichever component consumes hook 0 first.
+      if (index === 0 && pendingSeed !== null) {
+        pendingSeed.forEach((value, seedIndex) => {
+          slots.state.values[seedIndex] = value
+        })
+        pendingSeed = null
+      }
+      if (!(index in slots.state.values)) slots.state.values[index] = initial
       return [
-        stateHooks[index],
+        slots.state.values[index],
         (next) => {
-          stateHooks[index] = typeof next === 'function' ? next(stateHooks[index]) : next
+          slots.state.values[index] = typeof next === 'function' ? next(slots.state.values[index]) : next
           dirty = true
         },
       ]
     },
     useEffect(fn, deps) {
-      const index = effectCursor
-      effectCursor += 1
-      const first = !(index in effectHooks)
-      if (first || depsChanged(effectHooks[index], deps)) effects.push(fn)
-      effectHooks[index] = deps
+      const slots = slotsOf(current)
+      const index = slots.effect.cursor
+      slots.effect.cursor += 1
+      const first = !(index in slots.effect.deps)
+      if (first || depsChanged(slots.effect.deps[index], deps)) effects.push(fn)
+      slots.effect.deps[index] = deps
     },
     useCallback(fn, deps) {
-      const index = callbackCursor
-      callbackCursor += 1
-      const prev = callbackHooks[index]
+      const slots = slotsOf(current)
+      const index = slots.callback.cursor
+      slots.callback.cursor += 1
+      const prev = slots.callback.entries[index]
       if (prev !== undefined && !depsChanged(prev.deps, deps)) return prev.fn
-      callbackHooks[index] = { fn, deps }
+      slots.callback.entries[index] = { fn, deps }
       return fn
     },
+  }
+  // Enter a component's namespace for one render pass and reset its cursors;
+  // hooks called during the body target that namespace (restored on exit).
+  const enter = (component, body) => {
+    const previous = current
+    const slots = slotsOf(component)
+    slots.state.cursor = 0
+    slots.effect.cursor = 0
+    slots.callback.cursor = 0
+    current = component
+    try {
+      return body()
+    } finally {
+      current = previous
+    }
+  }
+  /** Expand function components inside the render loop (issue #93). */
+  const expand = (node, depth = 0) => {
+    if (node === null || node === undefined || typeof node !== 'object') return node
+    if (Array.isArray(node)) return node.map((child) => expand(child, depth))
+    if (typeof node.type === 'function') {
+      if (depth > 32) throw new Error('harness: component expansion too deep')
+      return expand(enter(node.type, () => node.type({ ...node.props, children: node.children })), depth + 1)
+    }
+    return { ...node, children: (node.children ?? []).map((child) => expand(child, depth + 1)) }
   }
   const render = (component, props) => {
     let tree
     for (let round = 0; round < 8; round += 1) {
-      stateCursor = 0
-      effectCursor = 0
-      callbackCursor = 0
       dirty = false
       effects = []
-      tree = component(props)
+      tree = expand(enter(component, () => component(props)))
       for (const fn of effects) fn()
       if (!dirty) break
     }
     return tree
   }
-  // Seed hook slots before the first render so a component that reads a fetched
-  // value can be rendered deterministically (the runtime has no async scheduler).
+  // Seed hook slots before the next render so a component that reads a fetched
+  // value can be rendered deterministically (the runtime has no async
+  // scheduler). The first component to consume hook 0 claims the seed.
   const seedState = (values) => {
-    values.forEach((value, index) => {
-      stateHooks[index] = value
-    })
+    pendingSeed = values
   }
 
   return { React, render, seedState }
@@ -283,8 +326,11 @@ test('client registers a sidebar entry plus a main panel and renders both states
   assert.match(text, /未安装|orphan|missing/)
   assert.match(text, /dsh-websearch-failover missing/)
   // A bundle composed of sub-rows says so instead of implying it never loaded.
-  const noRowBadge = findNode(readyTree, (node) => node.props?.label === '无自身加载行')
-  assert.ok(noRowBadge, 'row-less package has no explanatory badge')
+  // The badge is a function component, so under the per-component harness
+  // (issue #93) it resolves fully and only its rendered text exists in the
+  // tree; the structural anchor is the rowless package's name on the same row.
+  const rowlessRow = findNode(readyTree, (node) => textOf(node).includes('dsh-doublecheck') && textOf(node).includes('无自身加载行'))
+  assert.ok(rowlessRow, 'the rowless package row must carry its explanatory badge')
 
   // The refresh button is the only path that bypasses the cache.
   const button = findNode(readyTree, (node) => node.type === 'button' && (node.props?.['aria-label'] === '刷新' || textOf(node) === '刷新'))
@@ -526,10 +572,7 @@ async function bootPanel(snapshot, { version = 'nav-case', post } = {}) {
   render(main.component, injected)
   await new Promise((resolve) => setTimeout(resolve, 0))
   const tree = () => resolveTree(render(main.component, injected))
-  // The raw element tree (components not expanded): for assertions on elements
-  // whose expansion would run child-component hooks outside the render loop.
-  const rawTree = () => render(main.component, injected)
-  return { calls, tree, rawTree, setPost: (impl) => (state.post = impl) }
+  return { calls, tree, setPost: (impl) => (state.post = impl) }
 }
 
 /** The row whose own name span is exactly `name`. */
@@ -2169,21 +2212,31 @@ test('nav rail renders two groups with counts and highlights the current view', 
     assert.ok(item, `${label} rail item missing`)
     assert.equal(item.props['aria-current'], 'false', `${label} must not be highlighted while overview is active`)
   }
+  // Exact enumeration of the six views by aria-label (issue #93): the count
+  // must not depend on the aria-current shape, nor on other labelled buttons
+  // appearing inside the rail later.
+  const railViews = ['总览', '工作区', '同步', 'Web 搜索提供方', '提示词注入', '凭据保险库']
+  for (const view of railViews) {
+    assert.ok(railItem(view), `${view} rail item missing`)
+  }
   const railButtons = []
   eachNode(rail, (node) => {
-    if (node.type === 'button' && node.props?.['aria-label'] !== undefined) railButtons.push(node)
+    if (node.type === 'button' && railViews.includes(node.props?.['aria-label'])) railButtons.push(node)
   })
-  assert.equal(railButtons.length, 6, `expected six rail items, got ${railButtons.length}`)
+  assert.equal(railButtons.length, 6, `expected exactly the six named views, got ${railButtons.length}`)
 })
 
 test('nav rail switches views and keeps the workspace highlight through the detail page', async () => {
-  const { tree, rawTree } = await bootPanel(workspaceSnapshot(), { version: 'rail-flow' })
+  const { tree } = await bootPanel(workspaceSnapshot(), { version: 'rail-flow' })
 
+  // Rail collection enumerates the six views by name (issue #93) instead of
+  // counting any labelled button — decoupled from the aria-current shape.
+  const railViews = ['总览', '工作区', '同步', 'Web 搜索提供方', '提示词注入', '凭据保险库']
   const railItems = (current) => {
     const rail = findNode(current, (node) => node.props?.['aria-label'] === '工具管理导航')
     const found = []
     eachNode(rail, (node) => {
-      if (node.type === 'button' && node.props?.['aria-label'] !== undefined) found.push(node)
+      if (node.type === 'button' && railViews.includes(node.props?.['aria-label'])) found.push(node)
     })
     return found
   }
@@ -2204,14 +2257,18 @@ test('nav rail switches views and keeps the workspace highlight through the deta
   ws = railItems(current).find((node) => node.props?.['aria-label'] === '工作区')
   assert.equal(ws.props['aria-current'], 'page', 'workspaces must stay highlighted on the detail page')
 
-  // Back on the rail: a config view mounts its own panel. Resolving the vault
-  // body inside this shared-runtime harness would run its hooks against the
-  // panel's state slots (the dedicated credential tests boot the component on
-  // its own for that reason), so the routing is asserted on the rail element's
-  // `active` prop — the same value the resolved rail turns into aria-current.
+  // Back on the rail: a config view mounts its own panel. The harness resolves
+  // leaf components in their own hook namespaces (issue #93), so the vault
+  // body itself must come up inside the panel tree: its mount fetch settles
+  // and the empty state replaces the loading state. The routing assertion is
+  // the resolved rail's aria-current — the behaviour a browser actually shows.
   findNode(current, (node) => node.type === 'button' && node.props?.['aria-label'] === '凭据保险库').props.onClick()
-  const raw = rawTree()
-  const railElement = findNode(raw, (node) => typeof node.type === 'function' && node.props?.label === '工具管理导航')
-  assert.ok(railElement, 'nav rail element missing from the raw tree')
-  assert.equal(railElement.props.active, 'credentials', 'credentials must be the active rail item after the click')
+  current = tree() // mounts the vault view; its mount fetch fires during expansion
+  await tick()
+  current = tree() // re-render with the settled vault state
+  const vaultItem = railItems(current).find((node) => node.props?.['aria-label'] === '凭据保险库')
+  assert.ok(vaultItem, 'credentials rail item missing')
+  assert.equal(vaultItem.props['aria-current'], 'page', 'credentials must be highlighted on the resolved tree')
+  assert.match(textOf(current), /还没有保存的凭据/, 'the vault body must resolve in the panel tree and reach its idle empty state')
+  assert.equal(textOf(current).includes('正在读取凭据'), false, 'the vault must not stay stuck in the loading state')
 })
