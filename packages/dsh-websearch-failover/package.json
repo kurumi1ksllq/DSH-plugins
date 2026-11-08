@@ -1,14 +1,15 @@
 {
-  "name": "websearch-dsh-plugin",
-  "version": "0.3.0",
+  "name": "dsh-websearch-failover",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "DSH bundle: ordered multi-provider web_search failover with quota-aware cooldown, plus a left-sidebar provider manager that shows every provider's balance in its own billing unit and when that quota resets",
   "engines": {
-    "node": "^22.19.0 || >=24.0.0"
+    "node": ">=22",
+    "dsh": "^0.2.0"
   },
   "scripts": {
-    "test": "node test/mock-failover.mjs && node test/test-runtime.mjs && node test/test-balance.mjs && node test/test-api.mjs && node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-client-static.mjs && node test/test-client-render.mjs && node test/test-install.mjs",
+    "test": "node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-mutex.mjs && node --test test/*.test.mjs",
     "test:engine": "node test/mock-failover.mjs",
     "test:runtime": "node test/test-runtime.mjs",
     "test:balance": "node test/test-balance.mjs",
@@ -30,5 +31,28 @@
     "list": "node search.mjs --list",
     "asar:get": "node tools/asar-get.cjs",
     "asar:files": "node tools/asar-files.mjs"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "lib/*.mjs",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "providers.example.json"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   }
 }

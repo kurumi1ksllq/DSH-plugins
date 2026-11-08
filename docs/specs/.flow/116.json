@@ -1,0 +1,30 @@
+{
+  "issue": 116,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-08T00:33:00.440Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "整搬 lib/governor/",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "按图拆 14 模块",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = join(tmpdir(), `gov-tk-${process.pid}-${Date.now()}.json`);
-const { targetKey } = await import("../lib-governor.js");
+const { targetKey } = await import("../lib/governor.js");
 
 const here = join(fileURLToPath(new URL(".", import.meta.url)));
 const baseline = JSON.parse(readFileSync(join(here, "old-keys-baseline.json"), "utf8"));

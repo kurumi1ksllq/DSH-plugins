@@ -39,7 +39,7 @@
     "CHANGELOG.md",
     "assets/icon.png",
     "TEST_REPORT.md",
-    "lib-governor.js",
+    "lib/governor.js",
     "lib-gitbash.js",
     "test-governor",
     "README-governor.md",
@@ -78,7 +78,7 @@
     "./environment": "./lib/environment.mjs",
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
-    "./governor": "./lib-governor.js",
+    "./governor": "./lib/governor.js",
     "./git-bash": "./lib-gitbash.js"
   },
   "scripts": {

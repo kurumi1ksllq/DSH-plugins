@@ -1,8 +1,8 @@
-// Probe copy of the shipped bundle: lib/*.mjs -> <tmp>/plugin/lib/*.mjs.
+// Probe copy of the shipped bundle: lib/*.mjs -> <tmp>/lib/*.mjs.
 //
-// plugin/index.js imports ./lib/*.mjs, so a test that boots it needs the
+// index.js imports ./lib/*.mjs, so a test that boots it needs the
 // generated copy to exist. Building it **inside the checkout** would rewrite the
-// very artifacts under test, which makes a stale plugin/lib/ impossible to
+// very artifacts under test, which makes a stale lib/ impossible to
 // detect (the test repairs it and then passes). Instead we assemble a probe
 // directory: <tmp>/plugin/{index.js,client.js,cordis.patch.yml,package.json,lib/}
 // and import that. The checkout is never written to, so `build:check` stays
@@ -32,7 +32,7 @@ export function makeProbeBundle(repoRoot) {
   fs.mkdirSync(path.join(pluginDir, 'lib'), { recursive: true });
 
   for (const name of PLUGIN_FILES) {
-    const from = path.join(repoRoot, 'plugin', name);
+    const from = path.join(repoRoot,  name);
     if (fs.existsSync(from)) fs.copyFileSync(from, path.join(pluginDir, name));
   }
   for (const name of MODULES) {

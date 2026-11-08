@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH
 	|| join(tmpdir(), `gov-int-${process.pid}-${Date.now()}.json`);
-const { apply } = await import("../lib-governor.js");
+const { apply } = await import("../lib/governor.js");
 
 const logs = [];
 console.warn = (...args) => {

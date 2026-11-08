@@ -1,5 +1,5 @@
 // Host plugin contract for the websearch-failover DSH bundle.
-// Boots the real plugin/index.js against a stub Cordis context and a stubbed
+// Boots the real index.js against a stub Cordis context and a stubbed
 // HTTP layer, so the search provider and the sidebar API are exercised end to end
 // without touching the live DSH runtime.
 import assert from 'node:assert/strict'
@@ -19,9 +19,9 @@ async function ok(name, fn) {
   console.log(`PASS ${name}`)
 }
 
-/** Generated bundle lib: plugin/index.js imports ./lib/*.mjs, so mirror the
+/** Generated bundle lib: index.js imports ./lib/*.mjs, so mirror the
  *  sources into a probe directory outside the checkout. Writing them into
- *  plugin/lib/ here would repair the artifact under test and hide a stale build. */
+ *  lib/ here would repair the artifact under test and hide a stale build. */
 const probe = makeProbeBundle(repoRoot)
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-plugin-'))

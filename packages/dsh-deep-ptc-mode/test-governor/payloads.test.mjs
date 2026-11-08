@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = join(tmpdir(), `gov-pl-${process.pid}-${Date.now()}.json`);
-const { apply, createSessionState, noteEvent, evaluateG2, targetKey, BLOCK_CODES, isSelfDenialResult } = await import("../lib-governor.js");
+const { apply, createSessionState, noteEvent, evaluateG2, targetKey, BLOCK_CODES, isSelfDenialResult } = await import("../lib/governor.js");
 
 /** 真实 tool/result 形状（dsh-llm lib/types/message.js:92-100 + agent-loop :763-779）：
  *  callId 在 message.source.callId / message.toolCallId；deny 标记在事件 data 顶层 error。 */

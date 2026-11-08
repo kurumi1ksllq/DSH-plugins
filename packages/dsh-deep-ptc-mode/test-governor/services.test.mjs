@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 
 process.env.DSH_STALL_GOVERNOR_MODE = "shadow";
 process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH = join(tmpdir(), `gov-svc-${process.pid}-${Date.now()}.json`);
-const { apply } = await import("../lib-governor.js");
+const { apply } = await import("../lib/governor.js");
 
 function createCtx() {
 	const handlers = new Map();
