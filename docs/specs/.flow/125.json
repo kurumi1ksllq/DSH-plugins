@@ -7,26 +7,32 @@
     {
       "id": 1,
       "title": "review pending-decision 进\"需要你出手\"",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "死 locale 键清理(面板+skill 对账)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "触发词收窄(只读查询不进流程)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 4,
       "title": "面板↔skill 互相指引",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m24s @ e784792"
+  },
+  "review": {
+    "contract": "pass",
+    "correctness": "pass (3 P2 fixed @ e784792)",
+    "at": "2026-11-08T09:08:25.843Z"
   }
 }
