@@ -81,15 +81,6 @@ export function readAudit(dir, limit = 100) {
     })
 }
 
-/** The `at` timestamp of one audit line, or null when it cannot be parsed. */
-function safeAt(line) {
-  try {
-    return JSON.parse(line)?.at ?? null
-  } catch {
-    return null
-  }
-}
-
 /**
  * Trim the audit file to the most recent AUDIT_MAX_LINES lines, keeping every
  * reveal record. Called after an append; failure is silent.
@@ -105,25 +96,28 @@ export function trimAudit(dir) {
     // the value". Dropping them when the log rolls over would defeat that, so
     // a trim keeps EVERY reveal line and fills the remaining budget with the
     // most recent ordinary lines (chronological order preserved).
-    const protectedLines = []
-    const ordinary = []
-    for (const line of lines) {
+    // Decorate-sort-undecorate: parse each line ONCE (a comparator that re-parses
+    // costs ~2·n·log n JSON.parse calls on every trim, and the API trims after
+    // every request once the log is past the cap).
+    const decorated = lines.map((line) => {
       let keep = false
+      let time = Infinity
       try {
-        keep = JSON.parse(line)?.action === 'reveal'
+        const record = JSON.parse(line)
+        keep = record?.action === 'reveal'
+        time = Date.parse(record?.at ?? null)
+        if (Number.isNaN(time)) time = Infinity
       } catch {
         // A corrupt line has no audit value worth protecting either way.
       }
-      ;(keep ? protectedLines : ordinary).push(line)
-    }
-    const budget = Math.max(0, AUDIT_MAX_LINES - protectedLines.length)
-    const kept = [...protectedLines, ...ordinary.slice(-budget)].sort((a, b) => {
-      // Restore chronological order by the records' own timestamp; a corrupt
-      // timestamp sorts last so it is never mistaken for old news.
-      const ta = Date.parse(safeAt(a)) || Infinity
-      const tb = Date.parse(safeAt(b)) || Infinity
-      return ta === tb ? 0 : ta < tb ? -1 : 1
+      return { line, keep, time }
     })
+    const protectedLines = decorated.filter((d) => d.keep)
+    const ordinary = decorated.filter((d) => !d.keep)
+    const budget = Math.max(0, AUDIT_MAX_LINES - protectedLines.length)
+    const kept = [...protectedLines, ...ordinary.slice(-budget)]
+      .sort((a, b) => a.time === b.time ? 0 : a.time < b.time ? -1 : 1)
+      .map((d) => d.line)
     // Rewrite through a 0600 temp file + rename: an in-place writeFileSync used
     // to leave a truncated audit log behind on a crash, and silently kept the
     // legacy 0644 mode of an older file (#103 D2/D11).

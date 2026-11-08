@@ -455,6 +455,7 @@ export function createVaultStore(dir) {
         username: found.username ?? null,
         url: found.url ?? null,
         note: found.note ?? null,
+        ttlSeconds: found.ttlSeconds ?? null,
         secret: openSecret(key, found.secret),
       }
     },

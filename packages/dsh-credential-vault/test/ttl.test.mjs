@@ -161,6 +161,7 @@ test('the API set and update routes forward ttlSeconds', async () => {
     assert.equal(store.get('api ttl').ttlSeconds, null)
     const bad = await post({ name: 'api ttl', kind: 'token', secret: '', ttlSeconds: -1 })
     assert.equal(bad.status, 400)
+    assert.equal(bad.json.error, 'invalid-ttl', 'the route-level pre-check must fire before the store')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -264,4 +265,63 @@ test('hint explains that the envVar comes from the use result and grants need re
   assert.match(text, /envVar field/i)
   assert.match(text, /re-?run|call .*use.*again|again/i)
   assert.match(text, /hash/i)
+})
+
+// ---------- reviewer follow-ups: pin the remaining semantics ----------
+
+test('a ttlSeconds LONGER than the deployment default is clamped for the grant', async () => {
+  const dir = tempDir()
+  try {
+    const ctx = fakeContext()
+    apply(ctx, { vaultDir: dir, grantTtlMs: 60_000 })
+    createVaultStore(dir).set('greedy', { kind: 'token', secret: 'v', ttlSeconds: 3600 })
+    const tool = ctx.registered.tools[0]
+    const result = await tool.execute({ action: 'use', name: 'greedy' }, { agent: { session: { header: { id: 's1' } } } })
+    assert.equal(result.ttlSeconds, 3600, 'the declared value is reported verbatim')
+    const ttl = new Date(result.expiresAt).getTime() - Date.now()
+    assert.ok(ttl <= 61_000, 'the grant itself is clamped to the deployment default, got ' + ttl)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('trimAudit output stays chronological across the reveal/ordinary split', () => {
+  const dir = tempDir()
+  try {
+    // Interleave reveals among ordinary lines with increasing timestamps, then
+    // force a trim: the merged log must read oldest → newest throughout.
+    const base = Date.parse('2026-01-01T00:00:00Z')
+    const file = join(dir, AUDIT_FILE)
+    const lines = []
+    for (let i = 0; i < AUDIT_MAX_LINES + 10; i += 1) {
+      const at = new Date(base + i * 60_000).toISOString()
+      const record = i % 25 === 0
+        ? { at, name: 'r' + i, outcome: 'ok', source: 'tool', action: 'reveal' }
+        : { at, name: 'u' + i, outcome: 'ok', source: 'tool', action: 'use' }
+      lines.push(JSON.stringify(record))
+    }
+    writeFileSync(file, lines.join('\n') + '\n')
+    trimAudit(dir)
+    const kept = readFileSync(file, 'utf8').split('\n').filter((l) => l.length > 0)
+    assert.ok(kept.length <= AUDIT_MAX_LINES)
+    const times = kept.map((l) => Date.parse(JSON.parse(l).at))
+    for (let i = 1; i < times.length; i += 1) {
+      assert.ok(times[i] >= times[i - 1], 'trim must not reorder history at index ' + i)
+    }
+    assert.equal(kept.filter((l) => JSON.parse(l).action === 'reveal').length, Math.ceil((AUDIT_MAX_LINES + 10) / 25), 'every reveal survives')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('set with a new secret and no ttlSeconds clears a previous TTL (documented whole-row overwrite)', () => {
+  const dir = tempDir()
+  try {
+    const store = createVaultStore(dir)
+    store.set('rotate me', { kind: 'token', secret: 'old', ttlSeconds: 300 })
+    store.set('rotate me', { kind: 'token', secret: 'new' })
+    assert.equal(store.get('rotate me').ttlSeconds, null)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
