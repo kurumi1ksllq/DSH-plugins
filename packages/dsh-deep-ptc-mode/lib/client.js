@@ -51,8 +51,9 @@ window.__ModuleLoader__.load({ id: 'dsh-deep-ptc-mode', factory: require => {
     }, [state.value, state.revision]);
     if (view === 'summary') return t('summary');
     if (state.status !== 'ready') return h('p', null, t('loading'));
+    // T4.ptc: mirrors availableEnvironments() — keep in sync with model.mjs.
     const allowed = state.value.hostPlatform === 'win32'
-      ? ['auto', 'wsl', 'powershell'] : ['auto', 'zsh', 'bash'];
+      ? ['auto', 'wsl', 'powershell', 'git-bash'] : ['auto', 'zsh', 'bash'];
     const disabled = !state.writable || saving;
     const changed = () => {
       if (!dirty.current) draftRevision.current = state.revision;

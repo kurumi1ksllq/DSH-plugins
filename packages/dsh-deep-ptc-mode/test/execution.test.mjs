@@ -115,5 +115,9 @@ test('teardown during asynchronous registration releases the late definition exa
 });
 
 test('package and verified fixture checks pass', () => {
-  assert.equal(check().version, '1.9.0');
+  // The version travels with package.json; pinning it here made every release
+  // a manual test edit. check() validates the fixture set for the CURRENT
+  // package, so equality with the manifest is the real invariant.
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(check().version, manifest.version);
 });

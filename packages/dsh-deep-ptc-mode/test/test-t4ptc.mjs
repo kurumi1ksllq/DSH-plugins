@@ -125,8 +125,11 @@ test('savePersistedSettings writes atomically: no tmp residue, mode 0600', async
     const settingsPath = process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH
     assert.ok(existsSync(settingsPath), 'settings file written')
     assert.equal(existsSync(settingsPath + '.tmp'), false, 'no tmp residue')
-    const mode = statSync(settingsPath).mode & 0o777
-    assert.equal(mode, 0o600, 'settings file is 0600, got ' + mode.toString(8))
+    // POSIX mode semantics: Windows ignores writeFileSync's mode argument.
+    if (process.platform !== 'win32') {
+      const mode = statSync(settingsPath).mode & 0o777
+      assert.equal(mode, 0o600, 'settings file is 0600, got ' + mode.toString(8))
+    }
   } finally {
     delete process.env.DSH_STALL_GOVERNOR_SETTINGS_PATH
     rmSync(dir, { recursive: true, force: true })
@@ -141,4 +144,14 @@ test('the refresh fallback interval is at least 30s (event-driven primary)', asy
   assert.ok(!source.includes('setInterval(detect,5000)'), 'the old 5s blind poll is gone')
   // The loader event remains the primary channel.
   assert.match(source, /loader\/volatile-update/)
+})
+
+// ---------- environment.mjs union tracks the enum ----------
+
+test('the settings schema union lists every environment (including auto)', () => {
+  // environment.mjs imports the runtime-only schemastery, so this pins the
+  // union textually — the drift that bit us was exactly a missing list entry.
+  const text = readFileSync(new URL('../lib/environment.mjs', import.meta.url), 'utf8')
+  // The union spreads ENVIRONMENTS itself, so enum growth flows through.
+  assert.match(text, /z\.union\(\[\.\.\.ENVIRONMENTS\]\)\.required\(\)/)
 })
