@@ -1,30 +1,35 @@
 {
   "issue": 116,
   "grade": "standard",
-  "stage": "review",
+  "stage": "done",
   "updatedAt": "2026-11-08T03:46:13.455Z",
   "tickets": [
     {
       "id": 1,
       "title": "整搬 lib/governor/",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "按图拆 14 模块",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
     "status": "green"
   },
   "review": {
     "state": "pending-decision",
-    "axes": 2
+    "axes": 2,
+    "verdict": "pass"
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": false,
+    "sha": "ee8342b",
+    "at": "2026-11-08T03:56:50Z",
+    "tag": "dsh-deep-ptc-mode@1.9.0"
+  },
+  "stageAt": "2026-11-08T03:58:27.737Z"
 }
