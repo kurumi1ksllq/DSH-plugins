@@ -130,6 +130,24 @@ export function createVaultStore(dir) {
     }
   }
 
+  /**
+   * Validate the optional credential-level TTL (T4.vault M1).
+   *
+   * `undefined` (field absent) and `null` (explicitly clear) are both legal and
+   * mean "no credential TTL": the grant then uses the default window. Anything
+   * else must be a positive integer of seconds — a TTL of 0 would make every
+   * `use` grant expire instantly, and a fractional/string value is a caller bug.
+   * @param {unknown} value
+   * @returns {number | null}
+   */
+  function validateTtlSeconds(value) {
+    if (value === undefined || value === null) return null
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error('credential: ttlSeconds must be a positive integer number of seconds or null')
+    }
+    return value
+  }
+
   return {
     dir,
 
@@ -169,6 +187,7 @@ export function createVaultStore(dir) {
             username: value.username ?? null,
             url: value.url ?? null,
             note: value.note ?? null,
+            ttlSeconds: value.ttlSeconds ?? null,
             createdAt: value.createdAt ?? null,
             updatedAt: value.updatedAt ?? null,
           }
@@ -198,6 +217,7 @@ export function createVaultStore(dir) {
           username: value.username ?? null,
           url: value.url ?? null,
           note: value.note ?? null,
+          ttlSeconds: value.ttlSeconds ?? null,
           createdAt: value.createdAt ?? null,
           updatedAt: value.updatedAt ?? null,
         }))
@@ -227,16 +247,18 @@ export function createVaultStore(dir) {
         kind: rest.kind ?? 'other',
         service: rest.service ?? null,
         aliases: normalizeAliases(rest.aliases),
+        ttlSeconds: rest.ttlSeconds ?? null,
         hasSecret: typeof secret === 'string' && secret.length > 0,
         preview: secret ? maskSecret(openSecret(key, secret)) : null,
       }
     },
 
     /** Create or overwrite one credential. */
-    set(name, { kind = 'other', secret, username = null, url = null, note = null, service = null, aliases = [] } = {}) {
+    set(name, { kind = 'other', secret, username = null, url = null, note = null, service = null, aliases = [], ttlSeconds } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       if (!KINDS.includes(kind)) throw new Error('invalid kind, expected one of ' + KINDS.join(', '))
       if (typeof secret !== 'string' || secret.length === 0) throw new Error('secret must be a non-empty string')
+      const ttl = validateTtlSeconds(ttlSeconds)
       const rawMeta = validateMeta({ service, username, url, note, aliases })
       // `set` creates the whole entry, so "not provided" simply means null here.
       const meta = {
@@ -261,6 +283,7 @@ export function createVaultStore(dir) {
         note: meta.note,
         service: meta.service,
         aliases: meta.aliases,
+        ttlSeconds: ttl,
         createdAt: previous?.createdAt ?? now,
         updatedAt: now,
       }
@@ -278,7 +301,7 @@ export function createVaultStore(dir) {
      * false when the name is unknown — the caller decides what that means; it
      * must never silently create a secret-less entry.
      */
-    update(name, { kind, username, url, note, service, aliases } = {}) {
+    update(name, { kind, username, url, note, service, aliases, ttlSeconds } = {}) {
       if (!isValidName(name)) throw new Error('invalid credential name')
       const stamp = vaultFingerprint(dir)
       const vault = readVault(dir)
@@ -306,6 +329,7 @@ export function createVaultStore(dir) {
         note: note === undefined ? (previous.note ?? null) : meta.note,
         service: service === undefined ? (previous.service ?? null) : meta.service,
         aliases: aliases === undefined ? normalizeAliases(previous.aliases) : meta.aliases,
+        ttlSeconds: ttlSeconds === undefined ? (previous.ttlSeconds ?? null) : validateTtlSeconds(ttlSeconds),
         updatedAt: new Date().toISOString(),
       }
       assertVaultUnchanged(dir, stamp)
@@ -362,6 +386,9 @@ export function createVaultStore(dir) {
           username: value.username ?? null,
           url: value.url ?? null,
           note: value.note ?? null,
+          // T4.vault M1: TTL metadata must ride the export file, or a vault
+          // moved between hosts silently widens every grant window.
+          ttlSeconds: value.ttlSeconds ?? null,
           createdAt: value.createdAt ?? null,
           updatedAt: value.updatedAt ?? null,
           secret,
@@ -401,6 +428,9 @@ export function createVaultStore(dir) {
           note: entry.note ?? null,
           service: entry.service ?? null,
           aliases: normalizeAliases(entry.aliases),
+          // T4.vault M1: TTL metadata must survive the export→import roundtrip,
+          // or a vault moved between hosts silently widens every grant window.
+          ttlSeconds: entry.ttlSeconds ?? null,
           createdAt: entry.createdAt ?? now,
           updatedAt: entry.updatedAt ?? now,
         }
@@ -425,6 +455,7 @@ export function createVaultStore(dir) {
         username: found.username ?? null,
         url: found.url ?? null,
         note: found.note ?? null,
+        ttlSeconds: found.ttlSeconds ?? null,
         secret: openSecret(key, found.secret),
       }
     },

@@ -30,6 +30,8 @@ export function appendAudit(dir, record) {
       ? { resolvedBy: record.resolvedBy }
       : {}),
     ...('reason' in record ? { reason: String(record.reason).slice(0, 200) } : {}),
+    ...(Number.isFinite(record.bytes) ? { bytes: record.bytes } : {}),
+    ...(typeof record.filename === 'string' && record.filename.length > 0 ? { filename: record.filename } : {}),
   }) + '\n'
   try {
     // The log names which credentials were read and when: keep it 0600 like the
@@ -80,8 +82,8 @@ export function readAudit(dir, limit = 100) {
 }
 
 /**
- * Trim the audit file to the most recent AUDIT_MAX_LINES lines. Called after
- * an append; failure is silent.
+ * Trim the audit file to the most recent AUDIT_MAX_LINES lines, keeping every
+ * reveal record. Called after an append; failure is silent.
  */
 export function trimAudit(dir) {
   try {
@@ -89,13 +91,40 @@ export function trimAudit(dir) {
     if (!existsSync(file)) return
     const lines = readFileSync(file, 'utf8').split('\n').filter((line) => line.length > 0)
     if (lines.length <= AUDIT_MAX_LINES) return
+    // T4.vault M6: reveal records are the audited plaintext escape hatch — the
+    // whole point of writing them is that the user can later answer "who saw
+    // the value". Dropping them when the log rolls over would defeat that, so
+    // a trim keeps EVERY reveal line and fills the remaining budget with the
+    // most recent ordinary lines (chronological order preserved).
+    // Decorate-sort-undecorate: parse each line ONCE (a comparator that re-parses
+    // costs ~2·n·log n JSON.parse calls on every trim, and the API trims after
+    // every request once the log is past the cap).
+    const decorated = lines.map((line) => {
+      let keep = false
+      let time = Infinity
+      try {
+        const record = JSON.parse(line)
+        keep = record?.action === 'reveal'
+        time = Date.parse(record?.at ?? null)
+        if (Number.isNaN(time)) time = Infinity
+      } catch {
+        // A corrupt line has no audit value worth protecting either way.
+      }
+      return { line, keep, time }
+    })
+    const protectedLines = decorated.filter((d) => d.keep)
+    const ordinary = decorated.filter((d) => !d.keep)
+    const budget = Math.max(0, AUDIT_MAX_LINES - protectedLines.length)
+    const kept = [...protectedLines, ...ordinary.slice(-budget)]
+      .sort((a, b) => a.time === b.time ? 0 : a.time < b.time ? -1 : 1)
+      .map((d) => d.line)
     // Rewrite through a 0600 temp file + rename: an in-place writeFileSync used
     // to leave a truncated audit log behind on a crash, and silently kept the
     // legacy 0644 mode of an older file (#103 D2/D11).
     const tmp = `${file}.tmp-${process.pid}-${Date.now()}`
     const fd = openSync(tmp, 'wx', 0o600)
     try {
-      writeFileSync(fd, lines.slice(-AUDIT_MAX_LINES).join('\n') + '\n', 'utf8')
+      writeFileSync(fd, kept.join('\n') + '\n', 'utf8')
       fchmodSync(fd, 0o600)
     } finally {
       closeSync(fd)

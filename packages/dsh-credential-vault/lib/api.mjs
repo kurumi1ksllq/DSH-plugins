@@ -68,16 +68,23 @@ function exportPayload(store, dir, body) {
   const envelope = sealEnvelope(passphrase, { sourceVaultVersion: VAULT_VERSION, entries, corruptCount: corrupt })
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const host = (typeof process !== 'undefined' && process.env && process.env.HOSTNAME) || 'vault'
+  const filename = `${host}-${stamp}.dsvault`
+  const content = JSON.stringify(envelope)
+  // T4.vault D5: the export is the one bulk-plaintext path — the audit record
+  // carries what was produced (filename + byte size) so it is attributable even
+  // though the request itself stays unauthenticated (known limitation, unchanged).
   appendAudit(dir, {
     name: null, outcome: 'ok', source: 'api', action: 'export',
     sessionId: null, resolvedBy: null,
     reason: `${entries.length} entries, ${corrupt} corrupt`,
+    filename,
+    bytes: Buffer.byteLength(content),
   })
   return {
     ok: true,
     corrupt,
-    filename: `${host}-${stamp}.dsvault`,
-    content: JSON.stringify(envelope),
+    filename,
+    content,
   }
 }
 
@@ -131,6 +138,10 @@ function importPayload(store, dir, body) {
     }
     if (typeof entry.kind !== 'string' || !KINDS.includes(entry.kind)) {
       throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has an unknown kind`)
+    }
+    // T4.vault M1: an imported TTL must obey the same rule the panel enforces.
+    if (entry.ttlSeconds !== undefined && entry.ttlSeconds !== null && (!Number.isInteger(entry.ttlSeconds) || entry.ttlSeconds <= 0)) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has an invalid ttlSeconds`)
     }
     try {
       validateMeta({
@@ -205,6 +216,15 @@ export function createApiHandler(service) {
         // (issue #57). An explicitly empty value still clears, because the key IS
         // present and validateMeta turns '' into null.
         const has = (key) => Object.hasOwn(body ?? {}, key)
+        // Credential-level TTL (T4.vault M1): forwarded only when the request
+        // mentions it, so a keep-secret edit that omits the field cannot clear it.
+        let ttl
+        if (has('ttlSeconds')) {
+          ttl = body.ttlSeconds
+          if (ttl !== null && (!Number.isInteger(ttl) || ttl <= 0)) {
+            throw new ApiError(400, 'invalid-ttl', 'ttlSeconds must be a positive integer or null')
+          }
+        }
         let meta
         try {
           meta = validateMeta({
@@ -227,11 +247,11 @@ export function createApiHandler(service) {
           // that already exists. Creating a credential out of nothing is refused,
           // and so is "editing" a name nobody created.
           if (secret.length === 0) {
-            const updated = store.update(name, { kind, ...meta })
+            const updated = store.update(name, { kind, ...meta, ...(has('ttlSeconds') ? { ttlSeconds: ttl } : {}) })
             if (!updated) throw new ApiError(400, 'invalid-secret', 'secret is required')
             return { ok: true, name, updated: true, keptSecret: true }
           }
-          return { ok: true, ...store.set(name, { kind, secret, ...meta }) }
+          return { ok: true, ...store.set(name, { kind, secret, ...meta, ...(has('ttlSeconds') ? { ttlSeconds: ttl } : {}) }) }
         } catch (error) {
           if (error instanceof ApiError) throw error
           // Never forward `error.message`: it is free-form and a future throw

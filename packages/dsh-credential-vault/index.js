@@ -311,7 +311,12 @@ if (!isValidName(credName) && !store.has(credName)) {
               throw error
             }
             if (revealed === null) throw new Error(`credential: no credential named "${resolved.name}"`)
-            const grant = grants.issue(sessionId, resolved.name, revealed.secret)
+            // Credential-level TTL cap (T4.vault M1): a credential that declares
+            // ttlSeconds gets a grant no longer than that window.
+            const ttlSeconds = store.listMeta().find((entry) => entry.name === resolved.name)?.ttlSeconds ?? null
+            const grant = grants.issue(sessionId, resolved.name, revealed.secret, {
+              ttlMs: ttlSeconds === null ? undefined : ttlSeconds * 1000,
+            })
             appendAudit(dir, {
               name: resolved.name,
               outcome: 'ok',
@@ -326,10 +331,12 @@ if (!isValidName(credName) && !store.has(credName)) {
               resolvedBy: resolved.resolvedBy,
               envVar: grant.envVar,
               expiresAt: grant.expiresAt,
+              ttlSeconds,
               note:
                 `The value is NOT in this result. Reference $${grant.envVar} inside a shell command; it is ` +
                 'injected into each shell call until it expires. Never echo it, printenv it, or write it to a ' +
-                'file, URL or command-line argument.',
+                'file, URL or command-line argument. When it expires, re-run action:"use" with the same name ' +
+                'to get a fresh grant.',
             }
           }
           if (action === 'reveal') {

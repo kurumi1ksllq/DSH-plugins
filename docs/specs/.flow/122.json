@@ -1,0 +1,43 @@
+{
+  "issue": 122,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-08T05:46:31.525Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "TTL 元数据:store/api/use 封顶+返回值+note 指引",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "reveal 审计防裁剪(trimAudit 保留段)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "export 审计 filename/bytes 归因",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "hint envVar 派生+re-use 规则",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "review P0/P2 修复:export 往返 TTL + note $ 前缀",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 3,
+    "max": 2,
+    "latest": "pass 1m18s @ 047154d"
+  },
+  "review": {
+    "contract": "pass (P0 fixed @ bb27bbe)",
+    "correctness": "pass (P2 perf/tests fixed @ 047154d)",
+    "at": "2026-11-08T06:10:04.913Z"
+  }
+}
