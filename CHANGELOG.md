@@ -12,6 +12,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dev-flow 0.4.0 — review 裁决上墙/死键清理/触发词收窄/面板 skill 互指(#125,T4.df)
+
+- **review pending-decision 上墙**:双轴 review 已出报告待裁决的 issue 进入"需要你出手"条(NEEDS_USER_KINDS 增 review-pending-decision,zh/en 文案);此前只静默停在 review 列。
+- **死 locale 键清理**:删除双字典零消费的 `stashes` 键(面板 stash 计数用数据字段,非文案)。
+- **触发词收窄**:SKILL.md 增"触发词收窄"——纯只读查询/状态询问/会话级操作不进流程;口径=不产生仓库文件写入。
+- **面板↔skill 互指**:SKILL.md 头部引 Git 面板;任务板尾部增 boardSkillHint(zh/en)指向 dev-flow skill。
+
 ### dsh-websearch-failover 0.5.0 — example 补齐/SearXNG 鉴权/ABORTED 计数/冷却清理/resetStats/ALL_FAILED 引导(#124,T4.web)
 
 - **providers.example 补齐**:serper/brave/bocha/jina/searxng 五家可直接复制启用(searxng 含 basic-auth 变体示例);core 新增导出 ADAPTERS(种类清单的公共事实源)。

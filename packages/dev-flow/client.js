@@ -40,7 +40,6 @@ window.__ModuleLoader__.load({
       dirty: '未提交改动',
       untracked: '未跟踪',
       changed: '已跟踪改动',
-      stashes: 'stash',
       aheadBehind: (a, b) => `领先 ${a} / 落后 ${b}`,
       clean: '工作区干净',
       sectionBranches: '分支',
@@ -110,6 +109,7 @@ window.__ModuleLoader__.load({
       'empty_no-review-pending': '没有待裁决的 review',
       'empty_no-pr-awaiting-merge': '没有 PR 等口令',
       'empty_nothing-merged-yet': '还没有合并记录',
+      boardSkillHint: '要开始或推进任务,直接对 agent 说需求 —— dev-flow skill 会接手并驱动这条流程。',
       grade_trivial: 'trivial',
       grade_standard: 'standard',
       stale: '状态过期',
@@ -117,6 +117,7 @@ window.__ModuleLoader__.load({
       'need_intake-confirm': (n) => `#${n} 已建档但还没建分支,先确认意图与分级(停点1)`,
       'need_no-ci': '本仓库当前没有 CI,要生成最小 workflow 还是本次直接进 review?',
       'need_ci-red-escalated': (n) => `#${n} 的 CI 已红到第 2 轮,不再自动重推,需要你决定`,
+      'need_review-pending-decision': (n, pr) => `PR #${pr}(issue #${n})双轴 review 已出报告,需要你裁决(修复或放行)`,
       'need_merge-gate': (n, pr) => `PR #${pr}(issue #${n})等你点名 merge`,
       checks_green: 'CI 绿',
       checks_red: 'CI 红',
@@ -143,7 +144,6 @@ window.__ModuleLoader__.load({
       dirty: 'Uncommitted changes',
       untracked: 'Untracked',
       changed: 'Tracked changes',
-      stashes: 'stashes',
       aheadBehind: (a, b) => `${a} ahead / ${b} behind`,
       clean: 'Working tree clean',
       sectionBranches: 'Branches',
@@ -212,6 +212,7 @@ window.__ModuleLoader__.load({
       'empty_no-review-pending': 'No review awaiting a ruling',
       'empty_no-pr-awaiting-merge': 'No PR awaiting the merge word',
       'empty_nothing-merged-yet': 'Nothing merged yet',
+      boardSkillHint: 'To start or advance a task, just tell the agent — the dev-flow skill drives this flow.',
       grade_trivial: 'trivial',
       grade_standard: 'standard',
       stale: 'Stale state',
@@ -219,6 +220,7 @@ window.__ModuleLoader__.load({
       'need_intake-confirm': (n) => `#${n} has no branch yet — confirm intent and grade (stop point 1)`,
       'need_no-ci': 'This repository has no CI. Generate a minimal workflow, or go straight to review?',
       'need_ci-red-escalated': (n) => `CI for #${n} is red at round 2 — no more auto-pushes, you decide`,
+      'need_review-pending-decision': (n, pr) => `PR #${pr} (issue #${n}) review reports are in — rule on them (fix or proceed)`,
       'need_merge-gate': (n, pr) => `PR #${pr} (issue #${n}) awaits your merge word`,
       checks_green: 'CI green',
       checks_red: 'CI red',
@@ -924,6 +926,9 @@ function DiffView({ t, sessionId, path, statusSha }) {
         h(NeedsUser, { t, items: board.needsUser ?? [] }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
         h('div', { style: S.board }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
+        // T4.df 面板↔skill 互相指引: the board shows WHERE the work is; this
+        // line tells the user how to START work (the skill), closing the loop.
+        h('div', { style: S.hint }, t('boardSkillHint')),
       )
     }
 

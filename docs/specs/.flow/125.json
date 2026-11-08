@@ -7,22 +7,22 @@
     {
       "id": 1,
       "title": "review pending-decision 进\"需要你出手\"",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "死 locale 键清理(面板+skill 对账)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "触发词收窄(只读查询不进流程)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 4,
       "title": "面板↔skill 互相指引",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {

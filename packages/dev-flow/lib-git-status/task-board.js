@@ -19,7 +19,7 @@
 import { STAGES } from './flow-state.js'
 
 /** The only four things dev-flow ever asks the user to decide. */
-export const NEEDS_USER_KINDS = ['intake-confirm', 'no-ci', 'ci-red-escalated', 'merge-gate']
+export const NEEDS_USER_KINDS = ['intake-confirm', 'no-ci', 'ci-red-escalated', 'review-pending-decision', 'merge-gate']
 
 /** Cap on the "needs you" strip: a board that lists everything is not a board. */
 export const NEEDS_USER_LIMIT = 3
@@ -298,6 +298,15 @@ function buildNeedsUser({ cards, allIssues, checks }) {
     if (Number.isInteger(run) && run >= max) {
       blockers.push({ kind: 'ci-red-escalated', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
     }
+  }
+
+  // 2b. T4.df: a review that RAN but produced findings (state pending-decision)
+  // needs the user's ruling just as much as a finished review needs the merge
+  // shout — but before #129-fix it only sat in its column silently. Surface it.
+  for (const card of cards) {
+    if (card.review?.state !== 'pending-decision') continue
+    if (card.prNumber === null) continue
+    blockers.push({ kind: 'review-pending-decision', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
   }
 
   // 3. A PR whose review finished is waiting for the literal "merge #n" shout.

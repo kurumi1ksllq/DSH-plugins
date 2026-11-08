@@ -1,6 +1,6 @@
 {
   "name": "dev-flow",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "dev-flow skill bundle for DeepSeek Harness: issue → branch → TDD → PR → CI → review → merge, with 3 stop-points and anti-bypass hard rules. Ships SKILL.md plus a contract linter that keeps the skill's gates intact under edits.",
   "license": "MIT",
   "type": "module",
