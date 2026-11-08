@@ -1,0 +1,32 @@
+{
+  "issue": 122,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-08T05:46:31.525Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "TTL 元数据:store/api/use 封顶+返回值+note 指引",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "reveal 审计防裁剪(trimAudit 保留段)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "export 审计 filename/bytes 归因",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "hint envVar 派生+re-use 规则",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2
+  }
+}

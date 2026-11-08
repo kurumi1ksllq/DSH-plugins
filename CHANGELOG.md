@@ -12,6 +12,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-credential-vault 0.6.0 — 凭据 TTL/reveal 审计防裁剪/export 归因(#122,T4.vault)
+
+- **凭据级 TTL**(M1):set/update/api 接受可选 `ttlSeconds`(正整数或 null 清除),use 的 grant 以其封顶并在返回值报 `ttlSeconds`;note 附过期后重新 use 指引。存量无 TTL 记录行为不变。
+- **reveal 审计防裁剪**(M6):trimAudit 保留全部 reveal 行(审计豁免 hatch 的意义所在),其余行按最近预算回填,时间序保持。
+- **export 审计归因**(D5):export 审计行补 `filename`/`bytes`(请求本身仍无认证,已知限制不变)。
+- **hint 规则补全**:envVar 以 use 返回值字段为准(ASCII slug/折叠 hash 后缀派生规则)、grant 过期重新 use。
+
 ### dsh-inventory 0.11.0 — client 按五挂载缝拆分为源码模块(#117)
 
 - **client/ 源码分片**:4909 行单文件浏览器半按既有五挂载缝拆为 12 个有序源码分片

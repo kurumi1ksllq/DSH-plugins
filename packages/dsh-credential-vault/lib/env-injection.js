@@ -115,13 +115,21 @@ export function createGrantTable(options = {}) {
   return {
     ttlMs,
 
-    /** Record that one session may use one credential until it expires. */
-    issue(sessionId, name, secret) {
+    /**
+     * Record that one session may use one credential until it expires.
+     *
+     * `options.ttlMs` caps the grant BELOW the table default (T4.vault M1):
+     * a credential that declares `ttlSeconds` gets a shorter-lived grant. An
+     * override LONGER than the default is clamped, so a credential can never
+     * extend the deployment-wide window.
+     */
+    issue(sessionId, name, secret, options = {}) {
       if (typeof sessionId !== 'string' || sessionId.length === 0) {
         throw new Error('credential: "use" requires a session id')
       }
+      const requested = Number.isFinite(options.ttlMs) && options.ttlMs > 0 ? options.ttlMs : ttlMs
+      const expiresAt = now() + Math.min(requested, ttlMs)
       const grants = bySession.get(sessionId) ?? new Map()
-      const expiresAt = now() + ttlMs
       grants.set(name, { secret, expiresAt })
       bySession.set(sessionId, grants)
       return { envVar: envVarFor(name), expiresAt: new Date(expiresAt).toISOString() }
