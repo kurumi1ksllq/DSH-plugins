@@ -386,6 +386,9 @@ export function createVaultStore(dir) {
           username: value.username ?? null,
           url: value.url ?? null,
           note: value.note ?? null,
+          // T4.vault M1: TTL metadata must ride the export file, or a vault
+          // moved between hosts silently widens every grant window.
+          ttlSeconds: value.ttlSeconds ?? null,
           createdAt: value.createdAt ?? null,
           updatedAt: value.updatedAt ?? null,
           secret,
@@ -425,6 +428,9 @@ export function createVaultStore(dir) {
           note: entry.note ?? null,
           service: entry.service ?? null,
           aliases: normalizeAliases(entry.aliases),
+          // T4.vault M1: TTL metadata must survive the export→import roundtrip,
+          // or a vault moved between hosts silently widens every grant window.
+          ttlSeconds: entry.ttlSeconds ?? null,
           createdAt: entry.createdAt ?? now,
           updatedAt: entry.updatedAt ?? now,
         }

@@ -139,6 +139,10 @@ function importPayload(store, dir, body) {
     if (typeof entry.kind !== 'string' || !KINDS.includes(entry.kind)) {
       throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has an unknown kind`)
     }
+    // T4.vault M1: an imported TTL must obey the same rule the panel enforces.
+    if (entry.ttlSeconds !== undefined && entry.ttlSeconds !== null && (!Number.isInteger(entry.ttlSeconds) || entry.ttlSeconds <= 0)) {
+      throw new ApiError(400, 'invalid-metadata', `entry "${entry.name}" has an invalid ttlSeconds`)
+    }
     try {
       validateMeta({
         service: entry.service ?? null,

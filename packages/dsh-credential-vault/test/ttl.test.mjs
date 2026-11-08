@@ -166,6 +166,45 @@ test('the API set and update routes forward ttlSeconds', async () => {
   }
 })
 
+test('export → import roundtrip preserves ttlSeconds', async () => {
+  const dir = tempDir()
+  try {
+    const { createApiHandler, API_BASE } = await import('../lib/api.mjs')
+    const { sealEnvelope } = await import('../lib/envelope.mjs')
+    const store = createVaultStore(dir)
+    store.set('round trip', { kind: 'token', secret: 'v', ttlSeconds: 77 })
+    const { entries } = store.exportEntries()
+    const envelope = sealEnvelope('passphrase-123456', { sourceVaultVersion: 3, entries, corruptCount: 0 })
+    // Import into a SECOND vault dir.
+    const dir2 = tempDir()
+    try {
+      const store2 = createVaultStore(dir2)
+      const handler = createApiHandler({ store: store2, dir: dir2 })
+      const encoder = new TextEncoder()
+      const res = { statusCode: 0, body: '' }
+      res.writeHead = () => {}
+      res.end = () => {}
+      await handler({
+        method: 'POST',
+        url: API_BASE + '/import',
+        headers: { host: '127.0.0.1', origin: 'http://127.0.0.1' },
+        async *[Symbol.asyncIterator]() {
+          yield encoder.encode(JSON.stringify({
+            passphrase: 'passphrase-123456',
+            mode: 'merge',
+            content: JSON.stringify(envelope),
+          }))
+        },
+      }, res)
+      assert.equal(store2.get('round trip').ttlSeconds, 77)
+    } finally {
+      rmSync(dir2, { recursive: true, force: true })
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 // ---------- 2. reveal audit survives trimming ----------
 
 test('trimAudit keeps every reveal record even when the log overflows', () => {

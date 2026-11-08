@@ -333,7 +333,7 @@ if (!isValidName(credName) && !store.has(credName)) {
               expiresAt: grant.expiresAt,
               ttlSeconds,
               note:
-                `The value is NOT in this result. Reference ${grant.envVar} inside a shell command; it is ` +
+                `The value is NOT in this result. Reference $${grant.envVar} inside a shell command; it is ` +
                 'injected into each shell call until it expires. Never echo it, printenv it, or write it to a ' +
                 'file, URL or command-line argument. When it expires, re-run action:"use" with the same name ' +
                 'to get a fresh grant.',
