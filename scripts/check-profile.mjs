@@ -39,11 +39,9 @@ const REPO = resolve(HERE, '..')
 /** Bundles this repository ships, as `<name>` -> checkout-relative directory. */
 const SHIPPED = new Map([
   ['dsh-credential-vault', 'packages/dsh-credential-vault'],
-  ['dsh-git-bash-tool', 'packages/dsh-git-bash-tool'],
   ['dsh-inventory', 'packages/dsh-inventory'],
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['dev-flow', 'packages/dev-flow'],
-  ['dsh-stall-governor', 'packages/dsh-stall-governor'],
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover/plugin'],
 ])
 

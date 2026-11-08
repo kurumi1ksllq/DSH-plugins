@@ -40,10 +40,11 @@ PS> bash -c "uname -s"
 
 ## 安装
 
-```powershell
-pwsh -File install.ps1          # 干跑，只打印计划
-pwsh -File install.ps1 -Yes     # 执行：备份 package.json → 建 junction → 写依赖与 bundle 注册
+```json
+"dev-flow": "...",
+"dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode"
 ```
+Git Bash 替换是 `dsh-deep-ptc-mode` 的内置行为(Windows 上自动生效),无需单独安装脚本;原 `install.ps1` 已随合并删除。
 
 然后**重启 DeepSeek Harness**（profile 变更对下个会话生效）。
 
@@ -65,7 +66,6 @@ pwsh -File install.ps1 -Yes     # 执行：备份 package.json → 建 junction 
 ## 回滚
 
 ```powershell
-pwsh -File install.ps1 -Uninstall -Yes
 ```
 
 或从 `$env:DSH_HOME\backup\profile-desktop-package-<时间戳>.json` 还原，重启即可。

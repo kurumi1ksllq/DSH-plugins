@@ -2,7 +2,7 @@
 import {
 	createSessionState, noteEvent, noteAssistantStep, evaluateG1,
 	evaluateG2, targetKey, failureSignature, CONFIG
-} from "../lib/index.js";
+} from "../lib-governor.js";
 
 let failed = 0;
 function check(label, cond, extra = "") {
@@ -326,7 +326,7 @@ check("正常结果非错误", failureSignature({ content: "ok 123" }).error ===
 }
 // P1-15 Jaccard 函数导出直测
 {
-	const { jaccardSimilarity, shingleSet } = await import("../lib/index.js");
+	const { jaccardSimilarity, shingleSet } = await import("../lib-governor.js");
 	const same = jaccardSimilarity(shingleSet("query the router table and log"), shingleSet("query the router table and log"));
 	const diff = jaccardSimilarity(shingleSet("query the router table and log the error"), shingleSet("rebuild the whole project from a clean checkout"));
 	check("P1-15 jaccard 相同集=1", same === 1, `=${same}`);

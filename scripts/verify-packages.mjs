@@ -40,11 +40,9 @@ const META = new Set(['websearch-dsh-plugin'])
 /** Bundle name -> directory, for the packages this workspace ships. */
 const EXPECTED = [
   ['dsh-credential-vault', 'dsh-credential-vault'],
-  ['dsh-git-bash-tool', 'dsh-git-bash-tool'],
   ['dsh-inventory', 'dsh-inventory'],
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['dev-flow', 'dev-flow'],
-  ['dsh-stall-governor', 'dsh-stall-governor'],
   ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
 ]
 

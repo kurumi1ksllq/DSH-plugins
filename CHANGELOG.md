@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, seven independently versioned bundles. Every entry names the
+One repository, five independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -11,6 +11,14 @@ A bundle whose directory has changes after its version tag fails the gate.
 ---
 
 ## Unreleased
+
+### dsh-deep-ptc-mode 1.8.0 — 吸收 stall-governor 与 git-bash-tool(#112)
+
+- **包数 7→5**。patch 七行:deep-ptc-settings 主入口 + bash/pwsh 四条覆盖行 + 两行 insert
+  (id `dsh-stall-governor`/`git-bash-tool` 原样,name 指 `./governor`/`./git-bash` 子路径)。
+- 宿主互操作设施全保留(upstream 继承/base-snapshot/snapshotSha256 链/黄金键 baseline);
+  新增 optional peer dsh-llm/dsh-agent-loop;engines.dsh 取严。
+- **已知边界**:governor 设置页客户端装载路径待部署实机验证;纪律⑤口径与 notifyChannels 处置在 T4.ptc。
 
 ### dsh-inventory 0.10.0 — 吸收 prompt-inject(#111)
 

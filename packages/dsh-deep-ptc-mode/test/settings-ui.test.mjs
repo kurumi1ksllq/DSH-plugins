@@ -24,9 +24,15 @@ function setup(platform) {
     },
   };
   vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), {
-    window: { __ModuleLoader__: { load: definition => { plugin = definition.factory(name => {
-      assert.equal(name, 'react'); return React;
-    }); } } },
+    window: { __ModuleLoader__: { load: definition => {
+      // #112 后 lib/client.js 是单文件双模块(deep-ptc + governor 段)。
+      // 本套件只测 deep-ptc 设置卡:governor 段的 apply 会拉 settings API
+      // (vm 沙箱无 fetch),跳过它。
+      if (definition.id !== 'dsh-deep-ptc-mode') return;
+      plugin = definition.factory(name => {
+        assert.equal(name, 'react'); return React;
+      });
+    } } },
   });
   const ctx = {
     locale: { bind: () => key => key, register: () => () => {} },

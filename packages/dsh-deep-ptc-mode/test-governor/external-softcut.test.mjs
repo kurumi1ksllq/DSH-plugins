@@ -26,7 +26,7 @@ import * as path from "node:path";
 import { createRequire } from "node:module";
 import { readEvalSource } from "./eval-module.mjs";
 
-const source = readEvalSource(new URL("../lib/index.js", import.meta.url));
+const source = readEvalSource(new URL("../lib-governor.js", import.meta.url));
 
 const factory = new Function(
 	"randomUUID", "appendFileSync", "existsSync", "mkdirSync", "readFileSync", "statSync", "unlinkSync", "writeFileSync",
