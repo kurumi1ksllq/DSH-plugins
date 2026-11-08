@@ -36,7 +36,13 @@
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m24s @ 2021ee7"
+  },
+  "review": {
+    "contract": "pass (P1×2 fixed @ 2021ee7)",
+    "correctness": "pass (P2/P3 also fixed)",
+    "at": "2026-11-08T08:23:43.588Z"
   }
 }
