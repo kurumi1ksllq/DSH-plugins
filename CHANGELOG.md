@@ -12,6 +12,14 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.11.0 — client 按五挂载缝拆分为源码模块(#117)
+
+- **client/ 源码分片**:4909 行单文件浏览器半按既有五挂载缝拆为 12 个有序源码分片
+  (header/styles/shared-ui/workspaces/misc-ui/sync/vault/websearch/prompt/panel/apply/tail),
+  以 scripts/build-inventory-client.mjs 拼回单文件 client.js — 宿主 dsh.client 单入口契约不变。
+- **防漂移契约测试**:test/client-build.test.mjs 钉住"产物与分片字节级一致",改分片不重建即红。
+- 行为零变更:491 项 browser-half 测试全数通过;行 id、路由、locale NS、VAULT_BASE/WEBSEARCH_BASE 原样。
+
 ### dsh-deep-ptc-mode 1.9.0 — governor 拆分为模块化结构(#116)
 
 - **lib/governor.js 拆分**:5007 行单文件(约 250 个顶层声明)按声明块等价整块搬移为六个模块:
