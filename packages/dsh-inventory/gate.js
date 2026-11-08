@@ -30,6 +30,8 @@ const DEFAULTS = {
   enabled: true,
   declarationFile: '.dsh/mcp.json',
   searchParents: true,
+  /** T4.inv: upper bound on upward declaration search; Infinity = walk to root. */
+  searchParentLimit: Infinity,
   serverNameSuffix: '',
   allowServerNames: [],
   mountTimeoutMs: 15_000,
@@ -172,6 +174,7 @@ export function apply(ctx, rawConfig) {
             enabled: config.enabled,
             declarationFile: config.declarationFile,
             searchParents: config.searchParents,
+            searchParentLimit: config.searchParentLimit,
             allowServerNames: config.allowServerNames,
             serverNameSuffix: config.serverNameSuffix,
           })

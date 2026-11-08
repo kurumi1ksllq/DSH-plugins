@@ -29,6 +29,16 @@ import { prepareManifestText, publishHttp, publishManifest } from './sync-publis
 import { applyItems } from './sync-apply.js'
 
 /**
+ * T4.inv 远端 TTL: the panel re-renders often, and every render used to hit the
+ * remote manifest API. A short-lived in-memory cache of the LAST GOOD fetch
+ * (keyed by nothing — one process serves one config) bounds that traffic; the
+ * TTL is caller-controlled and 0 (default) keeps the old always-refetch
+ * behaviour. Cached entries are replaced wholesale by any successful fetch.
+ * @type {{ at: number, payload: object } | null}
+ */
+let remoteCache = null
+
+/**
  * Resolve the transport for the configured mode.
  *
  *   github / gitee  A git host; returns a parsed `owner/repo` reference.
@@ -136,11 +146,25 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
   // minting would write the state file as a side effect of looking, and on a
   // read-only filesystem that attempt is wasted work on a render path.
   const readOnlyState = { ...state, machineId: state?.machineId || LEGACY_ID }
+  // `options.now` may be a clock function OR a fixed epoch number (both are
+  // used by tests); absent, it is the host clock.
+  const now = typeof options.now === 'function'
+    ? options.now()
+    : Number.isFinite(options.now) ? options.now : Date.now()
+  const ttlMs = Number.isFinite(options.ttlMs) && options.ttlMs > 0 ? options.ttlMs : 0
+  if (ttlMs > 0 && remoteCache !== null && now - remoteCache.at < ttlMs) {
+    // Fresh enough: serve the cached payload without touching the network.
+    return { ...remoteCache.payload, fromCache: true, cacheAgeMs: now - remoteCache.at }
+  }
   const fetched = await fetchFleet(readOnlyState, {
     fetchImpl: options.fetchImpl,
     timeoutMs: options.timeoutMs,
   })
   if (fetched.error !== undefined) {
+    // T4.inv 失败记忆: the failure is PERSISTED so the panel can answer "why is
+    // the fleet stale" even after the process that saw it restarted. The error
+    // string is truncated to the same 200-char budget the audit uses.
+    writeState({ lastFetchError: String(fetched.error).slice(0, 200), lastFetchErrorAt: now }, options.env)
     return { ...base, manifest: null, rows: [], counts: summarizeDiff([]), fetchError: fetched.error }
   }
   // Nothing published yet (or an empty fleet file): a first-run state with
@@ -168,9 +192,10 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
   const rows = diffManifest(fetched.manifest, snapshot, { capabilities })
   // A successful read of a usable manifest is a pull, even if nothing was
   // installed — otherwise the panel's lastPullAt stays 0 forever.
-  const pulledAt = options.now ?? Date.now()
-  writeState({ lastPullAt: pulledAt })
-  return {
+  const pulledAt = now
+  // A success clears any remembered failure and fills the TTL cache.
+  writeState({ lastPullAt: pulledAt, lastFetchError: '', lastFetchErrorAt: 0 }, options.env)
+  const payload = {
     ...base,
     via: fetched.via,
     manifest: {
@@ -191,6 +216,8 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
     rows,
     counts: summarizeDiff(rows),
   }
+  remoteCache = { at: now, payload }
+  return payload
 }
 
 /** Build a manifest from this machine without writing it anywhere. */
@@ -411,7 +438,12 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
     repoUrl: fetched.manifest.repoUrl,
     gitBin: options.gitBin,
   })
-  if (applied.ok === true) writeState({ lastPullAt: options.now ?? Date.now() })
+  if (applied.ok === true) {
+    const now = typeof options.now === 'function'
+      ? options.now()
+      : Number.isFinite(options.now) ? options.now : Date.now()
+    writeState({ lastPullAt: now })
+  }
 
   const results = [...applied.results, ...refused].sort((a, b) => a.key.localeCompare(b.key))
   const failed = results.filter((r) => r.ok !== true)

@@ -12,6 +12,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.0 — gate 搜索上限/同步失败记忆/远端 TTL/真超时中断/copySkill 冲突检测(#123,T4.inv)
+
+- **searchParentLimit**(gate 配置新增,默认 Infinity=走到根,行为不变):限制 .dsh/mcp.json 向上搜索的父目录步数;0 = 仅当前目录。
+- **serverName 唯一性守卫**:planMount 对 suffix 合并后的最终 serverName 做整声明去重(防御性不变量)。
+- **sync 失败记忆**:lastFetchError/lastFetchErrorAt 持久化进 plugin-sync.json(成功清除),publicState 面板可见。
+- **远端 TTL**:syncStatus 增 options.ttlMs,缓存上次成功 payload(fromCache/cacheAgeMs),默认 0 = 永远重新拉取。
+- **真超时中断**:sync-remote 五个 fetch 点全部改为 AbortController——超时不仅放弃等待,还中止在途请求(旧 race 留下挂起连接,每次面板渲染堆积一个)。
+- **copySkill 冲突检测**:vault 已有与仓库版本不一致的 skill 时拒绝静默覆盖(overwrite:true 显式放行);完全一致视为重装。
+- 顺带修复:syncApply 注入 now 为数字时 lastPullAt 被静默丢弃(JSON.stringify 丢函数值)。
+
 ### dsh-credential-vault 0.6.0 — 凭据 TTL/reveal 审计防裁剪/export 归因(#122,T4.vault)
 
 - **凭据级 TTL**(M1):set/update/api 接受可选 `ttlSeconds`(正整数或 null 清除),use 的 grant 以其封顶并在返回值报 `ttlSeconds`;note 附过期后重新 use 指引。存量无 TTL 记录行为不变。

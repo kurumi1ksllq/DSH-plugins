@@ -7,22 +7,22 @@
     {
       "id": 1,
       "title": "gate 生命周期清理 + cwd 语义",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "searchParents 上限 + serverName 撞名守卫",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "sync 失败记忆 lastFetchError + 远端 TTL + AbortController",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 4,
       "title": "copySkill 冲突检测",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
