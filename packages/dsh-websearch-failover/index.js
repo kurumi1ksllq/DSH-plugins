@@ -23,8 +23,7 @@ import {
   resolveKey,
   search as coreSearch,
 } from './lib/core.mjs'
-import {
-  applyRuntime,
+import {applyRuntime,
   defaultRuntimePath,
   readRuntime,
   recordResult,
@@ -32,8 +31,7 @@ import {
   setBalance,
   setEnabled as setEnabledRuntime,
   writeRuntime,
-  createMutex,
-} from './lib/runtime.mjs'
+  createMutex, resetStats } from './lib/runtime.mjs'
 import { probeBalance } from './lib/balance.mjs'
 import { API_BASE, createApiHandler } from './lib/api.mjs'
 import { truncate } from './lib/http.mjs'
@@ -324,6 +322,10 @@ export function apply(ctx, config = {}) {
             })
           } else if (attempt.outcome === 'empty') {
             runtime = recordResult(runtime, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
+          } else if (attempt.outcome === 'aborted') {
+            // T4.web ABORTED 计数: user-intent cancellation is tracked on its
+            // own counter, not as a provider failure.
+            runtime = recordResult(runtime, attempt.provider, 'aborted', { at: Date.now(), message: 'aborted' })
           }
         }
         writeRuntime(runtime, runtimePath)
@@ -336,7 +338,15 @@ export function apply(ctx, config = {}) {
     },
   }
 
-  const apiHandler = createApiHandler({ snapshot, reorder, refresh, setEnabled })
+  // T4.web resetStats: read-modify-write the CURRENT runtime, serialized
+  // through the refresh mutex — same runtime.json contention surface as the
+  // balance probe (#103 T1.web taught this the hard way).
+  const resetStatsFn = (id) => refreshMutex.run(() => {
+    const next = resetStats(readRuntime(runtimePath), id)
+    writeRuntime(next, runtimePath)
+    return next
+  })
+  const apiHandler = createApiHandler({ snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn })
 
   ctx.effect(() => ctx.web.registerSearchProvider(searchProvider))
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: API_BASE, handler: apiHandler }))

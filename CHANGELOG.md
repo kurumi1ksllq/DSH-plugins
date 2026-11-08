@@ -12,6 +12,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-websearch-failover 0.5.0 — example 补齐/SearXNG 鉴权/ABORTED 计数/冷却清理/resetStats/ALL_FAILED 引导(#124,T4.web)
+
+- **providers.example 补齐**:serper/brave/bocha/jina/searxng 五家可直接复制启用(searxng 含 basic-auth 变体示例);core 新增导出 ADAPTERS(种类清单的公共事实源)。
+- **SearXNG 鉴权变体**:`auth.type` = `basic`(usernameEnv/passwordEnv)/`header`(自定义 header 名)/缺省 Bearer,三种并存。
+- **ABORTED 计数**:中止归属到在途 provider,core 把 aborted attempt 附到重抛错误上,index 记入 runtime `stats[].aborts`(独立计数,不混入 failures)。
+- **冷却过期清理**:search 入口先剪掉过期冷却条目并持久化,面板不再显示僵尸冷却行。
+- **resetStats**:`POST /websearch-failover/api/stats/reset`,`{ id }` 清单个/`{}` 清全部;runtime 新增 resetStats 运行时函数,读改写当前 runtime。
+- **ALL_FAILED 引导**:全失败错误文本附 agent 可执行动作(检查/启用面板提供方、等待配额冷却)。
+
 ### dsh-inventory 0.12.0 — gate 搜索上限/同步失败记忆/远端 TTL/真超时中断/copySkill 冲突检测(#123,T4.inv)
 
 - **searchParentLimit**(gate 配置新增,默认 Infinity=走到根,行为不变):限制 .dsh/mcp.json 向上搜索的父目录步数;0 = 仅当前目录。

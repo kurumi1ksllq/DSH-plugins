@@ -1,8 +1,9 @@
-// HTTP API behind the sidebar panel. One prefix route, four actions:
-//   GET  /websearch-failover/api/state    → ordered providers + balances
-//   POST /websearch-failover/api/order    → { order: [id, ...] }
-//   POST /websearch-failover/api/refresh  → { ids?: [id, ...] } (omit = all)
-//   POST /websearch-failover/api/enable   → { id, enabled }
+// HTTP API behind the sidebar panel. One prefix route, five actions:
+//   GET  /websearch-failover/api/state       → ordered providers + balances
+//   POST /websearch-failover/api/order       → { order: [id, ...] }
+//   POST /websearch-failover/api/refresh     → { ids?: [id, ...] } (omit = all)
+//   POST /websearch-failover/api/enable      → { id, enabled }
+//   POST /websearch-failover/api/stats/reset → { id? } (omit = all)
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson, truncate } from './http.mjs'
 
 export const API_BASE = '/websearch-failover/api'
@@ -24,11 +25,12 @@ class ApiError extends Error {
  *   reorder: (ids: string[]) => object,
  *   refresh: (ids?: string[]) => object | Promise<object>,
  *   setEnabled: (id: string, enabled: boolean) => object,
+ *   resetStats: (id?: string) => object,
  *   maxBodyBytes?: number,
  * }} service
  */
 export function createApiHandler(service) {
-  const { snapshot, reorder, refresh, setEnabled } = service
+  const { snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn } = service
   const maxBodyBytes = Number.isFinite(service.maxBodyBytes) ? service.maxBodyBytes : MAX_BODY_BYTES
 
   const routes = {
@@ -53,6 +55,17 @@ export function createApiHandler(service) {
         if (typeof body?.id !== 'string' || body.id.trim().length === 0) throw new ApiError(400, 'invalid-enable', 'id is required')
         if (typeof body?.enabled !== 'boolean') throw new ApiError(400, 'invalid-enable', 'enabled must be a boolean')
         return setEnabled(body.id.trim(), body.enabled)
+      },
+    },
+    [`${API_BASE}/stats/reset`]: {
+      methods: ['POST'],
+      run: ({ body }) => {
+        // T4.web resetStats: { id } zeroes one provider, {} zeroes the panel.
+        if (body?.id !== undefined && (typeof body.id !== 'string' || body.id.trim().length === 0)) {
+          throw new ApiError(400, 'invalid-reset', 'id must be a non-empty string when present')
+        }
+        if (typeof resetStatsFn !== 'function') throw new ApiError(500, 'unsupported', 'resetStats is not wired in this deployment')
+        return resetStatsFn(typeof body?.id === 'string' ? body.id.trim() : undefined)
       },
     },
   }
