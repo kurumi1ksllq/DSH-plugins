@@ -30,5 +30,5 @@ test('client source parts exist and stay ordered', () => {
 })
 
 function require$read(dir) {
-  return readdirSync(dir).filter((name) => /^\d{2}-.*\.js$/.test(name)).sort()
+  return readdirSync(dir).filter((name) => /^\d{2,}-.*\.js$/.test(name)).sort()
 }

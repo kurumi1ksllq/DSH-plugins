@@ -19,8 +19,8 @@ const outFile = join(pkgDir, 'client.js')
 
 const banner = readFileSync(join(partsDir, '.banner.js'), 'utf8')
 const parts = readdirSync(partsDir)
-  .filter((name) => /\^\d{2}-.*\.js$/.test(name) || /^\d{2}-.*\.js$/.test(name))
-  .sort()
+  .filter((name) => /^\d{2,}-.*\.js$/.test(name))
+  .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10) || (a < b ? -1 : 1))
 const body = parts.map((name) => readFileSync(join(partsDir, name), 'utf8'))
 const built = banner + body.join('')
 
