@@ -49,6 +49,11 @@ export const STATE_DEFAULTS = {
   annotations: {},
   /** Epoch ms of the last successful pull. */
   lastPullAt: 0,
+  /** T4.inv: the last pull/publish failure, kept so the panel can show WHY a
+   * fleet is stale even after the process that saw the failure restarted. */
+  lastFetchError: '',
+  /** Epoch ms of when lastFetchError was recorded. */
+  lastFetchErrorAt: 0,
   /** Epoch ms of the last successful publish. */
   lastPushAt: 0,
   /**
@@ -115,6 +120,8 @@ function mergeState(raw) {
       : {},
     lastPullAt: typeof raw.lastPullAt === 'number' ? raw.lastPullAt : 0,
     lastPushAt: typeof raw.lastPushAt === 'number' ? raw.lastPushAt : 0,
+    lastFetchError: typeof raw.lastFetchError === 'string' ? raw.lastFetchError : '',
+    lastFetchErrorAt: typeof raw.lastFetchErrorAt === 'number' ? raw.lastFetchErrorAt : 0,
     machineId: typeof raw.machineId === 'string' ? normalizeMachineId(raw.machineId) : STATE_DEFAULTS.machineId,
     repoUrl: typeof raw.repoUrl === 'string' ? raw.repoUrl : STATE_DEFAULTS.repoUrl,
   }
@@ -186,5 +193,7 @@ export function publicState(state) {
     annotations: state.annotations,
     lastPullAt: state.lastPullAt,
     lastPushAt: state.lastPushAt,
+    lastFetchError: state.lastFetchError ?? '',
+    lastFetchErrorAt: state.lastFetchErrorAt ?? 0,
   }
 }

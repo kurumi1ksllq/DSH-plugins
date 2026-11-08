@@ -1,7 +1,7 @@
 {
   "issue": 122,
   "grade": "standard",
-  "stage": "review",
+  "stage": "done",
   "updatedAt": "2026-11-08T05:46:31.525Z",
   "tickets": [
     {
@@ -39,5 +39,11 @@
     "contract": "pass (P0 fixed @ bb27bbe)",
     "correctness": "pass (P2 perf/tests fixed @ 047154d)",
     "at": "2026-11-08T06:10:04.913Z"
+  },
+  "stageAt": "2026-11-08T06:12:43.396Z",
+  "merge": {
+    "sha": "31ffb10",
+    "at": "2026-11-08T14:10Z",
+    "tag": "dsh-credential-vault@0.6.0"
   }
 }

@@ -275,6 +275,10 @@
             `${t('syncCanPull')}: ${capabilities.canPull === true ? '✓' : t('syncNo')} · ${t('syncCanPublish')}: ${capabilities.canPublish === true ? '✓' : t('syncNo')}`),
         ),
         h('span', { style: S.rowSub }, fleetLine),
+        typeof state.lastFetchError === 'string' && state.lastFetchError.length > 0
+          ? h('div', { style: { ...S.rowSub, color: C.danger }, role: 'alert' },
+              `${t('syncFetchError')}: ${state.lastFetchError}`)
+          : null,
         error.length > 0 ? h('div', { style: S.rowSub, role: 'alert' }, `${t('syncErrorTitle')}: ${error}`) : null,
         notice.length > 0 ? h('div', { style: S.rowSub, role: 'status' }, notice) : null,
       )

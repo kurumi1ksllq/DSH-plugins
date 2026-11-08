@@ -391,6 +391,43 @@ function describeInstallFailure(error, timeout) {
  * therefore followed by a link into `$DSH_HOME/skills` so the skill is active
  * immediately, matching what the module header promises.
  */
+/**
+ * True when two directory trees have identical file content (byte-for-byte).
+ * Best-effort for odd entries: a file readable in one tree only, or any stat
+ * error, counts as "different" — the caller then treats it as a conflict,
+ * which is the safe direction for user data.
+ */
+function deepSameDir(source, target) {
+  const sourceFiles = listFiles(source)
+  const targetFiles = listFiles(target)
+  if (sourceFiles.length !== targetFiles.length) return false
+  for (const relative of sourceFiles) {
+    try {
+      if (!readFileSync(join(source, relative)).equals(readFileSync(join(target, relative)))) return false
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+
+function listFiles(base) {
+  const out = []
+  const walk = (dir, prefix) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+      if (entry.isDirectory()) walk(join(dir, entry.name), relative)
+      else if (entry.isFile()) out.push(relative)
+    }
+  }
+  try {
+    walk(base, '')
+  } catch {
+    return out
+  }
+  return out.sort()
+}
+
 export function copySkill(entry, options = {}) {
   const repoRoot = options.repoRoot ?? defaultRepoRoot()
   const vault = options.vaultDir
@@ -401,6 +438,21 @@ export function copySkill(entry, options = {}) {
   const source = join(repoRoot, 'skills', entry.name)
   if (!existsSync(source)) return { ok: false, error: `仓库里没有 skills/${entry.name}` }
   const target = join(vault, entry.name)
+  // T4.inv 冲突检测: the vault copy may hold USER edits (the vault is the live
+  // skill root's backing store). A blind cpSync used to destroy them silently.
+  // A differing existing copy is a CONFLICT: refuse and let the caller (or the
+  // user's explicit overwrite tick) decide. Identical content is not a
+  // conflict — that is just a re-install of the same skill.
+  if (existsSync(target) && options.overwrite !== true) {
+    const same = deepSameDir(source, target)
+    if (same === false) {
+      return {
+        ok: false,
+        conflict: true,
+        error: `vault 里已有被修改过的 skills/${entry.name}（与仓库版本不一致）；确认覆盖请勾选覆盖后重试`,
+      }
+    }
+  }
   try {
     mkdirSync(dirname(target), { recursive: true })
     cpSync(source, target, { recursive: true })

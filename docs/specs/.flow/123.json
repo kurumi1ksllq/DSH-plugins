@@ -1,0 +1,38 @@
+{
+  "issue": 123,
+  "grade": "standard",
+  "stage": "tdd",
+  "updatedAt": "2026-11-08T06:12:43.396Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "gate 生命周期清理 + cwd 语义",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "searchParents 上限 + serverName 撞名守卫",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "sync 失败记忆 lastFetchError + 远端 TTL + AbortController",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "copySkill 冲突检测",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m20s @ 858fb20"
+  },
+  "review": {
+    "contract": "pass (P0/P2 fixed @ 41bf3b8, 858fb20)",
+    "correctness": "pass (P0 fixed @ 41bf3b8)",
+    "at": "2026-11-08T07:22:50.571Z"
+  }
+}

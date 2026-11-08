@@ -193,10 +193,11 @@ export async function fetchManifestText(parsed, options = {}) {
     if (typeof fetchImpl !== 'function') return defaultBranch
     try {
       const headers = hostProfile(parsed?.host).apiHeaders(token)
-      const response = await withTimeout(
-        fetchImpl(hostProfile(parsed?.host).repoApiUrl(parsed.owner, parsed.repo), { headers }),
-        timeoutMs,
-      )
+      const { promise, signal } = withTimeoutAbort(timeoutMs)
+      const response = await Promise.race([
+        fetchImpl(hostProfile(parsed?.host).repoApiUrl(parsed.owner, parsed.repo), { headers, signal }),
+        promise,
+      ])
       if (response.ok) {
         const payload = await response.json()
         if (typeof payload?.default_branch === 'string' && payload.default_branch.length > 0) {
@@ -220,7 +221,8 @@ export async function fetchManifestText(parsed, options = {}) {
   if (typeof fetchImpl === 'function') {
     // 1. raw.githubusercontent.com
     try {
-      const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref, path })), timeoutMs)
+      const { promise, signal } = withTimeoutAbort(timeoutMs)
+      const response = await Promise.race([fetchImpl(rawUrl(parsed, { ref, path }), { signal }), promise])
       if (response.ok) {
         const text = await response.text()
         if (text.length > 0) return { text, via: 'raw' }
@@ -314,7 +316,8 @@ export async function fetchManifestText(parsed, options = {}) {
 /** One raw-content attempt. Returns `{ text, via }` or `{ error, notFound }`. */
 async function readRaw(ref, { parsed, path, timeoutMs, fetchImpl }) {
   try {
-    const response = await withTimeout(fetchImpl(rawUrl(parsed, { ref, path })), timeoutMs)
+    const { promise, signal } = withTimeoutAbort(timeoutMs)
+    const response = await Promise.race([fetchImpl(rawUrl(parsed, { ref, path }), { signal }), promise])
     if (!response.ok) return { error: `HTTP ${response.status}`, notFound: response.status === 404 }
     const text = await response.text()
     if (text.length === 0) return { error: '空文件' }
@@ -331,10 +334,11 @@ async function readRaw(ref, { parsed, path, timeoutMs, fetchImpl }) {
 async function readContents(ref, { parsed, path, token, timeoutMs, fetchImpl }) {
   try {
     const headers = hostProfile(parsed?.host).apiHeaders(token)
-    const response = await withTimeout(
-      fetchImpl(apiUrlWithAuth(parsed, ref, path, token), { headers }),
-      timeoutMs,
-    )
+    const { promise, signal } = withTimeoutAbort(timeoutMs)
+    const response = await Promise.race([
+      fetchImpl(apiUrlWithAuth(parsed, ref, path, token), { headers, signal }),
+      promise,
+    ])
     if (!response.ok) return { error: `HTTP ${response.status}`, notFound: response.status === 404 }
     const payload = await response.json()
     const text = decodeContents(payload)
@@ -413,7 +417,8 @@ export async function fetchHttpText(url, options = {}) {
   const headers = { Accept: 'application/json' }
   if (typeof token === 'string' && token.length > 0) headers.Authorization = `Bearer ${token}`
   try {
-    const response = await withTimeout(fetchImpl(url.trim(), { headers }), timeoutMs)
+    const { promise, signal } = withTimeoutAbort(timeoutMs)
+    const response = await Promise.race([fetchImpl(url.trim(), { headers, signal }), promise])
     if (response.status === 404) return { notFound: true }
     if (!response.ok) return { error: `HTTP ${response.status}` }
     const text = await response.text()
@@ -429,10 +434,29 @@ export async function fetchHttpText(url, options = {}) {
   }
 }
 
-function withTimeout(promise, timeoutMs) {
-  if (typeof timeoutMs !== 'number' || timeoutMs <= 0) return promise
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`超时 ${timeoutMs}ms`)), timeoutMs)),
-  ])
+/**
+ * Race a request against its timeout — and ABORT the request when the timeout
+ * fires (T4.inv). The old race left the socket running after the caller gave
+ * up; a hung endpoint then piled up one live connection per panel render.
+ *
+ * Returns `{ promise, signal }`: the caller passes `signal` into `fetch`
+ * so the abort actually reaches the socket. A fetch implementation that does
+ * not understand `signal` still gets the plain race (tests inject fakes).
+ */
+function withTimeoutAbort(timeoutMs) {
+  if (typeof timeoutMs !== 'number' || timeoutMs <= 0) {
+    return { promise: new Promise(() => {}), signal: undefined }
+  }
+  const controller = typeof AbortController === 'function' ? new AbortController() : null
+  const promise = new Promise((_, reject) => {
+    // No unref here: this timer CARRIES the reject — if the event loop has
+    // nothing else to do, dropping it lets the process exit with the request
+    // still pending and the caller's await never settling. One timer per
+    // request, self-removing on fire; the race settles either way.
+    const timer = setTimeout(() => {
+      controller?.abort()
+      reject(new Error(`超时 ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+  return { promise, signal: controller?.signal }
 }

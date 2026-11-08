@@ -45,10 +45,19 @@ export function pathKey(dir) {
  * Walk up from `cwd` looking for the declaration file.
  * @returns {{ root: string, file: string } | undefined}
  */
-export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE, searchParents = true) {
+export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE, searchParents = true, searchParentLimit = Infinity) {
   let dir = normalizeDir(cwd);
   const relative = declarationFile.replace(/^[\\/]+/, '');
   const root = path.parse(dir).root;
+  // T4.inv: an upper bound on the upward walk. `Infinity` (the default) keeps
+  // the historical walk-to-root; a finite limit of 0 means "cwd only". The
+  // start directory itself does not consume budget — only parent steps do.
+  // A NEGATIVE limit is normalized to Infinity (walk to root): the flag is a
+  // safety valve against runaway walks, so an invalid value fails open toward
+  // the documented default rather than silently disabling parent search.
+  let stepsLeft = Number.isFinite(searchParentLimit) && searchParentLimit >= 0
+    ? Math.floor(searchParentLimit)
+    : Infinity;
 
   for (;;) {
     const candidate = path.join(dir, relative);
@@ -60,6 +69,8 @@ export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE,
       // Unreadable candidate: treat as absent and keep walking.
     }
     if (!searchParents || dir === root) return undefined;
+    if (stepsLeft <= 0) return undefined;
+    stepsLeft -= 1;
     const parent = path.dirname(dir);
     if (parent === dir) return undefined;
     dir = parent;
@@ -154,6 +165,7 @@ export function planMount(cwd, options = {}) {
   const {
     declarationFile = DEFAULT_DECLARATION_FILE,
     searchParents = true,
+    searchParentLimit = Infinity,
     allowServerNames = [],
     serverNameSuffix = '',
     enabled = true,
@@ -167,7 +179,7 @@ export function planMount(cwd, options = {}) {
     return { ...empty, reason: 'session has no working directory' };
   }
 
-  const found = findDeclaration(cwd, declarationFile, searchParents);
+  const found = findDeclaration(cwd, declarationFile, searchParents, searchParentLimit);
   if (found === undefined) {
     return { ...empty, reason: `no ${declarationFile} found from ${cwd}` };
   }
@@ -184,6 +196,20 @@ export function planMount(cwd, options = {}) {
     return { ...empty, root: found.root, file: found.file, reason: parsed.error };
   }
   const names = Object.keys(parsed.servers);
+  // T4.inv 撞名守卫: two DIFFERENT declared names can fold to the same final
+  // serverName once `serverNameSuffix` is applied (e.g. "x" and "x-ws" with
+  // suffix "-ws"). Mounting both would register one server twice under the
+  // same name; refuse the whole declaration loudly instead.
+  const finalNames = names.map((name) => parsed.servers[name].serverName);
+  const duplicates = finalNames.filter((name, index) => finalNames.indexOf(name) !== index);
+  if (duplicates.length > 0) {
+    return {
+      ...empty,
+      root: found.root,
+      file: found.file,
+      reason: `server names collide after suffix: ${[...new Set(duplicates)].join(', ')}`,
+    };
+  }
   if (names.length === 0) {
     // A structurally valid declaration with zero entries: not an error, so
     // callers can tell "empty on purpose" from "unparsable" (issue #74).
