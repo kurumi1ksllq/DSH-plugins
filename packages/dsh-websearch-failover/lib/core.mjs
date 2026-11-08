@@ -331,12 +331,31 @@ export const ADAPTERS = {
     // default Bearer, HTTP Basic, or a named header. `auth.type` picks one;
     // absent, the historical Bearer behaviour is unchanged.
     const auth = p.auth ?? null;
-    if (auth?.type === 'basic') {
-      const user = typeof auth.usernameEnv === 'string' ? (process.env[auth.usernameEnv] ?? '') : '';
-      const pass = typeof auth.passwordEnv === 'string' ? (process.env[auth.passwordEnv] ?? '') : '';
-      headers.authorization = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
-    } else if (auth?.type === 'header' && typeof auth.header === 'string' && auth.header.trim() !== '') {
-      if (typeof key === 'string' && key.length > 0) headers[auth.header.trim()] = key;
+    // T4.web: a DECLARED auth block with unusable fields is a config error —
+    // silently sending an empty Basic credential or falling back to Bearer
+    // would look like "instance rejects us" (a cooldown-worthy auth failure)
+    // when the panel config is what is actually wrong.
+    if (auth !== null && auth !== undefined) {
+      if (auth?.type === 'basic') {
+        if (typeof auth.usernameEnv !== 'string' || typeof auth.passwordEnv !== 'string') {
+          throw new SearchError(`provider "${p.id}": auth.type "basic" requires usernameEnv and passwordEnv`, 'CONFIG_INVALID');
+        }
+        const user = process.env[auth.usernameEnv] ?? '';
+        const pass = process.env[auth.passwordEnv] ?? '';
+        if (user === '' && pass === '') {
+          throw new SearchError(`provider "${p.id}": basic auth envs "${auth.usernameEnv}"/"${auth.passwordEnv}" are both unset`, 'KEY_MISSING');
+        }
+        headers.authorization = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
+      } else if (auth?.type === 'header') {
+        if (typeof auth.header !== 'string' || auth.header.trim() === '') {
+          throw new SearchError(`provider "${p.id}": auth.type "header" requires a non-empty "header" field`, 'CONFIG_INVALID');
+        }
+        if (typeof key === 'string' && key.length > 0) headers[auth.header.trim()] = key;
+      } else if (auth?.type === 'bearer') {
+        if (typeof key === 'string' && key.length > 0) headers.authorization = `Bearer ${key}`;
+      } else {
+        throw new SearchError(`provider "${p.id}": unknown auth.type "${auth?.type}" (basic, header, bearer)`, 'CONFIG_INVALID');
+      }
     } else if (typeof key === 'string' && key.length > 0) {
       headers.authorization = `Bearer ${key}`;
     }

@@ -178,7 +178,7 @@ export function recordResult(runtime, id, outcome, { at = Date.now(), message } 
       [target]: {
         calls: calls + 1,
         successes: successes + (success ? 1 : 0),
-        failures: failures + (success ? 0 : 1),
+        failures: failures + ((success || aborted) ? 0 : 1),
         aborts: aborts + (aborted ? 1 : 0),
         lastUsedAt: new Date(Number.isFinite(at) ? at : Date.now()).toISOString(),
         lastOutcome: String(outcome ?? 'unknown'),

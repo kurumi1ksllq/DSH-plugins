@@ -1,8 +1,9 @@
-// HTTP API behind the sidebar panel. One prefix route, four actions:
-//   GET  /websearch-failover/api/state    → ordered providers + balances
-//   POST /websearch-failover/api/order    → { order: [id, ...] }
-//   POST /websearch-failover/api/refresh  → { ids?: [id, ...] } (omit = all)
-//   POST /websearch-failover/api/enable   → { id, enabled }
+// HTTP API behind the sidebar panel. One prefix route, five actions:
+//   GET  /websearch-failover/api/state       → ordered providers + balances
+//   POST /websearch-failover/api/order       → { order: [id, ...] }
+//   POST /websearch-failover/api/refresh     → { ids?: [id, ...] } (omit = all)
+//   POST /websearch-failover/api/enable      → { id, enabled }
+//   POST /websearch-failover/api/stats/reset → { id? } (omit = all)
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson, truncate } from './http.mjs'
 
 export const API_BASE = '/websearch-failover/api'
@@ -24,6 +25,7 @@ class ApiError extends Error {
  *   reorder: (ids: string[]) => object,
  *   refresh: (ids?: string[]) => object | Promise<object>,
  *   setEnabled: (id: string, enabled: boolean) => object,
+ *   resetStats: (id?: string) => object,
  *   maxBodyBytes?: number,
  * }} service
  */

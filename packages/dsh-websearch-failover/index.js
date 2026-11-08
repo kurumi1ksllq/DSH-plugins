@@ -338,12 +338,14 @@ export function apply(ctx, config = {}) {
     },
   }
 
-  // T4.web resetStats: read-modify-write the CURRENT runtime, like reorder/setEnabled do.
-  const resetStatsFn = (id) => {
+  // T4.web resetStats: read-modify-write the CURRENT runtime, serialized
+  // through the refresh mutex — same runtime.json contention surface as the
+  // balance probe (#103 T1.web taught this the hard way).
+  const resetStatsFn = (id) => refreshMutex.run(() => {
     const next = resetStats(readRuntime(runtimePath), id)
     writeRuntime(next, runtimePath)
     return next
-  }
+  })
   const apiHandler = createApiHandler({ snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn })
 
   ctx.effect(() => ctx.web.registerSearchProvider(searchProvider))

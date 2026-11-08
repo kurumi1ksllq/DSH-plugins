@@ -138,7 +138,7 @@ test('aborted attempts are counted as aborted in provider stats', async () => {
     delete process.env.P1_KEY
     const runtime = JSON.parse(readFileSync(runtimePath, 'utf8'))
     const entries = Object.values(runtime.stats ?? {})
-    const aborted = entries.filter((e) => e.aborted > 0 || e.lastOutcome === 'aborted')
+    const aborted = entries.filter((e) => e.aborts > 0 && e.failures === 0, 'aborts counted without polluting failures')
     assert.ok(aborted.length > 0, 'at least one provider recorded an aborted attempt')
   } finally {
     rmSync(dir, { recursive: true, force: true })
