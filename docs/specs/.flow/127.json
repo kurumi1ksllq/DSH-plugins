@@ -7,21 +7,28 @@
     {
       "id": 1,
       "title": "审计五包 locale NS 键集与消费方",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "删除零消费死键(vault 字典等)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "仓库级 locale 键集契约测试",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m26s @ eea73a0"
+  },
+  "note": "T4.df 已删 stashes 死键(#125)。vault 的 credential-vault NS 字典保留:其键被自身组件(client.js 内 CredentialVault 渲染)消费,且 bundle dsh.client 清单声明该入口——按 spec E「有消费方或删除」口径不删;deep-ptc 模型文案 locale 化在 #132。",
+  "review": {
+    "contract": "pass",
+    "correctness": "pass",
+    "at": "2026-11-08T22:12:37.308Z"
   }
 }
