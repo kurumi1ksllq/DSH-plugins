@@ -8,6 +8,7 @@ window.__ModuleLoader__.load({ id: 'dsh-deep-ptc-mode', factory: require => {
       title: '深度 PTC', summary: '选择执行环境，应用于之后新建的深度 PTC 会话。',
       environment: '执行环境', auto: '自动（Windows：PowerShell；macOS：Zsh；Linux：Bash）',
       wsl: 'WSL Bash（Windows）', powershell: 'PowerShell（Windows）',
+      'git-bash': 'Git Bash（Windows）',
       zsh: 'Zsh（macOS / Linux）', bash: '原生 Bash（macOS / Linux）',
       distribution: 'WSL 发行版', distributionHint: '留空使用 Windows 的默认发行版，例如 Ubuntu。',
       sessions: '保存后请新建一个“深度PTC模式”会话。已有会话与后台任务保留原环境。',
@@ -20,6 +21,7 @@ window.__ModuleLoader__.load({ id: 'dsh-deep-ptc-mode', factory: require => {
       title: 'Deep PTC', summary: 'Choose the execution environment for new Deep PTC sessions.',
       environment: 'Execution environment', auto: 'Automatic (Windows: PowerShell; macOS: Zsh; Linux: Bash)',
       wsl: 'WSL Bash (Windows)', powershell: 'PowerShell (Windows)',
+      'git-bash': 'Git Bash (Windows)',
       zsh: 'Zsh (macOS / Linux)', bash: 'Native Bash (macOS / Linux)',
       distribution: 'WSL distribution', distributionHint: 'Leave blank for the Windows default distribution, for example Ubuntu.',
       sessions: 'After saving, create a new Deep PTC session. Existing sessions and background jobs keep their environment.',
@@ -49,8 +51,9 @@ window.__ModuleLoader__.load({ id: 'dsh-deep-ptc-mode', factory: require => {
     }, [state.value, state.revision]);
     if (view === 'summary') return t('summary');
     if (state.status !== 'ready') return h('p', null, t('loading'));
+    // T4.ptc: mirrors availableEnvironments() — keep in sync with model.mjs.
     const allowed = state.value.hostPlatform === 'win32'
-      ? ['auto', 'wsl', 'powershell'] : ['auto', 'zsh', 'bash'];
+      ? ['auto', 'wsl', 'powershell', 'git-bash'] : ['auto', 'zsh', 'bash'];
     const disabled = !state.writable || saving;
     const changed = () => {
       if (!dirty.current) draftRevision.current = state.revision;
@@ -83,7 +86,7 @@ window.__ModuleLoader__.load({ id: 'dsh-deep-ptc-mode', factory: require => {
       h('label', { htmlFor: 'deep-ptc-environment' }, t('environment')),
       h('select', { id: 'deep-ptc-environment', value: environment, disabled, style: control,
         onChange: event => { changed(); setEnvironment(event.target.value); } },
-      ...['auto', 'wsl', 'powershell', 'zsh', 'bash'].map(value =>
+      ...['auto', 'wsl', 'powershell', 'git-bash', 'zsh', 'bash'].map(value =>
         h('option', { key: value, value, disabled: !allowed.includes(value) }, t(value)))),
       environment === 'wsl' ? h(React.Fragment, null,
         h('label', { htmlFor: 'deep-ptc-distribution' }, t('distribution')),

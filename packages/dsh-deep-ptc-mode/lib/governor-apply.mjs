@@ -3,11 +3,11 @@
  *
  * #116 拆分:本文件全部声明自原 lib/governor.js 等价整块搬入(逐字未改),导入为新增。
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, renameSync } from "node:fs";
 import { readFileSync } from "node:fs";
 import { writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createUserMessage } from "./governor-peer.mjs";
 import { resetConfigFromEnv, CONFIG, createSessionState, logStatic, name, BLOCK_CODES, FORBIDDEN_RETRY_CODES, DENY_CATEGORIES, SETTINGS_FILE, applySettings, noteEvent, toolCategory, PLUGIN_ID, targetKey, evaluateG2, enforces, settleLastStep, advanceStepBoundary, evaluateG1, SOFT_STOP_SOURCE, g1Code, SETTINGS_ROUTE, sendJson, GOVERNOR_SETTINGS_SCHEMA, settingsSnapshot, GOVERNOR_SETTINGS_DEFAULTS, readRequestBody } from "./governor-core.mjs";
 import { CAPABILITY_UNKNOWN, CAPABILITY_ABSENT, probeKernelHook, SOFT_CUT_HOOK, ASSISTANT_STREAM_HOOK, PRE_STEP_HOOK, SOFTCUT_HIGH_CONFIDENCE, EXEC_DISCIPLINE_CONTEXT_ORDER, EXEC_DISCIPLINE_TEXT, emitCotAnchorEvent, EVENT_SOFTCUT_TAKEN, evidenceBase, buildAnchorContext, hasExplicitConclusion, extractConclusions, EVENT_REFLOW_MISJUDGED, renderAnchor, checkLengthConservation, EVENT_LENGTH_CONSERVATION_FAILED, checkStructuralBalance, EVENT_STRUCTURE_UNBALANCED, EVENT_ANCHOR_DEDUP_SKIPPED } from "./governor-anchor.mjs";
@@ -484,8 +484,12 @@ function apply(ctx, config) {
 	}
 	function savePersistedSettings(value) {
 		try {
-			mkdirSync(settingsDir, { recursive: true });
-			writeFileSync(settingsPath, JSON.stringify(value, null, 2), "utf8");
+			mkdirSync(dirname(settingsPath), { recursive: true });
+			// T4.ptc §6 原子化对齐: tmp+rename+0600,与 vault/audit 同一口径。
+			// 直写目标路径曾让进程中断留下半份 JSON(读侧回退默认,用户设置丢失)。
+			const tmp = settingsPath + ".tmp";
+			writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
+			renameSync(tmp, settingsPath);
 			return true;
 		} catch (error) {
 			log({ at: "settings-save-error", error: String(error?.message || error) });

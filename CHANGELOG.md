@@ -12,6 +12,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.10.0 — git-bash 环境/auto 感知/notifyChannels 废弃/locale 基建/事件驱动刷新/设置原子写(#126,T4.ptc)
+
+- **environment 枚举补 git-bash**(win32):ENVIRONMENTS/availableEnvironments/environmentText/UI 白名单与文案三处一致;复用 bash kind + lib-gitbash spawnSpec 改写。
+- **auto 感知 tool 行**:pickToolKind 按官方 preset 实际存在的 shell 工具行选择 kind(powershell 环境缺 tool-pwsh 时回退 bash 行并如实记入 replacedShellRows),不再硬编码。
+- **execution-environment 段接管 git-bash 说明**:environmentText 增 git-bash 描述(禁止再包一层 bash -c、禁止回退 WSL stub)。
+- **notifyChannels 废弃**:设置项保留(label/hint 标注),拦截提醒实际总是经事件流;board/webhook/IM 从未实现。
+- **5s 轮询事件驱动化**:loader/volatile-update 为主通道,兜底轮询 5s→30s(DSH_DEEP_PTC_POLL_MS 可调,下限 5s)。
+- **governor 设置原子写对齐**:tmp+rename+0600(与 vault/audit 同口径);顺带修复 DSH_STALL_GOVERNOR_SETTINGS_PATH 覆盖时 mkdir 到了默认目录导致写失败的旧 bug;删 governor-core 死导入 writeFileSync。
+
 ### dev-flow 0.4.0 — review 裁决上墙/死键清理/触发词收窄/面板 skill 互指(#125,T4.df)
 
 - **review pending-decision 上墙**:双轴 review 已出报告待裁决的 issue 进入"需要你出手"条(NEEDS_USER_KINDS 增 review-pending-decision,zh/en 文案);此前只静默停在 review 列。

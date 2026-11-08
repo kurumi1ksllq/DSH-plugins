@@ -10,7 +10,7 @@
 // ═══════════════════════ §0 共享设施(合并自两上游) ═══════════════════════
 
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -167,7 +167,7 @@ const GOVERNOR_SETTINGS_SCHEMA = [
 		hint: "卡死被拦下后自动重试续跑的最多次数；设为 0 表示卡死一次就直接暂停，不再自动续跑。" },
 	{ key: "g1AutoResumeSwitchAction", advanced: true, label: "续跑时强制换一种动作", type: "boolean", group: "卡死后自动续跑",
 		hint: "开启后，自动续跑的回合会强制切换动作类别，避免重复踩同一个坑。" },
-	{ key: "notifyChannels", label: "通知渠道", type: "multi-select",
+	{ key: "notifyChannels", label: "通知渠道（已废弃）", type: "multi-select",
 		options: [
 			{ value: "GUI", label: "界面面板展示" },
 			{ value: "board", label: "任务看板" },
@@ -175,7 +175,7 @@ const GOVERNOR_SETTINGS_SCHEMA = [
 			{ value: "IM", label: "即时通讯" }
 		],
 		group: "通知",
-		hint: "卡死拦截走到“自动续跑耗尽”后，通过哪些渠道提醒你。默认界面面板展示。" },
+		hint: "已废弃（T4.ptc）：拦截提醒实际总是经事件流展示（governor/step-rejected 等事件）；board/webhook/IM 从未实现。本项仅为兼容已持久化设置而保留，改动它不影响行为。" },
 	{ key: "maxSessions", advanced: true, label: "治理状态最多跟踪的会话数", type: "number", min: 10, max: 2000, group: "高级",
 		hint: "同时跟踪治理状态的会话数量上限，避免内存占用过高。" }
 ];

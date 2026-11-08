@@ -134,8 +134,17 @@ export async function apply(ctx, config) {
     if(detecting||!active)return;detecting=true;
     try {const current=await signature();if(!active||current===previous)return;previous=current;safeMode=false;await refreshed().catch(()=>{});}catch(error){ctx.logger.warn('Deep PTC: upstream detection failed (%s); retaining the active preset',error.message);}finally{detecting=false;}
   };
+  // T4.ptc 事件驱动化: loader/volatile-update is the primary channel; the
+  // interval is a FALLBACK for signature sources the loader does not track
+  // (settings document, official preset bytes). 5s → 30s: the event covers the
+  // common case, and the fallback only bounds staleness for the rest. The
+  // interval stays unref'd (a background heuristic must never hold the process).
   ctx.on('loader/volatile-update', detect);
-  const upstreamWatch=setInterval(detect,5000);upstreamWatch.unref?.();
+  const pollMs = (() => {
+    const raw = Number(process.env.DSH_DEEP_PTC_POLL_MS);
+    return Number.isInteger(raw) && raw >= 5000 ? raw : 30_000;
+  })();
+  const upstreamWatch=setInterval(detect,pollMs);upstreamWatch.unref?.();
   ctx.effect(()=>()=>{active=false;clearInterval(upstreamWatch);});
   ctx.inject(['settings'], child => {
     child.effect(() => child.settings.configure({ auto: false }, ctx.fiber));
