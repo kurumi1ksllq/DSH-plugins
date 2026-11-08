@@ -27,6 +27,10 @@ test('client source parts exist and stay ordered', () => {
   const names = require$read(dir)
   assert.ok(names.length >= 10, 'expected the ordered source parts, got: ' + names.join(','))
   assert.ok(names.includes('10-header.js') && names.includes('99-tail.js'), 'first/last part missing')
+  // The build script sorts by numeric prefix; this asserts the listing order matches,
+  // so a rename that breaks numeric ordering cannot pass silently.
+  const sorted = [...names].sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10) || (a < b ? -1 : 1))
+  assert.deepEqual(names, sorted, 'part names must already be in numeric-prefix order')
 })
 
 function require$read(dir) {

@@ -1,3 +1,4 @@
+/** GENERATED FILE — built from client/ parts by scripts/build-inventory-client.mjs; edit the parts, not this file. */
 /**
  * dsh-inventory — browser half.
  *

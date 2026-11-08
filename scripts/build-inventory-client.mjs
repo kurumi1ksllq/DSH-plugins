@@ -21,8 +21,17 @@ const banner = readFileSync(join(partsDir, '.banner.js'), 'utf8')
 const parts = readdirSync(partsDir)
   .filter((name) => /^\d{2,}-.*\.js$/.test(name))
   .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10) || (a < b ? -1 : 1))
-const body = parts.map((name) => readFileSync(join(partsDir, name), 'utf8'))
-const built = banner + body.join('')
+const body = parts.map((name) => {
+  const text = readFileSync(join(partsDir, name), 'utf8')
+  if (text !== '' && !text.endsWith('\n')) {
+    console.error(name + ': part does not end with a newline — concatenation would fuse its last line into the next part')
+    process.exit(1)
+  }
+  return text
+})
+// Generated-file marker so nobody edits the artifact by hand (P2: artifact self-identification).
+const marker = '/** GENERATED FILE — built from client/ parts by scripts/build-inventory-client.mjs; edit the parts, not this file. */\n'
+const built = marker + banner + body.join('')
 
 const check = process.argv.includes('--check')
 if (check) {
