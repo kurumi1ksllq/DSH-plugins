@@ -24,5 +24,5 @@
     "run": 0,
     "max": 2
   },
-  "note": "vault 字典经核实有消费方(自身组件),不删;#132 locale 化另行覆盖 deep-ptc"
+  "note": "T4.df 已删 stashes 死键(#125)。vault 的 credential-vault NS 字典保留:其键被自身组件(client.js 内 CredentialVault 渲染)消费,且 bundle dsh.client 清单声明该入口——按 spec E「有消费方或删除」口径不删;deep-ptc 模型文案 locale 化在 #132。"
 }
