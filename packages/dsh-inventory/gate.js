@@ -145,7 +145,7 @@ export function apply(ctx, rawConfig) {
     }
   }
 
-  emit('info', `${LOG} activated pid=${process.pid} config=${JSON.stringify(config)}`)
+  emit('info', `${LOG} activated pid=${process.pid} config=${JSON.stringify(config, (_, value) => (value === Infinity ? 'Infinity' : value))}`)
 
   /** agentId -> Fiber[] mounted for that agent. Entries are pre-registered at
    * agent/created time so a fiber landing later (fast or late) is always
