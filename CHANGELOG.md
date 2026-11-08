@@ -12,6 +12,29 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.9.0 — governor 拆分为模块化结构(#116)
+
+- **lib/governor.js 拆分**:5007 行单文件(约 250 个顶层声明)按声明块等价整块搬移为六个模块:
+  governor-peer(惰性 dsh-llm peer 导入)/governor-core(§0 共享设施 + §1 G1/G2 判据)/
+  governor-anchor(§2 软切基础层:能力探测、结论分析、锚点事件)/governor-settings(设置 schema 与
+  各检测器运行期可调阈值)/governor-softcut(软切检测器群)/governor-apply(§4 装配 + 外部软切服务)。
+  声明体逐字未改(生成器断言「文件头 + 声明块拼合 === 原文件」字节级成立);import 语句与每模块
+  头注释为唯二新增。依赖图无环:peer/core/settings ← anchor ← softcut ← apply ← governor.js(装配,
+  保留原文件头注释与单行 export 导出面,exports["./governor"] 指向不变)。
+- 惰性 peer 导入段(顶层 await)落在 governor-peer.mjs,装配经 import 链先求值,不再占用装配文件;
+  new Function 型测试装载(test-governor/eval-module.mjs)改为递归展开装配入口的 governor 模块导入,
+  拼接产物经 node --check 验证语法有效。
+- files 白名单同步列出六个 governor 模块。
+
+### dsh-websearch-failover 0.4.0 — 布局标准化平铺(#118)
+
+- **plugin/ 子目录提升包根**:index.js/client.js/cordis.patch.yml/icon.svg/locale 直接在
+  packages/dsh-websearch-failover/(全仓唯一异构布局退役)。构建副本链退役:
+  build-plugin.mjs、check-artifacts.mjs、install.mjs 及根 scripts 的
+  build:websearch/check:websearch 引用删除——lib/ 即源码本体,无"副本新鲜度"问题。
+- 包名不对称显式迁移:根 package.json name websearch-dsh-plugin → dsh-websearch-failover。
+- engines.dsh 补声明。/websearch-failover/api 契约与状态文件格式原样。
+
 ### dsh-deep-ptc-mode 1.8.0 — 吸收 stall-governor 与 git-bash-tool(#112)
 
 - **包数 7→5**。patch 七行:deep-ptc-settings 主入口 + bash/pwsh 四条覆盖行 + 两行 insert
