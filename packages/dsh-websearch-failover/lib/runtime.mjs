@@ -164,7 +164,11 @@ export function recordResult(runtime, id, outcome, { at = Date.now(), message } 
   const calls = Number.isFinite(previous.calls) ? previous.calls : 0
   const successes = Number.isFinite(previous.successes) ? previous.successes : 0
   const failures = Number.isFinite(previous.failures) ? previous.failures : 0
+  const aborts = Number.isFinite(previous.aborts) ? previous.aborts : 0
   const success = outcome === 'ok'
+  // T4.web ABORTED 计数: an aborted attempt is user intent, not provider
+  // failure — it gets its own counter instead of inflating `failures`.
+  const aborted = outcome === 'aborted'
   const detail = typeof message === 'string' && message.length > 0 ? message.slice(0, 300) : null
 
   return {
@@ -175,13 +179,31 @@ export function recordResult(runtime, id, outcome, { at = Date.now(), message } 
         calls: calls + 1,
         successes: successes + (success ? 1 : 0),
         failures: failures + (success ? 0 : 1),
+        aborts: aborts + (aborted ? 1 : 0),
         lastUsedAt: new Date(Number.isFinite(at) ? at : Date.now()).toISOString(),
         lastOutcome: String(outcome ?? 'unknown'),
-        lastError: success ? (previous.lastError ?? null) : detail,
+        lastError: success || aborted ? (previous.lastError ?? null) : detail,
       },
     },
     updatedAt: Date.now(),
   }
+}
+
+/**
+ * T4.web resetStats: zero one provider's stats, or every provider when `id`
+ * is absent. Call counts reset to zero — the panel shows the history of the
+ * CURRENT deployment, and the user asking for a reset wants a blank slate.
+ */
+export function resetStats(runtime, id) {
+  const state = normalizeRuntime(runtime)
+  if (typeof id === 'string' && id.trim().length > 0) {
+    const target = id.trim()
+    if (!isPlainObject(state.stats[target])) return state
+    const stats = { ...state.stats }
+    delete stats[target]
+    return { ...state, stats, updatedAt: Date.now() }
+  }
+  return { ...state, stats: {}, updatedAt: Date.now() }
 }
 
 /** Store the last probed balance for one provider. */

@@ -32,6 +32,37 @@
       "enabled": false
     },
     {
+      "id": "serper",
+      "kind": "serper",
+      "apiKeyEnv": "SERPER_API_KEY",
+      "timeoutMs": 12000
+    },
+    {
+      "id": "brave",
+      "kind": "brave",
+      "apiKeyEnv": "BRAVE_API_KEY",
+      "timeoutMs": 12000
+    },
+    {
+      "id": "bocha",
+      "kind": "bocha",
+      "apiKeyEnv": "BOCHA_API_KEY",
+      "timeoutMs": 15000
+    },
+    {
+      "id": "jina",
+      "kind": "jina",
+      "apiKeyEnv": "JINA_API_KEY",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "searxng",
+      "kind": "searxng",
+      "endpoint": "http://127.0.0.1:8888/search",
+      "auth": { "type": "basic", "usernameEnv": "SEARXNG_USER", "passwordEnv": "SEARXNG_PASS" },
+      "timeoutMs": 8000
+    },
+    {
       "id": "example-custom",
       "kind": "custom",
       "apiKeyEnv": "EXAMPLE_SEARCH_KEY",

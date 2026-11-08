@@ -28,7 +28,7 @@ class ApiError extends Error {
  * }} service
  */
 export function createApiHandler(service) {
-  const { snapshot, reorder, refresh, setEnabled } = service
+  const { snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn } = service
   const maxBodyBytes = Number.isFinite(service.maxBodyBytes) ? service.maxBodyBytes : MAX_BODY_BYTES
 
   const routes = {
@@ -53,6 +53,17 @@ export function createApiHandler(service) {
         if (typeof body?.id !== 'string' || body.id.trim().length === 0) throw new ApiError(400, 'invalid-enable', 'id is required')
         if (typeof body?.enabled !== 'boolean') throw new ApiError(400, 'invalid-enable', 'enabled must be a boolean')
         return setEnabled(body.id.trim(), body.enabled)
+      },
+    },
+    [`${API_BASE}/stats/reset`]: {
+      methods: ['POST'],
+      run: ({ body }) => {
+        // T4.web resetStats: { id } zeroes one provider, {} zeroes the panel.
+        if (body?.id !== undefined && (typeof body.id !== 'string' || body.id.trim().length === 0)) {
+          throw new ApiError(400, 'invalid-reset', 'id must be a non-empty string when present')
+        }
+        if (typeof resetStatsFn !== 'function') throw new ApiError(500, 'unsupported', 'resetStats is not wired in this deployment')
+        return resetStatsFn(typeof body?.id === 'string' ? body.id.trim() : undefined)
       },
     },
   }

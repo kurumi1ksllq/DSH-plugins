@@ -229,7 +229,7 @@ function mapList(list, map, limit) {
 
 // ---------------------------------------------------------------- adapters
 
-const ADAPTERS = {
+export const ADAPTERS = {
   async tavily(p, { query, limit, key }, signal) {
     const json = await httpJson(
       p.endpoint ?? 'https://api.tavily.com/search',
@@ -326,12 +326,21 @@ const ADAPTERS = {
     const url = new URL(p.endpoint);
     url.searchParams.set('q', query);
     url.searchParams.set('format', 'json');
-    const json = await httpJson(
-      url,
-      { method: 'GET', headers: { accept: 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) } },
-      p.timeoutMs,
-      signal,
-    );
+    const headers = { accept: 'application/json' };
+    // T4.web: SearXNG instances authenticate three ways in the wild —
+    // default Bearer, HTTP Basic, or a named header. `auth.type` picks one;
+    // absent, the historical Bearer behaviour is unchanged.
+    const auth = p.auth ?? null;
+    if (auth?.type === 'basic') {
+      const user = typeof auth.usernameEnv === 'string' ? (process.env[auth.usernameEnv] ?? '') : '';
+      const pass = typeof auth.passwordEnv === 'string' ? (process.env[auth.passwordEnv] ?? '') : '';
+      headers.authorization = `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
+    } else if (auth?.type === 'header' && typeof auth.header === 'string' && auth.header.trim() !== '') {
+      if (typeof key === 'string' && key.length > 0) headers[auth.header.trim()] = key;
+    } else if (typeof key === 'string' && key.length > 0) {
+      headers.authorization = `Bearer ${key}`;
+    }
+    const json = await httpJson(url, { method: 'GET', headers }, p.timeoutMs, signal);
     return mapList(json.results, { title: 'title', url: 'url', snippet: 'content', publishedAt: 'publishedDate' }, limit);
   },
 
@@ -417,6 +426,23 @@ export const KINDS = Object.keys(ADAPTERS);
  * Quota/auth/transport failures put that provider on cooldown so the next
  * search skips it instead of burning another request.
  */
+/**
+ * T4.web ALL_FAILED guidance: when every provider failed, the agent reading
+ * this error is the one that can actually fix it — but only if the error says
+ * HOW. The text names the two real remedies (check/enable providers in the
+ * Tools page panel; wait out quota cooldowns) instead of a bare failure list.
+ */
+function t4Guidance(attempts) {
+  const cooling = attempts.filter((a) => a.outcome === 'skipped').length;
+  const failed = attempts.length - cooling;
+  return (
+    '全部搜索提供方都失败了。' +
+    (cooling > 0 ? `${cooling} 个在冷却中（多为配额/认证问题），` : '') +
+    `${failed} 个尝试失败。请检查 Tools 页的 Web 搜索提供方面板：确认至少启用了一个提供方且其 key 已配置 ` +
+    '(enabled=true、apiKeyEnv 指向的环境变量有值)，或等待配额冷却结束；也可以在面板中调整优先级后重试。'
+  );
+}
+
 export async function search({ query, limit, config, statePath, force = false, signal, now = Date.now() }) {
   if (!query || query.trim().length === 0) throw new SearchError('empty query', 'BAD_QUERY');
   const { providers, defaults } = config;
@@ -424,6 +450,17 @@ export async function search({ query, limit, config, statePath, force = false, s
   const want = Math.max(1, Math.min(Number(limit ?? defaults.limit) || defaults.limit, 50));
   const attempts = [];
   let stateDirty = false;
+
+  // T4.web 冷却过期清理: entries whose cooldown has elapsed are dead weight —
+  // they linger in the state file forever (until the provider happens to
+  // succeed) and make the panel show stale cooldown rows. Prune them up
+  // front; pruning IS a state change worth persisting.
+  for (const [id, entry] of Object.entries(state.providers)) {
+    if (!cooldownActive(entry, now)) {
+      delete state.providers[id];
+      stateDirty = true;
+    }
+  }
 
   for (const provider of providers) {
     const cooldown = state.providers[provider.id];
@@ -456,7 +493,21 @@ export async function search({ query, limit, config, statePath, force = false, s
       if (stateDirty) writeState(state, statePath);
       return { provider: provider.id, kind: provider.kind, query, sources, attempts, truncated: sources.length >= want };
     } catch (error) {
-      if (error?.code === 'ABORTED' || signal?.aborted === true) throw error;
+      if (error?.code === 'ABORTED' || signal?.aborted === true) {
+        // T4.web ABORTED 计数: attribute the abort to the provider that was
+        // in flight, so the panel's stats show the cancellation instead of
+        // silently dropping the attempt.
+        attempts.push({
+          provider: provider.id,
+          outcome: 'aborted',
+          elapsedMs: Date.now() - started,
+        });
+        if (stateDirty) writeState(state, statePath);
+        // Attach the attempt list so index.js can record the aborted attempt
+        // the same way it records ALL_FAILED ones.
+        error.attempts = attempts;
+        throw error;
+      }
       const kind = error?.failureKind ?? (error?.code === 'KEY_MISSING' ? 'auth' : 'error');
       const elapsedMs = Date.now() - started;
       const seconds = error?.retryAfter ?? defaults.cooldown[kind] ?? defaults.cooldown.error;
@@ -486,7 +537,7 @@ export async function search({ query, limit, config, statePath, force = false, s
 
   if (stateDirty) writeState(state, statePath);
   throw new SearchError(
-    `all ${providers.length} provider(s) failed or cooling down; attempts: ${attempts
+    `${t4Guidance(attempts)} all ${providers.length} provider(s) failed or cooling down; attempts: ${attempts
       .map((a) => `${a.provider}=${a.outcome}${a.kind ? `(${a.kind})` : ''}`)
       .join(', ')}`,
     'ALL_FAILED',
