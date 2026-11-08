@@ -1,7 +1,7 @@
 {
   "issue": 126,
   "grade": "standard",
-  "stage": "tdd",
+  "stage": "done",
   "updatedAt": "2026-11-08T20:55:19.664Z",
   "tickets": [
     {
@@ -45,5 +45,11 @@
     "contract": "pass (P0 union fixed @ 71c2986)",
     "correctness": "pass (P1 whitelist fixed @ 71c2986)",
     "at": "2026-11-08T21:42:30.180Z"
+  },
+  "stageAt": "2026-11-08T21:52:57.305Z",
+  "merge": {
+    "sha": "6748f5f",
+    "at": "2026-11-09T05:53Z",
+    "tag": "dsh-deep-ptc-mode@1.10.0"
   }
 }

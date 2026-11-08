@@ -1,0 +1,27 @@
+{
+  "issue": 127,
+  "grade": "standard",
+  "stage": "tdd",
+  "updatedAt": "2026-11-08T21:52:57.306Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "审计五包 locale NS 键集与消费方",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "删除零消费死键(vault 字典等)",
+      "state": "todo"
+    },
+    {
+      "id": 3,
+      "title": "仓库级 locale 键集契约测试",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2
+  }
+}
