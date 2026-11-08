@@ -42,7 +42,7 @@ const SHIPPED = new Map([
   ['dsh-inventory', 'packages/dsh-inventory'],
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['dev-flow', 'packages/dev-flow'],
-  ['dsh-websearch-failover', 'packages/dsh-websearch-failover/plugin'],
+  ['dsh-websearch-failover', 'packages/dsh-websearch-failover'],
 ])
 
 function parseArgs(argv) {

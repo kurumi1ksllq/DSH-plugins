@@ -9,9 +9,7 @@
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
 | [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
-| [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover/plugin) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
-
-`packages/dsh-websearch-failover` 是 websearch 的仓库根（含 `lib/`、`scripts/`、`test/`），真正装进 DSH 的 bundle 是它下面的 [`plugin/`](packages/dsh-websearch-failover/plugin)。
+| [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 
 ## 装上
 
@@ -22,18 +20,17 @@
 ```bash
 git clone https://github.com/kurumi1ksllq/DSH-plugins.git ~/DSH-plugins
 cd ~/DSH-plugins && pnpm install
-pnpm build:websearch   # 生成 packages/dsh-websearch-failover/plugin/lib（被 gitignore，clone 后不存在）
 ```
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
 
-本仓库共 5 个 bundle,下面全部必装(`dsh-websearch-failover` 走 `/plugin` 子目录)。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
+本仓库共 5 个 bundle,下面全部必装。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
 
 ```json
 "dependencies": {
   "dsh-credential-vault": "link:/path/to/DSH-plugins/packages/dsh-credential-vault",
   "dsh-inventory": "link:/path/to/DSH-plugins/packages/dsh-inventory",
-  "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover/plugin",
+  "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover",
   "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow",
   "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
 }

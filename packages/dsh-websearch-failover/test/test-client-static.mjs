@@ -21,10 +21,10 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 
-const CLIENT = path.join(root, 'plugin', 'client.js');
-const ZH = path.join(root, 'plugin', 'locale', 'zh.json');
-const EN = path.join(root, 'plugin', 'locale', 'en.json');
-const ICON = path.join(root, 'plugin', 'icon.svg');
+const CLIENT = path.join(root, 'client.js');
+const ZH = path.join(root, 'locale', 'zh.json');
+const EN = path.join(root, 'locale', 'en.json');
+const ICON = path.join(root, 'icon.svg');
 
 const MODULE_ID = 'dsh-websearch-failover';
 const LOCALE_NS = 'websearch-failover';
@@ -194,13 +194,13 @@ function makeCtx() {
   return { ledger, ctx };
 }
 
-test('plugin/client.js exists and parses as a classic browser script', () => {
+test('client.js exists and parses as a classic browser script', () => {
   const source = readClient();
   const factory = new Function('window', 'require', 'document', source);
   assert.equal(typeof factory, 'function');
 });
 
-test('plugin/client.js passes node --check on a temp .cjs copy', () => {
+test('client.js passes node --check on a temp .cjs copy', () => {
   readClient();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-wsf-client-'));
   const copy = path.join(dir, 'client.cjs');
@@ -209,7 +209,7 @@ test('plugin/client.js passes node --check on a temp .cjs copy', () => {
     execFileSync(process.execPath, ['--check', copy], { stdio: 'pipe' });
   } catch (error) {
     const detail = error && error.stderr ? String(error.stderr) : String(error && error.message);
-    assert.fail(`node --check rejected plugin/client.js:\n${detail}`);
+    assert.fail(`node --check rejected client.js:\n${detail}`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -386,7 +386,7 @@ test('bundle draws balances proportionally and clamps bar widths', () => {
   assert.ok(source.includes('isFinite'), 'numeric checks must reject NaN/Infinity');
 });
 
-test('plugin/icon.svg is a local currentColor SVG glyph', () => {
+test('icon.svg is a local currentColor SVG glyph', () => {
   assert.ok(fs.existsSync(ICON), `missing ${ICON}`);
   const svg = fs.readFileSync(ICON, 'utf8');
   assert.match(svg, /<svg[\s>]/);

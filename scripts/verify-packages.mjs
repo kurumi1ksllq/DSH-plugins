@@ -43,7 +43,7 @@ const EXPECTED = [
   ['dsh-inventory', 'dsh-inventory'],
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['dev-flow', 'dev-flow'],
-  ['dsh-websearch-failover', 'dsh-websearch-failover/plugin'],
+  ['dsh-websearch-failover', 'dsh-websearch-failover'],
 ]
 
 function readJson(file) {

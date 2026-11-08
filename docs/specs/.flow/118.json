@@ -1,0 +1,25 @@
+{
+  "issue": 118,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-08T02:14:40.692Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "plugin/ 平铺标准化",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
