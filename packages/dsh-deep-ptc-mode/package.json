@@ -40,15 +40,12 @@
     "assets/icon.png",
     "TEST_REPORT.md",
     "lib-governor.js",
-    "governor-client.js",
     "lib-gitbash.js",
     "test-governor",
-    "governor-old-keys-baseline.json",
     "README-governor.md",
     "README-gitbash.md",
     "LICENSE-governor",
-    "install-governor.ps1",
-    "compatibility-governor.json"
+    "test-governor/old-keys-baseline.json"
   ],
   "engines": {
     "node": ">=24",
@@ -82,7 +79,6 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json",
     "./governor": "./lib-governor.js",
-    "./governor-client": "./governor-client.js",
     "./git-bash": "./lib-gitbash.js"
   },
   "scripts": {

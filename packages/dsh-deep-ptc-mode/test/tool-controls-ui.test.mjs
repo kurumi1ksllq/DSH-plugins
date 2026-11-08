@@ -10,7 +10,11 @@ function fixture() {
   const calls = [];
   let outcome = { ok: true, value: { commandId: 'test-command', result: { kind: 'success' } } };
   vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), {
-    window: { __ModuleLoader__: { load: definition => { plugin = definition.factory(() => React); } } },
+    window: { __ModuleLoader__: { load: definition => {
+      // #112 双模块文件:本套件只测 deep-ptc 的 composer dock 段
+      if (definition.id !== 'dsh-deep-ptc-mode') return;
+      plugin = definition.factory(() => React);
+    } } },
   });
   const ctx = { locale: { bind: () => key => key, register() {} }, effect: fn => fn(),
     configForms: { get() {}, whileServed: () => () => {} },

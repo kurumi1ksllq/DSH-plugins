@@ -122,7 +122,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 | P1-7 | 版本无纪律:全历史仅 1 次 bump;`plugin/` 0.2.0 与仓库根 `websearch-dsh-plugin` 0.3.0 是同一个东西的两个版本号 | 定「改代码必须 bump」+ 自动检查 |
 | P1-8 | `dsh-git-bash-tool` 无 test、无 scripts 块,`pnpm -r --if-present` 静默跳过 | 补最小 test + verify 断言每包必须有 `scripts.test` |
 | P1-9 | 当时 8 个包都没有 `engines.dsh`/DSH peer → 版本兼容检查**从不触发**,没有保护 | 补 `engines.dsh`;当前运行时是 `0.2.1-rc.5` |
-| P1-10 | 无 CI(`.github` 不存在);README 说「五个插件」(当时)实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
+| P1-10 | 无 CI(`.github` 不存在);README 说「六个插件」(当时)实际 8 个、安装片段只列 5 个依赖 | 数字从 `packages/` 生成 + 加最小 CI |
 | P1-11 | registry 车道已有一处真实落后:`@wxg-prc-cpg/browser-skill-dsh-plugin` 装 0.4.0,最新 0.4.1 | 见 §4.3 |
 | P1-12 | 更新路径未脚本化,全靠手工 `git fetch` | 见 §4.2 |
 

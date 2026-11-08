@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.8.0 — 2026-11-08
+
+吸收 dsh-stall-governor(失速治理)与 dsh-git-bash-tool(Git Bash 替换)为单包(#112):
+
+- **patch 七行**:deep-ptc-settings 主入口(insert)+ bash/pwsh 四条覆盖行(timeoutMs 60000 原样重述)+ dsh-stall-governor/git-bash-tool 两行 insert(id 原样,name 指 ./governor、./git-bash 子路径导出,防三重加载)。
+- **宿主互操作设施全保留**:upstream.mjs 声明继承、base-snapshot 兜底、compatibility.json snapshotSha256 链(0.2.2-rc.1 未变,sha ce0214…)、黄金键 baseline(test-governor/old-keys-baseline.json)。
+- **版本纪律**:1.7.4 宿主引用声明化(Phase 0),1.8.0 吸收;engines.dsh 取严 >=0.2.2-rc.1 <0.3.0-0;新增 optional peer dsh-llm/dsh-agent-loop。
+- **已知边界**:governor 设置页客户端半区的装载路径待部署实机验证(双 client 机制);纪律⑤文案(≤10s)与 deep-ptc 5s 暂停纪律的口径统一、notifyChannels 处置在 T4.ptc。
+
+## 1.7.4 — 2026-11-07
+
+- 宿主引用声明化(T0.1/#98):optional peer 补 dsh-session/dsh-skill 等 13 个宿主包,全部 fail-open。
+
 ## 1.7.3 — 2026-11-05
 
 - 优先读取运行宿主的官方预设注册表并自动检测更新；修复官方工具误隔离、暂停误判和桌面重载按钮的依赖/返回值处理。保留后台运行与插话。
