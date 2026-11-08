@@ -36,8 +36,14 @@
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m23s @ 71c2986"
   },
-  "scopeNote": "locale 化(~200 键)按调研建议拆独立票,本 PR 覆盖其余五项"
+  "scopeNote": "locale 化(~200 键)按调研建议拆独立票,本 PR 覆盖其余五项",
+  "review": {
+    "contract": "pass (P0 union fixed @ 71c2986)",
+    "correctness": "pass (P1 whitelist fixed @ 71c2986)",
+    "at": "2026-11-08T21:42:30.180Z"
+  }
 }
