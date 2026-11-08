@@ -52,6 +52,9 @@ export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE,
   // T4.inv: an upper bound on the upward walk. `Infinity` (the default) keeps
   // the historical walk-to-root; a finite limit of 0 means "cwd only". The
   // start directory itself does not consume budget — only parent steps do.
+  // A NEGATIVE limit is normalized to Infinity (walk to root): the flag is a
+  // safety valve against runaway walks, so an invalid value fails open toward
+  // the documented default rather than silently disabling parent search.
   let stepsLeft = Number.isFinite(searchParentLimit) && searchParentLimit >= 0
     ? Math.floor(searchParentLimit)
     : Infinity;

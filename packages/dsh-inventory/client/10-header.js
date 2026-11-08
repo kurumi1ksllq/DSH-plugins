@@ -247,6 +247,7 @@ window.__ModuleLoader__.load({
       syncNothingSelected: '先勾选要装的项。',
       syncEmpty: '清单里没有可同步的项。',
       syncErrorTitle: '同步出错',
+      syncFetchError: '上次拉取失败',
       // Live sections: web-search providers and the injected prompt text.
       providerHint: '余额按各家接口返回的单位显示，接口没有余额字段时给出中性提示。',
       providerPriorityHint: '顺序即调用优先级：排在最上面的提供方最先被调用，额度耗尽或报错时自动切到下一家。',
@@ -575,6 +576,7 @@ window.__ModuleLoader__.load({
       syncRequires: 'needs',
       syncNothingSelected: 'Tick something first.',
       syncEmpty: 'The manifest has nothing to sync.',
+      syncFetchError: 'Last pull failed',
       syncErrorTitle: 'Sync error',
       // Live sections: web-search providers and the injected prompt text.
       providerHint: 'Balances use the unit each provider API reports; APIs without a balance field get a neutral hint.',
