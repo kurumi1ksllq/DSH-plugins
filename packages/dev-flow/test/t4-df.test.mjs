@@ -16,7 +16,7 @@ test('a review stuck at pending-decision lands in needsUser as a blocker', async
     issues: [{ number: 9, state: 'open' }],
     prs: [{ number: 30, headRefName: 'issue-9-x' }],
     mergedPrs: [],
-    checks: { 'issue-9-x': 'green' },
+    checks: { 30: 'green' },
     flowStates: {
       9: { issue: 9, grade: 'standard', stage: 'review', review: { state: 'pending-decision', axes: 2 }, tickets: [] },
     },
@@ -64,8 +64,11 @@ test('SKILL.md narrows read-only triggers and cross-references the panel', () =>
   assert.match(skill, /Git 面板/)
 })
 
-test('client.js carries the panel→skill hint with both locales', () => {
+test('client.js carries the panel→skill hint in BOTH dicts', () => {
   const source = readFileSync(join(pkg, 'client.js'), 'utf8')
-  assert.match(source, /boardSkillHint/)
-  assert.match(source, /dev-flow skill/)
+  // The zh value contains 会接手; the en value contains drives this flow —
+  // requiring both makes deleting either dict's key red.
+  assert.match(source, /boardSkillHint: '[^']*会接手/)
+  assert.match(source, /boardSkillHint: '[^']*drives this flow/)
+  assert.match(source, /t\('boardSkillHint'\)/)
 })

@@ -1,6 +1,6 @@
 ---
 name: dev-flow
-description: 完整工程开发流程 skill：确认仓库 → 提交 issue → 建分支 → TDD 开发 → push → 开 PR → 查 CI → review → merge。任何改代码的请求（"帮我改""修个 bug""加个功能""开发…"）先调本 skill；出现 dev-flow、issue、分支、PR、CI、review、merge 等词必然触发。
+description: 完整工程开发流程 skill：确认仓库 → 提交 issue → 建分支 → TDD 开发 → push → 开 PR → 查 CI → review → merge。任何改代码的请求（"帮我改""修个 bug""加个功能""开发…"）先调本 skill；出现 dev-flow、issue、分支、PR、CI、review、merge 等词必然触发；纯只读查询（不产生仓库文件写入）不触发。
 ---
 
 # dev-flow：issue → branch → TDD → PR → CI → review → merge
