@@ -1,0 +1,42 @@
+{
+  "issue": 124,
+  "grade": "standard",
+  "stage": "tdd",
+  "updatedAt": "2026-11-08T07:28:51.400Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "providers.example 补 4 家",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "SearXNG 鉴权变体",
+      "state": "todo"
+    },
+    {
+      "id": 3,
+      "title": "ABORTED 计数",
+      "state": "todo"
+    },
+    {
+      "id": 4,
+      "title": "冷却过期清理",
+      "state": "todo"
+    },
+    {
+      "id": 5,
+      "title": "resetStats",
+      "state": "todo"
+    },
+    {
+      "id": 6,
+      "title": "ALL_FAILED 消息加 agent 引导",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2
+  }
+}

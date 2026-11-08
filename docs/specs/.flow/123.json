@@ -1,7 +1,7 @@
 {
   "issue": 123,
   "grade": "standard",
-  "stage": "tdd",
+  "stage": "done",
   "updatedAt": "2026-11-08T06:12:43.396Z",
   "tickets": [
     {
@@ -34,5 +34,11 @@
     "contract": "pass (P0/P2 fixed @ 41bf3b8, 858fb20)",
     "correctness": "pass (P0 fixed @ 41bf3b8)",
     "at": "2026-11-08T07:22:50.571Z"
+  },
+  "stageAt": "2026-11-08T07:28:51.400Z",
+  "merge": {
+    "sha": "431d0cc",
+    "at": "2026-11-08T15:30Z",
+    "tag": "dsh-inventory@0.12.0"
   }
 }
