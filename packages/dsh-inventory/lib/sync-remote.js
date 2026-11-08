@@ -449,11 +449,14 @@ function withTimeoutAbort(timeoutMs) {
   }
   const controller = typeof AbortController === 'function' ? new AbortController() : null
   const promise = new Promise((_, reject) => {
+    // No unref here: this timer CARRIES the reject — if the event loop has
+    // nothing else to do, dropping it lets the process exit with the request
+    // still pending and the caller's await never settling. One timer per
+    // request, self-removing on fire; the race settles either way.
     const timer = setTimeout(() => {
       controller?.abort()
       reject(new Error(`超时 ${timeoutMs}ms`))
     }, timeoutMs)
-    timer.unref?.()
   })
   return { promise, signal: controller?.signal }
 }

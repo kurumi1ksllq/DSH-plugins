@@ -153,8 +153,19 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
     : Number.isFinite(options.now) ? options.now : Date.now()
   const ttlMs = Number.isFinite(options.ttlMs) && options.ttlMs > 0 ? options.ttlMs : 0
   if (ttlMs > 0 && remoteCache !== null && now - remoteCache.at < ttlMs) {
-    // Fresh enough: serve the cached payload without touching the network.
-    return { ...remoteCache.payload, fromCache: true, cacheAgeMs: now - remoteCache.at }
+    // Fresh enough to skip the network — but the envelope (state view +
+    // capability flags) reflects the CONFIG AT CACHE TIME. Recompute it from
+    // the live state so a configure-during-TTL (new token, new repo) is never
+    // masked by a stale envelope; only the fetched rows/manifest are cached.
+    const freshBase = {
+      ...base,
+      capabilities: {
+        canPublish: typeof state.token === 'string' && state.token.length > 0 && transport.error === undefined,
+        canPull: transport.error === undefined,
+        reason: transport.error ?? null,
+      },
+    }
+    return { ...remoteCache.payload, ...freshBase, fromCache: true, cacheAgeMs: now - remoteCache.at }
   }
   const fetched = await fetchFleet(readOnlyState, {
     fetchImpl: options.fetchImpl,
@@ -377,7 +388,12 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
   // An unchanged publish wrote nothing, so it is not a push: bumping
   // `lastPushAt` there would make the panel claim a commit that never
   // happened, and hide the real age of the last one.
-  if (result.unchanged !== true) writeState({ lastPushAt: now })
+  // T4.inv: the remote just changed under this machine's own pen — a cached
+  // fleet view predating the publish would lie to the next panel render.
+  if (result.unchanged !== true) {
+    remoteCache = null
+    writeState({ lastPushAt: now })
+  }
   return result
 }
 
