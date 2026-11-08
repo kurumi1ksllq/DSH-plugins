@@ -22,7 +22,7 @@ async function ok(name, fn) {
 
 // Keep the bundle self-contained the same way scripts/build-plugin.mjs will —
 // but assemble it in a probe directory, never in the checkout: writing
-// plugin/lib/ here would repair the artifact under test and hide a stale build.
+// lib/ here would repair the artifact under test and hide a stale build.
 const probe = makeProbeBundle(repoRoot)
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-http-'))

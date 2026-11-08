@@ -12,6 +12,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-websearch-failover 0.4.0 — 布局标准化平铺(#118)
+
+- **plugin/ 子目录提升包根**:index.js/client.js/cordis.patch.yml/icon.svg/locale 直接在
+  packages/dsh-websearch-failover/(全仓唯一异构布局退役)。构建副本链退役:
+  build-plugin.mjs、check-artifacts.mjs、install.mjs 及根 scripts 的
+  build:websearch/check:websearch 引用删除——lib/ 即源码本体,无"副本新鲜度"问题。
+- 包名不对称显式迁移:根 package.json name websearch-dsh-plugin → dsh-websearch-failover。
+- engines.dsh 补声明。/websearch-failover/api 契约与状态文件格式原样。
+
 ### dsh-deep-ptc-mode 1.8.0 — 吸收 stall-governor 与 git-bash-tool(#112)
 
 - **包数 7→5**。patch 七行:deep-ptc-settings 主入口 + bash/pwsh 四条覆盖行 + 两行 insert
