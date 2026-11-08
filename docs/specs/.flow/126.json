@@ -6,32 +6,38 @@
   "tickets": [
     {
       "id": 1,
-      "title": "environment 枚举 + git-bash(枚举/文案/UI 白名单)",
-      "state": "todo"
+      "title": "environment 枚举 + git-bash",
+      "state": "done"
     },
     {
       "id": 2,
-      "title": "auto 感知 tool-bash 行 + execution-environment 段接管说明",
-      "state": "todo"
+      "title": "auto 感知 tool-bash 行 + execution-environment 接管说明",
+      "state": "done"
     },
     {
       "id": 3,
-      "title": "notifyChannels 砍或实现(决策)",
-      "state": "todo"
+      "title": "notifyChannels 砍(deprecated)",
+      "state": "done"
     },
     {
       "id": 4,
-      "title": "governor locale 化(硬编码中文进 NS 字典)",
+      "title": "governor locale 化 — 拆出独立票(#128),不在本 PR",
       "state": "todo"
     },
     {
       "id": 5,
-      "title": "5s 轮询事件驱动化(保留轮询兜底)",
-      "state": "todo"
+      "title": "5s 轮询事件驱动化",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "governor 设置原子写对齐",
+      "state": "done"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2
-  }
+  },
+  "scopeNote": "locale 化(~200 键)按调研建议拆独立票,本 PR 覆盖其余五项"
 }

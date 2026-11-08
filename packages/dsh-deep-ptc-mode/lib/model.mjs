@@ -10,10 +10,12 @@ import snapshot from './preset.json' with { type: 'json' };
 import baseSnapshot from './base-snapshot.json' with { type: 'json' };
 import { normalizePreferences } from './tool-policy.mjs';
 
-export const ENVIRONMENTS = ['auto', 'wsl', 'powershell', 'zsh', 'bash'];
+export const ENVIRONMENTS = ['auto', 'wsl', 'powershell', 'zsh', 'bash', 'git-bash'];
 
 export function availableEnvironments(platform) {
-  return platform === 'win32' ? ['auto', 'wsl', 'powershell'] : ['auto', 'zsh', 'bash'];
+  // T4.ptc: git-bash joins the win32 list — it is a Windows-only shell (the
+  // absorbed git-bash tool rewrites bash spawns to the Git Bash binary).
+  return platform === 'win32' ? ['auto', 'wsl', 'powershell', 'git-bash'] : ['auto', 'zsh', 'bash'];
 }
 
 export function resolveEnvironment(environment = 'auto', platform = process.platform) {
@@ -55,6 +57,7 @@ export function environmentText(environment, distribution = '') {
   const descriptions = {
     wsl: `Execution environment: WSL Bash${distribution ? ` (${distribution})` : ' (Windows default distribution)'}. The bash tool runs POSIX source via wsl.exe and bash -lc. File tools and the tool workdir use Windows host paths; Linux paths belong inside command source. WSL is available only in danger-full-access; a confined call fails without execution. Never silently fall back to PowerShell or another distribution.`,
     powershell: 'Execution environment: native Windows PowerShell. Use the pwsh tool and PowerShell syntax, native Windows paths and $env:NAME. This selection takes precedence over older workspace guidance that assumed WSL. The configured sandbox and approval policy still apply.',
+    'git-bash': 'Execution environment: Git Bash on Windows. The bash tool spawns Git Bash by absolute path; a missing binary degrades to a PATH prepend and is reported in the log. Never fall back to the WSL stub, and do not wrap commands in another bash -c — the bash tool itself already runs Git Bash.',
     zsh: 'Execution environment: native Zsh. Use the zsh tool with Zsh/POSIX command source. On macOS the executor is /bin/zsh -lc; elsewhere zsh must be installed. File tools and workdir use native host paths. The configured sandbox and approval policy still apply.',
     bash: 'Execution environment: native Bash on macOS/Linux. Use the bash tool with Bash/POSIX command source and native host paths. This is not WSL. The configured sandbox and approval policy still apply.',
   };
@@ -227,7 +230,19 @@ export function deriveDeepPtc(upstream, options = {}, platform = process.platfor
   // Execution environment: replace the official shell rows (wherever the official preset nests them)
   // with the selectable execution group in the same place. The group runs the official shell tool
   // and executor the installed Harness names; when they cannot be mapped, the official rows stay.
-  const kind = environment === 'powershell' ? 'pwsh' : 'bash';
+  // T4.ptc auto 感知: prefer the environment's natural tool kind, but fall back
+  // to whichever official shell TOOL row the preset actually carries. A
+  // powershell environment on a preset that only ships tool-bash used to fall
+  // through to the official rows wholesale; now it rides the bash row and the
+  // substitution is reported honestly in replacedShellRows.
+  const pickToolKind = (preferred, rows) => {
+    const order = preferred === 'pwsh' ? ['pwsh', 'bash'] : ['bash', 'pwsh'];
+    for (const candidate of order) {
+      if (findRow(rows, SHELL_TOOLS[candidate]) !== undefined) return candidate;
+    }
+    return preferred;
+  };
+  const kind = pickToolKind(environment === 'powershell' ? 'pwsh' : 'bash', plugins);
   const executors = { ...BASE_SNAPSHOT, ...(options.executors ?? {}) };
   const tool = findRow(plugins, SHELL_TOOLS[kind]);
   const official = executors[kind];
