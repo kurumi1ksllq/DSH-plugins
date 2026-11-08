@@ -326,9 +326,11 @@ test('client registers a sidebar entry plus a main panel and renders both states
   assert.match(text, /未安装|orphan|missing/)
   assert.match(text, /dsh-websearch-failover missing/)
   // A bundle composed of sub-rows says so instead of implying it never loaded.
-  // The harness expands leaf components in-loop (issue #93), so the badge is
-  // asserted by its rendered text rather than its element props.
-  assert.match(text, /无自身加载行/, 'row-less package carries its explanatory badge')
+  // The badge is a function component, so under the per-component harness
+  // (issue #93) it resolves fully and only its rendered text exists in the
+  // tree; the structural anchor is the rowless package's name on the same row.
+  const rowlessRow = findNode(readyTree, (node) => textOf(node).includes('dsh-doublecheck') && textOf(node).includes('无自身加载行'))
+  assert.ok(rowlessRow, 'the rowless package row must carry its explanatory badge')
 
   // The refresh button is the only path that bypasses the cache.
   const button = findNode(readyTree, (node) => node.type === 'button' && (node.props?.['aria-label'] === '刷新' || textOf(node) === '刷新'))
@@ -570,10 +572,7 @@ async function bootPanel(snapshot, { version = 'nav-case', post } = {}) {
   render(main.component, injected)
   await new Promise((resolve) => setTimeout(resolve, 0))
   const tree = () => resolveTree(render(main.component, injected))
-  // The raw element tree (components not expanded): for assertions on elements
-  // whose expansion would run child-component hooks outside the render loop.
-  const rawTree = () => render(main.component, injected)
-  return { calls, tree, rawTree, setPost: (impl) => (state.post = impl) }
+  return { calls, tree, setPost: (impl) => (state.post = impl) }
 }
 
 /** The row whose own name span is exactly `name`. */
