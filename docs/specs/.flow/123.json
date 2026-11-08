@@ -26,7 +26,13 @@
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 2,
+    "max": 2,
+    "latest": "pass 1m20s @ 858fb20"
+  },
+  "review": {
+    "contract": "pass (P0/P2 fixed @ 41bf3b8, 858fb20)",
+    "correctness": "pass (P0 fixed @ 41bf3b8)",
+    "at": "2026-11-08T07:22:50.571Z"
   }
 }
