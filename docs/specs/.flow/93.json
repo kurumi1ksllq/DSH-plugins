@@ -1,8 +1,8 @@
 {
   "issue": 93,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-09T07:40:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T07:51:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -25,11 +25,19 @@
     "run": 0,
     "max": 2,
     "status": "green",
-    "latest": "pass @ f382e56 (PR #137)"
+    "latest": "pass @ 46af30c (PR #137)"
   },
   "stageAt": "2026-11-09T07:28:00+08:00",
   "review": {
-    "state": "running",
-    "axes": 2
+    "state": "done",
+    "axes": 2,
+    "contract": "pass",
+    "correctness": "pass",
+    "at": "2026-11-09T07:45:00+08:00"
+  },
+  "merge": {
+    "sha": "d9218ba",
+    "at": "2026-11-09T07:50Z",
+    "note": "PR #137 squash;纯测试无 tag"
   }
 }
