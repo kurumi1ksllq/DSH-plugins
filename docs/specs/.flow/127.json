@@ -1,7 +1,7 @@
 {
   "issue": 127,
   "grade": "standard",
-  "stage": "tdd",
+  "stage": "done",
   "updatedAt": "2026-11-08T21:52:57.306Z",
   "tickets": [
     {
@@ -30,5 +30,11 @@
     "contract": "pass",
     "correctness": "pass",
     "at": "2026-11-08T22:12:37.308Z"
+  },
+  "stageAt": "2026-11-08T22:18:58.201Z",
+  "merge": {
+    "sha": "028cd98",
+    "at": "2026-11-09T06:12Z",
+    "note": "纯测试无 tag"
   }
 }
