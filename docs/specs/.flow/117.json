@@ -26,8 +26,14 @@
     }
   ],
   "ci": {
-    "run": 0,
-    "max": 2
+    "run": 3,
+    "max": 2,
+    "latest": "pass 1m15s @ 5abd9c7"
   },
-  "pr": 121
+  "pr": 121,
+  "review": {
+    "contract": "pass",
+    "correctness": "pass (lead fallback)",
+    "at": "2026-11-08T04:52:24.509Z"
+  }
 }
