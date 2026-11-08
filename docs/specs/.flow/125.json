@@ -1,7 +1,7 @@
 {
   "issue": 125,
   "grade": "standard",
-  "stage": "tdd",
+  "stage": "done",
   "updatedAt": "2026-11-08T08:27:21.901Z",
   "tickets": [
     {
@@ -34,5 +34,11 @@
     "contract": "pass",
     "correctness": "pass (3 P2 fixed @ e784792)",
     "at": "2026-11-08T09:08:25.843Z"
+  },
+  "stageAt": "2026-11-08T20:55:19.663Z",
+  "merge": {
+    "sha": "a93d2e8",
+    "at": "2026-11-09T04:54Z",
+    "tag": "dev-flow@0.4.0"
   }
 }

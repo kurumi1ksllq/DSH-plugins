@@ -1,0 +1,37 @@
+{
+  "issue": 126,
+  "grade": "standard",
+  "stage": "tdd",
+  "updatedAt": "2026-11-08T20:55:19.664Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "environment 枚举 + git-bash(枚举/文案/UI 白名单)",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "auto 感知 tool-bash 行 + execution-environment 段接管说明",
+      "state": "todo"
+    },
+    {
+      "id": 3,
+      "title": "notifyChannels 砍或实现(决策)",
+      "state": "todo"
+    },
+    {
+      "id": 4,
+      "title": "governor locale 化(硬编码中文进 NS 字典)",
+      "state": "todo"
+    },
+    {
+      "id": 5,
+      "title": "5s 轮询事件驱动化(保留轮询兜底)",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2
+  }
+}
