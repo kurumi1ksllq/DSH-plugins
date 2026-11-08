@@ -1,0 +1,32 @@
+{
+  "issue": 125,
+  "grade": "standard",
+  "stage": "tdd",
+  "updatedAt": "2026-11-08T08:27:21.901Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "review pending-decision 进\"需要你出手\"",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "死 locale 键清理(面板+skill 对账)",
+      "state": "todo"
+    },
+    {
+      "id": 3,
+      "title": "触发词收窄(只读查询不进流程)",
+      "state": "todo"
+    },
+    {
+      "id": 4,
+      "title": "面板↔skill 互相指引",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2
+  }
+}

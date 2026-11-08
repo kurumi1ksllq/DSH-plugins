@@ -1,7 +1,7 @@
 {
   "issue": 124,
   "grade": "standard",
-  "stage": "tdd",
+  "stage": "done",
   "updatedAt": "2026-11-08T07:28:51.400Z",
   "tickets": [
     {
@@ -44,5 +44,11 @@
     "contract": "pass (P1×2 fixed @ 2021ee7)",
     "correctness": "pass (P2/P3 also fixed)",
     "at": "2026-11-08T08:23:43.588Z"
+  },
+  "stageAt": "2026-11-08T08:27:21.900Z",
+  "merge": {
+    "sha": "23dfd0e",
+    "at": "2026-11-08T16:25Z",
+    "tag": "dsh-websearch-failover@0.5.0"
   }
 }
