@@ -1,8 +1,8 @@
 {
   "issue": 50,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-04T04:39:30.319Z",
+  "stage": "done",
+  "updatedAt": "2026-11-09T11:12:59.039Z",
   "batch": {
     "branch": "issue-52-vault-hotfix",
     "issues": [
@@ -60,6 +60,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #147(2026-11-09):合并证据 PR #63 merge 4672d74,git merge-base --is-ancestor 4672d74 main = true,经双源核验翻终态;"
 }

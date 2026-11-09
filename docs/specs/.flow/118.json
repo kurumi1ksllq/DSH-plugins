@@ -1,8 +1,8 @@
 {
   "issue": 118,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-08T02:14:40.692Z",
+  "stage": "done",
+  "updatedAt": "2026-11-09T11:12:59.039Z",
   "tickets": [
     {
       "id": 1,
@@ -20,6 +20,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #147(2026-11-09):合并证据 PR #119 merge 510fb49,git merge-base --is-ancestor 510fb49 main = true,经双源核验翻终态;"
 }

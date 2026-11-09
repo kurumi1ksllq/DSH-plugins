@@ -12,12 +12,22 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.11.2 — 纪律文案单源化:zh 派生自 COPY 字典 + 谱系落盘(#144,PR #146)
+
+- **纪律文案单源化**:execDisciplineText 的 zh 分支改由 governor-copy.mjs 的 COPY 双语字典拼装,EXEC_DISCIPLINE_TEXT 保留为 zh 基准常量;zh/en 同构(⓪–⑨ 条目一一对应)由 test/discipline-copy.test.mjs 契约守护。
+- **谱系落盘**:仓库 AGENTS.md 增「纪律文本谱系」段(真源/注入机制 order=20000/上游 dsh-cot-anchor v0.4.2 仅存调研史/引入与演化提交链);全局 ~/.dsh/AGENTS.md 增检索纪律三条。
+
+### dev-flow 0.5.0 — 停点交互改造:确认一律经 ask_user_question 在 DSH 内发起(#144,PR #146)
+
+- **停点1/2/3 提问通道**:停点确认从「正文写一段等回复」改为 ask_user_question 卡片(可选项、推荐项前置标 Recommended);仅需求歧义等不适合选项化的情形退回正文。
+- **merge 闸判定**:提问卡片明确点选「merge 本 PR」等同说出 merge 口令;点选暂缓/返工或跳过均不构成授权(#146 审查修正)。
+
 ### dsh-deep-ptc-mode 1.11.1 — #132 review 收尾:en 接线护栏/softStop 中文总结约定(#139)
 
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 15 个条目;除 dsh-deep-ptc-mode@1.11.1(随本 PR 合并后打 tag)外,其余 14 条均已随各自 tag 发布。待下一次统一归档至 History 段。
+> 本段现有 17 个条目;除 dsh-deep-ptc-mode@1.11.2 与 dev-flow@0.5.0(两个 tag 随本 PR 补推)外,其余 15 条均已随各自 tag 发布。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

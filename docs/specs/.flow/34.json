@@ -1,8 +1,8 @@
 {
   "issue": 34,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-03T23:10:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T11:12:59.039Z",
   "tickets": [
     {
       "id": 1,
@@ -35,6 +35,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #147(2026-11-09):合并证据 PR #35 merge 54b61c0,git merge-base --is-ancestor 54b61c0 main = true,经双源核验翻终态;"
 }

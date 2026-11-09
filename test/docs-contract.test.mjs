@@ -485,3 +485,28 @@ test('the CHANGELOG header states the bundle count packages/ actually holds', ()
   )
 })
 
+
+
+// ---------------------------------------------------------------------------
+// Version discipline (docs maintenance, #147)
+//
+// #144 merged two version bumps (dsh-deep-ptc-mode 1.11.2, dev-flow 0.5.0) whose
+// CHANGELOG entries were never written — the same drift the tag discipline warns
+// about, one file later. packages/ is the only source of truth: every current
+// bundle version must appear in the CHANGELOG, or CI goes red here.
+
+test('the CHANGELOG states every current package version packages/ carries', () => {
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+  const missing = []
+  for (const dir of packageDirs()) {
+    const pkg = JSON.parse(readFileSync(join(ROOT, 'packages', dir, 'package.json'), 'utf8'))
+    if (!changelog.includes(`${pkg.name} ${pkg.version}`)) {
+      missing.push(`${pkg.name} ${pkg.version}`)
+    }
+  }
+  assert.deepEqual(
+    missing,
+    [],
+    `CHANGELOG must state every current package version: ${missing.join('; ')}`,
+  )
+})
