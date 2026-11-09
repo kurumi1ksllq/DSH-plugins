@@ -87,7 +87,18 @@ test('#5 copySkill onto an already-populated skill root still succeeds', () => {
 test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile has none', () => {
   const home = scratch('dsh-home-')
   const previous = process.env.DSH_HOME
+  const previousAgents = process.env.DSH_AGENTS_HOME
+  const previousCustom = process.env.DSH_CUSTOM_SKILL_DIRS
   process.env.DSH_HOME = home
+  // Isolate the real user dirs (issue #143): skillRootOf prefers the first
+  // EXISTING root among $DSH_HOME/skills, $DSH_AGENTS_HOME/skills (defaults to
+  // ~/.agents/skills) and DSH_CUSTOM_SKILL_DIRS. With /root/.agents/skills
+  // present the resolver correctly picks it — but this test asserts the
+  // $DSH_HOME/skills fallback, so the "no agents/custom root" premise must be
+  // guaranteed. Without isolation this test also wrote dangling symlinks into
+  // the real user directory.
+  process.env.DSH_AGENTS_HOME = join(home, 'agents-home')
+  delete process.env.DSH_CUSTOM_SKILL_DIRS
   try {
     const result = copySkill(
       { kind: 'skill', name: 'ui-design' },
@@ -101,6 +112,10 @@ test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile 
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previous
+    if (previousAgents === undefined) delete process.env.DSH_AGENTS_HOME
+    else process.env.DSH_AGENTS_HOME = previousAgents
+    if (previousCustom === undefined) delete process.env.DSH_CUSTOM_SKILL_DIRS
+    else process.env.DSH_CUSTOM_SKILL_DIRS = previousCustom
   }
 })
 
