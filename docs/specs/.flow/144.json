@@ -1,0 +1,40 @@
+{
+  "issue": 144,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-09T10:23:02.916Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "纪律文案单源化 + zh/en 同构契约测试 + 反向验证 + 版本",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "纪律文本谱系速查(spec + 仓库 AGENTS.md)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "全局 ~/.dsh/AGENTS.md 检索纪律三条",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "dev-flow SKILL.md 停点改 ask_user_question + 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

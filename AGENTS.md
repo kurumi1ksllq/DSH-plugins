@@ -19,7 +19,7 @@
 
 ### merge 闸
 
-merge 必须用户说出 **`merge` 或点名 PR 号**（如 `merge #33`）。
+merge 必须用户说出 **`merge` 或点名 PR 号**（如 `merge #33`）；在 dev-flow 的 `ask_user_question` 提问卡片中**明确点选「merge 本 PR」等同点名本 PR 号，视为口令**（#144 提问通道；点选暂缓/返工或跳过均不算）。
 “嗯 / 好 / 继续 / 行 / 通过”都不算授权。
 
 ## 禁止直接改 main
@@ -82,6 +82,15 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
 | `scripts/` | 打包校验脚本，`pnpm verify` 调它们 |
 | `test/` | 仓库级文档契约测试 |
+
+## 纪律文本谱系（防误归因，#144）
+
+会话里注入的「⓪ 命令执行纪律（order=20000 固定段）」的本体在本仓库：
+
+- **真源**：`packages/dsh-deep-ptc-mode/lib/governor-copy.mjs`（discipline0..9 双语字典，单源）+ `lib/governor-anchor.mjs`（拼装与导出，EXEC_DISCIPLINE_TEXT 为 zh 派生值）。zh/en 同构由 `test/discipline-copy.test.mjs` 契约守护。
+- **谱系**：上游 dsh-cot-anchor v0.4.2（JiewiW，411cb74/005bb91，/tmp 调研克隆已删）→ #96 b2474a6 首次引入⑨宿主条款 → #115 吸收进 dsh-deep-ptc-mode → #120 拆模块 → #138 locale 字典化 → #144 单源化。
+- **安装位**：link: 装入 `~/.dsh/profiles/web/node_modules/dsh-deep-ptc-mode`（符号链接指向本仓库，改代码需 DSH 侧重载生效）。
+- 详见 `docs/specs/issue-144-discipline-single-source.md`。
 
 ## 注意
 

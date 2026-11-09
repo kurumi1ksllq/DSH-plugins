@@ -836,28 +836,26 @@ function buildAnchorContext(text, summary) {
  * 常量前缀，有利于 KV 前缀缓存命中。
  *
  * 发布版为插件自带通用纪律（不引用任何用户本机路径）；本机用户如需个人化
- * 纪律，可自行修改本数组后重启，或在设置中关闭「随锚点注入命令执行纪律块」。
+ * 纪律，改 governor-copy.mjs 的 discipline0..9 字典后重启，或在设置中关闭
+ * 「随锚点注入命令执行纪律块」（#144 后文本不在本文件,本数组已不存在）。
  */
-// #132:纪律块文案抽字典。zh 为既有逐字文案;EXEC_DISCIPLINE_TEXT 保留为 zh 默认常量
-// (既有消费点零改动),locale 变体经 execDisciplineText(locale) 取用。
-const EXEC_DISCIPLINE_TEXT = [
-	"⓪ 命令执行纪律（最高优先，高于一切）：跑任何命令（shell/构建/安装/下载/测试/长任务）都不许盲等，且必须核验结果。",
-	"① 单次等待 ≤10 秒；禁止超长阻塞等待、禁止长延时 sleep 后再检查。",
-	"② 每轮必须查并打印一个『增长型标量』——目标文件/目录是否出现、字节数是否变大、日志是否追加、输出行数是否增加。",
-	"③ 『进程还在』『任务 state=running』不算进展证据，禁止据此继续等；连续 2 轮零增长即判僵死，",
-	"用精确 PID 中断（禁止按命令名通配批量杀）并立刻换办法（换镜像源→换工具/协议→复用本机缓存→降级最小子集→报告用户）。",
-	"④ 起长任务前把精确 PID 落盘。⑤ 长任务按固定短间隔（≤10 秒）轮询等待，禁止盲等。",
-	"⑥ 命令结束必须核验：看退出码、看产物是否真的生成、看日志关键行，不以『命令跑了没报错』当成功。",
-	"⑦ 输出为空/被吞/返回 -1 时，第一动作是读该命令本应写出的报告或产物判成功，不要追加复查命令。",
-	"⑧ 同一命令同样参数失败最多重试 2 次，之后换办法或上报。",
-	"⑨ 本纪律仅适用于本 agent 自启的长任务与子进程；DSH 宿主进程的启停由用户人工管理，严禁本 agent 重启或终止宿主。"
-].join("");
+// #132:纪律块文案抽字典。#144:单源化——全部 locale(含 zh)统一从 governor-copy.mjs 的
+// discipline0..9 字典拼装,EXEC_DISCIPLINE_TEXT 降级为 zh 派生值(仅供既有消费点与契约测试对照)。
+// 语义顺序:③ 拆 3a/3b,④⑤ 合入 discipline4;⓪-⑨ 标记必须齐全且有序(契约测试守护)。
+const DISCIPLINE_KEYS = ["discipline0", "discipline1", "discipline2", "discipline3a", "discipline3b",
+	"discipline4", "discipline6", "discipline7", "discipline8", "discipline9"];
 
-/** locale 感知纪律块(#132);zh 与常量逐字一致。 */
-function execDisciplineText(locale = "zh") {
-	if (locale === "zh") return EXEC_DISCIPLINE_TEXT;
+function execDisciplineFromDict(locale) {
 	const t = copy(locale);
-	return [t.discipline0(), t.discipline1(), t.discipline2(), t.discipline3a(), t.discipline3b(), t.discipline4(), t.discipline6(), t.discipline7(), t.discipline8(), t.discipline9()].join("");
+	return DISCIPLINE_KEYS.map((k) => t[k]()).join("");
+}
+
+/** zh 纪律全文(自字典派生;保留导出名以兼容 #132 前的消费点)。 */
+const EXEC_DISCIPLINE_TEXT = execDisciplineFromDict("zh");
+
+/** locale 感知纪律块(#132 单字典,#144 单源化)。 */
+function execDisciplineText(locale = "zh") {
+	return execDisciplineFromDict(locale);
 }
 
 /**

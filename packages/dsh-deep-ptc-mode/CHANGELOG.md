@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.2 — 2026-11-09
+
+#144 纪律文案单源化(行为零变化):
+
+- **单源**:execDisciplineText 全 locale(含 zh)统一从 governor-copy.mjs discipline0..9 字典拼装;EXEC_DISCIPLINE_TEXT 降级为 zh 派生值(导出名保留,消费点零改动)。zh 输出与旧常量逐字一致(已留证)。
+- **契约测试**:新增 test/discipline-copy.test.mjs——zh=基准常量、zh=字典派生、zh/en ⓪-⑨ 同构、双 locale 键齐全,共 4 断言组。
+- **反向验证**:改坏实现(硬编码副本复活)→ 1 fail/exit1;还原 → 4/4 绿。
+
 ## 1.11.1 — 2026-11-09
 
 #132 双轴 review 收尾(#139):
