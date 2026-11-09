@@ -57,8 +57,8 @@ test("GET 返回合并 schema(跨步骤 14 + 单流内 40)+ settings + persisted
 	const { status, body } = await callGet(route(ctx));
 	assert.equal(status, 200);
 	assert.equal(body.ok, true);
-	assert.equal(body.schema.length, 54, "合并 schema 共 54 项(14 governor + 40 anchor)");
-	assert.equal(Object.keys(body.settings).length, 54, "合并 settings 共 54 项");
+	assert.equal(body.schema.length, 55, "合并 schema 共 55 项(14 governor + 41 anchor;#132 增 copyLocale)");
+	assert.equal(Object.keys(body.settings).length, 55, "合并 settings 共 55 项(#132 增 copyLocale)");
 	// 合并后路由与能力横幅:软切能力三态如实上报
 	assert.equal(body.capabilities.softCutHook, "agent/soft-cut");
 	assert.ok(["present", "absent", "unknown"].includes(body.capabilities.softCut), "capabilities.softCut 三态");

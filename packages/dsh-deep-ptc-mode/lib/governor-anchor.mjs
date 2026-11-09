@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { PLUGIN_SOURCE } from "./governor-core.mjs";
+import { copy } from "./governor-copy.mjs";
 
 
 
@@ -837,6 +838,8 @@ function buildAnchorContext(text, summary) {
  * 发布版为插件自带通用纪律（不引用任何用户本机路径）；本机用户如需个人化
  * 纪律，可自行修改本数组后重启，或在设置中关闭「随锚点注入命令执行纪律块」。
  */
+// #132:纪律块文案抽字典。zh 为既有逐字文案;EXEC_DISCIPLINE_TEXT 保留为 zh 默认常量
+// (既有消费点零改动),locale 变体经 execDisciplineText(locale) 取用。
 const EXEC_DISCIPLINE_TEXT = [
 	"⓪ 命令执行纪律（最高优先，高于一切）：跑任何命令（shell/构建/安装/下载/测试/长任务）都不许盲等，且必须核验结果。",
 	"① 单次等待 ≤10 秒；禁止超长阻塞等待、禁止长延时 sleep 后再检查。",
@@ -850,6 +853,13 @@ const EXEC_DISCIPLINE_TEXT = [
 	"⑨ 本纪律仅适用于本 agent 自启的长任务与子进程；DSH 宿主进程的启停由用户人工管理，严禁本 agent 重启或终止宿主。"
 ].join("");
 
+/** locale 感知纪律块(#132);zh 与常量逐字一致。 */
+function execDisciplineText(locale = "zh") {
+	if (locale === "zh") return EXEC_DISCIPLINE_TEXT;
+	const t = copy(locale);
+	return [t.discipline0(), t.discipline1(), t.discipline2(), t.discipline3a(), t.discipline3b(), t.discipline4(), t.discipline6(), t.discipline7(), t.discipline8(), t.discipline9()].join("");
+}
+
 /**
  * 纪律段在运行时上下文快照中的排序键。
  * auto-memory 记忆规则段 order=10000（其尾部 surface 为 10001），
@@ -859,4 +869,4 @@ const EXEC_DISCIPLINE_TEXT = [
 const EXEC_DISCIPLINE_CONTEXT_ORDER = 20000;
 
 // 单行导出:测试的 eval 加载器按行剥 export,多行导出会留下悬挂表达式
-export { SOFTCUT_HIGH_CONFIDENCE, SOFT_CUT_HOOK, ASSISTANT_STREAM_HOOK, PRE_STEP_HOOK, CAPABILITY_UNKNOWN, CAPABILITY_PRESENT, CAPABILITY_ABSENT, probeKernelHook, CONCLUSION_OPENERS, WEAK_SENTENCE_PATTERNS, DISCOURSE_FILLER_PATTERNS, MIN_RESIDUAL_CONTENT_CHARS, CORRECTION_PATTERNS, DENSITY_PATTERNS, HEDGE_PATTERNS, OPENER_TIER_SCORE, FALLBACK_TIER_SCORE, FALLBACK_MIN_CHARS, CONCLUSION_ACTION_PATTERNS, CONCLUSION_PREDICATE_PATTERNS, isWeakSentence, residualProposition, isEmptyDiscourseSentence, hasContentSignal, scoreSentence, extractConclusions, QUOTE_OPEN_TO_CLOSE, TOGGLE_QUOTES, QUOTED_STOP_MASK, QUOTED_STOP_UNMASK, QUOTED_STOP_UNMASK_RE, maskQuotedSentenceStops, unmaskQuotedSentenceStops, splitSentences, EVENT_REFLOW_MISJUDGED, EVENT_POINT_TRUNCATED, EVENT_LENGTH_CONSERVATION_FAILED, EVENT_STRUCTURE_UNBALANCED, EVENT_ANCHOR_DEDUP_SKIPPED, EVENT_SOFTCUT_TAKEN, evidenceSeqCounter, nextEvidenceSeq, evidenceBase, emitCotAnchorEvent, emitPointTruncatedEvent, checkLengthConservation, checkStructuralBalance, renderAnchor, hasExplicitConclusion, latestReasoningText, latestThinkingText, latestAssistantSource, deepFreeze, buildAnchorContext, EXEC_DISCIPLINE_TEXT, EXEC_DISCIPLINE_CONTEXT_ORDER };
+export { SOFTCUT_HIGH_CONFIDENCE, SOFT_CUT_HOOK, ASSISTANT_STREAM_HOOK, PRE_STEP_HOOK, CAPABILITY_UNKNOWN, CAPABILITY_PRESENT, CAPABILITY_ABSENT, probeKernelHook, CONCLUSION_OPENERS, WEAK_SENTENCE_PATTERNS, DISCOURSE_FILLER_PATTERNS, MIN_RESIDUAL_CONTENT_CHARS, CORRECTION_PATTERNS, DENSITY_PATTERNS, HEDGE_PATTERNS, OPENER_TIER_SCORE, FALLBACK_TIER_SCORE, FALLBACK_MIN_CHARS, CONCLUSION_ACTION_PATTERNS, CONCLUSION_PREDICATE_PATTERNS, isWeakSentence, residualProposition, isEmptyDiscourseSentence, hasContentSignal, scoreSentence, extractConclusions, QUOTE_OPEN_TO_CLOSE, TOGGLE_QUOTES, QUOTED_STOP_MASK, QUOTED_STOP_UNMASK, QUOTED_STOP_UNMASK_RE, maskQuotedSentenceStops, unmaskQuotedSentenceStops, splitSentences, EVENT_REFLOW_MISJUDGED, EVENT_POINT_TRUNCATED, EVENT_LENGTH_CONSERVATION_FAILED, EVENT_STRUCTURE_UNBALANCED, EVENT_ANCHOR_DEDUP_SKIPPED, EVENT_SOFTCUT_TAKEN, evidenceSeqCounter, nextEvidenceSeq, evidenceBase, emitCotAnchorEvent, emitPointTruncatedEvent, checkLengthConservation, checkStructuralBalance, renderAnchor, hasExplicitConclusion, latestReasoningText, latestThinkingText, latestAssistantSource, deepFreeze, buildAnchorContext, EXEC_DISCIPLINE_TEXT, EXEC_DISCIPLINE_CONTEXT_ORDER, execDisciplineText };

@@ -184,6 +184,61 @@ window.__ModuleLoader__.load({
       success: 'var(--dsw-alias-state-success-primary, #3f9d5a)'
     }
 
+    // #132:schema 文案字段 {zh,en} 双字典取值。字符串原样返回(向后兼容);
+    // 语言按 navigator.language 前缀 zh 判定(宿主 locale API 无「当前语言」公开查询,
+    // 与 slot spec locale NS 的宿主判定行为对齐的近似)。
+    var UI_LOCALE = (typeof navigator !== 'undefined' && typeof navigator.language === 'string' && navigator.language.toLowerCase().indexOf('zh') !== 0) ? 'en' : 'zh'
+    function pick(value) {
+      if (value && typeof value === 'object' && typeof value.zh === 'string') {
+        var text = UI_LOCALE === 'en' ? value.en : value.zh
+        return text || value.zh || value.en || ''
+      }
+      return value
+    }
+
+    // UI 壳文案双字典(#132 ④)
+    var SHELL = {
+      zh: {
+        section: '失速治理', otherGroup: '其他',
+        loadFailed: '读取设置失败：', unknown: '未知错误',
+        saveFailed: '保存失败：', savedDirty: '已生效，但写入配置文件失败（重启后会恢复）', savedOk: '已保存并即时生效',
+        loading: '正在读取设置…', unavailable: '设置不可用',
+        unsaved: '有未保存的改动',
+        experimentalTail: ' 当前为实验性强制档，未经影子期零误杀验证，请勿用于生产拦截。',
+        advancedToggle: (n) => '高级参数（' + n + ' 项）',
+        capPresentTitle: '生成中途截停：可用',
+        capPresentBody: '当前内核支持在模型输出到一半时叫停，因此「打断判定」里的每一项都能真正生效。',
+        capAbsentTitle: '生成中途截停：当前内核不具备',
+        capAbsentBodyA: '当前内核没法在输出到一半时叫停模型，所以「打断判定」区的选项这次都不会生效：',
+        capAbsentBodyB: '模型打转、或把工具调用直接写成文本时，都不会被自动拦下，只能由你手动中断。' +
+              '「工具参数错误恢复指引」与「命令执行纪律段」不依赖这个能力，照常工作。',
+        capUnknownTitle: '生成中途截停：暂时无法确认',
+        capUnknownBody: '没能读到内核信息来判断中途叫停是否可用。如果它确实不可用，「打断判定」区的选项会' +
+              '悄悄不起作用；请以实际表现是否被打断为准。',
+        saving: '保存中…', saveApply: '保存并即时生效',
+        sourceKey: '源码键：',
+      },
+      en: {
+        section: 'Stall governor', otherGroup: 'Other',
+        loadFailed: 'Failed to load settings: ', unknown: 'unknown error',
+        saveFailed: 'Failed to save: ', savedDirty: 'Applied, but writing the config file failed (restored on restart)', savedOk: 'Saved and applied',
+        loading: 'Loading settings…', unavailable: 'Settings unavailable',
+        unsaved: 'Unsaved changes',
+        experimentalTail: ' Currently an experimental enforcement tier — not yet validated for zero false cuts in shadow; do not use for production interception.',
+        advancedToggle: (n) => 'Advanced settings (' + n + ' items)',
+        capPresentTitle: 'Mid-generation cut: supported by this kernel',
+        capPresentBody: 'The kernel supports cutting mid-output, so every option under \"Interruption detection\" takes real effect.',
+        capAbsentTitle: 'Mid-generation cut: not supported by this kernel',
+        capAbsentBodyA: 'The kernel cannot cut the model mid-output, so the options under \"Interruption detection\" will not take effect this time: ',
+        capAbsentBodyB: 'The invalid-tool-call recovery hint and the command-discipline block do not depend on this capability and keep working.',
+        capUnknownTitle: 'Mid-generation cut: capability unknown',
+        capUnknownBody: 'Kernel capability could not be read. If cutting is indeed unavailable, the options under \"Interruption detection\" will ',
+        saving: 'Saving…', saveApply: 'Save and apply',
+        sourceKey: 'Source key: ',
+      },
+    }
+    var shell = SHELL[UI_LOCALE] || SHELL.zh
+
     var SETTINGS_API = '/plugins/stall-governor/settings'
 
     function numberInputStyle() {
@@ -296,7 +351,7 @@ window.__ModuleLoader__.load({
               padding: '4px 8px',
               background: 'var(--dsw-alias-state-error-bg, rgba(224,82,74,0.12))'
             }
-          }, (spec.experimentalNote || '') + ' 当前为实验性强制档，未经影子期零误杀验证，请勿用于生产拦截。')
+          }, (spec.experimentalNote || '') + shell.experimentalTail)
         }
         return h(
           'div',
@@ -311,7 +366,7 @@ window.__ModuleLoader__.load({
               },
               options.map(function (opt) {
                 var val = opt && typeof opt === 'object' ? opt.value : opt
-                var lab = opt && typeof opt === 'object' && opt.label ? opt.label : opt
+                var lab = pick(opt && typeof opt === 'object' && opt.label ? opt.label : opt)
                 return h('option', { key: val, value: val }, lab)
               })
             ),
@@ -328,7 +383,7 @@ window.__ModuleLoader__.load({
           { style: { display: 'flex', flexWrap: 'wrap', gap: 12 } },
           options2.map(function (opt) {
             var val = opt && typeof opt === 'object' ? opt.value : opt
-            var lab = opt && typeof opt === 'object' && opt.label ? opt.label : opt
+            var lab = pick(opt && typeof opt === 'object' && opt.label ? opt.label : opt)
             return h(
               'label',
               {
@@ -379,7 +434,7 @@ window.__ModuleLoader__.load({
       var index = {}
       for (var i = 0; i < schema.length; i++) {
         var spec = schema[i]
-        var name = spec.group || '其他'
+        var name = pick(spec.group) || shell.otherGroup
         if (!index[name]) {
           index[name] = { name: name, items: [] }
           groups.push(index[name])
@@ -419,7 +474,7 @@ window.__ModuleLoader__.load({
           .then(function (res) { return res.json() })
           .then(function (body) {
             if (!body || body.ok !== true) {
-              setErrorMessage('读取设置失败：' + ((body && body.error) || '未知错误'))
+              setErrorMessage(shell.loadFailed + ((body && body.error) || shell.unknown))
             } else {
               setPayload(body)
               setDraft(Object.assign({}, body.settings))
@@ -428,7 +483,7 @@ window.__ModuleLoader__.load({
             setLoading(false)
           })
           .catch(function (err) {
-            setErrorMessage('读取设置失败：' + (err && err.message ? err.message : String(err)))
+            setErrorMessage(shell.loadFailed + (err && err.message ? err.message : String(err)))
             setLoading(false)
           })
       }
@@ -446,7 +501,7 @@ window.__ModuleLoader__.load({
           .then(function (res) { return res.json() })
           .then(function (body) {
             if (!body || body.ok !== true) {
-              setErrorMessage('保存失败：' + ((body && body.error) || '未知错误'))
+              setErrorMessage(shell.saveFailed + ((body && body.error) || shell.unknown))
               return
             }
             setErrorMessage('')
@@ -455,20 +510,20 @@ window.__ModuleLoader__.load({
               return Object.assign({}, prev, { settings: body.settings })
             })
             setNotice(
-              body.saved === false ? '已生效，但写入配置文件失败（重启后会恢复）' : '已保存并即时生效'
+              body.saved === false ? shell.savedDirty : shell.savedOk
             )
           })
           .catch(function (err) {
-            setErrorMessage('保存失败：' + (err && err.message ? err.message : String(err)))
+            setErrorMessage(shell.saveFailed + (err && err.message ? err.message : String(err)))
           })
           .then(function () { setSaving(false) })
       }
 
       if (loading) {
-        return h('div', { style: { padding: 16, color: THEME.textSecondary } }, '正在读取设置…')
+        return h('div', { style: { padding: 16, color: THEME.textSecondary } }, shell.loading)
       }
       if (!payload) {
-        return h('div', { style: { padding: 16, color: THEME.danger } }, errorMessage || '设置不可用')
+        return h('div', { style: { padding: 16, color: THEME.danger } }, errorMessage || shell.unavailable)
       }
 
       var schema = payload.schema || []
@@ -484,7 +539,7 @@ window.__ModuleLoader__.load({
           },
           [
             h('div', { key: 'l', style: { width: 220, flexShrink: 0 } }, [
-              h('div', { key: 'n', style: { fontSize: 13, color: THEME.text } }, spec.label || spec.key),
+              h('div', { key: 'n', style: { fontSize: 13, color: THEME.text } }, pick(spec.label) || spec.key),
               h(
                 'div',
                 {
@@ -496,9 +551,9 @@ window.__ModuleLoader__.load({
                     fontFamily: 'monospace'
                   }
                 },
-                '源码键：' + spec.key
+                shell.sourceKey + spec.key
               ),
-              spec.hint
+              pick(spec.hint)
                 ? h(
                     'div',
                     {
@@ -510,7 +565,7 @@ window.__ModuleLoader__.load({
                         lineHeight: 1.6
                       }
                     },
-                    spec.hint
+                    pick(spec.hint)
                   )
                 : null
             ]),
@@ -558,7 +613,7 @@ window.__ModuleLoader__.load({
                     padding: '4px 0'
                   }
                 },
-                '高级参数（' + advanced.length + ' 项）'
+                shell.advancedToggle(advanced.length)
               ),
               h('div', { style: { borderTop: '1px solid ' + THEME.border, marginTop: 4 } }, advanced.map(renderRow))
             )
@@ -577,26 +632,11 @@ window.__ModuleLoader__.load({
         if (!state) return null
         var config
         if (state === 'present') {
-          config = {
-            color: THEME.success,
-            title: '生成中途截停：可用',
-            body: '当前内核支持在模型输出到一半时叫停，因此「打断判定」里的每一项都能真正生效。'
-          }
+          config = { color: THEME.success, title: shell.capPresentTitle, body: shell.capPresentBody }
         } else if (state === 'absent') {
-          config = {
-            color: THEME.danger,
-            title: '生成中途截停：当前内核不具备',
-            body: '当前内核没法在输出到一半时叫停模型，所以「打断判定」区的选项这次都不会生效：' +
-              '模型打转、或把工具调用直接写成文本时，都不会被自动拦下，只能由你手动中断。' +
-              '「工具参数错误恢复指引」与「命令执行纪律段」不依赖这个能力，照常工作。'
-          }
+          config = { color: THEME.danger, title: shell.capAbsentTitle, body: shell.capAbsentBodyA + shell.capAbsentBodyB }
         } else {
-          config = {
-            color: THEME.textSecondary,
-            title: '生成中途截停：暂时无法确认',
-            body: '没能读到内核信息来判断中途叫停是否可用。如果它确实不可用，「打断判定」区的选项会' +
-              '悄悄不起作用；请以实际表现是否被打断为准。'
-          }
+          config = { color: THEME.textSecondary, title: shell.capUnknownTitle, body: shell.capUnknownBody }
         }
         return h(
           'div',
@@ -621,7 +661,7 @@ window.__ModuleLoader__.load({
 
       children.push(
         h('div', { key: 'head', style: { marginBottom: 14 } }, [
-          h('div', { key: 't', style: { fontSize: 14, fontWeight: 600 } }, '失速治理'),
+          h('div', { key: 't', style: { fontSize: 14, fontWeight: 600 } }, shell.section),
           h(
             'div',
             {
@@ -686,7 +726,7 @@ window.__ModuleLoader__.load({
                 disabled: saving,
                 onClick: persist
               },
-              saving ? '保存中…' : '保存并即时生效'
+              saving ? shell.saving : shell.saveApply
             ),
             h(
               'button',
@@ -704,7 +744,7 @@ window.__ModuleLoader__.load({
               ? h(
                   'span',
                   { key: 'd', style: { fontSize: 12, color: THEME.textTertiary } },
-                  '有未保存的改动'
+                  shell.unsaved
                 )
               : null,
             notice
@@ -732,7 +772,7 @@ window.__ModuleLoader__.load({
 
       slots.inject('settings.section', function () {
         slots.register(
-          { name: 'settings.section', id: 'stall-governor', label: '失速治理', order: 997 },
+          { name: 'settings.section', id: 'stall-governor', label: shell.section, order: 997 },
           StallGovernorPanel
         )
       })

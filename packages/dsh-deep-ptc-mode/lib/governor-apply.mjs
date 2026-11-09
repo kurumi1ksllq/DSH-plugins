@@ -10,7 +10,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createUserMessage } from "./governor-peer.mjs";
 import { resetConfigFromEnv, CONFIG, createSessionState, logStatic, name, BLOCK_CODES, FORBIDDEN_RETRY_CODES, DENY_CATEGORIES, SETTINGS_FILE, applySettings, noteEvent, toolCategory, PLUGIN_ID, targetKey, evaluateG2, enforces, settleLastStep, advanceStepBoundary, evaluateG1, SOFT_STOP_SOURCE, g1Code, SETTINGS_ROUTE, sendJson, GOVERNOR_SETTINGS_SCHEMA, settingsSnapshot, GOVERNOR_SETTINGS_DEFAULTS, readRequestBody } from "./governor-core.mjs";
-import { CAPABILITY_UNKNOWN, CAPABILITY_ABSENT, probeKernelHook, SOFT_CUT_HOOK, ASSISTANT_STREAM_HOOK, PRE_STEP_HOOK, SOFTCUT_HIGH_CONFIDENCE, EXEC_DISCIPLINE_CONTEXT_ORDER, EXEC_DISCIPLINE_TEXT, emitCotAnchorEvent, EVENT_SOFTCUT_TAKEN, evidenceBase, buildAnchorContext, hasExplicitConclusion, extractConclusions, EVENT_REFLOW_MISJUDGED, renderAnchor, checkLengthConservation, EVENT_LENGTH_CONSERVATION_FAILED, checkStructuralBalance, EVENT_STRUCTURE_UNBALANCED, EVENT_ANCHOR_DEDUP_SKIPPED } from "./governor-anchor.mjs";
+import { CAPABILITY_UNKNOWN, CAPABILITY_ABSENT, probeKernelHook, SOFT_CUT_HOOK, ASSISTANT_STREAM_HOOK, PRE_STEP_HOOK, SOFTCUT_HIGH_CONFIDENCE, EXEC_DISCIPLINE_CONTEXT_ORDER, EXEC_DISCIPLINE_TEXT, execDisciplineText, emitCotAnchorEvent, EVENT_SOFTCUT_TAKEN, evidenceBase, buildAnchorContext, hasExplicitConclusion, extractConclusions, EVENT_REFLOW_MISJUDGED, renderAnchor, checkLengthConservation, EVENT_LENGTH_CONSERVATION_FAILED, checkStructuralBalance, EVENT_STRUCTURE_UNBALANCED, EVENT_ANCHOR_DEDUP_SKIPPED } from "./governor-anchor.mjs";
+import { copy } from "./governor-copy.mjs";
 import { settings, applyRuntimeSettings, SETTINGS_SCHEMA, DEFAULT_SETTINGS, OVER_LONG_COT_THRESHOLD, MIN_REASONING_CHARS, MAX_POINTS, MAX_POINT_CHARS } from "./governor-settings.mjs";
 import { resetChurnCountOnTurnBoundary, resetOverLongCountOnTurnBoundary, findRepeatingTail, hasPseudoToolCall, renderPseudoToolAnchor, renderRepeatAnchor, detectNGramLoop, renderNGramLoopAnchor, detectNumberRunaway, renderNumberRunawayAnchor, insideUnclosedCodeFence, detectChurn, recordChurnCut, renderChurnAnchor, renderChurnEscalation, detectActionChurn, renderActionChurnAnchor, recordOverLongCut, renderOverLongCoTAnchor, wantsSoftCut, isGapWithinThreshold, extractInvalidArgFields, renderToolArgsErrorAnchor } from "./governor-softcut.mjs";
 
@@ -31,12 +32,17 @@ import { resetChurnCountOnTurnBoundary, resetOverLongCountOnTurnBoundary, findRe
 const EXTERNAL_SOFT_CUT_TTL_MS = 30000;
 /** 外部锚点附带的最近可见文本最大字符数（按字符截取尾部）。 */
 const EXTERNAL_ANCHOR_MAX_CHARS = 2000;
-/** 有最近可见文本时的固定中文引导语；锚点正文紧随其后。 */
-const EXTERNAL_ANCHOR_PREFIX =
-	"外部停滞检测请求在此软切：停止当前重复路径，基于以下最近可见文本重新组织下一步：\n\n";
-/** 调用方未提供可用文本时的固定中文兜底锚点（不捏造任何任务事实）。 */
-const EXTERNAL_ANCHOR_FALLBACK =
-	"检测到语义停滞的外部软切请求，要求立即停止当前重复论述，用新的一步推进任务。";
+/** 有最近可见文本时的引导语（locale 感知,#132);zh 为既有逐字文案。 */
+function externalAnchorPrefix(locale = "zh") {
+	return copy(locale).externalAnchorPrefix();
+}
+/** 调用方未提供可用文本时的兜底锚点（不捏造任何任务事实）。 */
+function externalAnchorFallback(locale = "zh") {
+	return copy(locale).externalAnchorFallback();
+}
+/** 历史导出面保留(zh 固化);运行时消费点已改走 externalAnchorPrefix()/externalAnchorFallback()(locale 感知),模块内现无消费点。 */
+const EXTERNAL_ANCHOR_PREFIX = externalAnchorPrefix();
+const EXTERNAL_ANCHOR_FALLBACK = externalAnchorFallback();
 /**
  * 外部软切挂起表：键为 sessionId，值为待消费的软切请求。
  * 同一 sessionId 的新请求覆盖旧请求；消费一次性完成。
@@ -86,13 +92,16 @@ function requestExternalSoftCut(payload) {
 	// 锚点文本：优先取调用方提供的最近可见文本尾部，否则使用固定兜底锚点。
 	// 只做截取与包裹，绝不根据文本捏造任务事实。
 	const rawText = typeof payload?.fullVisibleText === "string" ? payload.fullVisibleText : "";
+	// #132:引导语按 copyLocale 运行时取值(常量为 zh 默认,供既有引用零改动)
+	const tExt = copy(settings.copyLocale);
+	const prefix = tExt.externalAnchorPrefix();
 	const anchorText = rawText.trim().length > 0
-		? EXTERNAL_ANCHOR_PREFIX + (
+		? prefix + (
 			rawText.length > EXTERNAL_ANCHOR_MAX_CHARS
 				? rawText.slice(rawText.length - EXTERNAL_ANCHOR_MAX_CHARS)
 				: rawText
 		)
-		: EXTERNAL_ANCHOR_FALLBACK;
+		: tExt.externalAnchorFallback();
 	const requestedAt = Date.now();
 	externalSoftCutPending.set(sessionId, {
 		anchorText,
@@ -540,9 +549,10 @@ function apply(ctx, config) {
 				}
 				if (deny2) {
 					log({ at: "pre-execute", action: "deny", code: BLOCK_CODES.STALL_2, category, evidenceSeq: deny2.evidenceSeq, expiresAtStep: deny2.expiresAtStep, stepSeq: state.globalStepSeq });
+					const tDeny = copy(settings.copyLocale);
 					return {
 						kind: "deny",
-						reason: `[${PLUGIN_ID}] semantic-stall-2: 类别 ${category} 已被语义监视者临时禁用至 step ${deny2.expiresAtStep}（当前 ${state.globalStepSeq}），目标类别: ${category}。请改用其他取证类别或直接推进任务完成交付；如需继续调用 ${category}，先向用户说明现状并取得确认`,
+						reason: `[${PLUGIN_ID}] semantic-stall-2: ${tDeny.denyStall2(category, deny2.expiresAtStep, state.globalStepSeq)}`,
 						code: BLOCK_CODES.STALL_2,
 						evidenceSeq: deny2.evidenceSeq,
 						info: { plugin: PLUGIN_ID, rule: "stall-2", category, code: BLOCK_CODES.STALL_2, evidenceSeq: deny2.evidenceSeq }
@@ -562,13 +572,14 @@ function apply(ctx, config) {
 				if (enforces(verdict.rule)) {
 					const code = verdict.rule === "G2-B" ? BLOCK_CODES.G2_B : BLOCK_CODES.G2_A;
 					// P1-16：deny 文案三要素 = 归一化目标键 + 计数口径 + 合法继续出口。
-					const scope = verdict.rule === "G2-B" ? "该目标已连续失败" : "该目标近窗已尝试";
+					const tG2 = copy(settings.copyLocale);
+					const scope = verdict.rule === "G2-B" ? tG2.g2bScope() : tG2.g2aScope();
 					const targetShown = key.length > 120 ? key.slice(0, 120) + "…" : key;
 					return {
 						kind: "deny",
 						reason: `[${PLUGIN_ID}] ${verdict.rule}: ${scope} ${verdict.rule === "G2-B"
-							? `${verdict.detail.consecutiveFail} 次（阈值 ${CONFIG.g2bConsecutiveFailures}）`
-							: `${verdict.detail.calls} 次（阈值 ${CONFIG.g2aSameTargetCalls}，每次确认为放行才计数）`}；目标键: ${targetShown}。请更换命令/参数、改用其他工具或类别，或向用户汇报当前进展后由用户决定下一步`,
+							? tG2.g2bCount(verdict.detail.consecutiveFail, CONFIG.g2bConsecutiveFailures)
+							: tG2.g2aCount(verdict.detail.calls, CONFIG.g2aSameTargetCalls)}${tG2.denyG2Tail(targetShown)}`,
 						code,
 						evidenceSeq: state.globalStepSeq,
 						// P1-19：info 按分支构造，禁止跨分支取 detail 缺失键——
@@ -647,11 +658,12 @@ function apply(ctx, config) {
 					const turnKey = String(payload.turn ?? state.turn);
 					if (state.softStopTurn !== turnKey) {
 						state.softStopTurn = turnKey;
+						const tStop = copy(settings.copyLocale);
 						const notice = createUserMessage({
 							content: [{
 								type: "text",
 								text: `【${PLUGIN_ID}】${verdict.rule}：${ruleText}（当前第 ${state.globalStepSeq} 步）。`
-									+ "已到本回合收尾边界：请立即停止调用工具，用 3–5 句中文总结已完成成果、当前卡点与下一步建议，然后结束回复。"
+									+ tStop.softStopTail()
 							}],
 							source: SOFT_STOP_SOURCE
 						});
@@ -730,7 +742,7 @@ function apply(ctx, config) {
 				// 迁移到这里：关掉则该段文本返回空串，内核装配快照时遇到空文本即省略
 				// 该段（这段时间体失效）；开启则全文出现。开态文本始终是同一常量，
 				// 稳定前缀仍利于 KV 缓存。
-				text: () => settings.enableExecDisciplineBlock ? EXEC_DISCIPLINE_TEXT : ""
+				text: () => settings.enableExecDisciplineBlock ? execDisciplineText(settings.copyLocale) : ""
 			}),
 			"cot-anchor exec-discipline runtime context"
 		);
@@ -876,7 +888,7 @@ function apply(ctx, config) {
 				cutClass: "pseudoTool",
 				...(looping ? { trimTo: looping.trimTo } : {}),
 				contexts: [buildAnchorContext(
-					renderPseudoToolAnchor(looping !== null, looping),
+					renderPseudoToolAnchor(looping !== null, looping, settings.copyLocale),
 					`cot-anchor: invalid tool-call format${looping ? ` x${looping.count}` : ""}`
 				)]
 			};
@@ -893,7 +905,7 @@ function apply(ctx, config) {
 				budgetClass: "confirmed-repeat",
 				cutClass: "confirmed-repeat",
 				trimTo: looping.trimTo,
-				contexts: [buildAnchorContext(renderRepeatAnchor(looping), `cot-anchor: loop x${looping.count}`)]
+				contexts: [buildAnchorContext(renderRepeatAnchor(looping, settings.copyLocale), `cot-anchor: loop x${looping.count}`)]
 			};
 		}
 
@@ -911,7 +923,7 @@ function apply(ctx, config) {
 				kind: "cut",
 				budgetClass: "heuristic",
 				cutClass: "heuristic",
-				contexts: [buildAnchorContext(renderNGramLoopAnchor(ngramLoop),
+				contexts: [buildAnchorContext(renderNGramLoopAnchor(ngramLoop, settings.copyLocale),
 					`cot-anchor: ngram-loop "${ngramLoop.maxGram}" x${ngramLoop.count}`)]
 			};
 		}
@@ -931,7 +943,7 @@ function apply(ctx, config) {
 				budgetClass: "confirmed-repeat",
 				cutClass: "confirmed-repeat",
 				trimTo: numberRunaway.trimTo,
-				contexts: [buildAnchorContext(renderNumberRunawayAnchor(numberRunaway), `cot-anchor: number-runaway x${numberRunaway.chars}`)]
+				contexts: [buildAnchorContext(renderNumberRunawayAnchor(numberRunaway, settings.copyLocale), `cot-anchor: number-runaway x${numberRunaway.chars}`)]
 			};
 		}
 
@@ -947,8 +959,8 @@ function apply(ctx, config) {
 			const churnKey = typeof payload?.sessionId === "string" ? payload.sessionId : "";
 			const churnOccurrence = recordChurnCut(churnKey, payload?.turn);
 			const churnAnchorText = churnOccurrence >= 2
-				? renderChurnAnchor(churn) + renderChurnEscalation(churnOccurrence)
-				: renderChurnAnchor(churn);
+				? renderChurnAnchor(churn, settings.copyLocale) + renderChurnEscalation(churnOccurrence, settings.copyLocale)
+				: renderChurnAnchor(churn, settings.copyLocale);
 			return {
 				kind: "cut",
 				budgetClass: "heuristic",
@@ -966,8 +978,8 @@ function apply(ctx, config) {
 		if (actionChurn) {
 			const churnKey = typeof payload?.sessionId === "string" ? payload.sessionId : "";
 			const churnOccurrence = recordChurnCut(churnKey, payload?.turn);
-			const anchorText = renderActionChurnAnchor(actionChurn)
-				+ (churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence) : "");
+			const anchorText = renderActionChurnAnchor(actionChurn, settings.copyLocale)
+				+ (churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : "");
 			emitCotAnchorEvent(ctx, EVENT_SOFTCUT_TAKEN, {
 				...evidenceBase(payload?.sessionId, payload?.turn, payload?.step),
 				cutClass: "heuristic",
@@ -1009,7 +1021,7 @@ function apply(ctx, config) {
 				occurrence
 			});
 			const anchorText = renderOverLongCoTAnchor(
-				reasoningChars, OVER_LONG_COT_THRESHOLD, !!hasReasoningCount, occurrence);
+				reasoningChars, OVER_LONG_COT_THRESHOLD, !!hasReasoningCount, occurrence, settings.copyLocale);
 			return {
 				kind: "cut",
 				budgetClass: "heuristic",
@@ -1133,7 +1145,7 @@ function apply(ctx, config) {
 			const invalidFields = extractInvalidArgFields(errorTop, result?.content);
 			const toolName = typeof exec?.name === "string" ? exec.name : undefined;
 			const recoveryContext = buildAnchorContext(
-				renderToolArgsErrorAnchor(toolName, invalidFields),
+				renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale),
 				"cot-anchor: tool-args-error"
 			);
 			return {

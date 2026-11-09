@@ -293,8 +293,8 @@ test("12:DEFAULT_SETTINGS 与 SETTINGS_SCHEMA 成对且默认开启", () => {
 	const entry = api.SETTINGS_SCHEMA.find((item) => item.key === "enableExternalSoftCut");
 	assert.ok(entry, "schema 控件存在");
 	assert.equal(entry.type, "boolean");
-	assert.equal(entry.label, "允许外部插件请求软切");
-	assert.equal(entry.group, "总开关");
+	assert.equal(entry.label.zh, "允许外部插件请求软切", "#132:label 为 {zh,en} 双字典,zh 逐字保留");
+	assert.equal(entry.group.zh, "总开关");
 	assert.equal(api.applyRuntimeSettings({}).enableExternalSoftCut, true, "运行时默认值发布");
 	fs.rmSync(tempHome, { recursive: true, force: true });
 });

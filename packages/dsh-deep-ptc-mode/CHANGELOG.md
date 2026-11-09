@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.11.0 — 2026-11-09
+
+governor locale 化(#132,T4.ptc 拆分):
+
+- **设置 schema 文案 {zh,en} 双字典**:SETTINGS_SCHEMA(41 项,含新增 copyLocale)与 GOVERNOR_SETTINGS_SCHEMA(14 项)的 label/hint/group/options 全部双语;客户端按 navigator.language 选侧渲染,默认 zh 与历史逐字一致。
+- **注入模型文案抽字典**:新 lib/governor-copy.mjs(COPY,54 位点 zh/en);render* 系列/deny reason/soft-stop 收尾/外部软切引导/命令执行纪律块的中文文案全部经 copy(locale) 取用,locale 参数默认 zh——默认行为零变化。既有英文括注行保留原样(本就双语并列);检测器词表(结论开场词/空转词表/停用词表)不进字典,严禁翻义。
+- **新设置键 copyLocale**(默认 zh,枚举白名单回退):切换注入提示语言,不影响检测逻辑。
+- **客户端 UI 壳文案双字典**:失速治理页签标题/能力横幅三态/高级折叠/保存与错误文案全走 SHELL 字典。
+- **zh/en 键集一致契约测试**(test-governor/copy.test.mjs,7 用例含 en 接线与白名单回退;反向验证:删任一 en 键或 schema en 值即红)。
+
 ## 1.8.0 — 2026-11-08
 
 吸收 dsh-stall-governor(失速治理)与 dsh-git-bash-tool(Git Bash 替换)为单包(#112):
