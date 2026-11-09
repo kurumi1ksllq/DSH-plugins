@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COPY, copy } from '../lib/governor-copy.mjs';
+import { createHash } from 'node:crypto';
 import { EXEC_DISCIPLINE_TEXT, execDisciplineText } from '../lib/governor-anchor.mjs';
 
 // #144:纪律文案单源契约。zh 与 en 都走 governor-copy.mjs 的 discipline0..9 字典,
@@ -22,7 +23,7 @@ function joinDiscipline(locale) {
   }).join('');
 }
 
-test('zh 纪律全文与 EXEC_DISCIPLINE_TEXT 基准常量逐字一致', () => {
+test('zh 纪律全文钉定基线:sha256 2940d3238c886f31…(tripwire——zh 文案漂移即红;有意改文案须同步更新此哈希与 CHANGELOG,#146 轴2)', () => {
   assert.equal(execDisciplineText('zh'), EXEC_DISCIPLINE_TEXT);
 });
 
@@ -61,4 +62,9 @@ test('COPY 字典 discipline 键集合与拼装键集完全一致(多键漏拼�
     const actual = Object.keys(COPY[locale]).filter((k) => k.startsWith('discipline')).sort();
     assert.deepEqual(actual, [...DISCIPLINE_KEYS].sort(), `${locale} discipline 键集合漂移`);
   }
+});
+
+test('zh 纪律全文 sha256 钉定 2940d3238c886f31…(改文案=有意变更:须更新此哈希并在 CHANGELOG 记录,#146 轴2)', () => {
+  const h = createHash('sha256').update(execDisciplineText('zh')).digest('hex');
+  assert.ok(h.startsWith('2940d3238c886f31'), `zh 纪律全文漂移: sha256=${h.slice(0, 16)}…(若为有意变更,更新本哈希并在 CHANGELOG 记录)`);
 });

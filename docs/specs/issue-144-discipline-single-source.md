@@ -46,3 +46,8 @@ packages/dsh-deep-ptc-mode(lib + test + 版本 + CHANGELOG)、packages/dev-flow(
 - P2/P4: 本「执行记录+审查修复」段随 commit b08121a 及后续 commit 落盘;四件套证据:5 包测试(deep-ptc 170[含加强测试]/dev-flow 205/vault 227/inventory 494/websearch 20,均 node24)+根文档 74/74+verify×3 exit0
 - P3: 契约测试 4→6 条:新增"每条非空+zh/en 条目数相等"与"discipline 键集合与拼装键集一致";双路反向验证:多键 mutation→1 fail,清空 mutation→2 fail,还原全绿
 - P5: SKILL.md merge 闸改为单向规则(点选「merge 本 PR」等同口令;暂缓/返工/跳过均不授权)
+
+## 设计变更记录（#146 轴2）
+
+- 原设计「EXEC_DISCIPLINE_TEXT 保留为 zh 基准常量（供契约测试对照）」→ 实现改为 zh 派生值（execDisciplineFromDict("zh")），理由：避免第二份字面量复活双源问题。基线守护职责改由契约测试的 sha256 钉定承担（2940d3238c886f31…，改文案=有意变更须同步更新哈希并记 CHANGELOG）。
+- 符号名勘误：初稿误写 makeDisciplineText，实际为 execDisciplineText（全 git 历史 -S --all 仅 spec 命中，#146 轴1/轴2 双轴发现）。
