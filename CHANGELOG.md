@@ -27,7 +27,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 17 个条目;除 dsh-deep-ptc-mode@1.11.2 与 dev-flow@0.5.0(两个 tag 随本 PR 补推)外,其余 15 条均已随各自 tag 发布。待下一次统一归档至 History 段。
+> 本段现有 17 个条目,全部已随各自 tag 发布(两个当前版本 tag 已随 #146 合入 main 时打出,指向 cab5801;不含下方历史 Unreleased 批次段)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

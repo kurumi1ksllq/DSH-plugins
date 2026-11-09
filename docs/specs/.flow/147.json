@@ -1,8 +1,8 @@
 {
   "issue": 147,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-09T11:21:03.499Z",
+  "stage": "review",
+  "updatedAt": "2026-11-09T11:48:01.546Z",
   "tickets": [
     {
       "id": 1,
@@ -38,13 +38,15 @@
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green",
+    "latest": "pass @ e95ca19 (PR #148, run 42608408584)"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {
     "authorized": false
-  }
+  },
+  "note": "双轴 review 四报告(两轮)汇总:采纳 7 项修复(见 spec 修订记录:tag 核账/子状态收敛/守卫收紧+Unreleased 作用域反向验证/注记/REVIEW-FIXES 引用口径/分支计数/快照限定),不采纳 143.json tag→e773266 建议(实测指向 cab5801);用户裁决卡 q-review-verdict-147 选「执行修复并重推」。复验 test 1179/0 fail + verify 5 bundle ok。"
 }

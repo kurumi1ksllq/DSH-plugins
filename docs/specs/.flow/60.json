@@ -2,7 +2,7 @@
   "issue": 60,
   "grade": "standard",
   "stage": "done",
-  "updatedAt": "2026-11-09T11:12:59.039Z",
+  "updatedAt": "2026-11-09T11:42:49.030Z",
   "tickets": [
     {
       "id": 1,
@@ -36,11 +36,11 @@
     "status": "green"
   },
   "review": {
-    "state": "pending-decision",
+    "state": "done",
     "axes": 2
   },
   "merge": {
     "authorized": true
   },
-  "note": "board-flip #147(2026-11-09):合并证据 PR #61 merge 0a5ab92,git merge-base --is-ancestor 0a5ab92 main = true,经双源核验翻终态;"
+  "note": "board-flip #147(2026-11-09):合并证据 PR #61 merge 0a5ab92,git merge-base --is-ancestor 0a5ab92 main = true,经双源核验翻终态;;子状态收敛(#147 裁决):review.state→done,ci.status 保留原值(历史 run 不回填伪造)"
 }

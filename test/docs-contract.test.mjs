@@ -491,22 +491,32 @@ test('the CHANGELOG header states the bundle count packages/ actually holds', ()
 // Version discipline (docs maintenance, #147)
 //
 // #144 merged two version bumps (dsh-deep-ptc-mode 1.11.2, dev-flow 0.5.0) whose
-// CHANGELOG entries were never written — the same drift the tag discipline warns
-// about, one file later. packages/ is the only source of truth: every current
-// bundle version must appear in the CHANGELOG, or CI goes red here.
+// CHANGELOG entries were never written. packages/ is the only source of truth:
+// every current bundle version must carry a `### <name> <version>` entry heading
+// inside the FIRST `## Unreleased` section. Whole-file matching would stay green
+// once an entry is archived out of Unreleased (dual-axis review finding), so the
+// scope and the heading format are checked on purpose; the archival pass must
+// update this test together with the section it moves entries into.
 
-test('the CHANGELOG states every current package version packages/ carries', () => {
-  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+/** The FIRST `## Unreleased` section of the CHANGELOG, up to the next `## ` heading. */
+function unreleasedSection(changelog) {
+  const start = changelog.indexOf('## Unreleased')
+  assert.ok(start > -1, 'CHANGELOG must carry an `## Unreleased` section')
+  const next = changelog.indexOf('\n## ', start + 1)
+  return changelog.slice(start, next === -1 ? changelog.length : next)
+}
+
+test('the CHANGELOG Unreleased section carries every current package version as an entry', () => {
+  const unreleased = unreleasedSection(readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8'))
   const missing = []
   for (const dir of packageDirs()) {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'packages', dir, 'package.json'), 'utf8'))
-    if (!changelog.includes(`${pkg.name} ${pkg.version}`)) {
-      missing.push(`${pkg.name} ${pkg.version}`)
-    }
+    const heading = new RegExp(`^### ${pkg.name} ${pkg.version.replace(/\\./g, '\\.')}(?![\\w.])`, 'm')
+    if (!heading.test(unreleased)) missing.push(`${pkg.name} ${pkg.version}`)
   }
   assert.deepEqual(
     missing,
     [],
-    `CHANGELOG must state every current package version: ${missing.join('; ')}`,
+    `CHANGELOG Unreleased must state every current package version as an entry: ${missing.join('; ')}`,
   )
 })

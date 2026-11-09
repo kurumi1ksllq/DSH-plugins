@@ -20,12 +20,12 @@
   #39→6ec6c14(PR #40) #45→6d194f6(PR #46) #48/#50→4672d74(PR #63)
   #60→0a5ab92(PR #61) #118→510fb49(PR #119) #143→e773266(PR #144)。
 - 结构:AGENTS.md 目录速览表缺 docs/update-checkout.md、docs/update-scheme.md 两行(README 有引用);
-  REVIEW-FIXES.md 为 2026-10-31 旧机一次性 review 记录(内含 E:\Project-hub 旧路径),git 跟踪文件,无引用。
+  REVIEW-FIXES.md 为 2026-10-31 旧机一次性 review 记录(内含 E:\Project-hub 旧路径),git 跟踪文件,无路径引用(仅 CHANGELOG:510 一条历史提及,所列 findings 已全部落地)。
 
 ## 边界
 
 - 不改任何包代码 → 无版本号变更、无新 tag(除补打的两个既有版本 tag)。
-- 不动 34 个未合并本地分支;不重写历史;不重启 DSH 宿主。
+- 不动 34 个未合并业务分支(git branch --no-merged 共 36 个,另 2 个为本分支与 preserve-issue36,口径外);不重写历史;不重启 DSH 宿主。
 - .flow 翻转只依据上表已核验证据;证据不足的条目(无)一律不翻。
 - 执行前置:gh 未认证。vault 存在 github-rope-token(经 credential action:"use" 下发环境变量名
   DSH_CRED_GITHUB_ROPE_TOKEN,值不入对话)。若 token 注入或 gh 操作失败 → 不重试超过 2 次,
@@ -42,8 +42,9 @@
    note 记 merge 证据(PR 号+merge sha);依据「合并后即终态,历史板面只保留未交付项」。
 4. **结构补全**:AGENTS.md 目录表补 docs/update-checkout.md(权威 checkout 运维记录)与
    docs/update-scheme.md(插件更新方案)两行;git rm REVIEW-FIXES.md。
-5. **tag 补账**:main HEAD(36251d9)补 tag dsh-deep-ptc-mode@1.11.2、dev-flow@0.5.0,
-   随停点3 push 一并推送。
+5. **tag 核账(修订:核验非补打)**:远端 dev-flow@0.5.0 与 dsh-deep-ptc-mode@1.11.2 早已存在且
+   指向 cab5801(#146 合入 main 提交,git ls-remote 双源核验);本地误打的同名 tag(指向 36251d9)
+   已删除并按远端实况重打;无新增 tag、无 tag 推送。
 6. **验收与交付**:pnpm test + pnpm verify 全绿;push→开 PR(Closes 本 issue)→查 CI 一次
    →双轴 review→merge 闸。
 
@@ -54,3 +55,8 @@
 - 10 个 .flow 文件 stage=done 且 note 含可核验 merge 证据。
 - AGENTS.md 目录表覆盖 docs/ 全部现存文档;REVIEW-FIXES.md 从工作树移除。
 - git status 干净(分支上),无越界改动(对照 §边界)。
+
+> 修订(2026-11-09,双轴 review 裁决后经用户确认):T5 由「补 tag」修正为「核验远端已有 tag」——
+> 本地 tag 列表零命中≠不存在(检索纪律 #144);证据段加执行前快照限定;REVIEW-FIXES 引用口径、
+> 未合并分支计数(36 含口径外 2 个)、CHANGELOG 注记(17 条全部已发布,不含历史批次段)同步修正;
+> 守卫收紧为 Unreleased 段内标题行匹配(反向验证含「仅历史段提及不放行」用例)。
