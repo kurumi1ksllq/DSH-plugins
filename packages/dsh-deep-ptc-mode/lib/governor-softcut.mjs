@@ -5,6 +5,7 @@
  */
 import { CONCLUSION_OPENERS } from "./governor-anchor.mjs";
 import { SOFT_CUT_SCAN_TAIL, SOFT_CUT_MIN_FOLLOW_CHARS, SOFT_CUT_TRANSITION_WINDOW, SOFT_CUT_GAP_THRESHOLD, CHURN_WINDOW_CHARS, REPEAT_MIN_TEXT_CHARS, REPEAT_WINDOW_CHARS, REPEAT_PROBE_CHARS, REPEAT_MAX_PERIOD, REPEAT_SHORT_PERIOD, REPEAT_MIN_PERIOD, REPEAT_ULTRA_SHORT_MIN_COUNT, REPEAT_MIN_COUNT_SHORT, REPEAT_MIN_COUNT, NUMBER_RUN_MIN_TEXT_CHARS, NUMBER_RUN_MAX_GAP, NUMBER_RUN_MIN_CHARS, NUMBER_RUN_MIN_DIGIT_RATIO, NUMBER_RUN_MIN_INCREASE_RATIO, NGram_PHRASE_MIN, NGram_MIN_COUNT, NGram_COVERAGE_RATIO, PSEUDO_TOOL_SCAN_TAIL, CHURN_MIN_TEXT_CHARS, CHURN_MIN_HITS } from "./governor-settings.mjs";
+import { copy } from "./governor-copy.mjs";
 
 
 
@@ -453,12 +454,16 @@ function findRepeatingTail(fullVisibleText) {
  * @param {{period:number,count:number}} loop
  * @returns {string}
  */
-function renderRepeatAnchor(loop) {
-	return [
-		`COT anchor — 检测到原地重复：同一段内容（约 ${loop.period} 字）已连续重复至少 ${loop.count} 次。立即停止重复，不要再输出这段内容。`,
-		`(You are repeating the same ${loop.period}-char block at least ${loop.count} times. Stop repeating it now.)`,
-		"直接执行你已经规划好的下一步动作；若下一步是工具调用，就只发一次。"
-	].join("\n");
+function renderRepeatAnchor(loop, locale = "zh") {
+	const t = copy(locale);
+	if (locale === "zh") {
+		return [
+			t.repeatHead(loop),
+			`(You are repeating the same ${loop.period}-char block at least ${loop.count} times. Stop repeating it now.)`,
+			t.repeatAct()
+		].join("\n");
+	}
+	return [t.repeatHead(loop), t.repeatAct()].join("\n");
 } // (b>a || b===a) / neighbouring pairs
 
 /**
@@ -527,12 +532,16 @@ function detectNumberRunaway(fullVisibleText) {
  * @param {{chars:number}} nr
  * @returns {string}
  */
-function renderNumberRunawayAnchor(nr) {
-	return [
-		`COT anchor — 检测到数字递增流退化：你已连续输出约 ${nr.chars} 字符的递增数字流，而没有推进任何内容。立即停止数数，不要再输出"序号→更大数字"的流水。`,
-		"回到你退化前正在写的那句话，直接给结论或执行下一步；若下一步是工具调用，就只发一次。",
-		`(You are emitting a ${nr.chars}-char monotone-increasing number stream. Stop counting; resume from the last real sentence.)`
-	].join("\n");
+function renderNumberRunawayAnchor(nr, locale = "zh") {
+	const t = copy(locale);
+	if (locale === "zh") {
+		return [
+			t.numberRunHead(nr),
+			t.numberRunAct(),
+			`(You are emitting a ${nr.chars}-char monotone-increasing number stream. Stop counting; resume from the last real sentence.)`
+		].join("\n");
+	}
+	return [t.numberRunHead(nr), t.numberRunAct()].join("\n");
 }
 /**
  * 修复③（误软切回归）：英文词轨的 token 与短语形态守卫。
@@ -1052,13 +1061,17 @@ function detectNGramLoop(fullVisibleText) {
 }
 
 /** 修复②：n-gram 锚点。 */
-function renderNGramLoopAnchor(info) {
-	return [
-		`COT anchor — 语义循环（n-gram 指纹）：最近尾窗里高频短语「${info.maxGram}」重复出现 ${info.count} 次（覆盖占比约 ${(info.coverage * 100).toFixed(1)}%）。`,
-		"数字每轮都在变但动词结构每轮相同，说明你在同一个行动提议上打转。",
-		"立即停止。要么真的发出 tool_call，要么直接跳到结果。",
-		`(NGram loop: phrase "${info.maxGram}" x${info.count}, coverage ${(info.coverage * 100).toFixed(1)}%. Stop cycling.)`
-	].join("\n");
+function renderNGramLoopAnchor(info, locale = "zh") {
+	const t = copy(locale);
+	if (locale === "zh") {
+		return [
+			t.ngramHead(info),
+			t.ngramDiag(),
+			t.ngramAct(),
+			`(NGram loop: phrase "${info.maxGram}" x${info.count}, coverage ${(info.coverage * 100).toFixed(1)}%. Stop cycling.)`
+		].join("\n");
+	}
+	return [t.ngramHead(info), t.ngramDiag(), t.ngramAct()].join("\n");
 }
 
 /**
@@ -1200,15 +1213,11 @@ function hasPseudoToolCall(fullVisibleText) {
  * @param {{count:number}|null} loop - loop details when `alsoLooping`.
  * @returns {string}
  */
-function renderPseudoToolAnchor(alsoLooping, loop) {
-	const lines = [
-		"COT anchor — 你刚才输出的工具调用是**文本**形式，系统不会识别、也不会执行它。",
-		"不要再写尖括号拼出来的调用标签（比如 seed 风格或 function/parameter 标签）；它们只是普通文字。",
-		"请直接发起工具调用（使用工具调用能力本身），一次就够，不要重复输出同一段内容。",
-		"若确实无法发起工具调用，就用一句话说明你需要什么，不要再贴工具调用的文本。"
-	];
+function renderPseudoToolAnchor(alsoLooping, loop, locale = "zh") {
+	const t = copy(locale);
+	const lines = [t.pseudoHead(), t.pseudoNoTag(), t.pseudoCall(), t.pseudoFallback()];
 	if (alsoLooping && loop) {
-		lines.push(`（该无效调用已被识别为重复 ${loop.count} 次，重复部分已丢弃。）`);
+		lines.push(t.pseudoLooped(loop));
 	}
 	lines.push("(Your tool call was written as plain text, so the Harness never executed it. Emit a real tool call instead — once.)");
 	return lines.join("\n");
@@ -1273,21 +1282,22 @@ function extractInvalidArgFields(error, contentBlocks) {
  * @param {string[]} fields - extractInvalidArgFields 的结果；空数组走通用句式。
  * @returns {string}
  */
-function renderToolArgsErrorAnchor(toolName, fields) {
-	const toolLabel = typeof toolName === "string" && toolName.trim() !== "" ? toolName.trim() : "上一次工具调用";
+function renderToolArgsErrorAnchor(toolName, fields, locale = "zh") {
+	const t = copy(locale);
+	const toolLabel = typeof toolName === "string" && toolName.trim() !== "" ? toolName.trim() : t.toolArgsFallbackLabel();
 	if (fields.length > 0) {
 		return [
-			`COT anchor — 上一次工具调用未被执行：${toolLabel} 的参数校验未通过（缺失或非法参数：${fields.join("、")}）。`,
-			"请对照该工具的完整参数 schema 补齐或修正上述参数后重新发起调用，且只重发一次，不要重复提交。",
-			"禁止把工具调用写成尖括号拼出的文本标签；必须使用工具调用能力本身发起。",
+			t.toolArgsHead(toolLabel, fields),
+			t.toolArgsResend(),
+			t.toolArgsNoTag(),
 			`(Your previous tool call was NOT executed: ${toolLabel} arguments failed validation (${fields.join(", ")}). Resend exactly once with schema-valid arguments via the real tool-call channel — never as text tags.)`
 		].join("\n");
 	}
 	// 通用句式降级：抽不到参数名时仍必须给出可执行的恢复指引。
 	return [
-		`COT anchor — 上一次工具调用未被执行：${toolLabel} 的参数非法。`,
-		"上一次工具调用参数非法，按工具完整参数要求重发一次；补齐全部必填参数，且只重发一次，不要重复提交。",
-		"禁止把工具调用写成尖括号拼出的文本标签；必须使用工具调用能力本身发起。",
+		t.toolArgsInvalidHead(toolLabel),
+		t.toolArgsGenericResend(),
+		t.toolArgsNoTag(),
 		`(Your previous tool call was NOT executed: ${toolLabel} arguments were invalid. Resend exactly once following the tool's full parameter requirements — never as text tags.)`
 	].join("\n");
 }
@@ -1377,13 +1387,17 @@ function detectActionChurn(fullVisibleText) {
  * @param {{hits:number}} churn
  * @returns {string}
  */
-function renderChurnAnchor(churn) {
-	return [
-		`COT anchor — 你正在原地空转：最近约 ${CHURN_WINDOW_CHARS} 字里出现了 ${churn.hits} 次"让我想想/重新分析"这类重启用语，说明你在反复重新分析同一个问题而没有推进。`,
-		"立即停止重新分析。不要再复述已知信息、不要重新检查已经确认过的结论。",
-		"直接给出当前结论，或执行你已经决定的下一步；只输出你尚未说过的内容。",
-		`(You are churning: ${churn.hits} restart phrases in the last ~${CHURN_WINDOW_CHARS} chars. Stop re-analyzing; emit only what you have not said yet, then act.)`
-	].join("\n");
+function renderChurnAnchor(churn, locale = "zh") {
+	const t = copy(locale);
+	if (locale === "zh") {
+		return [
+			t.churnHead(churn, CHURN_WINDOW_CHARS),
+			t.churnStop(),
+			t.churnAct(),
+			`(You are churning: ${churn.hits} restart phrases in the last ~${CHURN_WINDOW_CHARS} chars. Stop re-analyzing; emit only what you have not said yet, then act.)`
+		].join("\n");
+	}
+	return [t.churnHead(churn, CHURN_WINDOW_CHARS), t.churnStop(), t.churnAct()].join("\n");
 }
 
 /**
@@ -1391,13 +1405,17 @@ function renderChurnAnchor(churn) {
  * @param {{hits:number}} churn
  * @returns {string}
  */
-function renderActionChurnAnchor(churn) {
-	return [
-		`COT anchor — 行动提议空转：最近约 ${CHURN_WINDOW_CHARS} 字里出现了 ${churn.hits} 次"让我 curl / web_fetch"这类行动提议，但全程没有实际工具调用。`,
-		"立即停止空喊工具名。不要再说\"让我 curl 一下\"、\"先试试 web_fetch\"这类没有执行的提议。",
-		"要么真的发出 tool_call（带完整参数），要么直接跳到结果；不要再重复同一个行动提议。",
-		`(Action-proposal stall: ${churn.hits} tool-verb proposals in the last ~${CHURN_WINDOW_CHARS} chars with zero real tool_call. Stop proposing — either emit the tool_call or give the result.)`
-	].join("\n");
+function renderActionChurnAnchor(churn, locale = "zh") {
+	const t = copy(locale);
+	if (locale === "zh") {
+		return [
+			t.actionChurnHead(churn, CHURN_WINDOW_CHARS),
+			t.actionChurnStop(),
+			t.actionChurnAct(),
+			`(Action-proposal stall: ${churn.hits} tool-verb proposals in the last ~${CHURN_WINDOW_CHARS} chars with zero real tool_call. Stop proposing — either emit the tool_call or give the result.)`
+		].join("\n");
+	}
+	return [t.actionChurnHead(churn, CHURN_WINDOW_CHARS), t.actionChurnStop(), t.actionChurnAct()].join("\n");
 }
 
 /**
@@ -1414,18 +1432,17 @@ function renderActionChurnAnchor(churn) {
  * @param {number} occurrence - 本 turn 内第几次因过长被切（从 1 开始）
  * @returns {string}
  */
-function renderOverLongCoTAnchor(reasoningChars, threshold, hasStreams, occurrence = 1) {
-	const scope = hasStreams
-		? `本次思考已达约 ${reasoningChars} 字（阈值 ${threshold}）`
-		: `本次输出已达约 ${reasoningChars} 字（阈值 ${threshold}，含回答文本，思考部分估算）`;
+function renderOverLongCoTAnchor(reasoningChars, threshold, hasStreams, occurrence = 1, locale = "zh") {
+	const t = copy(locale);
+	const scope = hasStreams ? t.overLongScopeStreams(reasoningChars, threshold) : t.overLongScopeMerged(reasoningChars, threshold);
 	const lines = [
-		`COT anchor — 停止生成思考内容：${scope}，已判定为过度思考。`,
-		"从这一刻起，不要再写任何分析、排查、计划、复述，也不要写「我应该立即行动」「接下来我会…」这类表态——表态不等于执行。",
-		"下一条消息只能是以下两种之一（二选一）：① 一次真实工具调用（选当前最可执行的一步，先做再判断）；② 直接给用户的最终答案（写出已确认结论，未确认项列为待办）。",
-		"信息不足时选①中最小的可验证动作；不得以「再查一下 / 再确认一下」为理由继续输出文字。",
+		t.overLongHead(scope),
+		t.overLongNoTalk(),
+		t.overLongEither(),
+		t.overLongMinAction(),
 		"(Stop generating reasoning now. Your next message MUST be either one real tool call, or the final answer to the user. No analysis, no plans, no restating, no \"I should act now\" declarations. If information is insufficient, make the smallest verifiable tool call instead of writing more text.)"
 	];
-	return lines.join("\n") + renderOverLongEscalation(occurrence);
+	return lines.join("\n") + renderOverLongEscalation(occurrence, locale);
 }
 
 /**
@@ -1434,16 +1451,12 @@ function renderOverLongCoTAnchor(reasoningChars, threshold, hasStreams, occurren
  * @param {number} occurrence - 本 turn 内第几次命中（>=1）
  * @returns {string} 第 1 次返回空串
  */
-function renderOverLongEscalation(occurrence) {
+function renderOverLongEscalation(occurrence, locale = "zh") {
 	if (occurrence < 2) return "";
-	const lines = ["",
-		`本 turn 第 ${occurrence} 次因 CoT 过长被切断。上一次提醒之后你没有执行工具调用、也没有给出结论，而是继续分析——这正是再次被切断的原因。`];
-	if (occurrence >= 3) {
-		lines.push(`重复提醒已达 ${occurrence} 次：把上面的「二选一」当作硬约束。不要再写任何新的分析段落或行动计划，现在直接调用工具或输出最终答案。`);
-	}
-	if (occurrence >= 5) {
-		lines.push("内核的启发式打断预算（与其他检测器共享）可能已接近上限，后续不一定再有提醒；这一次必须收尾。");
-	}
+	const t = copy(locale);
+	const lines = ["", t.overLongEsc2(occurrence)];
+	if (occurrence >= 3) lines.push(t.overLongEsc3(occurrence));
+	if (occurrence >= 5) lines.push(t.overLongEsc5());
 	return lines.join("\n");
 }
 
@@ -1564,11 +1577,10 @@ function resetChurnCountOnTurnBoundary(sessionId, turn) {
  * @param {number} occurrence - 本 turn 内这是第几次 churn cut 决策（>=1）。
  * @returns {string}
  */
-function renderChurnEscalation(occurrence) {
-	const lines = ["", `本 turn 第 ${occurrence} 次空转，下一步必须是一次真实工具调用或最终结论，禁止继续分析。`];
-	if (occurrence >= 6) {
-		lines.push("插件侧已发起 6 次空转打断（此为插件发起计数，内核可能因预算拒绝后续打断），此后仅字节级重复检测仍可能拦截。");
-	}
+function renderChurnEscalation(occurrence, locale = "zh") {
+	const t = copy(locale);
+	const lines = ["", t.churnEsc(occurrence)];
+	if (occurrence >= 6) lines.push(t.churnEscBudget());
 	return lines.join("\n");
 }
 

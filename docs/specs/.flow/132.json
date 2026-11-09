@@ -1,0 +1,29 @@
+{
+  "issue": 132,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-09T08:50:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "governor-copy.mjs 双字典 + render* locale 参数化",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "设置 schema 文案 {zh,en} 化 + 客户端 pick",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "zh/en 键集一致契约测试",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本 1.11.0 + 四件套收尾",
+      "state": "green"
+    }
+  ],
+  "note": "spec 修正记录:方案②要求新增 copyLocale 设置键 → 合并 schema 计数 54→55,边界行「54 项不变」随之作废(用户已授权直接实施,此为机械联动)；ticket1:render*/deny/soft-stop/纪律块经 governor-copy.mjs(54 位点双字典,locale 参数默认 zh);copyLocale 设置键(55 项联动,settings.test 计数断言已更新);ticket2:schema 65+ 项文案 {zh,en} 化(SETTINGS_SCHEMA 41+GOVERNOR 14,含 options),客户端 pick()+SHELL 双字典(navigator.language 判定),横幅/高级折叠/按钮文案全走 shell;两处既有断言按目标形态更新(label.zh);全包 158 ✔；ticket3 反向验证:删 COPY en.churnEscBudget→键集红、删 schema numberRunMaxGap en→文案字段红,还原后 158✔;ticket4:1.11.0+CHANGELOG,verify-packages+check-bundle-versions 绿(隔离 DSH_HOME)"
+}

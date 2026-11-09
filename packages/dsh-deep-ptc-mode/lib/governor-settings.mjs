@@ -215,6 +215,8 @@ const DEFAULT_SETTINGS = {	// Master switches
 	numberRunMinIncreaseRatio: 0.55,
 	// Invalid tool-call detector
 	pseudoToolScanTail: 4000,
+	// #132:注入模型文案语言(检测器词表不在此列,永远原始语言)。默认 zh=既有逐字文案,行为零变化。
+	copyLocale: "zh",
 };
 
 /** Currently applied settings (booleans are read directly from here). */
@@ -233,81 +235,90 @@ let TRANSITION_TEXT_MODE = DEFAULT_SETTINGS.transitionTextMode;
  * here plus a line in `applyRuntimeSettings`.
  */
 const SETTINGS_SCHEMA = [
-	{ key: "enableSoftCut", label: "允许生成中途打断（软切断）", type: "boolean", group: "总开关",
-		hint: "关闭后只保留工具边界的注入，不再在生成过程中切断。" },
-	{ key: "enableExternalSoftCut", label: "允许外部插件请求软切", type: "boolean", group: "总开关",
-		hint: "开启后允许其他插件（如 dsh-derive-watcher 检测到二级语义停滞时）请求本插件在生成边界软切。外部请求只占用启发式额度，不会触发硬中止；默认开启（开箱即用）。" },
+	// #132:文案字段(label/hint/group/options[].label)为 {zh,en} 双字典;zh 为既有逐字文案。
+	// 结构字段(key/type/min/max/step/advanced)不受 locale 化影响。
+	{ key: "enableSoftCut", label: { zh: "允许生成中途打断（软切断）", en: "Allow mid-generation interruption (soft cut)" }, type: "boolean", group: { zh: "总开关", en: "Master switches" },
+		hint: { zh: "关闭后只保留工具边界的注入，不再在生成过程中切断。", en: "When off, only tool-boundary injection remains; no more cutting during generation." } },
+	{ key: "enableExternalSoftCut", label: { zh: "允许外部插件请求软切", en: "Allow external plugins to request soft cuts" }, type: "boolean", group: { zh: "总开关", en: "Master switches" },
+		hint: { zh: "开启后允许其他插件（如 dsh-derive-watcher 检测到二级语义停滞时）请求本插件在生成边界软切。外部请求只占用启发式额度，不会触发硬中止；默认开启（开箱即用）。", en: "When on, other plugins (e.g. dsh-derive-watcher detecting secondary semantic stall) may request a soft cut at the generation boundary. External requests only consume the heuristic budget and never hard-abort; on by default." } },
 
-	{ key: "enablePseudoTool", label: "识别伪工具调用", type: "boolean", group: "打断判定",
-		hint: "模型把工具调用写成文本（如 <seed:tool_call>）时打断并纠正格式。" },
-	{ key: "enableRepeat", label: "识别重复/语义循环（n-gram 指纹）", type: "boolean", group: "打断判定",
-		hint: "同一段内容被反复吐出，或尾窗内高频短语反复出现（注入提示「语义循环（n-gram 指纹）」）时打断，并裁掉落盘的重复部分。" },
-	{ key: "enableChurn", label: "识别语义空转", type: "boolean", group: "打断判定",
-		hint: "措辞不同但反复\"重新分析\"时打断（注入提示「原地空转」）；含只说不做的\"行动提议空转\"（注入提示「行动提议空转」）。属启发式判定，遇到未闭合代码块会自动让路。" },
-	{ key: "enableTransition", label: "识别转折句", type: "boolean", group: "打断判定",
-		hint: "\"接下来我要……\"这类转折句出现时打断，先注入结论锚点。" },
-	{ key: "enableNumberRunaway", label: "识别数字递增流退化", type: "boolean", group: "打断判定",
-		hint: "长段递增数字流（如 639.640) 640.641)…）连续多字且无实质内容时打断。启发式判定，仅在数字流足够长时触发。" },
-	{ key: "enableOverLongCoT", label: "过长 CoT 软切", type: "boolean", group: "打断判定",
-		hint: "当本轮 CoT 累计字符数达到下方阈值时软切并提醒模型「落实阶段性结论、避免过度思考」。属兜底提醒，独立于其他启发式检测。默认关闭。" },
+	{ key: "enablePseudoTool", label: { zh: "识别伪工具调用", en: "Detect pseudo tool calls" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "模型把工具调用写成文本（如 <seed:tool_call>）时打断并纠正格式。", en: "Cut when the model writes a tool call as text (e.g. <seed:tool_call>) and correct the format." } },
+	{ key: "enableRepeat", label: { zh: "识别重复/语义循环（n-gram 指纹）", en: "Detect repetition / semantic loops (n-gram fingerprint)" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "同一段内容被反复吐出，或尾窗内高频短语反复出现（注入提示「语义循环（n-gram 指纹）」）时打断，并裁掉落盘的重复部分。", en: "Cut when the same block is emitted repeatedly or a high-frequency phrase recurs in the tail window (injected hint: \"semantic loop\"), trimming the duplicated part from the transcript." } },
+	{ key: "enableChurn", label: { zh: "识别语义空转", en: "Detect semantic churning" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "措辞不同但反复\"重新分析\"时打断（注入提示「原地空转」）；含只说不做的\"行动提议空转\"（注入提示「行动提议空转」）。属启发式判定，遇到未闭合代码块会自动让路。", en: "Cut when the model re-analyzes in different words (hint: \"churning\"); also covers action-proposal stalls (hint: \"action-proposal stall\"). Heuristic; yields inside unclosed code fences." } },
+	{ key: "enableTransition", label: { zh: "识别转折句", en: "Detect transition phrases" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "\"接下来我要……\"这类转折句出现时打断，先注入结论锚点。", en: "Cut on transition phrases like \"next I will…\" and inject the conclusions anchor first." } },
+	{ key: "enableNumberRunaway", label: { zh: "识别数字递增流退化", en: "Detect number-runaway degeneration" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "长段递增数字流（如 639.640) 640.641)…）连续多字且无实质内容时打断。启发式判定，仅在数字流足够长时触发。", en: "Cut long monotone number streams (e.g. 639.640) 640.641)…) that carry no substance. Heuristic; fires only on long enough runs." } },
+	{ key: "enableOverLongCoT", label: { zh: "过长 CoT 软切", en: "Over-long CoT soft cut" }, type: "boolean", group: { zh: "打断判定", en: "Interruption detection" },
+		hint: { zh: "当本轮 CoT 累计字符数达到下方阈值时软切并提醒模型「落实阶段性结论、避免过度思考」。属兜底提醒，独立于其他启发式检测。默认关闭。", en: "When this turn's CoT reaches the threshold below, cut and remind the model to settle phase conclusions and stop over-thinking. A last-resort reminder, independent of other heuristics. Off by default." } },
 
-	{ key: "minReasoningChars", label: "最少思考字数", type: "number", min: 50, max: 5000, group: "锚点内容",
-		hint: "思考短于此长度时不提取结论、不注入。" },
-	{ key: "maxPoints", label: "锚点最多结论条数", type: "number", min: 1, max: 8, group: "锚点内容" },
-	{ key: "maxPointChars", label: "单条结论最大字数", type: "number", min: 40, max: 1000, group: "锚点内容" },
-	{ key: "enableLengthConservationCheck", advanced: true, label: "长度守恒校验", type: "boolean", group: "锚点内容",
-		hint: "注入前先核对锚点正文和每条结论逐字一致，防止摘要被截断或丢字；对不上就放弃这次注入。" },
-	{ key: "transitionTextMode", advanced: true, label: "思考与正文如何分开（内核支持后生效）", type: "select", group: "锚点内容",
+	{ key: "minReasoningChars", label: { zh: "最少思考字数", en: "Minimum reasoning chars" }, type: "number", min: 50, max: 5000, group: { zh: "锚点内容", en: "Anchor content" },
+		hint: { zh: "思考短于此长度时不提取结论、不注入。", en: "No conclusions are extracted or injected when reasoning is shorter than this." } },
+	{ key: "maxPoints", label: { zh: "锚点最多结论条数", en: "Max conclusion points per anchor" }, type: "number", min: 1, max: 8, group: { zh: "锚点内容", en: "Anchor content" } },
+	{ key: "maxPointChars", label: { zh: "单条结论最大字数", en: "Max chars per conclusion point" }, type: "number", min: 40, max: 1000, group: { zh: "锚点内容", en: "Anchor content" } },
+	{ key: "enableLengthConservationCheck", advanced: true, label: { zh: "长度守恒校验", en: "Length-conservation check" }, type: "boolean", group: { zh: "锚点内容", en: "Anchor content" },
+		hint: { zh: "注入前先核对锚点正文和每条结论逐字一致，防止摘要被截断或丢字；对不上就放弃这次注入。", en: "Verify the anchor body reproduces each conclusion verbatim before injection; abandon the injection on any drift." } },
+	{ key: "transitionTextMode", advanced: true, label: { zh: "思考与正文如何分开（内核支持后生效）", en: "How to split reasoning from text (needs kernel support)" }, type: "select", group: { zh: "锚点内容", en: "Anchor content" },
 		options: [
-			{ value: "separateThreshold", label: "按字数阈值自动分开（默认）" },
-			{ value: "disable", label: "不分开，整段当作正文处理" }
+			{ value: "separateThreshold", label: { zh: "按字数阈值自动分开（默认）", en: "Split by char threshold (default)" } },
+			{ value: "disable", label: { zh: "不分开，整段当作正文处理", en: "No split; treat the whole stream as text" } }
 		],
-		hint: "决定怎么把模型的「思考」和「正文」区分开来。内核还没支持这一项，选什么都不会改变行为，先按默认放着即可。" },
-	{ key: "enableExecDisciplineBlock", label: "随锚点注入命令执行纪律块", type: "boolean", group: "锚点内容",
-		hint: "默认开启。开启时会把「执行命令要守规矩」这段提醒和结论摘要一起插回上下文；关闭就完全不插这段提醒，结论摘要和其他识别、去重功能都不受影响。" },
+		hint: { zh: "决定怎么把模型的「思考」和「正文」区分开来。内核还没支持这一项，选什么都不会改变行为，先按默认放着即可。", en: "Controls how reasoning and text are separated. The kernel does not support this yet; no value changes behavior — leave the default." } },
+	{ key: "enableExecDisciplineBlock", label: { zh: "随锚点注入命令执行纪律块", en: "Inject command-discipline block with anchors" }, type: "boolean", group: { zh: "锚点内容", en: "Anchor content" },
+		hint: { zh: "默认开启。开启时会把「执行命令要守规矩」这段提醒和结论摘要一起插回上下文；关闭就完全不插这段提醒，结论摘要和其他识别、去重功能都不受影响。", en: "On by default. When on, the command-discipline reminder is injected alongside the conclusions summary; turning it off removes only that reminder." } },
 
-	{ key: "overLongCoTThreshold", advanced: true, label: "CoT 长度阈值（字符）", type: "number", min: 0, max: 100000, group: "过长 CoT 参数",
-		hint: "本轮 CoT 累计字符数达到此值即触发软切提醒，设置值直接生效、不会被放大。默认 8000；设为 0 即关闭（同关闭上方开关效果一致）。内核未分流 text/reasoning 时按整段输出长度估算（含回答文本）；只想统计纯思考字数，请把内核切到 separateThreshold 模式。" },
+	{ key: "overLongCoTThreshold", advanced: true, label: { zh: "CoT 长度阈值（字符）", en: "CoT length threshold (chars)" }, type: "number", min: 0, max: 100000, group: { zh: "过长 CoT 参数", en: "Over-long CoT" },
+		hint: { zh: "本轮 CoT 累计字符数达到此值即触发软切提醒，设置值直接生效、不会被放大。默认 8000；设为 0 即关闭（同关闭上方开关效果一致）。内核未分流 text/reasoning 时按整段输出长度估算（含回答文本）；只想统计纯思考字数，请把内核切到 separateThreshold 模式。", en: "Soft-cut reminder fires when this turn's CoT reaches this many chars; the value applies as-is. Default 8000; 0 disables (same as the switch above). Without kernel text/reasoning splitting, the whole output is estimated (answer text included)." } },
 
-	{ key: "numberRunMinTextChars", advanced: true, label: "数字流启用最小文本长度", type: "number", min: 100, max: 50000, group: "数字流参数" },
-	{ key: "numberRunMinChars", advanced: true, label: "数字流最短跨度", type: "number", min: 50, max: 20000, group: "数字流参数" },
-	{ key: "numberRunMaxGap", advanced: true, label: "数字流最大间隙", type: "number", min: 1, max: 200, group: "数字流参数",
-		hint: "相邻数字 token 之间允许的最大字符间隔。" },
-	{ key: "numberRunMinDigitRatio", advanced: true, label: "数字流最小数字占比", type: "number", min: 0, max: 1, group: "数字流参数" },
-	{ key: "numberRunMinIncreaseRatio", advanced: true, label: "数字流最小递增占比", type: "number", min: 0, max: 1, group: "数字流参数" },
+	{ key: "numberRunMinTextChars", advanced: true, label: { zh: "数字流启用最小文本长度", en: "Min text length to arm number-run detection" }, type: "number", min: 100, max: 50000, group: { zh: "数字流参数", en: "Number-run parameters" } },
+	{ key: "numberRunMinChars", advanced: true, label: { zh: "数字流最短跨度", en: "Min number-run span" }, type: "number", min: 50, max: 20000, group: { zh: "数字流参数", en: "Number-run parameters" } },
+	{ key: "numberRunMaxGap", advanced: true, label: { zh: "数字流最大间隙", en: "Max gap inside a number run" }, type: "number", min: 1, max: 200, group: { zh: "数字流参数", en: "Number-run parameters" },
+		hint: { zh: "相邻数字 token 之间允许的最大字符间隔。", en: "Maximum chars allowed between adjacent number tokens." } },
+	{ key: "numberRunMinDigitRatio", advanced: true, label: { zh: "数字流最小数字占比", en: "Min digit ratio in a run" }, type: "number", min: 0, max: 1, group: { zh: "数字流参数", en: "Number-run parameters" } },
+	{ key: "numberRunMinIncreaseRatio", advanced: true, label: { zh: "数字流最小递增占比", en: "Min increase ratio in a run" }, type: "number", min: 0, max: 1, group: { zh: "数字流参数", en: "Number-run parameters" } },
 
-	{ key: "repeatMinCount", advanced: true, label: "长块重复次数阈值", type: "number", min: 2, max: 10, group: "重复循环参数",
-		hint: "长内容（超过下方\"短周期分界\"）重复达到此次数即判定打转。" },
-	{ key: "repeatMinCountShort", advanced: true, label: "短周期重复次数阈值", type: "number", min: 2, max: 30, group: "重复循环参数",
-		hint: "短内容循环需重复更多次才判定打转；调低则更激进。" },
-	{ key: "repeatUltraShortMinCount", advanced: true, label: "超短周期重复次数阈值", type: "number", min: 5, max: 200, group: "重复循环参数",
-		hint: "周期 2~11 字的极小循环（如 `er4er4…` token 卡死）须重复到这么多次才判定；正常强调/分隔线（====、-----）不构成威胁。" },
-	{ key: "repeatMinPeriod", advanced: true, label: "最小周期字数", type: "number", min: 4, max: 500, group: "重复循环参数" },
-	{ key: "repeatShortPeriod", advanced: true, label: "短周期分界字数", type: "number", min: 16, max: 2000, group: "重复循环参数" },
-	{ key: "repeatMaxPeriod", advanced: true, label: "最大周期字数", type: "number", min: 500, max: 50000, group: "重复循环参数" },
-	{ key: "repeatWindowChars", advanced: true, label: "重复检查窗口", type: "number", min: 1000, max: 60000, group: "重复循环参数",
-		hint: "只在文本尾部这段长度内做周期性预筛（性能保护）。" },
-	{ key: "repeatProbeChars", advanced: true, label: "周期探针长度", type: "number", min: 16, max: 2000, group: "重复循环参数" },
-	{ key: "repeatMinTextChars", advanced: true, label: "启用最小文本长度", type: "number", min: 500, max: 50000, group: "重复循环参数" },
-	{ key: "ngramPhraseMin", advanced: true, label: "n-gram 短语最小长度（字符）", type: "number", min: 3, max: 20, group: "重复循环参数",
-		hint: "字符级 n-gram 的滑窗粒度（中文路径）。默认 5；调高要求更长的短语才计数（更保守）。英文路径固定按相邻 4 个词（每词 ≥2 字母），不受此项影响。" },
-	{ key: "ngramMinCount", advanced: true, label: "n-gram 最高频短语最小出现次数", type: "number", min: 2, max: 50, group: "重复循环参数",
-		hint: "最高频短语至少出现这么多次才判定循环；调低更激进、调高更保守。" },
-	{ key: "ngramCoverageRatio", advanced: true, label: "n-gram 短语覆盖占比下限", type: "number", min: 0.01, max: 0.5, group: "重复循环参数",
-		hint: "最高频短语占用尾窗的最小比例，0.05=5%；调高则更保守。" },
+	{ key: "repeatMinCount", advanced: true, label: { zh: "长块重复次数阈值", en: "Long-block repetition threshold" }, type: "number", min: 2, max: 10, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "长内容（超过下方\"短周期分界\"）重复达到此次数即判定打转。", en: "Long content (beyond the short-period boundary below) is judged looping at this count." } },
+	{ key: "repeatMinCountShort", advanced: true, label: { zh: "短周期重复次数阈值", en: "Short-period repetition threshold" }, type: "number", min: 2, max: 30, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "短内容循环需重复更多次才判定打转；调低则更激进。", en: "Short loops need more repetitions to count; lower is more aggressive." } },
+	{ key: "repeatUltraShortMinCount", advanced: true, label: { zh: "超短周期重复次数阈值", en: "Ultra-short-period repetition threshold" }, type: "number", min: 5, max: 200, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "周期 2~11 字的极小循环（如 `er4er4…` token 卡死）须重复到这么多次才判定；正常强调/分隔线（====、-----）不构成威胁。", en: "Tiny 2–11-char loops (e.g. stuck `er4er4…` tokens) must repeat this many times; normal emphasis/separators (====, -----) are harmless." } },
+	{ key: "repeatMinPeriod", advanced: true, label: { zh: "最小周期字数", en: "Min loop period (chars)" }, type: "number", min: 4, max: 500, group: { zh: "重复循环参数", en: "Repetition/loop parameters" } },
+	{ key: "repeatShortPeriod", advanced: true, label: { zh: "短周期分界字数", en: "Short-period boundary (chars)" }, type: "number", min: 16, max: 2000, group: { zh: "重复循环参数", en: "Repetition/loop parameters" } },
+	{ key: "repeatMaxPeriod", advanced: true, label: { zh: "最大周期字数", en: "Max loop period (chars)" }, type: "number", min: 500, max: 50000, group: { zh: "重复循环参数", en: "Repetition/loop parameters" } },
+	{ key: "repeatWindowChars", advanced: true, label: { zh: "重复检查窗口", en: "Repetition scan window" }, type: "number", min: 1000, max: 60000, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "只在文本尾部这段长度内做周期性预筛（性能保护）。", en: "Periodic pre-screening only within this tail length (performance guard)." } },
+	{ key: "repeatProbeChars", advanced: true, label: { zh: "周期探针长度", en: "Period probe length" }, type: "number", min: 16, max: 2000, group: { zh: "重复循环参数", en: "Repetition/loop parameters" } },
+	{ key: "repeatMinTextChars", advanced: true, label: { zh: "启用最小文本长度", en: "Min text length to arm" }, type: "number", min: 500, max: 50000, group: { zh: "重复循环参数", en: "Repetition/loop parameters" } },
+	{ key: "ngramPhraseMin", advanced: true, label: { zh: "n-gram 短语最小长度（字符）", en: "Min n-gram phrase length (chars)" }, type: "number", min: 3, max: 20, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "字符级 n-gram 的滑窗粒度（中文路径）。默认 5；调高要求更长的短语才计数（更保守）。英文路径固定按相邻 4 个词（每词 ≥2 字母），不受此项影响。", en: "Sliding-window granularity for char-level n-grams (zh path). Default 5; higher is more conservative. The word path always uses 4 adjacent words (each ≥2 letters) and ignores this." } },
+	{ key: "ngramMinCount", advanced: true, label: { zh: "n-gram 最高频短语最小出现次数", en: "Min occurrences of top n-gram phrase" }, type: "number", min: 2, max: 50, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "最高频短语至少出现这么多次才判定循环；调低更激进、调高更保守。", en: "The top phrase must occur at least this many times; lower is more aggressive." } },
+	{ key: "ngramCoverageRatio", advanced: true, label: { zh: "n-gram 短语覆盖占比下限", en: "Min n-gram coverage ratio" }, type: "number", min: 0.01, max: 0.5, group: { zh: "重复循环参数", en: "Repetition/loop parameters" },
+		hint: { zh: "最高频短语占用尾窗的最小比例，0.05=5%；调高则更保守。", en: "Minimum tail-window share of the top phrase, 0.05 = 5%; higher is more conservative." } },
 
-	{ key: "churnMinHits", advanced: true, label: "空转词命中阈值", type: "number", min: 5, max: 100, group: "语义空转参数",
-		hint: "窗口内出现这么多次\"让我想想/重新分析\"类用语即判定空转；调低则更激进。" },
-	{ key: "churnWindowChars", advanced: true, label: "空转统计窗口", type: "number", min: 500, max: 20000, group: "语义空转参数" },
-	{ key: "churnMinTextChars", advanced: true, label: "启用最小文本长度", type: "number", min: 500, max: 50000, group: "语义空转参数" },
+	{ key: "churnMinHits", advanced: true, label: { zh: "空转词命中阈值", en: "Churn phrase hit threshold" }, type: "number", min: 5, max: 100, group: { zh: "语义空转参数", en: "Churn parameters" },
+		hint: { zh: "窗口内出现这么多次\"让我想想/重新分析\"类用语即判定空转；调低则更激进。", en: "This many \"let me think / re-analyze\" phrases in the window counts as churning; lower is more aggressive." } },
+	{ key: "churnWindowChars", advanced: true, label: { zh: "空转统计窗口", en: "Churn window (chars)" }, type: "number", min: 500, max: 20000, group: { zh: "语义空转参数", en: "Churn parameters" } },
+	{ key: "churnMinTextChars", advanced: true, label: { zh: "启用最小文本长度", en: "Min text length to arm" }, type: "number", min: 500, max: 50000, group: { zh: "语义空转参数", en: "Churn parameters" } },
 
-	{ key: "softCutScanTail", advanced: true, label: "转折句扫描窗口", type: "number", min: 40, max: 2000, group: "转折句参数" },
-	{ key: "softCutTransitionWindow", advanced: true, label: "转折词距句末窗口", type: "number", min: 8, max: 500, group: "转折句参数" },
-	{ key: "softCutMinFollowChars", advanced: true, label: "转折词后最少展开字数", type: "number", min: 2, max: 200, group: "转折句参数",
-		hint: "转折词（如\"我先\"）之后至少输出这么多字才允许切断，防止在句子刚开头就切断思考、截出半句结论。" },
-	{ key: "softCutGapThreshold", advanced: true, label: "结论-转折最大间距", type: "number", min: 0, max: 400, group: "转折句参数",
-		hint: "Tier-1 结论标记（如\"所以\"）与后续转折宣告（如\"接下来\"）之间允许的最大字符距离。超过则认为是子阶段小结论而非阶段边界，拒绝软切。默认 80。" },
-	{ key: "pseudoToolScanTail", advanced: true, label: "伪调用扫描窗口", type: "number", min: 200, max: 20000, group: "伪工具调用参数" },
+	{ key: "softCutScanTail", advanced: true, label: { zh: "转折句扫描窗口", en: "Transition scan window" }, type: "number", min: 40, max: 2000, group: { zh: "转折句参数", en: "Transition parameters" } },
+	{ key: "softCutTransitionWindow", advanced: true, label: { zh: "转折词距句末窗口", en: "Transition-to-sentence-end window" }, type: "number", min: 8, max: 500, group: { zh: "转折句参数", en: "Transition parameters" } },
+	{ key: "softCutMinFollowChars", advanced: true, label: { zh: "转折词后最少展开字数", en: "Min chars after transition phrase" }, type: "number", min: 2, max: 200, group: { zh: "转折句参数", en: "Transition parameters" },
+		hint: { zh: "转折词（如\"我先\"）之后至少输出这么多字才允许切断，防止在句子刚开头就切断思考、截出半句结论。", en: "Require at least this many chars after a transition word (\"I'll first…\") before cutting, so a just-started sentence is never split mid-conclusion." } },
+	{ key: "softCutGapThreshold", advanced: true, label: { zh: "结论-转折最大间距", en: "Max conclusion-to-transition gap" }, type: "number", min: 0, max: 400, group: { zh: "转折句参数", en: "Transition parameters" },
+		hint: { zh: "Tier-1 结论标记（如\"所以\"）与后续转折宣告（如\"接下来\"）之间允许的最大字符距离。超过则认为是子阶段小结论而非阶段边界，拒绝软切。默认 80。", en: "Maximum chars between a Tier-1 conclusion marker (\"so\") and a later transition (\"next\"); beyond it the cut is refused as a sub-phase mini-conclusion. Default 80." } },
+	{ key: "pseudoToolScanTail", advanced: true, label: { zh: "伪调用扫描窗口", en: "Pseudo-call scan window" }, type: "number", min: 200, max: 20000, group: { zh: "伪工具调用参数", en: "Pseudo tool-call parameters" } },
+
+	{ key: "copyLocale", label: { zh: "注入提示语言", en: "Injected-hint language" }, type: "select", group: { zh: "总开关", en: "Master switches" },
+		options: [
+			{ value: "zh", label: { zh: "中文（默认）", en: "Chinese (default)" } },
+			{ value: "en", label: { zh: "English", en: "English" } }
+		],
+		hint: { zh: "锚点/deny/收尾指令等注入给模型的提示文案语言。默认中文（与历史行为逐字一致）；切换英文不影响检测词表与检测逻辑。", en: "Language of model-facing hints (anchors/deny/wrap-up). Default Chinese (byte-identical to historical behavior); switching to English never affects detector vocabularies or logic." } },
 ];
 
 /**
@@ -392,6 +403,8 @@ function applyRuntimeSettings(raw) {
 	NUMBER_RUN_MIN_INCREASE_RATIO = merged.numberRunMinIncreaseRatio;
 	// D3：transitionTextMode 发布（内核未就位前仅登记）
 	TRANSITION_TEXT_MODE = merged.transitionTextMode;
+	// #132:copyLocale 枚举白名单(非法回退 zh,默认零变化)
+	if (merged.copyLocale !== "en" && merged.copyLocale !== "zh") merged.copyLocale = "zh";
 	return settings;
 }
 
