@@ -88,11 +88,17 @@ test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile 
   const home = scratch('dsh-home-')
   const previous = process.env.DSH_HOME
   const previousAgents = process.env.DSH_AGENTS_HOME
+  const previousCustom = process.env.DSH_CUSTOM_SKILL_DIRS
   process.env.DSH_HOME = home
-  // 隔离真实 ~/.agents(轴审计:本机存在 /root/.agents/skills 时 resolver 正确选它,
-  // 但本测试断言回退 $DSH_HOME/skills——「无 .agents/skills」前提必须确定成立;
-  // 此前未隔离还把悬空符号链接写进了真实用户目录(#143)。
+  // Isolate the real user dirs (issue #143): skillRootOf prefers the first
+  // EXISTING root among $DSH_HOME/skills, $DSH_AGENTS_HOME/skills (defaults to
+  // ~/.agents/skills) and DSH_CUSTOM_SKILL_DIRS. With /root/.agents/skills
+  // present the resolver correctly picks it — but this test asserts the
+  // $DSH_HOME/skills fallback, so the "no agents/custom root" premise must be
+  // guaranteed. Without isolation this test also wrote dangling symlinks into
+  // the real user directory.
   process.env.DSH_AGENTS_HOME = join(home, 'agents-home')
+  delete process.env.DSH_CUSTOM_SKILL_DIRS
   try {
     const result = copySkill(
       { kind: 'skill', name: 'ui-design' },
@@ -108,6 +114,8 @@ test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile 
     else process.env.DSH_HOME = previous
     if (previousAgents === undefined) delete process.env.DSH_AGENTS_HOME
     else process.env.DSH_AGENTS_HOME = previousAgents
+    if (previousCustom === undefined) delete process.env.DSH_CUSTOM_SKILL_DIRS
+    else process.env.DSH_CUSTOM_SKILL_DIRS = previousCustom
   }
 })
 
