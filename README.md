@@ -10,6 +10,7 @@
 | [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
+| [`packages/dsh-deep-ptc-mode`](packages/dsh-deep-ptc-mode) | `dsh-deep-ptc-mode` | 深度 PTC 会话模式（preset 插件）：执行环境选择（含 Git Bash 替换）、失速治理双引擎（结论锚点/软切拦截） |
 
 ## 装上
 
@@ -32,20 +33,13 @@ cd ~/DSH-plugins && pnpm install
   "dsh-inventory": "link:/path/to/DSH-plugins/packages/dsh-inventory",
   "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover",
   "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow",
-  "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
+  "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode"
 }
 ```
 
-按需再补这条（同样要写进第 3 步的 `bundles`，否则不加载）：
-- `dsh-websearch-failover` 的 `/plugin` 后缀不能少——仓库根不是 bundle。
-- `dev-flow` 只注册 skill（包目录内的 `SKILL.md`），不新增工具；装上后会话目录会出现 `dev-flow`。若不想重启 DSH，改用 `~/.dsh/skills/dev-flow` 软链，`skill-filesystem` 会自动发现。
-- `dsh-deep-ptc-mode` 是 Agent 模式（preset）插件：新增「深度PTC模式」会话模式，不新增任务工具。安装后需重启 DSH 并新建会话才能在模式选择器里看到它。
-- `dsh-deep-ptc-mode` 已内置 Git Bash 替换(原 `dsh-git-bash-tool`,#105):Windows 上自动换 shell、关 pwsh 工具;Linux/macOS 的 bash 路径行为不受影响。
-- 要装哪个就留哪个，删掉一行等于不装。
-
 ### 3. 把包名写进 `dsh.profile.bundles`
 
-**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。关系是「包含」而不是「相等」：`bundles` 里通常还有 registry 插件和 `@deepseek-ai/*` 宿主行，**只要保证你 link 的每个包名都在里面**。下面只列本仓库的 9 个（不装的可选项删掉）：
+**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。关系是「包含」而不是「相等」：`bundles` 里通常还有 registry 插件和 `@deepseek-ai/*` 宿主行，**只要保证你 link 的每个包名都在里面**。下面只列本仓库的 5 个（不装的可选项删掉）：
 
 ```json
 "dsh": {
@@ -55,7 +49,7 @@ cd ~/DSH-plugins && pnpm install
       "dsh-websearch-failover",
       "dsh-credential-vault",
       "dev-flow",
-      "dsh-deep-ptc-mode",
+      "dsh-deep-ptc-mode"
     ]
   }
 }
@@ -70,7 +64,7 @@ cd ~/.dsh/profiles/<profile> && pnpm install --prefer-offline
 node ~/DSH-plugins/scripts/check-profile.mjs   # 期望 profile ok: N linked bundle(s)、无告警
 ```
 
-N 等于你实际留下的 link 条数（7 条必装 + 你选的可选包；当前线上 profile 是 6）。数量对不上，说明第 2 步和第 3 步没对齐。
+N 等于你实际留下的 link 条数（本仓库 5 条必装 + profile 里原有的宿主/registry 行）。数量对不上，说明第 2 步和第 3 步没对齐。
 
 首次接线需要重启一次 DSH（冷启动才会读新的 `package.json`）——**按仓库硬规则，重启必须先拿到用户明确批准**（见 `AGENTS.md` 与 `docs/update-checkout.md`）。重启后在 Web GUI 插件页确认每个插件都是 `active`。
 
