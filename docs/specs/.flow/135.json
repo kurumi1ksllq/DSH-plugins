@@ -1,0 +1,24 @@
+{
+  "issue": 135,
+  "grade": "standard",
+  "stage": "spec",
+  "updatedAt": "2026-11-09T10:25:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "README 表格补 deep-ptc-mode 行 + AGENTS 速览补三行",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "CHANGELOG Unreleased 发布状态说明",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "verify-clean 全量 + plugin-consolidation 收尾勾选",
+      "state": "green"
+    }
+  ],
+  "note": "spec: docs/specs/phase5-wrapup.md;tag 清单核对完成(五包一一对应);README 表格 4→5 行为真漂移,AGENTS 速览缺三行；verify-clean 隔离跑全绿(74/74);plugin-consolidation Phase 5 勾选"
+}

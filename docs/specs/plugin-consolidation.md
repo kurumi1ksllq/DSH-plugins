@@ -61,8 +61,8 @@ F. 每个修复票先有"会变红"的测试。
 - T4.df:review pending-decision 进"需要你出手"、死 locale 键清理、触发词"只读查询不进流程"、面板↔skill 互相指引。
 - T4.H3:locale 单一事实源横切收口(删三处死配置+契约测试)。
 
-### Phase 5 收口
-- T5:根 README/AGENTS/CHANGELOG 计数九→五、目录速览更新、verify-clean 全量、五包打 tag。
+### Phase 5 收口 ✅(2026-11-09,#135)
+- T5:根 README/AGENTS/CHANGELOG 计数九→五、目录速览更新、verify-clean 全量、五包打 tag。——已完成:五包 tag 一一对应(1.11.0/0.4.0/0.12.0/0.5.0/0.6.0);README 表格补 dsh-deep-ptc-mode 行;AGENTS 速览补三包行;CHANGELOG Unreleased 加已发布说明;verify-clean 隔离跑见 #136/#135 PR。
 
 ## 5 环境约束
 - 本机 node v18.19.1(无 nvm/fnm),deep-ptc-mode engines ≥24(import attributes 语法)→ 该包测试只能在 CI(node 24)或升级本机 node 后跑;verify-clean 同受影响。deep-ptc 线的本地验证以 CI 为准,不伪造本地绿。

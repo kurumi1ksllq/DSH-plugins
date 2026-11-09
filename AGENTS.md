@@ -75,6 +75,9 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `packages/*` | 五个可独立 `link:` 的 bundle，各自有 `package.json` / `cordis.patch.yml` / 版本号 / 测试 |
 | `packages/dev-flow` | 开发流程 skill（规则源）+ dev-flow 任务板面板（读 `.flow` 状态） |
 | `packages/dsh-inventory` | 工具管理页（凭据 / 搜索提供方 / 提示词三个分段） |
+| `packages/dsh-credential-vault` | 凭据保险库（AES-256-GCM 存储 + `credential` 工具 + 管理 API） |
+| `packages/dsh-websearch-failover` | `web_search` 有序多提供方失败转移 |
+| `packages/dsh-deep-ptc-mode` | 深度 PTC 会话模式 + 失速治理双引擎（含 Git Bash 替换） |
 | `docs/specs/` | 每个 issue 的 spec（停点2 产物） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
 | `scripts/` | 打包校验脚本，`pnpm verify` 调它们 |
