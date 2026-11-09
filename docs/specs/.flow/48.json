@@ -1,8 +1,8 @@
 {
   "issue": 48,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-04T12:30:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T11:42:49.030Z",
   "tickets": [
     {
       "id": 1,
@@ -35,6 +35,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #147(2026-11-09):合并证据 PR #63 merge 4672d74,git merge-base --is-ancestor 4672d74 main = true,经双源核验翻终态;;子状态收敛(#147 裁决):review.state→done,ci.status 保留原值(历史 run 不回填伪造)"
 }

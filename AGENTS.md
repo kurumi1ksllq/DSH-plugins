@@ -80,6 +80,8 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `packages/dsh-deep-ptc-mode` | 深度 PTC 会话模式 + 失速治理双引擎（含 Git Bash 替换） |
 | `docs/specs/` | 每个 issue 的 spec（停点2 产物） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
+| `docs/update-checkout.md` | 权威 checkout 统一方案的执行记录（已执行完成，带现状校准块） |
+| `docs/update-scheme.md` | 插件可靠更新方案（调查结论与运行时机制，带现状校准块） |
 | `scripts/` | 打包校验脚本，`pnpm verify` 调它们 |
 | `test/` | 仓库级文档契约测试 |
 
