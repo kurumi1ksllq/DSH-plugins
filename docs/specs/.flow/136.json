@@ -2,7 +2,7 @@
   "issue": 136,
   "grade": "standard",
   "stage": "pr",
-  "updatedAt": "2026-11-09T09:42:00+08:00",
+  "updatedAt": "2026-11-09T09:46:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -10,5 +10,11 @@
       "state": "done"
     }
   ],
-  "note": "spec: docs/specs/locale-json-contract.md;审计:websearch 完全同源(51=51),vault client 40 ⊂ JSON 43(createdName/entriesCount/never 宿主碎片,消费性未验证,保留);纯测试无 tag(循 #134);#132 收尾项已记账 issue #139；反向验证双向:删 en.json createdName→键集红、client 加 bogusNewKey→subset 红,还原 9/9 绿；pnpm test:唯一失败=既有偶发 copySkill(环境敏感,main 基线取证过,与纯测试 PR 零关联);repo 级 75/75 绿"
+  "note": "spec: docs/specs/locale-json-contract.md;审计:websearch 完全同源(51=51),vault client 40 ⊂ JSON 43(createdName/entriesCount/never 宿主碎片,消费性未验证,保留);纯测试无 tag(循 #134);#132 收尾项已记账 issue #139；反向验证双向:删 en.json createdName→键集红、client 加 bogusNewKey→subset 红,还原 9/9 绿；pnpm test:唯一失败=既有偶发 copySkill(环境敏感,main 基线取证过,与纯测试 PR 零关联);repo 级 75/75 绿",
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "red",
+    "latest": "fail @ e624db5: tag 1.11.0 缺根 CHANGELOG 条目(verify 规则4);已补,重推"
+  }
 }
