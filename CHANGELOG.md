@@ -12,6 +12,14 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
+
+- **设置 schema 文案 {zh,en} 双字典**:SETTINGS_SCHEMA(41 个带 key 条目,含新 copyLocale)与 GOVERNOR_SETTINGS_SCHEMA(14 个带 key 条目)的 label/hint/group/options 全双语;客户端 pick() 按 navigator.language 选侧,默认 zh 与历史逐字一致。
+- **注入模型文案抽字典**:新 lib/governor-copy.mjs(COPY,54 个文案位点 zh/en);render*/deny reason/soft-stop 收尾/外部软切引导/命令执行纪律块中文文案全部经 copy(locale) 取用,locale 参数默认 zh(默认行为零变化);检测器词表严禁翻义,未进字典。
+- **新设置键 copyLocale**(zh/en,白名单回退):切换注入提示语言;select 枚举键不再被数值 clamp 吞掉(review 发现的真 bug)。
+- **客户端 UI 壳文案双字典**:失速治理页签/能力横幅三态/高级折叠/保存与错误文案进 SHELL 字典。
+- **zh/en 键集一致契约测试**(copy.test.mjs 7 用例;反向验证:删任一 en 键/schema en 值即红)。
+
 ### dsh-deep-ptc-mode 1.10.0 — git-bash 环境/auto 感知/notifyChannels 废弃/locale 基建/事件驱动刷新/设置原子写(#126,T4.ptc)
 
 - **environment 枚举补 git-bash**(win32):ENVIRONMENTS/availableEnvironments/environmentText/UI 白名单与文案三处一致;复用 bash kind + lib-gitbash spawnSpec 改写。
