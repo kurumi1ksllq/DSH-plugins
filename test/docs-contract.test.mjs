@@ -520,3 +520,21 @@ test('the CHANGELOG Unreleased section carries every current package version as 
     `CHANGELOG Unreleased must state every current package version as an entry: ${missing.join('; ')}`,
   )
 })
+
+
+// ---------------------------------------------------------------------------
+// Single Unreleased section (docs round-2, #149)
+//
+// The CHANGELOG grew a second `## Unreleased` heading (the #102-#105 batch that
+// was never archived), so readers cannot tell which section is authoritative and
+// entries got duplicated across the two. There must be exactly one.
+
+test('the CHANGELOG carries exactly one Unreleased section', () => {
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+  const headings = changelog.split('\n').filter((line) => /^## Unreleased/.test(line))
+  assert.equal(
+    headings.length,
+    1,
+    `CHANGELOG must carry exactly one ## Unreleased section, found ${headings.length}`,
+  )
+})
