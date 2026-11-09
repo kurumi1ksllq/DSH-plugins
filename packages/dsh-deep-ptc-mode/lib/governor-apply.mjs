@@ -92,13 +92,16 @@ function requestExternalSoftCut(payload) {
 	// 锚点文本：优先取调用方提供的最近可见文本尾部，否则使用固定兜底锚点。
 	// 只做截取与包裹，绝不根据文本捏造任务事实。
 	const rawText = typeof payload?.fullVisibleText === "string" ? payload.fullVisibleText : "";
+	// #132:引导语按 copyLocale 运行时取值(常量为 zh 默认,供既有引用零改动)
+	const tExt = copy(settings.copyLocale);
+	const prefix = tExt.externalAnchorPrefix();
 	const anchorText = rawText.trim().length > 0
-		? EXTERNAL_ANCHOR_PREFIX + (
+		? prefix + (
 			rawText.length > EXTERNAL_ANCHOR_MAX_CHARS
 				? rawText.slice(rawText.length - EXTERNAL_ANCHOR_MAX_CHARS)
 				: rawText
 		)
-		: EXTERNAL_ANCHOR_FALLBACK;
+		: tExt.externalAnchorFallback();
 	const requestedAt = Date.now();
 	externalSoftCutPending.set(sessionId, {
 		anchorText,
@@ -885,7 +888,7 @@ function apply(ctx, config) {
 				cutClass: "pseudoTool",
 				...(looping ? { trimTo: looping.trimTo } : {}),
 				contexts: [buildAnchorContext(
-					renderPseudoToolAnchor(looping !== null, looping),
+					renderPseudoToolAnchor(looping !== null, looping, settings.copyLocale),
 					`cot-anchor: invalid tool-call format${looping ? ` x${looping.count}` : ""}`
 				)]
 			};
@@ -902,7 +905,7 @@ function apply(ctx, config) {
 				budgetClass: "confirmed-repeat",
 				cutClass: "confirmed-repeat",
 				trimTo: looping.trimTo,
-				contexts: [buildAnchorContext(renderRepeatAnchor(looping), `cot-anchor: loop x${looping.count}`)]
+				contexts: [buildAnchorContext(renderRepeatAnchor(looping, settings.copyLocale), `cot-anchor: loop x${looping.count}`)]
 			};
 		}
 
@@ -920,7 +923,7 @@ function apply(ctx, config) {
 				kind: "cut",
 				budgetClass: "heuristic",
 				cutClass: "heuristic",
-				contexts: [buildAnchorContext(renderNGramLoopAnchor(ngramLoop),
+				contexts: [buildAnchorContext(renderNGramLoopAnchor(ngramLoop, settings.copyLocale),
 					`cot-anchor: ngram-loop "${ngramLoop.maxGram}" x${ngramLoop.count}`)]
 			};
 		}
@@ -940,7 +943,7 @@ function apply(ctx, config) {
 				budgetClass: "confirmed-repeat",
 				cutClass: "confirmed-repeat",
 				trimTo: numberRunaway.trimTo,
-				contexts: [buildAnchorContext(renderNumberRunawayAnchor(numberRunaway), `cot-anchor: number-runaway x${numberRunaway.chars}`)]
+				contexts: [buildAnchorContext(renderNumberRunawayAnchor(numberRunaway, settings.copyLocale), `cot-anchor: number-runaway x${numberRunaway.chars}`)]
 			};
 		}
 
@@ -956,8 +959,8 @@ function apply(ctx, config) {
 			const churnKey = typeof payload?.sessionId === "string" ? payload.sessionId : "";
 			const churnOccurrence = recordChurnCut(churnKey, payload?.turn);
 			const churnAnchorText = churnOccurrence >= 2
-				? renderChurnAnchor(churn) + renderChurnEscalation(churnOccurrence)
-				: renderChurnAnchor(churn);
+				? renderChurnAnchor(churn, settings.copyLocale) + renderChurnEscalation(churnOccurrence, settings.copyLocale)
+				: renderChurnAnchor(churn, settings.copyLocale);
 			return {
 				kind: "cut",
 				budgetClass: "heuristic",
@@ -975,8 +978,8 @@ function apply(ctx, config) {
 		if (actionChurn) {
 			const churnKey = typeof payload?.sessionId === "string" ? payload.sessionId : "";
 			const churnOccurrence = recordChurnCut(churnKey, payload?.turn);
-			const anchorText = renderActionChurnAnchor(actionChurn)
-				+ (churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence) : "");
+			const anchorText = renderActionChurnAnchor(actionChurn, settings.copyLocale)
+				+ (churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : "");
 			emitCotAnchorEvent(ctx, EVENT_SOFTCUT_TAKEN, {
 				...evidenceBase(payload?.sessionId, payload?.turn, payload?.step),
 				cutClass: "heuristic",
@@ -1018,7 +1021,7 @@ function apply(ctx, config) {
 				occurrence
 			});
 			const anchorText = renderOverLongCoTAnchor(
-				reasoningChars, OVER_LONG_COT_THRESHOLD, !!hasReasoningCount, occurrence);
+				reasoningChars, OVER_LONG_COT_THRESHOLD, !!hasReasoningCount, occurrence, settings.copyLocale);
 			return {
 				kind: "cut",
 				budgetClass: "heuristic",
@@ -1142,7 +1145,7 @@ function apply(ctx, config) {
 			const invalidFields = extractInvalidArgFields(errorTop, result?.content);
 			const toolName = typeof exec?.name === "string" ? exec.name : undefined;
 			const recoveryContext = buildAnchorContext(
-				renderToolArgsErrorAnchor(toolName, invalidFields),
+				renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale),
 				"cot-anchor: tool-args-error"
 			);
 			return {
