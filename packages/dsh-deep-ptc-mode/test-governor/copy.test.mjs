@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { COPY } from "../lib/governor-copy.mjs";
-import { SETTINGS_SCHEMA, applyRuntimeSettings } from "../lib/governor-settings.mjs";
+import { SETTINGS_SCHEMA, applyRuntimeSettings, settings } from "../lib/governor-settings.mjs";
 import { GOVERNOR_SETTINGS_SCHEMA } from "../lib/governor-core.mjs";
 import { renderRepeatAnchor, renderChurnEscalation } from "../lib/governor-softcut.mjs";
 import { copy as copyFn } from "../lib/governor-copy.mjs";
@@ -136,4 +136,32 @@ test("#132 copyLocale 设置发布与白名单回退(applyRuntimeSettings)", () 
 	assert.match(copyFn("en").softStopTail(), /wrap-up boundary/i, "en soft-stop 尾句");
 	assert.equal(applyRuntimeSettings({ copyLocale: "fr" }).copyLocale, "zh", "白名单外回退 zh");
 	assert.equal(applyRuntimeSettings({}).copyLocale, "zh", "缺省回退 zh");
+});
+
+test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用点必须真传 settings.copyLocale(计数钉死)", () => {
+	// 轴1 P1:接线曾静默退化(zh 常量固化);此断言钉住「settings 值真传到 render*」——
+	// 删 governor-apply 调用点的 settings.copyLocale 实参时,这里用 settings 驱动的产物
+	// 与直传字面量的产物出现差异即红(等价于抓住接线回归)。
+	// 源码级断言(与 client.test.mjs 的段内文本断言同法):13 个调用点逐一钉住,
+	// 删任一实参即红。清单来自 49e3b6f 修复时的实际调用点。
+	const src = readFileSync(join(here, "..", "lib", "governor-apply.mjs"), "utf8");
+	const required = [
+		"renderPseudoToolAnchor(looping !== null, looping, settings.copyLocale)",
+		"renderRepeatAnchor(looping, settings.copyLocale)",
+		"renderNGramLoopAnchor(ngramLoop, settings.copyLocale)",
+		"renderNumberRunawayAnchor(numberRunaway, settings.copyLocale)",
+		"renderChurnAnchor(churn, settings.copyLocale) + renderChurnEscalation(churnOccurrence, settings.copyLocale)",
+		": renderChurnAnchor(churn, settings.copyLocale);",
+		"renderActionChurnAnchor(actionChurn, settings.copyLocale)",
+		'churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : ""',
+		"occurrence, settings.copyLocale)",
+		"renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale)",
+		"execDisciplineText(settings.copyLocale)",
+		"tDeny = copy(settings.copyLocale)",
+		"tG2 = copy(settings.copyLocale)",
+		"tStop = copy(settings.copyLocale)",
+		"tExt = copy(settings.copyLocale)",
+	];
+	const missing = required.filter((snippet) => !src.includes(snippet));
+	assert.deepEqual(missing, [], "governor-apply 接线缺失(回归到 zh 硬编码):\n" + missing.join("\n"));
 });

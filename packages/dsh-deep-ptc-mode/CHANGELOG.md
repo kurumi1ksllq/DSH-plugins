@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.11.1 — 2026-11-09
+
+#132 双轴 review 收尾(#139):
+
+- **en 接线源码护栏**:copy.test 增 governor-apply 15 处 settings.copyLocale 实参钉死断言(删任一实参即红,反向验证过)。
+- **en.softStopTail 补「中文总结」约定**:en 文案保留「用中文总结」要求(与 zh 语义对齐)。
+
 ## 1.11.0 — 2026-11-09
 
 governor locale 化(#132,T4.ptc 拆分):

@@ -1,0 +1,24 @@
+{
+  "issue": 139,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-09T13:25:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "settings→en 联动断言(反删除保护)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "en.softStopTail 中文总结语义",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本 1.11.1 + 四件套",
+      "state": "green"
+    }
+  ],
+  "note": "中-2 静态注入经复现不成立(applyRuntimeSettings 白名单覆盖静态路径),澄清见 issue 评论;P2 低危按取舍改一处 en 文案；ticket1 源码护栏(15 处实参钉死,反向验证:删 repeatAnchor 实参→红→还原绿);ticket2 en.softStopTail 补中文总结;163✔"
+}
