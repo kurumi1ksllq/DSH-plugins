@@ -199,7 +199,7 @@ test("8:TTL 过期作废(注入时钟,禁真实 sleep)", () => {
 	assert.equal(api.consumeExternalSoftCut("s-ttl", r2req.requestedAt + 30001), null, "超过 TTL 作废");
 	assert.equal(api.externalSoftCutPending.size, 0, "过期记录被清理");
 	// 轴2 CI flaky 修复:此前用 Date.now()+偏移,打点与断言间的墙钟差(>ttl-偏移)会误判过期。
-	// 改用 requestExternalSoftCut 返回的 requestedAt 锚定(与 195/197 行同款,确定性)。
+	// 改用 requestExternalSoftCut 返回的 requestedAt 锚定(与上方 30s 边界断言同款,确定性)。
 	const s2a = api.requestExternalSoftCut({ sessionId: "s-ttl2", ttlMs: 1234 });
 	assert.ok(api.consumeExternalSoftCut("s-ttl2", s2a.requestedAt + 1000), "自定义 ttl 内有效");
 	const s2b = api.requestExternalSoftCut({ sessionId: "s-ttl2", ttlMs: 1234 });
