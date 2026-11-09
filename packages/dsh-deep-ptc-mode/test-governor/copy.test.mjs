@@ -143,8 +143,11 @@ test("#132 P1 行为联动:settings.copyLocale 驱动导出 render* 产出对应
 	// render* 是导出符号;applyRuntimeSettings 发布 copyLocale 后,以 settings 值驱动
 	// 必须产出 en 文案——render* 内部若忽略 locale 参数(静默退化新形态),这里红。
 	applyRuntimeSettings({ copyLocale: "en" });
+	assert.equal(settings.copyLocale, "en", "copyLocale 设置发布(显式)");
 	const driven = renderRepeatAnchor({ period: 12, count: 3 }, settings.copyLocale);
 	assert.match(driven, /in-place repetition detected/, "settings 驱动产出 en(内部忽略 locale 则此处为中文,红)");
+	const drivenEsc = renderChurnEscalation(2, settings.copyLocale);
+	assert.match(drivenEsc, /Churn cut 2 this turn/, "renderChurnEscalation 同样由 settings 值驱动");
 	applyRuntimeSettings({ copyLocale: "zh" });
 	const drivenZh = renderRepeatAnchor({ period: 12, count: 3 }, settings.copyLocale);
 	assert.match(drivenZh, /检测到原地重复/, "settings 驱动 zh 保持中文");
@@ -163,10 +166,9 @@ test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用�
 		"renderNumberRunawayAnchor(numberRunaway, settings.copyLocale)",
 		"renderChurnAnchor(churn, settings.copyLocale) + renderChurnEscalation(churnOccurrence, settings.copyLocale)",
 		": renderChurnAnchor(churn, settings.copyLocale);",
-		"renderActionChurnAnchor(actionChurn, settings.copyLocale)",
 		'churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : ""',
 		'occurrence, settings.copyLocale)', // renderOverLongCoTAnchor(轴2#3:此前漏钉)
-		"occurrence, settings.copyLocale)",
+		"renderActionChurnAnchor(actionChurn, settings.copyLocale)",
 		"renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale)",
 		"execDisciplineText(settings.copyLocale)",
 		"tDeny = copy(settings.copyLocale)",
