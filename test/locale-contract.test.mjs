@@ -71,3 +71,48 @@ for (const { pkg, path, zh, en } of BUNDLES) {
     assert.deepEqual(missingInZh, [], `${pkg}: keys missing in zh: ${missingInZh.join(',')}`)
   })
 }
+
+// ---- #136:locale/*.json 侧(宿主 dsh-client-locale 消费面)契约 ----
+//
+// locale/{zh,en}.json 经 package.json exports["./locale/*.json"] 由宿主
+// @deepseek-ai/dsh-client-locale 注册,是宿主渲染的文案全集;client.js 内嵌
+// 字典是其消费子集(审计 #136:websearch 完全同源 51=51;vault JSON 43 ⊇
+// client 40,差集 createdName/entriesCount/never 为宿主面板碎片)。钉住两条:
+//   1. zh/en 键集一致(双向);
+//   2. client 内嵌 zh 字典 ⊆ locale/zh.json(防「client 加键忘 JSON」的真漂移;
+//      JSON ⊃ client 的余量是宿主专用键,合法,不要求反向)。
+const JSON_CONTRACTS = [
+  { pkg: 'dsh-credential-vault', dir: 'packages/dsh-credential-vault/locale', client: 'packages/dsh-credential-vault/client.js' },
+  { pkg: 'dsh-websearch-failover', dir: 'packages/dsh-websearch-failover/locale', client: 'packages/dsh-websearch-failover/client.js' },
+];
+
+for (const { pkg, dir, client } of JSON_CONTRACTS) {
+  const zhJson = JSON.parse(readFileSync(join(repo, dir, 'zh.json'), 'utf8'))
+  const enJson = JSON.parse(readFileSync(join(repo, dir, 'en.json'), 'utf8'))
+
+  test(`${pkg}: locale/*.json zh and en carry the same keys`, () => {
+    const zhKeys = Object.keys(zhJson).sort()
+    const enKeys = Object.keys(enJson).sort()
+    assert.ok(zhKeys.length > 5, `${pkg}: locale zh non-trivial (${zhKeys.length} keys)`)
+    assert.deepEqual(
+      enKeys.filter((k) => !zhKeys.includes(k)), [],
+      `${pkg}: locale keys missing in en.json`,
+    )
+    assert.deepEqual(
+      zhKeys.filter((k) => !enKeys.includes(k)), [],
+      `${pkg}: locale keys missing in zh.json`,
+    )
+  })
+
+  test(`${pkg}: client embedded dict is a subset of locale/zh.json`, () => {
+    // client.js 的内嵌字典键必须都被 locale/zh.json 覆盖——client 只经宿主
+    // t() 取值,「client 加键忘 JSON」会让宿主路径拿到键名原文(真漂移)。
+    const clientSource = readFileSync(join(repo, client), 'utf8')
+    const dictText = extractDict(clientSource, 'const zh = {')
+    assert.ok(dictText, `${pkg}: client embedded zh dict found`)
+    const clientKeys = [...new Set(dictKeys(dictText))]
+    const jsonKeys = Object.keys(zhJson)
+    const missing = clientKeys.filter((k) => !jsonKeys.includes(k))
+    assert.deepEqual(missing, [], `${pkg}: client keys absent from locale/zh.json`)
+  })
+}
