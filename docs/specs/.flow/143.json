@@ -1,0 +1,14 @@
+{
+  "issue": 143,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-09T14:42:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "DSH_AGENTS_HOME 注入隔离 + 同类泄漏审计 + 反向验证",
+      "state": "done"
+    }
+  ],
+  "note": "resolver 语义不动(本就对),修测试环境卫生;纯测试无 tag；反向验证闭环(去隔离→本机红→还原绿);inventory 332✔ + repo 74/74 绿"
+}

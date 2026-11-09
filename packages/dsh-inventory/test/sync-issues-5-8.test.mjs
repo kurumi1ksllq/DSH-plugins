@@ -87,7 +87,12 @@ test('#5 copySkill onto an already-populated skill root still succeeds', () => {
 test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile has none', () => {
   const home = scratch('dsh-home-')
   const previous = process.env.DSH_HOME
+  const previousAgents = process.env.DSH_AGENTS_HOME
   process.env.DSH_HOME = home
+  // 隔离真实 ~/.agents(轴审计:本机存在 /root/.agents/skills 时 resolver 正确选它,
+  // 但本测试断言回退 $DSH_HOME/skills——「无 .agents/skills」前提必须确定成立;
+  // 此前未隔离还把悬空符号链接写进了真实用户目录(#143)。
+  process.env.DSH_AGENTS_HOME = join(home, 'agents-home')
   try {
     const result = copySkill(
       { kind: 'skill', name: 'ui-design' },
@@ -101,6 +106,8 @@ test('#5 copySkill defaults the skill root to $DSH_HOME/skills when the profile 
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previous
+    if (previousAgents === undefined) delete process.env.DSH_AGENTS_HOME
+    else process.env.DSH_AGENTS_HOME = previousAgents
   }
 })
 
