@@ -1,8 +1,8 @@
 {
   "issue": 136,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-09T09:46:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-09T10:10:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -10,11 +10,14 @@
       "state": "done"
     }
   ],
-  "note": "spec: docs/specs/locale-json-contract.md;审计:websearch 完全同源(51=51),vault client 40 ⊂ JSON 43(createdName/entriesCount/never 宿主碎片,消费性未验证,保留);纯测试无 tag(循 #134);#132 收尾项已记账 issue #139；反向验证双向:删 en.json createdName→键集红、client 加 bogusNewKey→subset 红,还原 9/9 绿；pnpm test:唯一失败=既有偶发 copySkill(环境敏感,main 基线取证过,与纯测试 PR 零关联);repo 级 75/75 绿",
+  "note": "spec: docs/specs/locale-json-contract.md;审计:websearch 完全同源(51=51),vault client 40 ⊂ JSON 43(createdName/entriesCount/never 宿主碎片,消费性未验证,保留);纯测试无 tag(循 #134);#132 收尾项已记账 issue #139；反向验证双向:删 en.json createdName→键集红、client 加 bogusNewKey→subset 红,还原 9/9 绿；pnpm test:唯一失败=既有偶发 copySkill(环境敏感,main 基线取证过,与纯测试 PR 零关联);repo 级 75/75 绿；CI 自修路径:直连 443 不通+镜像 ref 锁 → API blob/tree/commit/update-ref 三步上传(d312b05),push 事件自动触发 CI 绿；#136 分支携带 #132 CI 自修 d312b05(根 CHANGELOG tag 1.11.0 条目,verify 规则4)——超出 spec 边界的记账(轴1#3)；双轴 review 闭环:轴1(2中1低:inventory 纳入契约[skipSubset,register 型不同源]/dictKeys 点分盲区/CHANGELOG 追溯)轴2(P1 vm 求值替换正则提键+点分键反向验证红/P2 websearch exports 断言修正为假设语气/P3 client en⊆locale/en 对称断言/P4 .flow commit/P5 CHANGELOG 口径/P6 不新增文件措辞);终态 8/8+点分键反向验证红→还原绿",
   "ci": {
     "run": 1,
     "max": 2,
-    "status": "red",
-    "latest": "fail @ e624db5: tag 1.11.0 缺根 CHANGELOG 条目(verify 规则4);已补,重推"
+    "status": "green",
+    "latest": "pass @ d312b05 (PR #140;update-ref 触发)"
+  },
+  "review": {
+    "state": "pending-decision"
   }
 }
