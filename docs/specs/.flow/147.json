@@ -1,8 +1,8 @@
 {
   "issue": 147,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-09T11:48:21.635Z",
+  "stage": "done",
+  "updatedAt": "2026-11-09T13:41:46.070Z",
   "tickets": [
     {
       "id": 1,
@@ -39,14 +39,17 @@
     "run": 0,
     "max": 2,
     "status": "green",
-    "latest": "pass @ e95ca19 (PR #148, run 42608408584)"
+    "latest": "pass @ e9a620c (PR #148, run 42612329400)"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true,
+    "via": "ask_user_question 点选「merge 本 PR」(call_6c7bfa4629b341dab3a49140)",
+    "squash": "31b75e1",
+    "pr": 148
   },
   "note": "双轴 review 四报告(两轮)汇总:采纳 7 项修复(见 spec 修订记录:tag 核账/子状态收敛/守卫收紧+Unreleased 作用域反向验证/注记/REVIEW-FIXES 引用口径/分支计数/快照限定),不采纳 143.json tag→e773266 建议(实测指向 cab5801);用户裁决卡 q-review-verdict-147 选「执行修复并重推」。复验 test 1179/0 fail + verify 5 bundle ok。"
 }
