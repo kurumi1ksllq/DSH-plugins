@@ -73,3 +73,47 @@ test('client 真挂载冒烟:factory 执行 + slots.register 组件可渲染(引
     delete globalThis.window
   }
 })
+
+test('#132 en 环境:navigator.language 非 zh 时,SHELL.en 生效(en 渲染断言)', () => {
+	// node v24 全局 navigator.language 默认 'en-US' → UI_LOCALE='en';
+	// 断言注册 slot 的 label 取自 SHELL.en.section。若宿主环境是 zh locale,
+	// 此测试临时改 navigator.language 模拟 en(渲染行为一致)。
+	const original = globalThis.navigator?.language
+	const fakeNav = { language: 'en-US' }
+	let restored = false
+	try {
+		Object.defineProperty(globalThis, 'navigator', { value: fakeNav, configurable: true })
+		const reactStub = {
+			createElement: (type, props, ...children) => ({ type, props, children }),
+			useState: (initial) => [initial, () => {}],
+			useEffect: () => {}
+		}
+		const requireStub = (name) => (name === 'react' ? reactStub : {})
+		let loaded = null
+		globalThis.window = { __ModuleLoader__: { load: (config) => { loaded = config } } }
+		try {
+			new Function('require', gov)(requireStub)
+			const registered = []
+			const slots = { inject: (name, fn) => fn(), register: (slot, component) => registered.push({ slot, component }) }
+			loaded.factory(requireStub).apply({ slots })
+			assert.equal(registered[0].slot.label, 'Stall governor', 'en 环境下 section label 取 SHELL.en.section')
+			const element = registered[0].component()
+			assert.ok(element && typeof element === 'object', 'en 环境组件可渲染')
+		} finally {
+			delete globalThis.window
+		}
+		restored = true
+	} finally {
+		if (!restored && original !== undefined) {
+			Object.defineProperty(globalThis, 'navigator', { value: { language: original }, configurable: true })
+		}
+	}
+});
+
+test('#132 pick 语义:{zh,en} 对象按 locale 选侧,zh 缺 en 回退 zh(字符串级)', () => {
+	// pick 是壳内闭包,无法直接 import;以源码形态断言其三分支(选侧/回退/字符串透传)
+	assert.match(gov, /function pick\(value\)/, 'pick 函数存在')
+	assert.match(gov, /UI_LOCALE === 'en' \? value\.en : value\.zh/, 'en 选 en、zh 选 zh')
+	assert.match(gov, /return text \|\| value\.zh \|\| value\.en \|\| ''/, '缺失侧回退另一侧')
+	assert.match(gov, /return value\n/, '字符串透传(向后兼容)')
+});

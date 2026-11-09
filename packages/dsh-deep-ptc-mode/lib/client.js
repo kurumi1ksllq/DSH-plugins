@@ -216,6 +216,7 @@ window.__ModuleLoader__.load({
         capUnknownBody: '没能读到内核信息来判断中途叫停是否可用。如果它确实不可用，「打断判定」区的选项会' +
               '悄悄不起作用；请以实际表现是否被打断为准。',
         saving: '保存中…', saveApply: '保存并即时生效',
+        sourceKey: '源码键：',
       },
       en: {
         section: 'Stall governor', otherGroup: 'Other',
@@ -233,6 +234,7 @@ window.__ModuleLoader__.load({
         capUnknownTitle: 'Mid-generation cut: capability unknown',
         capUnknownBody: 'Kernel capability could not be read. If cutting is indeed unavailable, the options under \"Interruption detection\" will ',
         saving: 'Saving…', saveApply: 'Save and apply',
+        sourceKey: 'Source key: ',
       },
     }
     var shell = SHELL[UI_LOCALE] || SHELL.zh
@@ -549,7 +551,7 @@ window.__ModuleLoader__.load({
                     fontFamily: 'monospace'
                   }
                 },
-                '源码键：' + spec.key
+                shell.sourceKey + spec.key
               ),
               pick(spec.hint)
                 ? h(

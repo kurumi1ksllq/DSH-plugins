@@ -47,14 +47,14 @@
 - 只动 `packages/dsh-deep-ptc-mode`(`lib/governor-{settings,core,anchor,apply}.mjs`、新 `lib/governor-copy.mjs`、`lib/client.js`)+ 其测试;不动其它包、不动检测器词表、不动宿主。
 - **默认 locale=zh,所有现有测试不改语义即绿**;en 只是补齐能力。
 - 不实现宿主级「当前语言」查询(宿主 locale API 无此公开面);客户端语言判定用 `navigator.language`,server 端 copyLocale 走设置键。
-- schema GET 形态不破坏既有消费者:54 项数量、键名、settings/defaults 键集不变(只改文案字段值类型)。
-- 版本纪律:改动包升 patch(dsh-deep-ptc-mode 1.10.0 → 1.11.0),合并后打 tag。
+- schema GET 形态不破坏既有消费者:键名、settings/defaults 键集不变(只改文案字段值类型);项数 54→55(方案② 新增 copyLocale 键,属机械联动,用户已授权直接实施)。
+- 版本纪律:改动包升 minor(dsh-deep-ptc-mode 1.10.0 → 1.11.0;issue 原文「+patch」按 spec 明示版本执行),合并后打 tag。
 
 ## 验收
 
-1. settings GET 返回的 schema 文案字段全部为 {zh,en} 且 zh/en 同键集(测试红→绿);54 项/键名/settings 键集断言保持绿。
+1. settings GET 返回的 schema 文案字段全部为 {zh,en} 且 zh/en 同键集(测试红→绿);键名/settings 键集断言保持绿,项数按 55 断言(copyLocale 联动)。
 2. governor 客户端在 zh 环境渲染文案与现状逐字一致(现测试快照/文本断言全绿);en 环境渲染 en 值(新增断言)。
-3. render*/deny/soft-stop/纪律块文案在默认(zh)下与改前逐字一致(全部现有测试零修改语义通过);copyLocale=en 时产出 en 文案(新增断言)。
+3. render*/deny/soft-stop/纪律块文案在默认(zh)下与改前逐字一致;copyLocale=en 时产出 en 文案(新增断言)。既有测试仅允许「文案字段值类型变更引发的断言形态联动」(如 label→label.zh、schema 项数计数),检测/行为语义断言零修改。
 4. zh/en 键集一致测试(COPY + schema 文案字段)入库,红→绿可反向验证(删任一 en 键即红)。
 5. 四件套:pnpm test 全绿(node 24 语义,本机 v18 跑不了该包则以 CI 为准,不伪造本地绿——循 spec §5 环境约束)、pnpm verify(隔离 DSH_HOME)全绿、CI 绿。
 
