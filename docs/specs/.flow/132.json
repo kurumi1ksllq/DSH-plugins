@@ -1,8 +1,8 @@
 {
   "issue": 132,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-09T08:50:00+08:00",
+  "stage": "ci",
+  "updatedAt": "2026-11-09T09:12:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -25,5 +25,11 @@
       "state": "green"
     }
   ],
-  "note": "spec 修正记录:方案②要求新增 copyLocale 设置键 → 合并 schema 计数 54→55,边界行「54 项不变」随之作废(用户已授权直接实施,此为机械联动)；ticket1:render*/deny/soft-stop/纪律块经 governor-copy.mjs(54 位点双字典,locale 参数默认 zh);copyLocale 设置键(55 项联动,settings.test 计数断言已更新);ticket2:schema 65+ 项文案 {zh,en} 化(SETTINGS_SCHEMA 41+GOVERNOR 14,含 options),客户端 pick()+SHELL 双字典(navigator.language 判定),横幅/高级折叠/按钮文案全走 shell;两处既有断言按目标形态更新(label.zh);全包 158 ✔；ticket3 反向验证:删 COPY en.churnEscBudget→键集红、删 schema numberRunMaxGap en→文案字段红,还原后 158✔;ticket4:1.11.0+CHANGELOG,verify-packages+check-bundle-versions 绿(隔离 DSH_HOME)"
+  "note": "spec 修正记录:方案②要求新增 copyLocale 设置键 → 合并 schema 计数 54→55,边界行「54 项不变」随之作废(用户已授权直接实施,此为机械联动)；ticket1:render*/deny/soft-stop/纪律块经 governor-copy.mjs(54 位点双字典,locale 参数默认 zh);copyLocale 设置键(55 项联动,settings.test 计数断言已更新);ticket2:schema 65+ 项文案 {zh,en} 化(SETTINGS_SCHEMA 41+GOVERNOR 14,含 options),客户端 pick()+SHELL 双字典(navigator.language 判定),横幅/高级折叠/按钮文案全走 shell;两处既有断言按目标形态更新(label.zh);全包 158 ✔；ticket3 反向验证:删 COPY en.churnEscBudget→键集红、删 schema numberRunMaxGap en→文案字段红,还原后 158✔;ticket4:1.11.0+CHANGELOG,verify-packages+check-bundle-versions 绿(隔离 DSH_HOME)；双轴 review:轴1 6条(1高=材料过期已闭环/2中=spec 回写已完成+en 渲染断言已补/3低=源码键已 SHELL 化+spec 措辞),轴2 6条(1高=材料过期已闭环/2高=en 接线断言已补 copy.test 7用例/2中=spec 65→55 已修/中低=CHANGELOG 措辞+死常量注释已改/低=源码键同轴1/低=冗余下限已删);发现 clampNumber 吞 select 枚举键真 bug(applyRuntimeSettings 对 copyLocale 走数值 clamp 回退 zh),已修(select 键跳过数值 clamp)",
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green",
+    "latest": "pass @ 589a58e (PR #138)"
+  }
 }

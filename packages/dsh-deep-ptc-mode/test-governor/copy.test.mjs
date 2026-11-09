@@ -7,15 +7,17 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { COPY } from "../lib/governor-copy.mjs";
-import { SETTINGS_SCHEMA } from "../lib/governor-settings.mjs";
+import { SETTINGS_SCHEMA, applyRuntimeSettings } from "../lib/governor-settings.mjs";
 import { GOVERNOR_SETTINGS_SCHEMA } from "../lib/governor-core.mjs";
+import { renderRepeatAnchor, renderChurnEscalation } from "../lib/governor-softcut.mjs";
+import { copy as copyFn } from "../lib/governor-copy.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 test("COPY: zh 与 en 键集一致且非空", () => {
 	const zh = Object.keys(COPY.zh).sort();
 	const en = Object.keys(COPY.en).sort();
-	assert.ok(zh.length >= 20, "COPY 至少 20 个文案位点(实际 " + zh.length + ")");
+
 	assert.deepEqual(en.filter((k) => !zh.includes(k)), [], "en 多出的键");
 	assert.deepEqual(zh.filter((k) => !en.includes(k)), [], "zh 多出的键");
 });
@@ -81,7 +83,7 @@ function textFields(spec) {
 test("设置 schema:文案字段为 {zh,en} 双字典且值非空", () => {
 	// T4.ptc ② 的目标形态:文案字段是 {zh, en} 对象。实现前跑会红
 	// (文案还是纯字符串)——红因指向要实现的形态,不是语法错误。
-	assert.ok(SETTINGS_SCHEMA.length >= 40, "SETTINGS_SCHEMA 非空");
+
 	for (const spec of SETTINGS_SCHEMA) {
 		for (const [field, value] of textFields(spec)) {
 			assert.equal(
@@ -106,7 +108,7 @@ test("设置 schema:结构字段保留为纯数据(不受 locale 化影响)", ()
 test("GOVERNOR_SETTINGS_SCHEMA(core)文案字段同为 {zh,en} 双字典", () => {
 	// core 的 schema 经 governor.js 装配转出;直接 import 拿到同一对象做结构断言
 	// (settings.test 已证明该 import 在本包测试环境可用)。
-	assert.ok(GOVERNOR_SETTINGS_SCHEMA.length >= 14, "core schema 至少 14 项");
+
 	for (const spec of GOVERNOR_SETTINGS_SCHEMA) {
 		for (const [field, value] of textFields(spec)) {
 			assert.equal(typeof value, "object", spec.key + "." + field + " 必须是 {zh,en} 双字典");
@@ -114,4 +116,24 @@ test("GOVERNOR_SETTINGS_SCHEMA(core)文案字段同为 {zh,en} 双字典", () =>
 			assert.ok(typeof value.en === "string" && value.en.length > 0, spec.key + "." + field + ".en 缺失");
 		}
 	}
+});
+
+test("#132 en 接线:render* 以 locale=en 产出英文文案(反向验证:删调用点实参即红)", () => {
+	// 轴2#2:接线曾静默退化为 zh(自查修复 49e3b6f);此断言钉住「实参必须真传」。
+	// renderRepeatAnchor/renderChurnEscalation 是导出符号,不违反禁测私有函数。
+	const zh = renderRepeatAnchor({ period: 12, count: 3 });
+	const en = renderRepeatAnchor({ period: 12, count: 3 }, "en");
+	assert.notEqual(en, zh, "en 与 zh 产物必须不同(实参真传的证据)");
+	assert.match(en, /in-place repetition detected/, "en 产物含英文标志句");
+	assert.match(zh, /检测到原地重复/, "zh 产物保持中文");
+	const enEsc = renderChurnEscalation(2, "en");
+	assert.match(enEsc, /Churn cut 2 this turn/, "escalation en 产物");
+});
+
+test("#132 copyLocale 设置发布与白名单回退(applyRuntimeSettings)", () => {
+	const applied = applyRuntimeSettings({ copyLocale: "en" });
+	assert.equal(applied.copyLocale, "en", "copyLocale 设置发布");
+	assert.match(copyFn("en").softStopTail(), /wrap-up boundary/i, "en soft-stop 尾句");
+	assert.equal(applyRuntimeSettings({ copyLocale: "fr" }).copyLocale, "zh", "白名单外回退 zh");
+	assert.equal(applyRuntimeSettings({}).copyLocale, "zh", "缺省回退 zh");
 });

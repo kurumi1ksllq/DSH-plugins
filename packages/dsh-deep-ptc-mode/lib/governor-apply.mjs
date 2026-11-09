@@ -40,7 +40,7 @@ function externalAnchorPrefix(locale = "zh") {
 function externalAnchorFallback(locale = "zh") {
 	return copy(locale).externalAnchorFallback();
 }
-/** 既有常量形态保留(zh 默认),原调用点零改动。 */
+/** 历史导出面保留(zh 固化);运行时消费点已改走 externalAnchorPrefix()/externalAnchorFallback()(locale 感知),模块内现无消费点。 */
 const EXTERNAL_ANCHOR_PREFIX = externalAnchorPrefix();
 const EXTERNAL_ANCHOR_FALLBACK = externalAnchorFallback();
 /**

@@ -354,6 +354,7 @@ function applyRuntimeSettings(raw) {
 		const type = specOf.get(key)?.type;
 		if (type === "boolean") merged[key] = flag(key);
 		else if (type === "text") merged[key] = text(key);
+		else if (type === "select") merged[key] = merged[key]; // 枚举键由各自的白名单校验(如 transitionTextMode/copyLocale),不走数值 clamp
 		else merged[key] = clampNumber(key);
 	}
 

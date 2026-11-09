@@ -4,7 +4,7 @@
 
 ## 现状(已实测核实)
 
-**A. 设置 schema 文案(纯中文硬编码,共 65 项 schema)**
+**A. 设置 schema 文案(纯中文硬编码,共 55 项 schema(SETTINGS_SCHEMA 41 含 copyLocale + GOVERNOR_SETTINGS_SCHEMA 14))**
 - `lib/governor-core.mjs` GOVERNOR_SETTINGS_SCHEMA(14 项,23 label/hint/options/group 文案)
 - `lib/governor-settings.mjs` SETTINGS_SCHEMA(40 项,42 label/24 hint)
 - 消费方:**唯一**是 governor 客户端半区(`lib/client.js` 第二模块 dsh-stall-governor 壳),经 GET `/plugins/stall-governor/settings` 拿 `schema[]`,直接渲染 `spec.label/hint/group/options[].label`(`spec.label || spec.key`)。客户端无 locale 注入(`exports.inject = ['slots']`),全部文案中文写死。
@@ -63,6 +63,6 @@
 | # | 标题 | 说明 |
 |---|---|---|
 | 1 | lib/governor-copy.mjs 双字典 + render* locale 参数化 | COPY zh/en;render* 加 locale 参数默认 zh;调用链读 copyLocale 设置键;zh 逐字一致性靠现有测试验证 |
-| 2 | 设置 schema 文案 {zh,en} 化 | 65 项 schema 文案字段改双字典对象;客户端 pick 渲染 + UI 文案 D 项进 NS;settings.test 增键集断言 |
+| 2 | 设置 schema 文案 {zh,en} 化 | 55 项 schema 文案字段改双字典对象(41+14);客户端 pick 渲染 + UI 文案 D 项进 NS;settings.test 增键集断言 |
 | 3 | zh/en 键集一致契约测试 | COPY + schema 文案字段双向断言(红→绿反向验证) |
 | 4 | 版本 + 四件套收尾 | 1.11.0;pnpm test(CI 为准)/verify 隔离跑全绿 |
