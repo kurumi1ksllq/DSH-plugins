@@ -2,7 +2,7 @@
   "issue": 143,
   "grade": "standard",
   "stage": "ci",
-  "updatedAt": "2026-11-09T07:04:36.131Z",
+  "updatedAt": "2026-11-09T07:23:00.951Z",
   "tickets": [
     {
       "id": 1,
@@ -10,7 +10,7 @@
       "state": "done"
     }
   ],
-  "note": "resolver 语义不动(本就对),修测试环境卫生;纯测试无 tag;反向验证闭环(去隔离→本机红→还原绿);inventory node v24.15.0 501/501✔(node18 混装下 439/434 为假红,循 #139 记录口径) + repo 74/74 绿;轴2 补:DSH_CUSTOM_SKILL_DIRS 一并隔离、审计记录落 spec、CHANGELOG 口径改机制事实；轴2 v2 补记:反向验证原法会污染真实用户目录(执行期间实际发生两次,均已清理),已改无污染等价法并落 spec;残余清理 /tmp scratch 已做",
+  "note": "resolver 语义不动(本就对),修测试环境卫生;纯测试无 tag;反向验证闭环(去隔离→本机红→还原绿);inventory node v24.15.0 501/501✔(node18 混装下 439/434 为假红,循 #139 记录口径) + repo 74/74 绿;轴2 补:DSH_CUSTOM_SKILL_DIRS 一并隔离、审计记录落 spec、CHANGELOG 口径改机制事实；轴2 v2 补记:反向验证原法会污染真实用户目录(执行期间实际发生两次,均已清理),已改无污染等价法并落 spec;残余清理 /tmp scratch 已做；轴1 v2 疑点关闭:node24 501/501 已复现(/opt/dsh-runtime/node24/bin/node --test test/*.test.mjs,exit=0,2026-11-09 15:20)——「332」确系 node18 混装假红口径,node24 口径独立可复现",
   "ci": {
     "run": 0,
     "max": 2,
