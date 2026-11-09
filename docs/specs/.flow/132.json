@@ -1,8 +1,8 @@
 {
   "issue": 132,
   "grade": "standard",
-  "stage": "ci",
-  "updatedAt": "2026-11-09T09:12:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T09:23:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -31,5 +31,10 @@
     "max": 2,
     "status": "green",
     "latest": "pass @ 589a58e (PR #138)"
+  },
+  "merge": {
+    "sha": "ee8fa09",
+    "at": "2026-11-09T09:22Z",
+    "note": "PR #138 squash;tag dsh-deep-ptc-mode@1.11.0 已打"
   }
 }
