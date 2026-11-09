@@ -525,16 +525,38 @@ test('the CHANGELOG Unreleased section carries every current package version as 
 // ---------------------------------------------------------------------------
 // Single Unreleased section (docs round-2, #149)
 //
-// The CHANGELOG grew a second `## Unreleased` heading (the #102-#105 batch that
-// was never archived), so readers cannot tell which section is authoritative and
-// entries got duplicated across the two. There must be exactly one.
+// The CHANGELOG once grew a second `## Unreleased` heading (a #96-#105-and-earlier
+// batch that was never archived), so readers cannot tell which section is
+// authoritative and entries got duplicated across the two. There must be exactly
+// one, anchored to the exact heading line (a suffixed variant like
+// `## Unreleased (legacy)` counts as a drift and goes red via the count check).
 
 test('the CHANGELOG carries exactly one Unreleased section', () => {
   const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
-  const headings = changelog.split('\n').filter((line) => /^## Unreleased/.test(line))
+  // Anchored with $ so the guard and unreleasedSection() agree on what a
+  // section heading is; a suffixed variant fails the count assertion below.
+  const headings = changelog.split('\n').filter((line) => /^## Unreleased$/.test(line))
   assert.equal(
     headings.length,
     1,
     `CHANGELOG must carry exactly one ## Unreleased section, found ${headings.length}`,
+  )
+})
+
+test('no CHANGELOG entry heading appears more than once', () => {
+  // The defect that motivated #149's second section was entry-level duplication
+  // (0.1.1 and 0.3.1 existed under both Unreleased sections), which the
+  // section-count guard above cannot see. Every `### ` heading line must be
+  // unique across the whole file.
+  const changelog = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8')
+  const seen = new Map()
+  for (const line of changelog.split('\n')) {
+    if (/^### /.test(line)) seen.set(line, (seen.get(line) || 0) + 1)
+  }
+  const duplicates = [...seen.entries()].filter(([, count]) => count >= 2).map(([line]) => line)
+  assert.deepEqual(
+    duplicates,
+    [],
+    `duplicate ### entry headings across the CHANGELOG: ${duplicates.join(' | ')}`,
   )
 })

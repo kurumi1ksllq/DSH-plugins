@@ -143,8 +143,8 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## History
 
-> 归档说明(2026-11-09,#149):原第二个 Unreleased 段(#102-#105 批次)整体并入本段顶部;
-> 其中 0.1.1/0.3.1 两条与当时第一段重复,以本段详版为准。
+> 归档说明(2026-11-09,#149):原第二个 Unreleased 段(#96-#105 及更早的未归档条目,共 19 条,由 7b17dea 引入)整体并入本段顶部;
+> 其中 0.1.1/0.3.1 两条与当时第一段逐字相同,删除第一段副本,各保留一份;下文 0.2.1 条目的「(unreleased)」字样系历史遗留状态标签,归档时一并去除。
 
 ### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
 
@@ -159,6 +159,7 @@ A bundle whose directory has changes after its version tag fails the gate.
   await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
   (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
   同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
+
 ### dsh-credential-vault 0.5.4 — 并发守卫/审计原子性/rotate 恢复/授权清除 (#103)
 
 - **rotate 崩溃恢复真实可达**:rotateKey 先把重封好的 vault 落为 vault.json.new 再换 key,
@@ -368,7 +369,7 @@ A bundle whose directory has changes after its version tag fails the gate.
   - `rollback` only exchanges a tree the journal proves holds the previous
     generation, and refuses once that exchange has already been undone.
 
-### dsh-inventory — 0.2.1 (unreleased)
+### dsh-inventory — 0.2.1
 
 - **Fleet manifest (v2).** Several machines can publish into one document;
   each publisher owns its own section (`{ fleetVersion: 2, machines: { id: … } }`)
@@ -391,9 +392,9 @@ A bundle whose directory has changes after its version tag fails the gate.
 ---
 
 
-Releases before this file existed were not tagged; this section records what
-each bundle's current version contains so the running instance is at least
-described.
+Releases before this file existed were not tagged; the entries after this note
+record what was then each bundle's current version, so the running instance is
+at least described.
 
 ### dsh-inventory 0.2.0
 
