@@ -1,8 +1,8 @@
 {
   "issue": 149,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-09T23:09:23.281Z",
+  "stage": "done",
+  "updatedAt": "2026-11-09T23:18:47.733Z",
   "tickets": [
     {
       "id": 1,
@@ -36,7 +36,10 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true,
+    "via": "ask_user_question 点选「merge 本 PR」(call_beb1dceb634e48e0b153842d)",
+    "squash": "802fc7b",
+    "pr": 150
   },
   "note": "双轴 review:轴1 合格、轴2 不合格(P1 叙事失真经双源坐实——两条重复条目逐字相同)。裁决卡 q-review-verdict-149 选「执行全部修复并重推」:7 项修复(叙事更正×3/批次归因/条目级守卫/格式×2/unreleased 标签/正则锚定/承诺语注明)。复验 docs-contract 25/25+反向验证×2(条目重复→红点名条目;后缀变体→found 0→红)+全量 test/verify 绿。凭据链(gh)当场核验:i147 正文新路径/PR Closes #149/CI success。"
 }
