@@ -1,8 +1,8 @@
 {
   "issue": 135,
   "grade": "standard",
-  "stage": "spec",
-  "updatedAt": "2026-11-09T10:25:00+08:00",
+  "stage": "ci",
+  "updatedAt": "2026-11-09T10:42:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -20,5 +20,15 @@
       "state": "green"
     }
   ],
-  "note": "spec: docs/specs/phase5-wrapup.md;tag 清单核对完成(五包一一对应);README 表格 4→5 行为真漂移,AGENTS 速览缺三行；verify-clean 隔离跑全绿(74/74);plugin-consolidation Phase 5 勾选"
+  "note": "spec: docs/specs/phase5-wrapup.md;tag 清单核对完成(五包一一对应);README 表格 4→5 行为真漂移,AGENTS 速览缺三行；verify-clean 隔离跑全绿(74/74);plugin-consolidation Phase 5 勾选；双轴 review:轴1 6条+轴2 6条全部闭环——README 49/74/45 残留修复(九包计数/7条必装/线上profile=6/可选段删除/尾逗号)、CHANGELOG 说明行去枚举改14条目口径、.flow ci.status 纪律修正(先 unknown 后 green)、plugin-consolidation 指针精确化+§5 环境约束更新(node v24)、spec 审计失实更正(14条目/README残留)、docs-contract 反向护栏(钉旧值 9个/7条/线上=6)",
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green",
+    "latest": "pass @ 8ebdc0b (PR #141)"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  }
 }

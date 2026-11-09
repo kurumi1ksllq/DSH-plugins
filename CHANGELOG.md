@@ -12,7 +12,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
-> 以下条目均已随各自版本 tag 发布(dsh-deep-ptc-mode@1.10.0/1.11.0、dev-flow@0.4.0、dsh-websearch-failover@0.5.0、dsh-inventory@0.12.0、dsh-credential-vault@0.6.0);待下一次统一归档至 History 段。
+> 本段现有 14 个条目(最新六条:dsh-deep-ptc-mode@1.10.0/1.11.0、dev-flow@0.4.0、dsh-websearch-failover@0.5.0、dsh-inventory@0.12.0、dsh-credential-vault@0.6.0),全部已随各自 tag 发布;待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

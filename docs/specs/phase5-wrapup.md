@@ -4,9 +4,9 @@ spec: docs/specs/plugin-consolidation.md §4 Phase 5 / T5。分级:standard。
 
 ## 审计现状(实测)
 
-1. **根 README 计数**:「五个/5 个」措辞一致;但目录表格仅 4 行——**缺 dsh-deep-ptc-mode 行**(正文 35/42/43/58 行已多处引用该包),真漂移。
+1. **根 README 计数**:初判「措辞一致」有误(轴1 复核)——49 行「本仓库的 9 个」与 74 行「7 条必装」为九包时代残留;目录表格亦缺 dsh-deep-ptc-mode 行。均已修复。
 2. **AGENTS.md**:目录速览表格缺 dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover 三行(仅列 dev-flow/inventory);「五个」计数一致。
-3. **CHANGELOG**:Unreleased 段下 6 个条目(1.11.0/1.10.0/0.4.0/0.5.0/0.12.0/0.6.0)全部已 merge 且 tag 在——Unreleased 段实为「已发布未归档」;无冲突标记残留;历史格式为两个 Unreleased 段 + History 段。
+3. **CHANGELOG**:Unreleased 段(13–144 行)共 14 个条目(初判「6 个」系只数了前段),全部已 merge 且 tag 在——实为「已发布未归档」;无冲突标记残留;历史格式为两个 Unreleased 段 + History 段。
 4. **tag 清单**:五包版本一一对应 tag(dev-flow@0.4.0 / dsh-credential-vault@0.6.0 / dsh-deep-ptc-mode@1.11.0 / dsh-inventory@0.12.0 / dsh-websearch-failover@0.5.0);吸收包(dsh-stall-governor@0.1.x 等)为历史 tag,保留。
 5. **包 README 数字漂移**:grep 三处命中均为合法内容(进度点图示/测试计数/测试文件数),非 bundle 计数漂移。
 6. **吸收包残留引用**:dev-flow 的 README-git-status.md、inventory 的 README-prompt-inject.md、deep-ptc-mode 的 README-governor/gitbash 为吸收历史文档(记录性),不计漂移。
