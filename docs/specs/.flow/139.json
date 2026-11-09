@@ -1,8 +1,8 @@
 {
   "issue": 139,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-09T13:45:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T13:53:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -28,7 +28,15 @@
     "latest": "pass @ 6ef5e6cc (PR #142;fd2a394 rerun 亦绿)"
   },
   "review": {
-    "state": "running",
-    "axes": 2
+    "state": "done",
+    "axes": 2,
+    "contract": "pass",
+    "correctness": "pass",
+    "at": "2026-11-09T13:50:00+08:00"
+  },
+  "merge": {
+    "sha": "820a764",
+    "at": "2026-11-09T13:52Z",
+    "note": "PR #142 squash;tag dsh-deep-ptc-mode@1.11.1 已打"
   }
 }
