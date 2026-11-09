@@ -17,4 +17,4 @@
 
 ## 验收
 1. 本机(带 /root/.agents/skills 环境)单跑/全量均绿。
-2. 反向验证:去掉 DSH_AGENTS_HOME 注入 → 本机红(实测:resolver 返回 /root/.agents/skills,测试红)——证明隔离必要。
+2. 反向验证(轴2 v2 修正为**无污染等价法**,原法会写真实用户目录):设 DSH_AGENTS_HOME 指向一个**已存在且含 skills/** 的 scratch 目录(而非不存在的路径)→ resolver 选它而非 $DSH_HOME/skills → 测试红,同样证明「resolver 优先选已存在根」这一隔离必要机制;已探针验证(skillRootOf({env}) 返回 scratch 路径),零真实目录写入。
