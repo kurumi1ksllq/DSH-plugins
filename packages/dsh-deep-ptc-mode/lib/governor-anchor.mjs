@@ -836,7 +836,8 @@ function buildAnchorContext(text, summary) {
  * 常量前缀，有利于 KV 前缀缓存命中。
  *
  * 发布版为插件自带通用纪律（不引用任何用户本机路径）；本机用户如需个人化
- * 纪律，可自行修改本数组后重启，或在设置中关闭「随锚点注入命令执行纪律块」。
+ * 纪律，改 governor-copy.mjs 的 discipline0..9 字典后重启，或在设置中关闭
+ * 「随锚点注入命令执行纪律块」（#144 后文本不在本文件,本数组已不存在）。
  */
 // #132:纪律块文案抽字典。#144:单源化——全部 locale(含 zh)统一从 governor-copy.mjs 的
 // discipline0..9 字典拼装,EXEC_DISCIPLINE_TEXT 降级为 zh 派生值(仅供既有消费点与契约测试对照)。

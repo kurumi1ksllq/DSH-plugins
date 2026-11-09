@@ -32,3 +32,10 @@
 
 packages/dsh-deep-ptc-mode(lib + test + 版本 + CHANGELOG)、packages/dev-flow(SKILL.md + 版本 + CHANGELOG)、
 仓库 AGENTS.md、本 spec、~/.dsh/AGENTS.md。不动行 id / cordis.patch.yml / .flow 格式。
+
+## 执行记录
+
+- PR: https://github.com/kurumi1ksllq/DSH-plugins/pull/146(commit b9004a7)
+- CI: run 42597844565 — test success(2026-11-09)
+- 反向验证:改坏 EXEC_DISCIPLINE_TEXT(硬编码副本复活)→ discipline-copy 1 fail / exit 1;还原 → 4/4 绿,文件字节级还原
+- 测试环境:PATH 默认 node18 假红(import…with 语法不支持),全部经 /opt/dsh-runtime/node24(v24.15.0)执行
