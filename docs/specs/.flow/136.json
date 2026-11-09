@@ -1,8 +1,8 @@
 {
   "issue": 136,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-09T10:10:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-09T10:15:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -19,5 +19,10 @@
   },
   "review": {
     "state": "pending-decision"
+  },
+  "merge": {
+    "sha": "c58e042",
+    "at": "2026-11-09T10:14Z",
+    "note": "PR #140 squash;纯测试无 tag"
   }
 }
