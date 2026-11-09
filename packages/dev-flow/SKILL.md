@@ -99,7 +99,7 @@ gh --version && gh auth status && git remote -v
 
 #### merge 闸
 
-**提问通道(#144,强制)**:CI 绿 + review 完结后,用 `ask_user_question` 发起 merge 确认(选项:merge 本 PR / 暂缓 / 返工);但**选项本身不构成授权**——用户选中"merge 本 PR"即视同说出 merge 口令,其余选项一律不 merge。
+**提问通道(#144,强制)**:CI 绿 + review 完结后,用 `ask_user_question` 发起 merge 确认(选项:merge 本 PR / 暂缓 / 返工)。授权判定是单向的:用户在提问卡片中明确点选「merge 本 PR」**等同说出 merge 口令**;点选暂缓/返工、或跳过问题,均不构成授权;正文里的「嗯 / 好 / 继续 / 行 / 通过」仍然一律不算(#146 轴1 审查修正前后矛盾措辞)。
 
 - merge 需要用户给出**具体口令**：说出"merge"或点名 PR 号（如"merge #5"）。
 - **"嗯 / 好 / 继续 / 行 / 通过"都不算 merge 授权**——它们只代表对上一个问题的回答。

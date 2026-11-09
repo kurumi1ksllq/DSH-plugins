@@ -6,7 +6,7 @@
 
 ## Tickets
 
-1. **纪律文案单源化**(code):makeDisciplineText 的 zh 分支改走 governor-copy.mjs COPY 字典拼装;
+1. **纪律文案单源化**(code):execDisciplineText 的 zh 分支改走 governor-copy.mjs COPY 字典拼装(勘误:spec 初稿误写 makeDisciplineText,代码库中不存在该符号,#146 轴1 审查发现);
    EXEC_DISCIPLINE_TEXT 保留为 zh 基准常量(供契约测试对照);新增契约测试断言 zh/en 两条路径
    纪律全文同构(⓪–⑨ 条目一一对应、条数一致);反向验证:改坏实现测试必须变红(留证);
    dsh-deep-ptc-mode 版本号 +1(patch),CHANGELOG 记录。
@@ -39,3 +39,10 @@ packages/dsh-deep-ptc-mode(lib + test + 版本 + CHANGELOG)、packages/dev-flow(
 - CI: run 42597844565 — test success(2026-11-09)
 - 反向验证:改坏 EXEC_DISCIPLINE_TEXT(硬编码副本复活)→ discipline-copy 1 fail / exit 1;还原 → 4/4 绿,文件字节级还原
 - 测试环境:PATH 默认 node18 假红(import…with 语法不支持),全部经 /opt/dsh-runtime/node24(v24.15.0)执行
+
+## 轴1 审查修复(#146 review,2026-11-09)
+
+- P1: spec 符号名笔误勘误(makeDisciplineText→execDisciplineText)
+- P2/P4: 本「执行记录+审查修复」段随 commit b08121a 及后续 commit 落盘;四件套证据:5 包测试(deep-ptc 170[含加强测试]/dev-flow 205/vault 227/inventory 494/websearch 20,均 node24)+根文档 74/74+verify×3 exit0
+- P3: 契约测试 4→6 条:新增"每条非空+zh/en 条目数相等"与"discipline 键集合与拼装键集一致";双路反向验证:多键 mutation→1 fail,清空 mutation→2 fail,还原全绿
+- P5: SKILL.md merge 闸改为单向规则(点选「merge 本 PR」等同口令;暂缓/返工/跳过均不授权)

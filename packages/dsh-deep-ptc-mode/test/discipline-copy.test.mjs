@@ -11,6 +11,9 @@ const MARKERS = ['⓪', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', 
 const DISCIPLINE_KEYS = ['discipline0', 'discipline1', 'discipline2', 'discipline3a', 'discipline3b',
   'discipline4', 'discipline6', 'discipline7', 'discipline8', 'discipline9'];
 
+// 拼装键集与 anchor 内部实现的一致性由 test 2(zh=字典派生)间接守护;
+// 本地副本仅用于构造期望值。
+
 function joinDiscipline(locale) {
   const t = copy(locale);
   return DISCIPLINE_KEYS.map((k) => {
@@ -43,5 +46,19 @@ test('zh 字典 discipline 键与常量拼装同源(缺键即红)', () => {
   for (const k of DISCIPLINE_KEYS) {
     assert.equal(typeof COPY.zh[k], 'function', `COPY.zh 缺 ${k}`);
     assert.equal(typeof COPY.en[k], 'function', `COPY.en 缺 ${k}`);
+  }
+});
+
+test('zh/en 每条 discipline 条目非空且条目数相等(空串或条数漂移即红,#146 轴1)', () => {
+  for (const locale of ['zh', 'en']) {
+    const t = copy(locale);
+    for (const k of DISCIPLINE_KEYS) assert.ok(t[k]().length > 0, `${locale}.${k} 为空串`);
+  }
+});
+
+test('COPY 字典 discipline 键集合与拼装键集完全一致(多键漏拼也红,#146 轴1)', () => {
+  for (const locale of ['zh', 'en']) {
+    const actual = Object.keys(COPY[locale]).filter((k) => k.startsWith('discipline')).sort();
+    assert.deepEqual(actual, [...DISCIPLINE_KEYS].sort(), `${locale} discipline 键集合漂移`);
   }
 });
