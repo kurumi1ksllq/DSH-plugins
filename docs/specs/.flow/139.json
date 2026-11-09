@@ -1,0 +1,34 @@
+{
+  "issue": 139,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-09T13:45:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "settings→en 联动断言(反删除保护)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "en.softStopTail 中文总结语义",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本 1.11.1 + 四件套",
+      "state": "green"
+    }
+  ],
+  "note": "中-2 静态注入经复现不成立(applyRuntimeSettings 白名单覆盖静态路径),澄清见 issue 评论;P2 低危按取舍改一处 en 文案；ticket1 源码护栏(15 处实参钉死,反向验证:删 repeatAnchor 实参→红→还原绿);ticket2 en.softStopTail 补中文总结;163✔；验证环境:本机 node v24.15.0(/opt/dsh-runtime/node24 与 PATH node 同版本,轴1问题1 的 node18 混装假红未在本会话出现——worker 环境差异,记录备查);全包 163✔；双轴 review v2 闭环:轴2 7条(1高=补 settings 驱动行为断言[方案1 原文回归]+死导入激活/2中=计数自证 16 处+删重复条目+CHANGELOG「其余14条已发布;1.11.1 合并后打 tag」/低=注释行号+TTL 修复入 CHANGELOG);轴1 3条(中=node 多版本混装假红记录备查+低=注释澄清源码匹配理由/措辞留打磨);pkg 164✔ repo 74/74绿",
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green",
+    "latest": "pass @ 6ef5e6cc (PR #142;fd2a394 rerun 亦绿)"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  }
+}

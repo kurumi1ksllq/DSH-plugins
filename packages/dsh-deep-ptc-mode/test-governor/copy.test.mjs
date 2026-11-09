@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { COPY } from "../lib/governor-copy.mjs";
-import { SETTINGS_SCHEMA, applyRuntimeSettings } from "../lib/governor-settings.mjs";
+import { SETTINGS_SCHEMA, applyRuntimeSettings, settings } from "../lib/governor-settings.mjs";
 import { GOVERNOR_SETTINGS_SCHEMA } from "../lib/governor-core.mjs";
 import { renderRepeatAnchor, renderChurnEscalation } from "../lib/governor-softcut.mjs";
 import { copy as copyFn } from "../lib/governor-copy.mjs";
@@ -134,6 +134,50 @@ test("#132 copyLocale 设置发布与白名单回退(applyRuntimeSettings)", () 
 	const applied = applyRuntimeSettings({ copyLocale: "en" });
 	assert.equal(applied.copyLocale, "en", "copyLocale 设置发布");
 	assert.match(copyFn("en").softStopTail(), /wrap-up boundary/i, "en soft-stop 尾句");
+	assert.match(copyFn("en").softStopTail(), /in Chinese/i, "#139 P2:en 保留「用中文总结」约定(反向验证:删掉 in Chinese 即红)");
 	assert.equal(applyRuntimeSettings({ copyLocale: "fr" }).copyLocale, "zh", "白名单外回退 zh");
 	assert.equal(applyRuntimeSettings({}).copyLocale, "zh", "缺省回退 zh");
+});
+
+test("#132 P1 行为联动:settings.copyLocale 驱动导出 render* 产出对应文案(spec 方案1 原文)", () => {
+	// render* 是导出符号;applyRuntimeSettings 发布 copyLocale 后,以 settings 值驱动
+	// 必须产出 en 文案——render* 内部若忽略 locale 参数(静默退化新形态),这里红。
+	applyRuntimeSettings({ copyLocale: "en" });
+	assert.equal(settings.copyLocale, "en", "copyLocale 设置发布(显式)");
+	const driven = renderRepeatAnchor({ period: 12, count: 3 }, settings.copyLocale);
+	assert.match(driven, /in-place repetition detected/, "settings 驱动产出 en(内部忽略 locale 则此处为中文,红)");
+	const drivenEsc = renderChurnEscalation(2, settings.copyLocale);
+	assert.match(drivenEsc, /Churn cut 2 this turn/, "renderChurnEscalation 同样由 settings 值驱动");
+	applyRuntimeSettings({ copyLocale: "zh" });
+	const drivenZh = renderRepeatAnchor({ period: 12, count: 3 }, settings.copyLocale);
+	assert.match(drivenZh, /检测到原地重复/, "settings 驱动 zh 保持中文");
+});
+test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用点必须真传 settings.copyLocale(15 个调用语句/16 处出现)", () => {
+	// 轴1 P1:接线曾静默退化(zh 常量固化);此断言钉住「settings 值真传到 render*」——
+	// 删 governor-apply 调用点的 settings.copyLocale 实参时,这里用 settings 驱动的产物
+	// 与直传字面量的产物出现差异即红(等价于抓住接线回归)。
+	// 源码级辅助护栏(行为断言见上一测试):防「删实参」「改回字面量」两类回归;
+	// 格式化/改名类重构会假红,届时同步更新本清单。清单来自 49e3b6f 修复时的实际调用点。
+	const src = readFileSync(join(here, "..", "lib", "governor-apply.mjs"), "utf8");
+	const required = [
+		"renderPseudoToolAnchor(looping !== null, looping, settings.copyLocale)",
+		"renderRepeatAnchor(looping, settings.copyLocale)",
+		"renderNGramLoopAnchor(ngramLoop, settings.copyLocale)",
+		"renderNumberRunawayAnchor(numberRunaway, settings.copyLocale)",
+		"renderChurnAnchor(churn, settings.copyLocale) + renderChurnEscalation(churnOccurrence, settings.copyLocale)",
+		": renderChurnAnchor(churn, settings.copyLocale);",
+		'churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : ""',
+		'occurrence, settings.copyLocale)', // renderOverLongCoTAnchor(轴2#3:此前漏钉)
+		"renderActionChurnAnchor(actionChurn, settings.copyLocale)",
+		"renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale)",
+		"execDisciplineText(settings.copyLocale)",
+		"tDeny = copy(settings.copyLocale)",
+		"tG2 = copy(settings.copyLocale)",
+		"tStop = copy(settings.copyLocale)",
+		"tExt = copy(settings.copyLocale)",
+	];
+	const missing = required.filter((snippet) => !src.includes(snippet));
+	assert.deepEqual(missing, [], "governor-apply 接线缺失(回归到 zh 硬编码):\n" + missing.join("\n"));
+	// 出现次数口径自证(轴2#2:16 处出现/15 个调用语句):
+	assert.equal((src.match(/settings\.copyLocale/g) || []).length, 16, "settings.copyLocale 出现次数漂移");
 });
