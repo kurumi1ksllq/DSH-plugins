@@ -1,8 +1,8 @@
 {
   "issue": 139,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-09T13:25:00+08:00",
+  "stage": "ci",
+  "updatedAt": "2026-11-09T13:22:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -20,5 +20,11 @@
       "state": "green"
     }
   ],
-  "note": "中-2 静态注入经复现不成立(applyRuntimeSettings 白名单覆盖静态路径),澄清见 issue 评论;P2 低危按取舍改一处 en 文案；ticket1 源码护栏(15 处实参钉死,反向验证:删 repeatAnchor 实参→红→还原绿);ticket2 en.softStopTail 补中文总结;163✔"
+  "note": "中-2 静态注入经复现不成立(applyRuntimeSettings 白名单覆盖静态路径),澄清见 issue 评论;P2 低危按取舍改一处 en 文案；ticket1 源码护栏(15 处实参钉死,反向验证:删 repeatAnchor 实参→红→还原绿);ticket2 en.softStopTail 补中文总结;163✔；验证环境:本机 node v24.15.0(/opt/dsh-runtime/node24 与 PATH node 同版本,轴1问题1 的 node18 混装假红未在本会话出现——worker 环境差异,记录备查);全包 163✔",
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "red",
+    "latest": "fail @ fd2a394: TTL flaky(真实 flaky,非环境)已修——requestedAt 锚定 197/200/202 行;rerun 见后"
+  }
 }

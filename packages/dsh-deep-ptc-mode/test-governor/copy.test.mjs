@@ -134,16 +134,18 @@ test("#132 copyLocale 设置发布与白名单回退(applyRuntimeSettings)", () 
 	const applied = applyRuntimeSettings({ copyLocale: "en" });
 	assert.equal(applied.copyLocale, "en", "copyLocale 设置发布");
 	assert.match(copyFn("en").softStopTail(), /wrap-up boundary/i, "en soft-stop 尾句");
+	assert.match(copyFn("en").softStopTail(), /in Chinese/i, "#139 P2:en 保留「用中文总结」约定(反向验证:删掉 in Chinese 即红)");
 	assert.equal(applyRuntimeSettings({ copyLocale: "fr" }).copyLocale, "zh", "白名单外回退 zh");
 	assert.equal(applyRuntimeSettings({}).copyLocale, "zh", "缺省回退 zh");
 });
 
-test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用点必须真传 settings.copyLocale(计数钉死)", () => {
+test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用点必须真传 settings.copyLocale(片段钉死,16 处)", () => {
 	// 轴1 P1:接线曾静默退化(zh 常量固化);此断言钉住「settings 值真传到 render*」——
 	// 删 governor-apply 调用点的 settings.copyLocale 实参时,这里用 settings 驱动的产物
 	// 与直传字面量的产物出现差异即红(等价于抓住接线回归)。
-	// 源码级断言(与 client.test.mjs 的段内文本断言同法):13 个调用点逐一钉住,
-	// 删任一实参即红。清单来自 49e3b6f 修复时的实际调用点。
+	// 源码级断言(与 client.test.mjs 的段内文本断言同法,壳内闭包无法 import 的降级手段):
+	// 16 处调用点逐条片段钉住,防「删实参」「改回字面量」两类回归;格式化/改名类重构会假红,
+	// 届时同步更新本清单即可。清单来自 49e3b6f 修复时的实际调用点。
 	const src = readFileSync(join(here, "..", "lib", "governor-apply.mjs"), "utf8");
 	const required = [
 		"renderPseudoToolAnchor(looping !== null, looping, settings.copyLocale)",
@@ -154,6 +156,7 @@ test("#132 P1 接线源码护栏:governor-apply 的 render*/外部锚点调用�
 		": renderChurnAnchor(churn, settings.copyLocale);",
 		"renderActionChurnAnchor(actionChurn, settings.copyLocale)",
 		'churnOccurrence >= 2 ? renderChurnEscalation(churnOccurrence, settings.copyLocale) : ""',
+		'occurrence, settings.copyLocale)', // renderOverLongCoTAnchor(轴2#3:此前漏钉)
 		"occurrence, settings.copyLocale)",
 		"renderToolArgsErrorAnchor(toolName, invalidFields, settings.copyLocale)",
 		"execDisciplineText(settings.copyLocale)",
