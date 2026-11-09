@@ -27,7 +27,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 17 个条目,全部已随各自 tag 发布(两个当前版本 tag 已随 #146 合入 main 时打出,指向 cab5801;不含下方历史 Unreleased 批次段)。待下一次统一归档至 History 段。
+> 本段现有 15 个条目,全部已随各自 tag 发布;待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
@@ -141,23 +141,10 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 
 
-### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
+## History
 
-- **confined(沙箱)分支的 bash 改写此前静默失效**:沙箱把真实 argv 包在第一个
-  `--` 分隔符后,旧实现只看 argv[0]。现在按位处理第一个 `--` 后的裸 bash。
-- **Git Bash 缺失降级**:挂载时探测二进制,缺失告警并走 PATH 前置回退;
-  `gitBashPath` 可注入(测试跨平台确定性);默认路径形状有断言防转义回归。
-
-### dsh-websearch-failover 0.3.1 — refresh 并发互斥 (#104)
-
-- **refresh 的 read-modify-write 互斥化**:两个并发 POST /api/refresh 在 probeBalance 的
-  await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
-  (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
-  同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
-
-
-
-## Unreleased
+> 归档说明(2026-11-09,#149):原第二个 Unreleased 段(#96-#105 及更早的未归档条目,共 19 条,由 7b17dea 引入)整体并入本段顶部;
+> 其中 0.1.1/0.3.1 两条与当时第一段逐字相同,删除第一段副本,各保留一份;下文 0.2.1 条目的「(unreleased)」字样系历史遗留状态标签,归档时一并去除。
 
 ### dsh-git-bash-tool 0.1.1 — confined 分支改写 + 存在性探测回退 (#105)
 
@@ -172,6 +159,7 @@ A bundle whose directory has changes after its version tag fails the gate.
   await 上交错,后写覆盖先写的余额读数。lib/runtime.mjs 导出 createMutex
   (promise 链,失败不毒化队列),refresh RMW 段串行化;reorder/setEnabled 为
   同步 RMW,无需处理。测试接线进 test 脚本(原先 test-mutex.mjs 不在清单里,CI 没跑过)。
+
 ### dsh-credential-vault 0.5.4 — 并发守卫/审计原子性/rotate 恢复/授权清除 (#103)
 
 - **rotate 崩溃恢复真实可达**:rotateKey 先把重封好的 vault 落为 vault.json.new 再换 key,
@@ -381,7 +369,7 @@ A bundle whose directory has changes after its version tag fails the gate.
   - `rollback` only exchanges a tree the journal proves holds the previous
     generation, and refuses once that exchange has already been undone.
 
-### dsh-inventory — 0.2.1 (unreleased)
+### dsh-inventory — 0.2.1
 
 - **Fleet manifest (v2).** Several machines can publish into one document;
   each publisher owns its own section (`{ fleetVersion: 2, machines: { id: … } }`)
@@ -403,11 +391,10 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ---
 
-## History
 
-Releases before this file existed were not tagged; this section records what
-each bundle's current version contains so the running instance is at least
-described.
+Releases before this file existed were not tagged; the entries after this note
+record what was then each bundle's current version, so the running instance is
+at least described.
 
 ### dsh-inventory 0.2.0
 
