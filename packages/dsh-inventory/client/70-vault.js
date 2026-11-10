@@ -190,7 +190,7 @@
               'button',
               {
                 type: 'submit',
-                className: 'inv-btn',
+                className: 'inv-btn inv-primary',
                 style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) },
                 disabled: !canSave || busy,
               },
@@ -236,7 +236,7 @@
             { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
             h(
               'button',
-              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              { type: 'submit', className: 'inv-btn inv-primary', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
               busy ? t('credentialSaving') : t('credentialExportGo'),
             ),
             h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
@@ -286,7 +286,7 @@
             { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
             h(
               'button',
-              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              { type: 'submit', className: 'inv-btn inv-primary', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
               busy ? t('credentialSaving') : t('credentialImportGo'),
             ),
             h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
@@ -477,10 +477,10 @@
 
       const list =
         entries.length === 0
-          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('credentialLoading') : t('credentialNoEntries')))
+          ? h('div', { className: 'inv-card', style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('credentialLoading') : t('credentialNoEntries')))
           : h(
               'div',
-              { style: S.card, role: 'list' },
+              { className: 'inv-card', style: S.card, role: 'list' },
               ...entries.map((entry, index) =>
                 h(
                   'div',
@@ -561,7 +561,7 @@
           : selected !== null
             ? h(
                 'div',
-                { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+                { className: 'inv-card', style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
                 h(
                   'div',
                   { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -594,7 +594,7 @@
                     'button',
                     {
                       type: 'button',
-                      className: 'inv-btn',
+                      className: 'inv-btn inv-chip',
                       style: S.chip,
                       onClick: () => setEditing({ ...selected, secret: '' }),
                     },
@@ -608,7 +608,7 @@
       const auditPanel = showAudit
         ? h(
             'div',
-            { style: { ...S.card, padding: '6px 16px 10px' } },
+            { className: 'inv-card', style: { ...S.card, padding: '6px 16px 10px' } },
             h('div', { style: { ...S.sectionHead, cursor: 'default', padding: '8px 0 6px' } }, h('span', { style: S.sectionTitle }, t('credentialAudit'))),
             audit.length === 0
               ? h('div', { style: S.empty }, t('credentialAuditEmpty'))
@@ -643,7 +643,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               onClick: () => setEditing({}),
             },
@@ -653,7 +653,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: showAudit ? 'inv-btn inv-chip inv-chip-on' : 'inv-btn inv-chip',
               'aria-pressed': showAudit ? 'true' : 'false',
               style: { ...S.chip, ...(showAudit ? S.chipOn : {}) },
               onClick: () => setShowAudit((prev) => !prev),
@@ -664,7 +664,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => setAux((current) => (current === 'export' ? null : 'export')),
@@ -675,7 +675,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => setAux((current) => (current === 'import' ? null : 'import')),
@@ -686,7 +686,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: rotate,
@@ -697,7 +697,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => reload(),

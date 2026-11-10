@@ -228,10 +228,10 @@
             'div',
             { style: S.page },
             h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
-            h('div', { style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
-              h('div', { style: S.skeleton }),
-              h('div', { style: { ...S.skeleton, width: '70%' } }),
-              h('div', { style: { ...S.skeleton, width: '85%' } }),
+            h('div', { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+              h('div', { className: 'inv-skeleton', style: S.skeleton }),
+              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
+              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
             ),
           ),
         )
@@ -249,9 +249,9 @@
             h(
               'div',
               { style: S.errorBox },
-              h(Icon, { name: 'alert', size: 18 }),
+              h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
               h('span', { style: { flex: '1 1 auto' } }, `${t('error')} ${message ? `(${message})` : ''}`),
-              h('button', { type: 'button', style: S.primary, onClick: () => load(true) }, t('retry')),
+              h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
             ),
           ),
         )
@@ -317,6 +317,7 @@
             )
           : backToChat,
         h('span', {
+          className: 'inv-nav-title',
           style: { ...S.navTitle, opacity: scrolled ? 1 : 0, transition: 'opacity 180ms ease' },
           'aria-hidden': 'true',
         }, view === 'workspace' && activeWorkspace ? activeWorkspace.title : t('title')),
@@ -346,7 +347,7 @@
         'button',
         {
           type: 'button',
-          className: 'inv-seg-btn',
+          className: showOfficial ? 'inv-seg-btn inv-chip inv-chip-on' : 'inv-seg-btn inv-chip',
           'aria-pressed': showOfficial ? 'true' : 'false',
           style: { ...S.chip, ...(showOfficial ? S.chipOn : {}) },
           title: t('officialHint'),
@@ -362,7 +363,7 @@
               'button',
               {
                 type: 'button',
-                className: 'inv-seg-btn',
+                className: showHiddenSkills ? 'inv-seg-btn inv-chip inv-chip-on' : 'inv-seg-btn inv-chip',
                 'aria-pressed': showHiddenSkills ? 'true' : 'false',
                 style: { ...S.chip, ...(showHiddenSkills ? S.chipOn : {}) },
                 title: t('hiddenSkillsHint'),
@@ -373,7 +374,7 @@
 
       const stats = h(
         'div',
-        { style: { ...S.card, ...S.stats } },
+        { className: 'inv-card', style: { ...S.card, ...S.stats } },
         ...[
           [t('packages'), packages.length],
           [t('mcp'), mcp.length],
@@ -467,7 +468,7 @@
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
-                    h('span', { style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+                    h('span', { className: 'inv-chev', style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
                     h(
                       'div',
                       { style: S.rowMain },
@@ -549,10 +550,10 @@
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
-                    h('span', { style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+                    h('span', { className: 'inv-chev', style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
                     h(
                       'div',
-                      { style: S.rowMain },
+                      { style: { ...S.rowMain, ...(hiddenSkills.includes(item.name) ? S.rowTextHidden : {}) } },
                       h(
                         'div',
                         { style: S.subRow },
@@ -801,7 +802,7 @@
               ? h(
                   'div',
                   { style: { ...S.warn, marginTop: '14px' } },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.warning } }),
                   h(
                     'div',
                     { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
@@ -846,18 +847,18 @@
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('wsActionFailed')}: ${wsError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
                 )
               : null,
             globalError.length > 0
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('globalToggleFailed')}: ${globalError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
                 )
               : null,
             globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
@@ -865,9 +866,9 @@
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('vaultFailed')}: ${vaultError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
                 )
               : null,
             ),

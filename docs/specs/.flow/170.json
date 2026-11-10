@@ -1,0 +1,40 @@
+{
+  "issue": 170,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-11T00:31:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "交互态与焦点环",
+      "state": "green"
+    },
+    {
+      "id": 2,
+      "title": "排版节奏",
+      "state": "green"
+    },
+    {
+      "id": 3,
+      "title": "控件质感",
+      "state": "green"
+    },
+    {
+      "id": 4,
+      "title": "层次与主题兜底",
+      "state": "green"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -68,7 +68,7 @@
         h('span', { style: { ...T.caption, color: C.secondary } }, t('promptDescription')),
         h(
           'div',
-          { style: { ...S.card, padding: '10px 12px', background: C.fill, border: 'none' } },
+          { className: 'inv-card', style: { ...S.card, padding: '10px 12px', background: C.fill, border: 'none' } },
           h('textarea', {
             className: 'inv-textarea',
             style: {
@@ -108,7 +108,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-primary',
               style: { ...S.primary, ...(disabled ? { opacity: 0.5, cursor: 'default' } : {}) },
               disabled,
               onClick: onSave,

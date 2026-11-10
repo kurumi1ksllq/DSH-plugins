@@ -210,12 +210,12 @@
             className: 'inv-btn',
             onClick: onToggle,
           },
-          h('span', { style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
+          h('span', { className: 'inv-chev', style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
           h('span', { style: S.sectionTitle }, title),
           showCount === false ? null : h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
           hint ? h('span', { style: S.sectionHint }, hint) : null,
         ),
-        open ? h('div', { style: S.card, className: 'inv-section-body' }, ...body) : null,
+        open ? h('div', { style: S.card, className: 'inv-section-body inv-card' }, ...body) : null,
       )
     }
 
@@ -261,7 +261,9 @@
           },
         },
         h('span', {
-          style: { ...S.switchKnob, transform: isOn ? 'translateX(20px)' : 'translateX(0px)', transition: `transform 260ms ${EASE}` },
+          // Travel lives in a custom property so :active can scale on top of it
+          // instead of fighting an inline transform.
+          style: { ...S.switchKnob, '--inv-x': isOn ? '20px' : '0px' },
         }),
       )
     }

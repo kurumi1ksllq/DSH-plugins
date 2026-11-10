@@ -197,7 +197,7 @@
       return h(
         'div',
         { style: S.providerTrack, role: 'presentation' },
-        known ? h('div', { style: { ...S.providerFill, width: `${(ratio * 100).toFixed(2)}%`, background: color } }) : null,
+        known ? h('div', { className: 'inv-provider-fill', style: { ...S.providerFill, width: `${(ratio * 100).toFixed(2)}%`, background: color } }) : null,
       )
     }
 
@@ -368,10 +368,10 @@
 
       const card =
         providers.length === 0
-          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('providerLoading') : t('providerNoProviders')))
+          ? h('div', { className: 'inv-card', style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('providerLoading') : t('providerNoProviders')))
           : h(
               'div',
-              { style: S.card },
+              { className: 'inv-card', style: S.card },
               ...providers.map((provider, index) => {
                 const tone = providerStatus(provider)
                 const ratio = providerRatio(provider, maxRemaining)
@@ -477,7 +477,7 @@
           )
         detail = h(
           'div',
-          { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+          { className: 'inv-card', style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
           h(
             'div',
             { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -493,7 +493,7 @@
           ProviderField({ label: t('providerKey'), value: selected.keyPresent === true ? t('providerKeyPresent') : t('providerKeyMissing') }),
           h(
             'div',
-            { style: { ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', background: C.fill, border: 'none', gap: '2px' } },
+            { className: 'inv-card', style: { ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', background: C.fill, border: 'none', gap: '2px' } },
             statCell('calls', t('providerCalls'), String(providerNum(stats.calls) ?? 0)),
             statCell('successes', t('providerSuccesses'), String(providerNum(stats.successes) ?? 0)),
             statCell('failures', t('providerFailures'), String(providerNum(stats.failures) ?? 0)),
@@ -506,7 +506,7 @@
               'button',
               {
                 type: 'button',
-                className: 'inv-btn',
+                className: selected.enabled === false ? 'inv-btn inv-chip inv-chip-on' : 'inv-btn inv-chip',
                 style: { ...S.chip, ...(selected.enabled === false ? S.chipOn : {}) },
                 disabled: phase === 'saving',
                 onClick: () => toggleEnabled(selected),
@@ -531,7 +531,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
               disabled: busy,
               onClick: () => refresh(),
@@ -543,7 +543,7 @@
                 'button',
                 {
                   type: 'button',
-                  className: 'inv-btn',
+                  className: 'inv-btn inv-chip',
                   style: S.chip,
                   onClick: () => {
                     reload()
