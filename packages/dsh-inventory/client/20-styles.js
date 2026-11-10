@@ -5,7 +5,7 @@
       large: { fontSize: '28px', fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', margin: 0, textWrap: 'balance' },
       nav: { fontSize: '17px', fontWeight: 600, letterSpacing: '-0.01em' },
       listTitle: { fontSize: '17px', fontWeight: 600, lineHeight: 1.25, letterSpacing: '-0.01em', textWrap: 'pretty' },
-      rowTitle: { fontSize: '15px', fontWeight: 500, lineHeight: 1.3 },
+      rowTitle: { fontSize: '15px', fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.003em' },
       caption: { fontSize: '13px', lineHeight: 1.4 },
       captionStrong: { fontSize: '13px', fontWeight: 600 },
       badge: { fontSize: '12px', fontWeight: 500, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' },
@@ -176,7 +176,6 @@
         background: 'transparent',
         color: C.text,
         fontSize: '15px',
-        outline: 'none',
         caretColor: C.accent,
         padding: 0,
       },
@@ -283,8 +282,7 @@
       },
       rowLast: { borderBottom: 'none' },
       // Dimming the whole row also dims its switch, which then reads as disabled
-      // while it is still operable. Only the text steps back.
-      rowHidden: {},
+      // while it is still operable. Only the text column steps back.
       rowTextHidden: { opacity: 0.55 },
       rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
       rowTitle: { ...T.rowTitle, wordBreak: 'break-word', textWrap: 'pretty' },
@@ -415,7 +413,8 @@
         flexShrink: 0,
       },
       primary: {
-        border: 'none',
+        border: '1px solid transparent',
+        boxSizing: 'border-box',
         borderRadius: '10px',
         fontSize: '13px',
         fontWeight: 600,
@@ -449,6 +448,7 @@
         display: 'inline-flex',
         alignItems: 'center',
         minHeight: '26px',
+        borderRadius: '8px',
         fontSize: '13px',
         fontWeight: 600,
         padding: '4px 8px',
@@ -480,7 +480,7 @@
         width: '16px',
         height: '16px',
         borderRadius: '999px',
-        border: `2px solid ${C.fillStrong}`,
+        border: `2px solid color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 26%, transparent)`,
         borderTopColor: C.accent,
         flexShrink: 0,
       },
@@ -501,7 +501,8 @@
 }
 .inv-row[data-interactive="true"]:active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
 /* Rows live inside a card with overflow: hidden, so their ring is drawn
-   inside the row instead of 5px outside it, where the card would clip it. */
+   inside the row instead of 5px outside it, where the card would clip it
+   (WCAG 2.2 SC 2.4.11 Focus Not Obscured). */
 .inv-row[data-interactive="true"]:focus-visible { outline: 2px solid var(--dsw-alias-button-info-fill, #4176e6); outline-offset: -3px; }
 
 /* Buttons ---------------------------------------------------------------
@@ -551,7 +552,7 @@
 /* Focus rings -----------------------------------------------------------
    The ring follows each control's own shape (999px pill, 8px rail item, 10px
    button) because it decorates the element instead of redrawing the box
-   (WCAG 2.4.11). */
+   (WCAG 2.2 SC 2.4.13 Focus Appearance). */
 .inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-chip:focus-visible,
 .inv-primary:focus-visible, .inv-link:focus-visible, .inv-ctrl:focus-visible,
 .inv-rail-item:focus-visible, .inv-switch:focus-visible,
@@ -571,7 +572,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 40%, transparent);
 }
 .inv-search::placeholder { color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 78%, transparent); }
-.inv-search::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 
 /* Multiline editor (prompt) --------------------------------------------- */
 .inv-textarea { caret-color: var(--dsw-alias-button-info-fill, #4176e6); transition: border-color 160ms ease, box-shadow 160ms ease; }
@@ -635,11 +635,13 @@
   .inv-nav { background: var(--dsw-alias-bg-base, #fff) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 }
 @media (prefers-contrast: more) {
+  /* Every colour here is also set inline, so !important is the only way a
+     preference can win (the same reason the panel keeps state colours in CSS). */
   .inv-card { border-color: currentColor !important; }
-  .inv-row { border-bottom-color: currentColor; }
+  .inv-row { border-bottom-color: currentColor !important; }
   .inv-search-wrap { box-shadow: inset 0 0 0 1px currentColor; }
-  .inv-chip, .inv-ctrl { border-color: currentColor; }
-  .inv-switch { box-shadow: inset 0 0 0 1px currentColor; }
+  .inv-chip, .inv-primary, .inv-ctrl { border-color: currentColor !important; }
+  .inv-switch { box-shadow: inset 0 0 0 1px currentColor !important; }
 }
 `
 

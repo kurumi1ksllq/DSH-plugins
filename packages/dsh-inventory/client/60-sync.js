@@ -307,7 +307,7 @@
                   checked: selection.includes(item.key),
                   onChange: () => toggleRow(item.key),
                   'aria-label': `${syncKindLabel(t, item.kind)} ${item.name}`,
-                  style: { width: '18px', height: '18px', flexShrink: 0, cursor: 'pointer', accentColor: C.accent, margin: '-9px 0' },
+                  style: { width: '17px', height: '17px', flexShrink: 0, cursor: 'pointer', accentColor: C.accent },
                 })
               : h('span', { style: { width: '17px', flexShrink: 0 } }),
             h('div', { style: S.rowMain },

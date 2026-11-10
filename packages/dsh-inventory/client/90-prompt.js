@@ -82,7 +82,6 @@
               background: C.base,
               border: `1px solid ${C.hairline}`,
               borderRadius: '10px',
-              outline: 'none',
               fontFamily: FONT_MONO,
               fontSize: '12.5px',
               lineHeight: 1.6,

@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -14,10 +14,12 @@ import { makeReactRuntime } from './support/react-runtime.mjs'
  * one there. These tests pin the rules that keep that split honest:
  *
  *  - every class hook we attach gets a visible focus ring that follows the
- *    control's own shape (WCAG 2.4.11);
+ *    control's own shape (WCAG 2.2 SC 2.4.13 Focus Appearance), drawn where a
+ *    card cannot clip it (SC 2.4.11 Focus Not Obscured);
  *  - state colour is owned by CSS, not inline, or :hover can never win;
  *  - everything that moves can be quieted by prefers-reduced-motion, and no
- *    rule animates properties nobody chose.
+ *    rule animates properties nobody chose;
+ *  - no stylesheet class is dead: the panel actually attaches all of them.
  *
  * They read the shipped artifact (client.js) and the stylesheet the panel
  * actually injects, so deleting a rule turns the matching test red.
@@ -46,10 +48,12 @@ const NON_FOCUSABLE = new Set([
   'inv-chev',
   'inv-provider-fill',
   'inv-nav-title',
+  // The search shell is not focusable; the input inside it draws the ring.
+  'inv-search-wrap',
 ])
 
 /** Classes whose look (background/colour) must come from CSS, not inline. */
-const CSS_OWNED = new Set(['inv-chip', 'inv-primary', 'inv-link', 'inv-ctrl', 'inv-search-wrap'])
+const CSS_OWNED = ['inv-chip', 'inv-primary', 'inv-link', 'inv-ctrl', 'inv-search-wrap']
 
 const SNAPSHOT = {
   generatedAt: 1,
@@ -67,6 +71,16 @@ const SNAPSHOT = {
   counts: { packages: 1, orphanPackages: 0, rows: 1, mcp: 1, mcpConnected: 1, skills: 1, shadowedSkills: 0, tools: 0, edges: 0 },
   warnings: [],
 }
+
+// The panel reads these off globalThis; leave the process as we found it.
+const globalsToRestore = ['window', 'document', 'fetch']
+const saved = new Map(globalsToRestore.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]))
+after(() => {
+  for (const [name, descriptor] of saved) {
+    if (descriptor === undefined) delete globalThis[name]
+    else Object.defineProperty(globalThis, name, descriptor)
+  }
+})
 
 /** Minimal document so installStyles() has somewhere to put its stylesheet. */
 function makeDocument() {
@@ -121,7 +135,7 @@ async function boot(key) {
   return { React, render, main, css }
 }
 
-/** Render the overview with one snapshot and hand back the tree. */
+/** Render the overview with one snapshot and hand back the tree + stylesheet. */
 async function bootReady(key) {
   const booted = await boot(key)
   globalThis.fetch = async () => ({ ok: true, json: async () => SNAPSHOT })
@@ -131,13 +145,23 @@ async function bootReady(key) {
   return { ...booted, tree: booted.render(booted.main.component, injected) }
 }
 
-/** Class hooks authored in the artifact, one entry per className value. */
+/**
+ * Class hooks authored in the artifact, one entry per className expression.
+ *
+ * Read per \`className:\` expression rather than by pairing quotes across the
+ * file: comments contain apostrophes, and a global quote scan silently drops
+ * the literals that fall inside them (this is how inv-link / inv-ctrl went
+ * unattached while the suite stayed green). Ternaries yield both branches.
+ */
 function classGroups() {
   const text = readFileSync(clientPath, 'utf8')
-  return [...text.matchAll(/'([^']*)'/g)]
-    .map((match) => match[1])
-    .filter((value) => /^inv-[a-z-]+( inv-[a-z-]+)*$/.test(value))
-    .map((value) => value.split(' '))
+  const groups = []
+  for (const expression of text.matchAll(/className:\s*([^\n]+)/g)) {
+    for (const literal of expression[1].matchAll(/'([^']*)'/g)) {
+      if (/^inv-[a-z-]+( inv-[a-z-]+)*$/.test(literal[1])) groups.push(literal[1].split(' '))
+    }
+  }
+  return groups
 }
 
 /** Body of the first :focus-visible / :focus-within rule matching any token. */
@@ -193,10 +217,13 @@ test('every class hook the panel attaches has a visible focus state', async () =
   const { css } = await boot('focus')
   const missing = []
   for (const group of classGroups()) {
-    if (group.some((token) => NON_FOCUSABLE.has(token))) continue
-    const body = focusBody(css, group)
+    const focusable = group.filter((token) => !NON_FOCUSABLE.has(token))
+    // A group made only of chrome needs no ring; one with a real control does,
+    // even when it also carries a decorative class.
+    if (focusable.length === 0) continue
+    const body = focusBody(css, focusable)
     if (body === null) missing.push(group.join(' '))
-    // A focus state that draws nothing is not a focus state (WCAG 2.4.11).
+    // A focus state that draws nothing is not a focus state.
     else if (!/(^|[;\s])outline\s*:/.test(body)) missing.push(group.join(' ') + ' (rule without outline)')
   }
   assert.deepEqual(missing, [], 'class hooks without a visible focus indicator: ' + missing.join(' | '))
@@ -215,11 +242,11 @@ test('the focus ring keeps each control\'s own shape instead of squaring it off'
 })
 
 test('state colour lives in the stylesheet, so :hover is not outranked by inline styles', async () => {
-  const { tree } = await bootReady('state-ownership')
+  const { tree, css } = await bootReady('state-ownership')
   const leaks = []
   eachNode(tree, (node) => {
     const classes = String(node?.props?.className ?? '').split(' ').filter(Boolean)
-    if (!classes.some((name) => CSS_OWNED.has(name))) return
+    if (!classes.some((name) => CSS_OWNED.includes(name))) return
     const style = node.props?.style ?? {}
     // opacity is deliberately absent: busy/disabled states dim a chip inline,
     // and hover feedback no longer depends on opacity anywhere.
@@ -229,9 +256,10 @@ test('state colour lives in the stylesheet, so :hover is not outranked by inline
   })
   assert.deepEqual(leaks, [], 'inline declarations a :hover rule can never override: ' + leaks.join(' | '))
 
-  const artifact = readFileSync(clientPath, 'utf8')
-  for (const selector of ['.inv-chip {', '.inv-primary {', '.inv-link {', '.inv-ctrl {']) {
-    assert.ok(artifact.includes(selector), 'the stylesheet must own the base look: missing ' + selector)
+  // And the base look has to come from the stylesheet, not from a leftover token.
+  for (const name of CSS_OWNED) {
+    const owns = rules(css).some((rule) => classesIn(rule.selector).has(name) && /(^|[;\s])background(-color)?\s*:/.test(rule.body))
+    assert.ok(owns, '.inv-style rule missing a background for ' + name)
   }
 })
 
@@ -273,4 +301,11 @@ test('headings balance, captions wrap pretty, and counters use tabular figures',
 
   const tabular = styles.filter((style) => String(style.fontVariantNumeric ?? '').includes('tabular-nums'))
   assert.ok(tabular.length >= 2, 'changing numbers (stats, counts, timestamps) must use tabular figures')
+})
+
+test('no class in the stylesheet is dead: every one is attached by the panel', async () => {
+  const { css } = await boot('orphans')
+  const attached = new Set(classGroups().flat())
+  const orphan = [...classesIn(css)].filter((name) => name.startsWith('inv-') && !attached.has(name))
+  assert.deepEqual(orphan, [], 'stylesheet rules that no rendered element can ever match: ' + orphan.join(', '))
 })

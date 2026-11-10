@@ -537,7 +537,7 @@
                 // Anything the host cannot switch is a project-scoped skill.
                 return h(
                   'div',
-                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), ...(hiddenSkills.includes(item.name) ? S.rowHidden : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
+                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
                   h(
                     'div',
                     {
@@ -742,6 +742,7 @@
             {
               // The scroll host: the rail stays put while the main column
               // scrolls under the sticky nav. Takes over S.root's old role.
+              className: 'inv-scroll',
               style: S.scrollHost,
               onScroll: (event) => {
                 const next = event.currentTarget.scrollTop > 24

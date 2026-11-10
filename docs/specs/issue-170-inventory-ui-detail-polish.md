@@ -8,7 +8,7 @@
 打磨「工具管理」页的 **UI 细节**。布局（栏位结构、rail 宽度、卡片分组、行顺序）与功能一律不动。
 
 判据来自三个设计 skill：`make-interfaces-feel-better`（同心圆角 / 分层阴影 / text-wrap / tabular-nums / 按压反馈 / 命中区）、
-`accessibility`（WCAG 2.2：可见焦点 2.4.11、目标 24×24 最小且意图 ≥40、对比度、缩放不丢功能）、
+`accessibility`（WCAG 2.2：焦点外观 2.4.13、焦点不被遮挡 2.4.11、目标 24×24 最小且意图 ≥40、对比度、缩放不丢功能）、
 `design-system`（token 一致性 / 深浅色完整度 / 动效克制 / 交互态与空态覆盖）。
 
 ## 边界（做什么 / 不做什么）
@@ -39,7 +39,7 @@
    - 样式表里声明了 `transition`/`animation` 的每个 `inv-*` class，都在 `prefers-reduced-motion: reduce` 块内被覆盖（删覆盖即红）；
    - 样式表中不存在 `transition: all` / `will-change: all`（skill 硬规则）；
    - 面板输出里主标题 `text-wrap: balance`、次级说明 `text-wrap: pretty`、统计数字 `font-variant-numeric: tabular-nums`。
-2. `node scripts/build-inventory-client.mjs --check` 通过（client.js 与 client/ 部件一致）。
+2. 在**仓库根**执行 `node scripts/build-inventory-client.mjs --check` 通过（client.js 与 client/ 部件一致）。
 3. `pnpm test` / `pnpm verify` 全绿；`packages/dsh-inventory` 版本号按纪律上抬。
 
 ## tickets
@@ -80,3 +80,27 @@
 **3. 未做（明确出界，留作后续）：** 审计发现行内徽标过多时（MCP 行最多可同时出现 6 个徽标），
 `S.card` 的 `overflow: hidden` 会把行尾开关挤出可视区。这属于**布局/断行**问题，
 在"不动布局"的边界内不处理；建议单开 issue 用 `flexWrap` 或徽标截断方案解决。
+
+## 双轴 review 裁决（两条轴各自独立提交，均已逐条处理）
+
+两个审查代理在 `f7ddc7a`→`930f8d6` 之间的持续推送中审阅，结论以最后一次提交为准。
+每条发现都经我复核并落地或写明不改的理由。
+
+| 发现 | 裁决 |
+| --- | --- |
+| **焦点覆盖测试空转**：`classGroups()` 用整文件引号配对扫 class 名，被注释里的撇号（vault 那行）打乱配对，只认出 15 组里的 7 个 token；删 `:focus-visible` 仍绿（审查方做了变异验证） | **采纳**。改为按 `className:` 表达式逐行抽取（含三元两分支），并把"样式表里的 `inv-*` 必须都能在产物里找到"做成独立用例（死类名即红）。修后重新变异验证：删规则会红。 |
+| **`.inv-scroll` 是死代码**：细滚动条/`::selection` 从未挂到滚动宿主 | **采纳**。滚动宿主补 `className: 'inv-scroll'`；新用例可防再犯。 |
+| **高对比兜底被内联压掉**：`.inv-row` / `.inv-switch` / `.inv-chip` 三条无 `!important` | **采纳**。三条补 `!important`（与既有 `.inv-card` 一致），并给 chip/primary 加 1px 透明描边，让 `border-color` 有意义。 |
+| **搜索框焦点环死规则**：内联 `outline: 'none'` 压过 `.inv-search:focus-visible` | **采纳**。移除内联 `outline`（样式表已有 reset）；提示词 textarea 同一问题一并修掉。 |
+| **`linkBtn` 丢圆角**：hover 底色与焦点环变直角，违反同心圆角 | **采纳**。token 恢复 `borderRadius: '8px'`。 |
+| **spinner 对比度/线宽、行标题行高字距未落实** | **采纳**。spinner 轨道由 20% 灰提到 26%（仍是安静的中性灰）；行标题 `lineHeight 1.35` + `letterSpacing -0.003em`。 |
+| **`::-webkit-search-cancel-button` 永不匹配**（input 不是 type=search） | **采纳**。删规则；不改 input 类型（会改变浏览器的回车/清空行为，属功能面）。 |
+| **复选框 17→18px 加负外边距属布局补偿 hack** | **采纳**。回退到 17px 原位，只保留 `accentColor`。 |
+| **`primary.minHeight: 32px` / `linkBtn` padding 4→8 是否越界** | **部分采纳**：保留（触摸目标与视觉平衡所需），在此留痕；量级为 2–8px，不改变任何布局结构。 |
+| **`.flow` stage 与实况不一致** | **采纳**。收尾时推进到 `review` 并按实况写 `ci.status`。 |
+| **测试改写全局 `window/document/fetch` 不复原** | **采纳**。加 `after()` 复原（与 `client.test.mjs` 的既有惯例不同，这里显式做对）。 |
+| **WCAG 编号引错（2.4.11 vs 2.4.13）** | **采纳**。焦点外观→2.4.13；行焦点环不被卡片裁掉→2.4.11（这条恰好就是那个修复）。 |
+| **残留空 token `rowHidden: {}`** | **采纳**。删除 token 与两处 spread，只保留 `rowTextHidden`。 |
+| **spec 验收命令路径在包目录下不可执行** | **采纳**。标注"在仓库根执行"。 |
+
+未采纳/出界：MCP 行徽标溢出导致行尾开关被裁（断行问题），仍按边界不处理，留后续 issue。

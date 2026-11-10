@@ -229,7 +229,7 @@
         const hidden = hiddenSkills.includes(skill.name)
         return h(
           'div',
-          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
+          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}) } },
           h(
             'div',
             { style: { ...S.rowMain, ...(hidden ? S.rowTextHidden : {}) } },
