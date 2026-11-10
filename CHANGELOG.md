@@ -10,6 +10,16 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-skill-surface 0.2.0 — 领域触发：开工时点名相关技能(#172)
+
+- **背景**：一次真实会话里用户要求「优化页面的 ui 细节」，目录中有 `make-interfaces-feel-better`，但全程 29 次工具调用、0 次 `skill`。诊断结论是「觉得没必要查」，不是「看不到 / 找不到」。
+- 新增 `lib/domains.mjs`：7 个领域的**策展短名单** + 中英关键词，不做检索排序（宽松匹配对同一句话命中 123 条，噪音只会让提示被无视）。
+- `agent/pre-step` 注入一行（≤120 字符）：同一领域**至少 2 个不同关键词**才触发；每轮最多一次；本轮已加载该领域技能则不发。
+- 短名单里的名字必须在当前目录里真实存在且 `modelInvocable`，否则丢弃；全丢则整条不发。
+- 对两种加载器都生效：有官方 `skill` 指向 `skill`，只有本包 `skill_get` 的指向 `skill_get`。
+- 新增 `test/domain-trigger.test.mjs`（7 条）：含「回放用户原话必须命中」与「20 条普通消息误触发 ≤2」的噪音预算。
+
+
 ### dsh-deep-ptc-mode 1.13.1 — 缺依赖时按前置跳过(#167/#168)
 
 - 新增 `test/support/prerequisites.mjs`：ESM 优先、CJS 兜底探测可选前置，skip 时给出可操作理由。
