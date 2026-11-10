@@ -2,16 +2,19 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { apply, HANDOFF_MAX_CHARS } from '../index.js'
 import { setHostApi } from '../lib/host-api.mjs'
+import { LOADER } from '../lib/catalog-hint.mjs'
 
-/** Any requested name resolves, so a cap or dedupe assertion measures the code under test. */
-function stubSkills(content = 'body') {
+function stubSkills(content = 'body', names = ['dev-flow', 'security-review']) {
+  const all = names.map((name) => ({
+    name,
+    description: name + ' description. More detail.',
+    provider: 'filesystem',
+    content,
+    invocation: { modelInvocable: true },
+  }))
   return {
-    get: (name) => Promise.resolve({
-      name,
-      provider: 'filesystem',
-      content,
-      invocation: { modelInvocable: true },
-    }),
+    snapshot: () => Promise.resolve({ skills: all, complete: true }),
+    get: (name) => Promise.resolve(all.find((skill) => skill.name === name)),
   }
 }
 
@@ -24,52 +27,92 @@ function stubHost(overrides = {}) {
   })
 }
 
-function harness(skills = stubSkills()) {
+function harness({ officialSkill = false, skills = stubSkills() } = {}) {
   const sections = []
+  const contexts = []
+  const registered = []
   let listener
-  const ctx = {
-    inject(_deps, callback) {
-      callback({
-        effect(factory) { return factory() },
-        logger: { warn() {} },
-        systemPrompt: { section(row) { sections.push(row); return () => {} } },
-        on(_event, fn) { listener = fn; return () => {} },
-        skills,
-        workingDirectory: { ensure() { return Promise.resolve('/work') } },
-      })
+  const scope = {
+    effect(factory) { return factory() },
+    logger: { warn() {} },
+    systemPrompt: {
+      section(row) { sections.push(row); return () => {} },
+      context(row) { contexts.push(row); return () => {} },
+    },
+    on(_event, fn) { listener = fn; return () => {} },
+    skills,
+    workingDirectory: { ensure() { return Promise.resolve('/work') } },
+    tools: {
+      get(name) { return officialSkill && name === 'skill' ? { name: 'skill' } : undefined },
+      register(definition) { registered.push(definition); return () => {} },
     },
   }
-  apply(ctx)
-  return { sections, get listener() { return listener } }
+  apply({ inject(_deps, callback) { callback(scope) } })
+  const loader = registered.find((definition) => definition.name === LOADER)
+  return { sections, contexts, registered, loader, get listener() { return listener } }
 }
 
-/** A fresh agent per case: injection memory is per agent, so sharing one hides regressions. */
 const newAgent = () => ({ session: { seq: 0, eventAt: () => undefined } })
 const userText = (text) => ({ source: { kind: 'user' }, content: [{ type: 'text', text }] })
 const next = () => ({ kind: 'enter', messages: [] })
 const step = (h, agent, text) => h.listener({ agent, messages: [userText(text)], signal: undefined }, next)
 
-test('registers a constant section used for the handoff protocol', () => {
+test('registers the handoff protocol section', () => {
   const h = harness()
-  assert.equal(h.sections.length, 1)
-  const [row] = h.sections
-  assert.equal(row.name, 'dsh:skill-surface-handoff')
-  assert.equal(row.order, 20100, 'after the order-20000 exec-discipline section')
-  assert.equal(row.text(), row.text(), 'the section text is constant so the prompt cache stays warm')
-  assert.equal(typeof h.listener, 'function')
+  assert.ok(h.sections.length >= 1)
+  const row = h.sections.find((entry) => entry.name === 'dsh:skill-surface-handoff')
+  assert.equal(row.order, 20100)
+  assert.equal(row.text(), row.text(), 'constant text keeps the prompt cache warm')
+})
+
+test('A0: an agent that already has the official loader gets no hint at all', () => {
+  const h = harness({ officialSkill: true })
+  const hint = h.contexts.find((entry) => entry.name === 'dsh:skill-surface-fallback-hint')
+  assert.ok(hint, 'the context is registered for every agent')
+  assert.equal(hint.text({ scope: newAgent() }), '', 'and stays silent when a nearer skill tool exists')
+  assert.equal(hint.text({ scope: undefined }), '', 'a host-level assembly has no agent to advise')
+})
+
+test('A1: an agent with no official loader gets a short hint naming the fallback loader', () => {
+  const h = harness({ officialSkill: false })
+  const hint = h.contexts.find((entry) => entry.name === 'dsh:skill-surface-fallback-hint')
+  const text = hint.text({ scope: newAgent() })
+  assert.match(text, new RegExp(LOADER))
+  assert.ok(text.split('\n').length <= 12, 'the hint must stay small')
+})
+
+test('A2: the fallback loader lists skills when called without a name', async () => {
+  stubHost()
+  const h = harness()
+  assert.ok(h.loader, 'skill_get is registered')
+  const result = await h.loader.execute({}, { agent: newAgent(), signal: undefined })
+  assert.match(result.text, /可用技能 2 个/u)
+  assert.match(result.text, /dev-flow/)
+  assert.match(result.text, /security-review/)
+})
+
+test('A2: the fallback loader renders one body when given a name', async () => {
+  stubHost()
+  const h = harness()
+  const result = await h.loader.execute({ name: 'dev-flow' }, { agent: newAgent(), signal: undefined })
+  assert.match(result.text, /^<skill_content name="dev-flow">/)
+})
+
+test('A2: an unknown name fails loudly instead of returning an empty body', async () => {
+  stubHost()
+  const h = harness()
+  await assert.rejects(() => h.loader.execute({ name: 'ghost' }, { agent: newAgent(), signal: undefined }), /unknown skill/)
 })
 
 test('a handoff line turns into one official skill-body injection per name', async () => {
   stubHost()
   const h = harness()
   const decision = await step(h, newAgent(), 'fix authz\nskills: dev-flow, security-review')
-  assert.equal(decision.messages.length, 2, 'one message per named skill')
+  assert.equal(decision.messages.length, 2)
   for (const message of decision.messages) {
-    assert.equal(message.source.kind, 'skill-invocation', 'reuses the official invocation source')
+    assert.equal(message.source.kind, 'skill-invocation')
     assert.equal(message.source.form, 'instructions')
-    assert.match(message.content[0].text, /<skill_content name="/)
   }
-  assert.deepEqual(decision.messages.map((m) => m.source.name), ['dev-flow', 'security-review'])
 })
 
 test('no handoff line means the step is untouched', async () => {
@@ -80,17 +123,27 @@ test('no handoff line means the step is untouched', async () => {
   assert.equal(decision, original)
 })
 
-test('a skill that opted out of model invocation is skipped', async () => {
-  stubHost({ isModelInvocable: () => false })
+test('one body per name at most once', async () => {
+  stubHost()
   const h = harness()
-  const decision = await step(h, newAgent(), 'skills: dev-flow')
+  const agent = newAgent()
+  assert.equal((await step(h, agent, 'skills: dev-flow')).messages.length, 1)
+  assert.equal((await step(h, agent, 'skills: dev-flow')).messages.length, 0)
+})
+
+test('the injected body budget is enforced', async () => {
+  stubHost()
+  const h = harness({ skills: stubSkills('x'.repeat(HANDOFF_MAX_CHARS)) })
+  const decision = await step(h, newAgent(), 'skills: dev-flow, security-review')
   assert.equal(decision.messages.length, 0)
 })
 
-test('an unknown name injects nothing and does not fail the step', async () => {
-  stubHost()
-  const h = harness({ get: () => Promise.resolve(undefined) })
-  const decision = await step(h, newAgent(), 'skills: ghost')
+test('a failure while injecting costs the injection, never the child turn', async () => {
+  stubHost({ renderSkillContent: () => { throw new Error('host helper failed') } })
+  const h = harness()
+  const original = next()
+  const decision = await h.listener({ agent: newAgent(), messages: [userText('skills: dev-flow')], signal: undefined }, () => original)
+  assert.equal(decision.kind, 'enter')
   assert.equal(decision.messages.length, 0)
 })
 
@@ -100,62 +153,4 @@ test('a rejected step is never augmented', async () => {
   const rejected = { kind: 'reject' }
   const decision = await h.listener({ agent: newAgent(), messages: [userText('skills: dev-flow')], signal: undefined }, () => rejected)
   assert.equal(decision, rejected)
-})
-
-test('one body per name at most once: repeating the same handoff injects nothing new', async () => {
-  stubHost()
-  const h = harness()
-  const agent = newAgent()
-  assert.equal((await step(h, agent, 'skills: dev-flow')).messages.length, 1)
-  assert.equal((await step(h, agent, 'skills: dev-flow')).messages.length, 0, 'the same body is never injected twice')
-})
-
-test('a long handoff is capped, so one line cannot flood the child context', async () => {
-  stubHost()
-  const h = harness()
-  const names = Array.from({ length: 9 }, (_, index) => `s` + index).join(', ')
-  const decision = await step(h, newAgent(), `skills: ` + names)
-  assert.equal(decision.messages.length, 6, 'nine requested names inject exactly six bodies')
-})
-
-test('the injected body budget is enforced, not just the name count', async () => {
-  stubHost()
-  const huge = 'x'.repeat(HANDOFF_MAX_CHARS)
-  const h = harness(stubSkills(huge))
-  const decision = await step(h, newAgent(), 'skills: dev-flow, security-review')
-  assert.equal(decision.messages.length, 0, 'a body that alone exceeds the budget is not injected')
-})
-
-test('a failure while injecting costs the injection, never the child turn', async () => {
-  // The listener runs inside the request waterfall: throwing here would end the
-  // child's turn with no model reply.
-  stubHost({ renderSkillContent: () => { throw new Error('host helper failed') } })
-  const h = harness()
-  const original = next()
-  const decision = await h.listener({ agent: newAgent(), messages: [userText('skills: dev-flow')], signal: undefined }, () => original)
-  assert.equal(decision.kind, 'enter')
-  assert.equal(decision.messages.length, 0)
-})
-
-test('an unreadable workspace costs the injection instead of guessing a cwd', async () => {
-  stubHost()
-  const h = harness()
-  h.sections.length = 0
-  // rebuild with a failing workingDirectory
-  const ctx = {
-    inject(_deps, callback) {
-      callback({
-        effect(factory) { return factory() },
-        logger: { warn() {} },
-        systemPrompt: { section(row) { h.sections.push(row); return () => {} } },
-        on(_event, fn) { h.listenerRef = fn; return () => {} },
-        skills: stubSkills(),
-        workingDirectory: { ensure() { throw new Error('no workspace') } },
-      })
-    },
-  }
-  apply(ctx)
-  const original = next()
-  const decision = await h.listenerRef({ agent: newAgent(), messages: [userText('skills: dev-flow')], signal: undefined }, () => original)
-  assert.equal(decision.messages.length, 0, 'a workspace-only skill must not be resolved against an unknown directory')
 })

@@ -18,21 +18,24 @@ test('bundle manifest is a valid link-able bundle', async () => {
   assert.ok(pkg.files?.includes('locale/*.json'), 'files must list locale/*.json')
 })
 
-test('patch mounts the official rows under NEW ids and adds this plugin', async () => {
+test('patch adds the official PROVIDER under a new id and a distinct provider name', async () => {
   const patch = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
-  assert.match(patch, /- insert:/)
-  // The official host rows are disabled upstream by row id; a new id is what
-  // lets their providers land in the global layer instead of being dropped.
-  for (const id of ['skill-filesystem-global', 'tool-skill-global', 'skill-surface']) {
-    assert.match(patch, new RegExp(`- id: ` + id + `\\b`), `row ` + id + ` must be inserted`)
-  }
+  assert.match(patch, /- id: skill-filesystem-global\b/)
   assert.match(patch, /name: '@deepseek-ai\/dsh-skill-filesystem'/)
-  assert.match(patch, /name: '@deepseek-ai\/dsh-tool-skill'/)
+  assert.match(patch, /providerName: skill-surface-filesystem/, 'a distinct provider name removes cross-layer ambiguity')
+  assert.match(patch, /- id: skill-surface\b/)
   assert.match(patch, /name: 'dsh-skill-surface'/)
-  assert.match(patch, /catalogDescriptionMaxLength: 200/)
-  // The old ids must NOT be reused: reusing them would inherit disabled: true.
-  assert.doesNotMatch(patch, /- id: skill-filesystem$/m)
-  assert.doesNotMatch(patch, /- id: tool-skill$/m)
+  assert.doesNotMatch(patch, /- id: skill-filesystem$/m, 'the preset-owned row id must not be reused')
+})
+
+test('the patch NEVER mounts a second tool-skill (#159 regression)', async () => {
+  // A shadowed tool-skill publishes an EMPTY catalog claiming to replace every
+  // earlier list (dsh-tool-skill:935-941). Mounting it here erased the live
+  // 270-entry catalog for standard/ptc sessions. This assertion is the guard.
+  const patch = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
+  // Anchor on YAML structure, not prose: the comment above explains the trap on purpose.
+  assert.doesNotMatch(patch, /name:\s*'@deepseek-ai\/dsh-tool-skill'/, 'mounting the official catalog publisher again must never happen')
+  assert.doesNotMatch(patch, /^\s*- id: tool-skill(-global)?\s*$/m, 'tool-skill is preset-owned; this bundle must not add a row')
 })
 
 test('index exports a name and apply function, and no Config', async () => {

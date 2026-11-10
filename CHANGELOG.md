@@ -10,6 +10,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
+
+- **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。
+- **只补发现**：保留官方 `dsh-skill-filesystem` 于 global 层，改用独立 `providerName: skill-surface-filesystem` 消除跨层同名歧义。
+- **加载通路改为自持**：新增 `skill_get`（不带参数列目录、带名字取正文）与一段 `systemPrompt.context` 提示；两者都硬判 `ctx.tools.get('skill', agent)`，已有官方 loader 的 agent 完全不受影响。
+- **保留**：`skills: a, b` 派活握手与既有注入预算/去重行为不变。
+
 ### dsh-deep-ptc-mode 1.13.0 — 更名接线:镜像契约测试路径与注释指向 dsh-task-dispatcher(#153)
 
 - 随 dsh-auto-delegation → dsh-task-dispatcher 更名,delegation-whitelist 测试与 model.mjs 注释里的跨包路径同步;无行为变化。
