@@ -67,7 +67,7 @@ profile `/root/.dsh/profiles/web/package.json` 里有两条独立的车道:
 
 4 个 registry 包:`dsh-context@0.79.0`、`dsh-tool-search@0.1.9`、`dsh-plugin-save-token@2.4.1`、`@wxg-prc-cpg/browser-skill-dsh-plugin@0.4.0`。
 
-未安装(不算更新,算安装决策):`dsh-git-bash-tool`(Windows 专属,在本机属于 `blocked`)。`dev-flow-skill` 目前**只走了文件系统路径**:`~/.dsh/skills/dev-flow` 软链已建,`skill-filesystem` 自动发现(免重启),会话目录已有 `dev-flow`;profile 的 `link:` 与 `bundles` 行**尚未加**,所以 `check-profile` 仍是 5 个 bundle。补 profile 需要一次重组合,见 #47。
+未安装(不算更新,算安装决策):`dsh-git-bash-tool`(Windows 专属,在本机属于 `blocked`)。`dev-flow` 现以 profile bundle(**link:**)安装;`~/.dsh/skills/dev-flow` 那条文件系统软链在 #154 起不再需要(它指向已改名的目录,且把流程降级成 270 个技能里的一个候选)。流程规则改由插件向 `systemPrompt.context` 常驻注入,生效需要一次 DSH 重载。
 
 > 复核:`for l in /root/.dsh/profiles/web/node_modules/{*,@local/*}; do [ -L "$l" ] && echo "$l -> $(readlink -f "$l")"; done`
 

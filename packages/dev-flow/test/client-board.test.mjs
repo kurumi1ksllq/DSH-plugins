@@ -266,7 +266,7 @@ test('the needs-you strip renders when the merge gate waits', () => {
   })
   const out = textOf(s)
   assert.ok(out.includes('需要你出手'))
-  assert.ok(out.includes('等你点名 merge'))
+  assert.ok(out.includes('等你答是否合并'))
 })
 
 test('the needs-you strip is absent when nothing waits on the user', () => {
@@ -313,7 +313,7 @@ test('a card in the merge gate renders its own action line', () => {
   })
   const out = textOf(s)
   assert.ok(out.includes('需要你'), 'the card must carry its own action line')
-  assert.ok(out.includes('等你点名 merge'))
+  assert.ok(out.includes('等你答是否合并'))
 })
 
 test('a card with nothing pending renders no action line', () => {
