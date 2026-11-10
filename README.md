@@ -7,7 +7,7 @@
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
-| [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程 skill：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
+| [`packages/dev-flow`](packages/dev-flow) | `dev-flow` | 开发流程规则（常驻注入系统上下文）+ 任务板：issue → 分支 → TDD → PR → CI → 双轴 review → merge；并内置只读 Git 任务板面板（原 `dsh-git-status`：分支与最近提交、改动文件、PR/issue 概览 + dev-flow 任务板，一列 = 一个流程节点） |
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-deep-ptc-mode`](packages/dsh-deep-ptc-mode) | `dsh-deep-ptc-mode` | 深度 PTC 会话模式（preset 插件）：执行环境选择（含 Git Bash 替换）、失速治理双引擎（结论锚点/软切拦截） |
@@ -90,10 +90,10 @@ pnpm verify           # 校验每个包仍是合法 bundle
 ### 改代码前先读 `AGENTS.md`
 
 **本仓库有强制的开发流程。** 任何会改动文件内容的请求——包括“只改一行”——
-都要先调用 `dev-flow` skill：`issue → 分支 → TDD → PR → CI → 双轴 review → merge`。
+都会自动进入 `dev-flow` 流程（规则由插件常驻注入，不靠“记得加载 skill”）：`issue → 分支 → TDD → PR → CI → 双轴 review → merge`。
 
 规则入口见 [`AGENTS.md`](AGENTS.md)，完整规则在
-[`packages/dev-flow/SKILL.md`](packages/dev-flow/SKILL.md)。
+[`packages/dev-flow/FLOW.md`](packages/dev-flow/FLOW.md)。
 禁止直接改 `main`；merge 需要用户明确说出 `merge #<PR 号>`。
 
 ## 边界
