@@ -1,12 +1,12 @@
 {
   "issue": 168,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-10T23:25:49.614+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-10T23:48:46.950+08:00",
   "tickets": [
     {
       "id": 1,
-      "title": "verify-clean 只在缺 node_modules 时跳过那条断言",
+      "title": "verify-clean 只跳过依赖 node_modules 的断言",
       "state": "done"
     },
     {
@@ -21,10 +21,11 @@
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
+
