@@ -21,19 +21,20 @@ test('tool-subagent row exists as the spawn-side delegation target', () => {
   assert.equal(row.config?.provider, 'spawn', 'the whitelist rides the spawn-side row')
 })
 
-test('every whitelisted preset id is mirrored by the routing table', async () => {
+test('every whitelisted preset id is mirrored by the routing table, both directions', async () => {
+  // Two-way equality: an id in the routing table but missing from the
+  // whitelist would make the injected text advertise a delegation that errors
+  // on first use, which is the dangerous direction.
   const { DELEGATION_PRESET_WHITELIST } = await import('../lib/model.mjs')
-  const whitelist = new Set(DELEGATION_PRESET_WHITELIST)
   const routingText = await readFile(
     join(REPO, 'packages/dsh-auto-delegation/lib/delegation-text.mjs'),
     'utf8',
   )
-  const routing = new Set([...routingText.matchAll(/id: '([^']+)'/g)].map((match) => match[1]))
-  const unmatched = [...whitelist].filter((id) => !routing.has(id))
+  const routing = [...routingText.matchAll(/id: '([^']+)'/g)].map((match) => match[1])
   assert.deepEqual(
-    unmatched,
-    [],
-    `whitelist ids missing from the routing table: ${unmatched.join(', ')} — update both together (spec issue-151 §验收 C)`,
+    [...DELEGATION_PRESET_WHITELIST].sort(),
+    [...new Set(routing)].sort(),
+    `whitelist and routing table diverged — update both together (spec issue-151 §验收 C): whitelist=${DELEGATION_PRESET_WHITELIST.join(',')} routing=${routing.join(',')}`,
   )
 })
 

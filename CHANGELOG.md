@@ -8,8 +8,6 @@ Version discipline (enforced by `node scripts/check-bundle-versions.mjs`, wired
 into `pnpm verify`): **changing a bundle's code requires bumping its version**.
 A bundle whose directory has changes after its version tag fails the gate.
 
----
-
 ## Unreleased
 
 ### ecc-agent-presets 0.1.0 — 收纳 133 个 ECC agent preset,默认不进 UI 名册(#151)
@@ -22,8 +20,8 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ### dsh-auto-delegation 0.1.0 — 委派纪律 + 子 agent 路由表 runtime-context 注入(#151)
 
-- 新 bundle:向会话所有成员(主 agent 与每个 teammate,经 composeFrom 继承组合同时生效)注入两段 `systemPrompt.context`:①委派纪律(开工三问 + 分档表 + 队友向下委派授权);②声明式路由表(可委派 preset id → 职责),模型按子任务内容选 `agent_preset`。
-- 路由表 preset id 与 `dsh-deep-ptc-mode` preset.json 的 `allowedAgentPresets` 白名单镜像(两处需同步,见 spec issue-151)。
+- 新 bundle:向会话所有成员(主 agent 与每个 teammate,经 composeFrom 继承组合同时生效)注入**一个** `systemPrompt.context`(`dsh:auto-delegation-discipline`),内含两节:①委派纪律(开工三问 + 分档表 + 队友向下委派授权);②声明式路由表(可委派 preset id → 职责),模型按子任务内容选 `agent_preset`。
+- 路由表 preset id 与 `dsh-deep-ptc-mode` lib/model.mjs 的 `DELEGATION_PRESET_WHITELIST`(derive 期打点)preset id 双向镜像(契约测试守护);locale 暂为固定 zh(操作者工作语言,en 字典预留)。
 
 ### dsh-deep-ptc-mode 1.11.2 — 纪律文案单源化:zh 派生自 COPY 字典 + 谱系落盘(#144,PR #146)
 

@@ -1,8 +1,8 @@
 {
   "issue": 151,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-10T14:35:00+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-10T15:30:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -26,18 +26,22 @@
     },
     {
       "id": 5,
-      "title": "装后验证",
-      "state": "green"
+      "title": "装后验证(注入/精简/governor ✓;剩余:新根会话实测 agent_preset)",
+      "state": "red"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
-    "axes": 2
+    "state": "pending-decision",
+    "axes": 2,
+    "axis1": "done",
+    "axis2": "done",
+    "verdict": "rework-9 done",
+    "note": "9/9 findings reworked; acceptance-C evidence still pending new root session"
   },
   "merge": {
     "authorized": false

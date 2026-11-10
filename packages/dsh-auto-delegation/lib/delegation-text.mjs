@@ -36,7 +36,7 @@ const COPY = {
     routingHeading: '可委派的子 agent preset(按子任务内容选择 `agent_preset`):',
     routingNote: [
       '- 不确定选哪个时不传 `agent_preset`,子 agent 继承当前组合;preset id 拼写错误会在首次委派时报错,以本表为准。',
-      '- 你作为队友(teammate)同样适用本节:接到 ≥3 个独立单元或需要独立视角的任务时,应当向下委派,不要单线程硬扛;深度上限内(`maxDepth: 3`)的孙代理委派是被授权的。',
+      '- 你作为队友(teammate)同样适用本节:接到 ≥3 个独立单元或需要独立视角的任务时,应当向下委派,不要单线程硬扛;在委派深度上限内(由 DSH subagent 深度闸与 maxDepth 设置执行)的孙代理委派是被授权的。',
     ],
   },
   en: {
@@ -49,7 +49,7 @@ const COPY = {
     routingHeading: 'Delegable subagent presets (pick `agent_preset` by subtask content):',
     routingNote: [
       '- When unsure which to pick, omit `agent_preset`: the child joins the current composition. Misspelled ids error on first delegation; treat this table as the source of truth.',
-      '- As a teammate you are equally covered by this section: when you receive >=3 independent units or a task needing an independent perspective, delegate downward instead of grinding inline; grandchild delegations within the depth cap (`maxDepth: 3`) are authorized.',
+      '- As a teammate you are equally covered by this section: when you receive >=3 independent units or a task needing an independent perspective, delegate downward instead of grinding inline; grandchild delegations within the configured depth cap (enforced by the DSH subagent depth gate and the maxDepth setting) are authorized.',
     ],
   },
 }

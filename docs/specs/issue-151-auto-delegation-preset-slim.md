@@ -1,4 +1,8 @@
-# Issue #150:自动委派编排 + Agent preset 精简(dsh-auto-delegation)
+# Issue #151:自动委派编排 + Agent preset 精简(dsh-auto-delegation)
+
+> 停点2 修订(2026-11-10,review 后确认):
+> ① 白名单实现方式与原背景不同——**不改 preset.json**,由 `dsh-deep-ptc-mode/lib/model.mjs` 的 `DELEGATION_PRESET_WHITELIST` 在 derive 期确定性打点(preset.json 保持官方原样,check 门同步识别;理由:官方快照零污染 + 可反向验证)。
+> ② §边界"严禁重启 DSH"存在**用户批准的一次性例外**(2026-11-10):重组合后 stall-governor 路由泄漏与白名单运行体未换新,行级 toggle 均无效,重启为唯一恢复路径;经过与证据见 `docs/specs/issue-151-deployment-log.md`。
 
 ## 背景(调研结论,已源码级核实)
 

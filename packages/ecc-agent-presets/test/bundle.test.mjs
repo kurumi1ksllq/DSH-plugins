@@ -33,10 +33,15 @@ test('patch carries exactly the 133 non-whitelisted preset rows', async () => {
   }
 })
 
-test('the main profile patch still carries the whitelisted rows and none of the moved ones', async () => {
+test('the main profile patch still carries the whitelisted rows and none of the moved ones', async (t) => {
+  // Deployment-side sentinel: reads the HOST's profile patch, which only
+  // exists on the operator machine (not in CI or verify-clean worktrees).
+  // It can never turn red from a repository change alone, so the skip is
+  // declared explicitly; the authoritative post-deployment evidence lives in
+  // docs/specs/issue-151-deployment-log.md.
   const profilePatch = await readFile(join(PKG, '..', '..', '..', '.dsh', 'profiles', 'web', 'cordis.patch.yml'), 'utf8')
     .catch(() => null)
-  if (profilePatch === null) return // profile not present in this checkout environment (CI)
+  if (profilePatch === null) return t.skip('host profile layout not present (CI / clean worktree)')
   const moved = yaml.load(await readFile(join(PKG, 'cordis.patch.yml'), 'utf8'))[0].insert.map((row) => row.id)
   for (const id of moved) {
     assert.equal(

@@ -30,10 +30,11 @@ test('patch row points at this package with a unique id', async () => {
   assert.match(patch, /name: '?dsh-auto-delegation'?/)
 })
 
-test('index exports an apply function and Config schema', async () => {
+test('index exports a name and apply function, and no Config (patch row carries none)', async () => {
   const mod = await import('../index.js')
   assert.equal(typeof mod.apply, 'function')
   assert.equal(mod.name, 'dsh-auto-delegation')
+  assert.equal(mod.Config, undefined, 'a config without a Config schema fails validation at load')
 })
 
 test('delegation text renders both locales with required sections', async () => {
