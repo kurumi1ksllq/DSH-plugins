@@ -1,0 +1,45 @@
+{
+  "issue": 158,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-10T18:11:31.854+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "仓库包计数契约",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "包骨架",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "握手 + 协议段 + 去重",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "测试 A1-A7",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "lockfile + 全量验收",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

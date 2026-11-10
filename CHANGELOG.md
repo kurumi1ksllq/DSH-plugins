@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, seven independently versioned bundles. Every entry names the
+One repository, eight independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -9,6 +9,10 @@ into `pnpm verify`): **changing a bundle's code requires bumping its version**.
 A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
+
+### dsh-skill-surface 0.1.0 — 官方 skill 目录与加载器补挂到宿主平面
+
+- 新 bundle:把官方 skill 目录与加载器补挂到宿主平面(无 skill 能力的 preset 也能用);委派时支持 `skills: a,b` 点名注入。
 
 ### dev-flow 0.6.0 — 规则常驻注入:不再当技能,流程只留两次交互(#154)
 
