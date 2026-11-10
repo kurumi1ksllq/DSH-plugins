@@ -44,6 +44,8 @@ const EXPECTED = [
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['dev-flow', 'dev-flow'],
   ['dsh-websearch-failover', 'dsh-websearch-failover'],
+  ['dsh-auto-delegation', 'dsh-auto-delegation'],
+  ['ecc-agent-presets', 'ecc-agent-presets'],
 ]
 
 function readJson(file) {

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" role="img" aria-label="Auto delegation">
+  <circle cx="5" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/>
+  <circle cx="18.4" cy="6" r="2.1" stroke="currentColor" stroke-width="1.7"/>
+  <circle cx="18.4" cy="18" r="2.1" stroke="currentColor" stroke-width="1.7"/>
+  <path d="M7.5 10.8 16.4 6.9M7.5 13.2 16.4 17.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+</svg>

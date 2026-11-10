@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ECC 工程 agent 预设",
+    "description": "收纳 133 个 ECC 工程 agent 预设,默认不进入 Web UI 名册;启用本 bundle 即整体回归。"
+  }
+}

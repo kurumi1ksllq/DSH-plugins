@@ -1,0 +1,37 @@
+{
+  "name": "dsh-auto-delegation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Delegation discipline and a declarative subagent routing table injected as a runtime context, so the lead agent and every teammate can decompose a task on arrival and route each piece to the matching subagent preset by content",
+  "engines": {
+    "node": ">=22",
+    "dsh": "^0.2.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./delegation-text": "./lib/delegation-text.mjs",
+    "./icon": "./icon.svg",
+    "./locale/en": "./locale/en.json",
+    "./locale/zh": "./locale/zh.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/*.mjs",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
