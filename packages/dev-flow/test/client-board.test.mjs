@@ -339,7 +339,8 @@ test('the host-provided board is what gets rendered', () => {
           stageIndex: 4, columnCount: 8, stale: false, flowStage: 'ci', hasBranch: true,
           branchName: 'issue-77-x', ahead: 1, prNumber: 9, prUrl: null, prDraft: false,
           checks: 'red', tickets: [], ci: { run: 2, max: 2, status: 'red' },
-          review: null, merge: null, action: { kind: 'ci-red-escalated', issue: 77, prNumber: 9 },
+          review: { state: 'done', axes: 2 }, merge: { authorized: false },
+          action: { kind: 'merge-gate', issue: 77, prNumber: 9 },
         }],
         empty: 'no-pr-in-ci',
       },
@@ -347,14 +348,14 @@ test('the host-provided board is what gets rendered', () => {
       { stage: 'merge', cards: [], empty: 'no-pr-awaiting-merge' },
       { stage: 'done', cards: [], empty: 'nothing-merged-yet' },
     ],
-    needsUser: [{ kind: 'ci-red-escalated', issue: 77, prNumber: 9, severity: 'blocker' }],
+    needsUser: [{ kind: 'merge-gate', issue: 77, prNumber: 9, severity: 'blocker' }],
     offFlow: [],
     forgeHint: null,
   }
   const out = textOf(snap({ board }))
   assert.ok(out.includes('from the host'), 'must render the board it was given')
   assert.ok(out.includes('#77'))
-  assert.ok(out.includes('CI 已红到第 2 轮' ))
+  assert.ok(out.includes('等你答是否合并'), 'the action line must render the item the host supplied')
 })
 
 test('flow state arriving as a plain object (the HTTP shape) is honoured', () => {

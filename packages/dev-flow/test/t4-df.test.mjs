@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 const here = dirname(fileURLToPath(import.meta.url))
 const pkg = join(here, '..')
 
-test('a review stuck at pending-decision lands in needsUser as a blocker', async () => {
+test('a review at pending-decision no longer asks the user (#157)', async () => {
   const { buildTaskBoard } = await import('../lib-git-status/task-board.js')
   const snapshot = {
     git: { branches: [{ name: 'issue-9-x', ahead: 1 }] },
@@ -23,10 +23,11 @@ test('a review stuck at pending-decision lands in needsUser as a blocker', async
   }
   const board = buildTaskBoard(snapshot)
   const kinds = (board.needsUser ?? []).map((n) => n.kind)
-  assert.ok(
-    kinds.includes('review-pending-decision'),
-    'pending-decision must surface in needsUser, got: ' + kinds.join(','),
-  )
+  // #157: the agent adjudicates findings itself; the state stays on the card so
+  // the user can read it, but it is not an action item any more.
+  assert.equal(kinds.includes('review-pending-decision'), false, 'the agent rules on findings, got: ' + kinds.join(','))
+  const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.issue === 9)
+  assert.equal(card?.review?.state, 'pending-decision', 'the state itself must stay visible')
 })
 
 test('a review that is merely running does NOT fire the pending-decision item', async () => {
@@ -46,9 +47,9 @@ test('a review that is merely running does NOT fire the pending-decision item', 
   assert.equal(kinds.includes('review-pending-decision'), false)
 })
 
-test('NEEDS_USER_KINDS pins the new kind (enum is public protocol)', async () => {
+test('NEEDS_USER_KINDS is the closed two-item vocabulary (#157)', async () => {
   const { NEEDS_USER_KINDS } = await import('../lib-git-status/task-board.js')
-  assert.ok(NEEDS_USER_KINDS.includes('review-pending-decision'))
+  assert.deepEqual(NEEDS_USER_KINDS, ['intake-confirm', 'merge-gate'])
 })
 
 test('dead locale key "stashes" is gone from both dicts', async () => {

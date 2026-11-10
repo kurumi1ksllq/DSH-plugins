@@ -171,33 +171,17 @@ test('buildTaskBoard: a clean main workspace produces no off-flow entry', () => 
 
 // ---- needs-user区 --------------------------------------------------------
 
-test('each of the four dev-flow user inputs actually reaches needsUser', () => {
-  // Asserting the constant array only proved the array existed. What matters is
-  // that a real board produces each kind — so each case below builds the
-  // smallest snapshot that triggers exactly one of them.
+test('the board asks the user about exactly two things: intent and merge', () => {
+  // #157: the agent decides grading, cutting, missing CI, CI red and review
+  // findings itself. What is left for the user is the intent up front and the
+  // merge word at the end — a strip that also lists the other three would train
+  // the user to ignore it, which is worse than not showing it.
 
-  // 1. intake-confirm: an issue with no branch yet (stop point 1).
+  // 1. intake-confirm: an issue with no branch yet.
   const intake = buildTaskBoard(snap({ issues: [issue(31)] }))
   assert.ok(intake.needsUser.some((n) => n.kind === 'intake-confirm'), 'intake-confirm never fires')
 
-  // 2. no-ci: the repo has a PR whose checks report nothing.
-  const noCi = buildTaskBoard(snap({ prs: [pr(5, 'feature/x')], checks: { 5: 'none' } }))
-  assert.ok(noCi.needsUser.some((n) => n.kind === 'no-ci'), 'no-ci never fires')
-
-  // 3. ci-red-escalated: red CI at the last self-repair round.
-  const escalated = buildTaskBoard(snap({
-    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
-    issues: [issue(26)],
-    prs: [pr(5, 'issue-26-a')],
-    checks: { 5: 'red' },
-    flowStates: new Map([[26, {
-      issue: 26, grade: 'standard', stage: 'ci', tickets: [],
-      ci: { run: 2, max: 2, status: 'red' }, review: null, merge: null,
-    }]]),
-  }))
-  assert.ok(escalated.needsUser.some((n) => n.kind === 'ci-red-escalated'), 'ci-red-escalated never fires')
-
-  // 4. merge-gate: review done, merge not yet authorised.
+  // 2. merge-gate: review done, merge not yet authorised.
   const gate = buildTaskBoard(snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
     issues: [issue(26)],
@@ -210,23 +194,22 @@ test('each of the four dev-flow user inputs actually reaches needsUser', () => {
   }))
   assert.ok(gate.needsUser.some((n) => n.kind === 'merge-gate'), 'merge-gate never fires')
 
-  // And nothing else sneaks in: the four above are the whole vocabulary.
-  const observed = new Set([...intake.needsUser, ...noCi.needsUser, ...escalated.needsUser, ...gate.needsUser].map((n) => n.kind))
-  assert.deepEqual([...observed].sort(), ['ci-red-escalated', 'intake-confirm', 'merge-gate', 'no-ci'])
+  // And the vocabulary is closed: nothing the agent decides may appear here.
+  const observed = new Set([...intake.needsUser, ...gate.needsUser].map((n) => n.kind))
+  assert.deepEqual([...observed].sort(), ['intake-confirm', 'merge-gate'])
 })
-
-test('buildTaskBoard: no CI repo raises exactly one no-ci item (not once per card)', () => {
+test('buildTaskBoard: missing CI is stated by the cards, not asked of the user', () => {
   const board = buildTaskBoard(snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
     issues: [issue(26), issue(27)],
     prs: [pr(5, 'issue-26-a')],
     checks: { 5: 'none' },
   }))
-  const noCi = board.needsUser.filter((n) => n.kind === 'no-ci')
-  assert.equal(noCi.length, 1)
+  assert.equal(board.needsUser.filter((n) => n.kind === 'no-ci').length, 0, 'the agent adds a minimal workflow itself')
+  const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.prNumber === 5)
+  assert.equal(card?.checks, 'none', 'the state still has to be visible on the card')
 })
-
-test('buildTaskBoard: CI red at the last round escalates to the user', () => {
+test('buildTaskBoard: CI red at the last round stays with the agent', () => {
   const flowStates = new Map([[26, {
     issue: 26, grade: 'standard', stage: 'ci', tickets: [],
     ci: { run: 2, max: 2, status: 'red' }, review: null, merge: null,
@@ -238,11 +221,10 @@ test('buildTaskBoard: CI red at the last round escalates to the user', () => {
     checks: { 5: 'red' },
     flowStates,
   }))
-  const escalated = board.needsUser.filter((n) => n.kind === 'ci-red-escalated')
-  assert.equal(escalated.length, 1)
-  assert.equal(escalated[0].issue, 26)
+  assert.equal(board.needsUser.filter((n) => n.kind === 'ci-red-escalated').length, 0)
+  const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.issue === 26)
+  assert.equal(card.action, null, 'a red CI is the agent\'s problem to report, not a card action')
 })
-
 test('buildTaskBoard: CI red at round 1 is NOT escalated (still self-repairing)', () => {
   const flowStates = new Map([[26, {
     issue: 26, grade: 'standard', stage: 'ci', tickets: [],
@@ -398,16 +380,13 @@ test('a card with nothing pending carries no action line', () => {
   assert.equal(card.action, null)
 })
 
-test('no-ci is a repository-level question, raised even without a matching card', () => {
-  // The repo has no CI at all: that is a property of the repository, so a PR on
-  // a branch the board cannot place must still raise the question.
+test('missing CI alone does not raise a user item, even with no matching card', () => {
   const board = buildTaskBoard(snap({
     prs: [pr(5, 'feature/x')],
     checks: { 5: 'none' },
   }))
-  assert.equal(board.needsUser.filter((n) => n.kind === 'no-ci').length, 1)
+  assert.equal(board.needsUser.filter((n) => n.kind === 'no-ci').length, 0)
 })
-
 // ---- follow-up: HTTP-shaped input, clean-main commits, whitespace stdout ----
 
 test('buildTaskBoard accepts the HTTP shape of flowStates (plain object)', () => {

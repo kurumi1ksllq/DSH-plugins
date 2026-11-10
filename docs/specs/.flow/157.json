@@ -1,0 +1,40 @@
+{
+  "issue": 157,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-10T12:06:25.524+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "词表收窄红测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "task-board/client 实现",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "文档口径",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG/spec",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -18,14 +18,16 @@
 
 import { STAGES } from './flow-state.js'
 
-/** The only four things dev-flow ever asks the user to decide. */
-export const NEEDS_USER_KINDS = ['intake-confirm', 'no-ci', 'ci-red-escalated', 'review-pending-decision', 'merge-gate']
+/**
+ * The only two things dev-flow asks the user to decide (#157): what to do, and
+ * whether to merge it. Grading, cutting, a missing CI, a red CI and the review
+ * findings are the agent's call and are recorded on the card / in the spec — a
+ * strip that also listed them would train the user to ignore it.
+ */
+export const NEEDS_USER_KINDS = ['intake-confirm', 'merge-gate']
 
 /** Cap on the "needs you" strip: a board that lists everything is not a board. */
 export const NEEDS_USER_LIMIT = 3
-
-/** CI red is fixed by the agent for at most this many rounds (dev-flow contract). */
-export const CI_MAX_ROUNDS = 2
 
 /**
  * Issue number encoded in a dev-flow branch name (`issue-<n>-<desc>`), or null.
@@ -226,7 +228,7 @@ export function buildTaskBoard(snapshot) {
   const offFlowEntry = offFlowOf(git, knownIssues)
   const offFlow = offFlowEntry === null ? [] : [offFlowEntry]
 
-  const needsUser = buildNeedsUser({ cards, allIssues: issues, checks })
+  const needsUser = buildNeedsUser({ cards })
   // Mirror the pending items onto the cards they belong to, so a card says what
   // IT is waiting for instead of forcing a look back up at the strip.
   for (const card of cards) {
@@ -276,7 +278,7 @@ function emptyHintOf(stage) {
  * Every item must map to a real dev-flow gate; anything else (a dirty file, a
  * stale branch) belongs in its own column, not here.
  */
-function buildNeedsUser({ cards, allIssues, checks }) {
+function buildNeedsUser({ cards }) {
   const blockers = []
   const infos = []
 
@@ -290,26 +292,7 @@ function buildNeedsUser({ cards, allIssues, checks }) {
     }
   }
 
-  // 2. CI red at the last allowed round: dev-flow forbids a third push.
-  for (const card of cards) {
-    if (card.checks !== 'red') continue
-    const run = card.ci?.run
-    const max = card.ci?.max ?? CI_MAX_ROUNDS
-    if (Number.isInteger(run) && run >= max) {
-      blockers.push({ kind: 'ci-red-escalated', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
-    }
-  }
-
-  // 2b. T4.df: a review that RAN but produced findings (state pending-decision)
-  // needs the user's ruling just as much as a finished review needs the merge
-  // shout — but before #129-fix it only sat in its column silently. Surface it.
-  for (const card of cards) {
-    if (card.review?.state !== 'pending-decision') continue
-    if (card.prNumber === null) continue
-    blockers.push({ kind: 'review-pending-decision', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
-  }
-
-  // 3. A PR whose review finished is waiting for the literal "merge #n" shout.
+  // 2. A PR whose review finished is waiting for the literal "merge #n" shout.
   for (const card of cards) {
     if (card.review?.state !== 'done') continue
     if (card.merge?.authorized === true) continue
@@ -317,11 +300,8 @@ function buildNeedsUser({ cards, allIssues, checks }) {
     blockers.push({ kind: 'merge-gate', issue: card.issue, prNumber: card.prNumber, severity: 'blocker' })
   }
 
-  // 4. No CI at all: a property of the REPOSITORY, so it is answered from the
-  // check map itself rather than from cards. A PR on an unplaceable branch would
-  // otherwise suppress the question entirely.
-  const anyNone = Object.values(checks ?? {}).some((state) => state === 'none')
-  if (anyNone) infos.push({ kind: 'no-ci', issue: null, prNumber: null, severity: 'info' })
+  // A repository without CI, a red CI at the last round and a review report are
+  // all visible on the card's evidence line — none of them is a question (#157).
 
   return [...blockers, ...infos].slice(0, NEEDS_USER_LIMIT)
 }
