@@ -1,11 +1,16 @@
-# dev-flow bundle patch:the always-on flow contract + its read-only task board.
+# dev-flow bundle patch: the always-on flow contract + its read-only task board.
+#
+# Rows this bundle ADDS live under `- insert:`. A bare `- id: ...` entry is a
+# patch of an existing row. These two ids are new, so a bare entry leaves the
+# rows unmounted (#161; the incident is in CHANGELOG.md).
 #
 # 1. The flow row (id/name dev-flow) mounts index.js, which registers the
 #    `dev-flow:flow-contract` runtime context on the system prompt.
 # 2. The board row keeps its historical row id `git-status` (the panel's config
 #    tree address); the implementation now lives in this package under the
 #    ./git-status subpath export.
-- id: dev-flow
-  name: dev-flow
-- id: git-status
-  name: dev-flow/git-status
+- insert:
+    - id: dev-flow
+      name: dev-flow
+    - id: git-status
+      name: dev-flow/git-status
