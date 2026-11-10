@@ -4,6 +4,10 @@ import { HANDOFF_MAX, handoffNames, injectedSkills } from '../lib/handoff.mjs'
 
 const userText = (text) => ({ source: { kind: 'user' }, content: [{ type: 'text', text }] })
 
+test('the handoff cap is part of the public contract', () => {
+  assert.equal(HANDOFF_MAX, 6, 'changing the cap is a contract change, not a tuning tweak')
+})
+
 test('reads the handoff line and cleans the names', () => {
   assert.deepEqual(handoffNames([userText('do it\nskills: dev-flow, security-review')]), ['dev-flow', 'security-review'])
   assert.deepEqual(handoffNames([userText('skills:  a,，a ,  b')]), ['a', 'b'])
@@ -12,8 +16,10 @@ test('reads the handoff line and cleans the names', () => {
 test('only the first handoff line counts, so a repeated format quote cannot flood context', () => {
   const text = 'skills: dev-flow\n... later ...\nskills: a, b, c, d, e, f, g'
   assert.deepEqual(handoffNames([userText(text)]), ['dev-flow'])
-  // and the cap still bounds a single long line
-  const many = Array.from({ length: HANDOFF_MAX + 4 }, (_, i) => `s` + i).join(', ')
+})
+
+test('a single very long line is still capped', () => {
+  const many = Array.from({ length: HANDOFF_MAX + 4 }, (_, index) => `s` + index).join(', ')
   assert.equal(handoffNames([userText('skills: ' + many)]).length, HANDOFF_MAX)
 })
 

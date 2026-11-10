@@ -1,7 +1,7 @@
 # Bundle patch for dsh-skill-surface.
 #
-# Why this bundle exists: the dsh-web-app layer disables the host skillsystem and
-# tool-skill rows (dsh-web-app/cordis.patch.yml) so that AGENT PRESETS own local
+# Why this bundle exists: the dsh-web-app layer disables the host skill-filesystem
+# and tool-skill rows (dsh-web-app/cordis.patch.yml) so that AGENT PRESETS own local
 # skill discovery. Every preset that does not mount those rows therefore has no
 # skill catalog and no skill loader at all. In this deployment that is 6 of 9
 # presets, including all five that the delegation routing table names.

@@ -1,10 +1,11 @@
 // Host module access for the two official helpers this plugin borrows.
 //
 // A linked install does not necessarily route `@deepseek-ai/*` to a node_modules
-// copy, so resolution walks several anchors before giving up. An unresolved
-// host is NOT fatal: the caller degrades to "no injection" rather than throwing
+// copy, so resolution walks a few anchors before giving up. An unresolved host
+// is NOT fatal: the caller degrades to "no injection" rather than throwing
 // inside a step listener, because a throw here would end the child's turn with
-// no model reply.
+// no model reply. A failed resolution is cached, so a session full of handoffs
+// pays for it once.
 
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
@@ -42,21 +43,19 @@ export function resolveHost(specifier) {
   }
   const own = requireFrom(import.meta.url, specifier)
   if (own !== undefined) return pathToFileURL(own).href
-  for (const anchor of ['@deepseek-ai/dsh/package.json', '@deepseek-ai/dsh-web-app/package.json']) {
-    const found = viaAnchor(anchor, specifier)
-    if (found !== undefined) return pathToFileURL(found).href
-  }
+  const anchored = viaAnchor('@deepseek-ai/dsh-web-app/package.json', specifier)
+  if (anchored !== undefined) return pathToFileURL(anchored).href
   const profileDir = process.env.DSH_PROFILE_DIR
   if (profileDir !== undefined && profileDir !== '') {
-    const found = requireFrom(pathToFileURL(join(profileDir, 'package.json')).href, specifier)
-    if (found !== undefined) return pathToFileURL(found).href
+    const fromProfile = requireFrom(pathToFileURL(join(profileDir, 'package.json')).href, specifier)
+    if (fromProfile !== undefined) return pathToFileURL(fromProfile).href
   }
   return undefined
 }
 
 /**
  * Replace the host API (tests, or an embedding that already holds it).
- * Passing undefined clears the override and re-arms real resolution.
+ * Passing undefined clears the override AND the cached failure.
  * @param api - the official helpers to use instead of the installed Harness.
  */
 export function setHostApi(api) {
@@ -89,14 +88,12 @@ async function load() {
  * Load the official helpers this plugin borrows.
  *
  * BORROWS, does not reimplement: the `<skill_content>` frame, the invocation
- * policy and the durable user message are official single sources.
+ * policy and the durable user message are official single sources. A rejection
+ * is cached, so repeated handoffs do not re-run resolution every step.
  * @returns renderSkillContent, isModelInvocable and createUserMessage.
  */
 export async function hostApi() {
   if (installed !== undefined) return installed
-  pending ??= load().catch((error) => {
-    pending = undefined
-    throw error
-  })
+  pending ??= load()
   return pending
 }

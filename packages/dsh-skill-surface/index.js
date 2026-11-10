@@ -15,7 +15,7 @@
 // throw ends the child's turn with no model reply. Every path here therefore
 // degrades to "inject nothing" instead of throwing.
 
-import { HANDOFF_MAX, handoffNames, injectedSkills } from './lib/handoff.mjs'
+import { handoffNames, injectedSkills } from './lib/handoff.mjs'
 import { hostApi } from './lib/host-api.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
 
@@ -23,26 +23,32 @@ export const name = 'dsh-skill-surface'
 
 const SECTION_NAME = 'dsh:skill-surface-handoff'
 const SECTION_ORDER = 20100
+/** Total injected body ceiling for one handoff; six huge SKILL.md files must not flood a child. */
+export const HANDOFF_MAX_CHARS = 60000
 
 async function injectHandoff(scope, { agent, messages, signal }) {
   const requested = handoffNames(messages)
   if (requested.length === 0) return undefined
 
   const injected = injectedSkills(agent)
-  const wanted = requested.filter((skillName) => !injected.has(skillName)).slice(0, HANDOFF_MAX)
+  const wanted = requested.filter((skillName) => !injected.has(skillName))
   if (wanted.length === 0) return undefined
 
   const api = await hostApi()
   const cwd = await scope.workingDirectory.ensure(agent, signal)
 
   const additions = []
+  let budget = HANDOFF_MAX_CHARS
   for (const skillName of wanted) {
     if (signal?.aborted) break
     const skill = await scope.skills.get(skillName, { scope: agent, cwd, signal })
     if (skill === undefined || !api.isModelInvocable(skill)) continue
+    const text = api.renderSkillContent(skill)
+    if (text.length > budget) break
+    budget -= text.length
     injected.add(skillName)
     additions.push(api.createUserMessage({
-      content: [{ type: 'text', text: api.renderSkillContent(skill) }],
+      content: [{ type: 'text', text }],
       source: { kind: 'skill-invocation', name: skillName, form: 'instructions' },
     }))
   }
@@ -50,15 +56,21 @@ async function injectHandoff(scope, { agent, messages, signal }) {
 }
 
 function handoffListener(scope) {
+  let warned = false
   return async ({ agent, messages, signal }, next) => {
     const decision = await next()
     if (decision.kind === 'reject') return decision
     let additions
     try {
       additions = await injectHandoff(scope, { agent, messages, signal })
-    } catch {
+    } catch (error) {
       // A missing host module, an unreadable workspace or a hostile skill
-      // provider must cost the injection, never the child's turn.
+      // provider must cost the injection, never the child's turn. Warn once so
+      // an operator can see it instead of guessing why nothing was injected.
+      if (!warned) {
+        warned = true
+        scope.logger?.warn?.('skill-surface: handoff injection unavailable (%s)', error?.message ?? String(error))
+      }
       return decision
     }
     if (additions === undefined || signal?.aborted) return decision

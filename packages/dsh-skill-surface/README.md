@@ -6,7 +6,7 @@
 
 `dsh-web-app` 在宿主层把 `dsh-skill-filesystem` 与 `dsh-tool-skill` 两行 `disabled: true`,改由每个 agent preset 自带。于是**没有挂这两行的 preset 就完全没有技能**:没有目录,也没有 `skill` 工具。
 
-本部署实测:线上 9 个 preset 里只有 3 个(standard/ptc/cordis)挂了 skill 行;其余 6 个 persona-only 的 preset 中,恰好包含委派路由表点名的全部 5 个(`planner`/`architect`/`code-reviewer`/`security-reviewer`/`build-error-resolver`)。
+本部署实测(2026-11-10):组合后的树里有 9 个 preset 行,其中只有 3 个(`standard`/`ptc`/`cordis`)的 `plugins` 列表里含 `skill-filesystem` 与 `tool-skill`;`minimal` 与委派路由表点名的全部 5 个(`planner`/`architect`/`code-reviewer`/`security-reviewer`/`build-error-resolver`)都是 persona-only。复核命令:`dsh --profile web --dump-config`(看 `- id: preset-*` 与其内层 `plugins`,不是看 profile 的 `cordis.patch.yml`,那里只有 5 个 preset 行)。
 
 ## 做了什么
 

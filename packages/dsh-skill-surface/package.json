@@ -19,7 +19,8 @@
     "./icon": "./icon.svg",
     "./locale/en": "./locale/en.json",
     "./locale/zh": "./locale/zh.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./host-api": "./lib/host-api.mjs"
   },
   "files": [
     "index.js",
@@ -37,13 +38,25 @@
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": "*",
-    "@deepseek-ai/dsh-skill": "*"
+    "@deepseek-ai/dsh-skill": "*",
+    "@deepseek-ai/dsh-skill-filesystem": "*",
+    "@deepseek-ai/dsh-tool-skill": "*",
+    "@deepseek-ai/dsh-web-app": ">=0.2.2-rc.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-llm": {
       "optional": true
     },
     "@deepseek-ai/dsh-skill": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-skill-filesystem": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-skill": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-web-app": {
       "optional": true
     }
   }
