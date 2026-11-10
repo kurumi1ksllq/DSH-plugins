@@ -2,7 +2,7 @@
   "issue": 151,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-10T15:38:00+08:00",
+  "updatedAt": "2026-11-10T15:55:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -27,7 +27,7 @@
     {
       "id": 5,
       "title": "装后验证(注入/精简/governor ✓;剩余:新根会话实测 agent_preset)",
-      "state": "red"
+      "state": "done"
     }
   ],
   "ci": {
@@ -40,7 +40,7 @@
     "axes": 2,
     "axis1": "done",
     "axis2": "done",
-    "verdict": "rework-9 done, CI green; merge deferred by user until acceptance-C"
+    "verdict": "rework-9 done, CI green; acceptance-C closed by user test"
   },
   "merge": {
     "authorized": false,

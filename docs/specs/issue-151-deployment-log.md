@@ -33,3 +33,9 @@
 > 用 cordis_inspect_query 查你自己的 subagent 工具 schema,报告是否含 agent_preset 参数及其 enum;若有,用 agent_preset="planner" 委派一个只回复"收到"的子 agent。
 
 预期:①参数存在且 enum = planner/architect/code-reviewer/security-reviewer/build-error-resolver;②委派成功。通过后:本文件打勾 → `.flow/151.json` ticket5 → green → 回 PR #152 执行 merge(口令 merge 或点选「merge 本 PR」)。
+
+## 验收 C 闭合(2026-11-10 15:5x,用户实测)
+- 实测会话:session-15709a5c-653b-4b95-a9ed-9218ffc6e8eb(/root/.dsh/sessions/--root-DSH-plugins--/,磁盘核验,非仅聊天自述)。
+- ① subagent 工具 schema 含 agent_preset(string);② enum = planner/architect/code-reviewer/security-reviewer/build-error-resolver,与 DELEGATION_PRESET_WHITELIST 逐字一致;③ agent_preset="planner" 委派成功,子 agent b21562cc-c6ca-46d3-a916-65b580d8c726 回复「收到」。
+- 注:该会话无 cordis_inspect_query(Creator 系组合未挂 inspect 行),证据取自 tool_describe("subagent") 的运行时 schema,与 listTools 同源等价。
+- **验收 A-E 全部闭合。**
