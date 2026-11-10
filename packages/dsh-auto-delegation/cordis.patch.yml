@@ -1,0 +1,18 @@
+# Bundle patch for dsh-auto-delegation.
+#
+# One host row. The plugin injects ONE runtime-context segment through the
+# systemPrompt service; its text carries two sections:
+#   1. delegation discipline (decompose first, size-based lanes, teammate
+#      authorization to delegate downward)
+#   2. a declarative routing table (which subagent preset matches which kind
+#      of subtask) — the model reads this table and picks `agent_preset` per
+#      delegation.
+#
+# Preset ids listed in the routing table must exist in the live profile and
+# mirror DELEGATION_PRESET_WHITELIST in dsh-deep-ptc-mode/lib/model.mjs
+# (derive-time attachment; two-way contract test guards the mirror). When a
+# preset moves between the profile and the ecc-agent-presets bundle, update
+# both together (spec issue-151 §验收 C/D).
+- insert:
+    - id: auto-delegation
+      name: 'dsh-auto-delegation'

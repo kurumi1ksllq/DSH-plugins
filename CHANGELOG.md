@@ -1,6 +1,6 @@
 # CHANGELOG
 
-One repository, five independently versioned bundles. Every entry names the
+One repository, seven independently versioned bundles. Every entry names the
 bundle it belongs to; the tag on each release is `<package-name>@<version>`
 (for example `dsh-inventory@0.2.0`).
 
@@ -8,9 +8,20 @@ Version discipline (enforced by `node scripts/check-bundle-versions.mjs`, wired
 into `pnpm verify`): **changing a bundle's code requires bumping its version**.
 A bundle whose directory has changes after its version tag fails the gate.
 
----
-
 ## Unreleased
+
+### ecc-agent-presets 0.1.0 — 收纳 133 个 ECC agent preset,默认不进 UI 名册(#151)
+
+- 新 bundle:`cordis.patch.yml` 单个 `- insert:` 块原样迁入主 profile patch 的 133 个非常用 `preset-*` 行(YAML round-trip);不装/停用即从 4 个 UI 显示面消失,启用即整体回归。白名单 5 件套(planner/architect/code-reviewer/security-reviewer/build-error-resolver)保留在主 profile。
+
+### dsh-deep-ptc-mode 1.12.0 — 委派白名单:derive 确定性给 spawn 侧 tool-subagent 打 allowedAgentPresets(#151)
+
+- `DELEGATION_PRESET_WHITELIST`(lib/model.mjs,单一源):deriveDeepPtc 对 spawn 侧 delegation 行确定性附加 `allowedAgentPresets`(planner/architect/code-reviewer/security-reviewer/build-error-resolver),暴露 `subagent` 工具的 `agent_preset` 参数;check 门与 report 同步识别该扩展,官方快照保持原样。
+
+### dsh-auto-delegation 0.1.0 — 委派纪律 + 子 agent 路由表 runtime-context 注入(#151)
+
+- 新 bundle:向会话所有成员(主 agent 与每个 teammate,经 composeFrom 继承组合同时生效)注入**一个** `systemPrompt.context`(`dsh:auto-delegation-discipline`),内含两节:①委派纪律(开工三问 + 分档表 + 队友向下委派授权);②声明式路由表(可委派 preset id → 职责),模型按子任务内容选 `agent_preset`。
+- 路由表 preset id 与 `dsh-deep-ptc-mode` lib/model.mjs 的 `DELEGATION_PRESET_WHITELIST`(derive 期打点)preset id 双向镜像(契约测试守护);locale 暂为固定 zh(操作者工作语言,en 字典预留)。
 
 ### dsh-deep-ptc-mode 1.11.2 — 纪律文案单源化:zh 派生自 COPY 字典 + 谱系落盘(#144,PR #146)
 

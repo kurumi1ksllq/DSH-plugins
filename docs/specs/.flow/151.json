@@ -1,0 +1,50 @@
+{
+  "issue": 151,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-10T15:55:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "骨架 bundle + 文档契约接线",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "纪律+路由表文本模块(TDD)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "preset.json 白名单 + deep-ptc-mode 升版本",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "ecc-agent-presets 收编 + 部署侧确认",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "装后验证(注入/精简/governor ✓;剩余:新根会话实测 agent_preset)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2,
+    "axis1": "done",
+    "axis2": "done",
+    "verdict": "rework-9 done, CI green; acceptance-C closed by user test"
+  },
+  "merge": {
+    "authorized": false,
+    "deferred": "acceptance-C evidence pending (new root session test)"
+  },
+  "note": "user approved DSH restart; see docs/specs/issue-151-deployment-log.md for resume checklist"
+}

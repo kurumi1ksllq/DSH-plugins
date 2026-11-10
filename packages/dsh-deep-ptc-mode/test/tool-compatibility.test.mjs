@@ -265,8 +265,10 @@ test('a third-party tool is reported under the plugin that declares it', () => {
 test('official rows stay exactly as declared; only the feature rows are wrapped', () => {
   const { preset } = deriveDeepPtc(snapshot, { environment: 'wsl' }, 'win32');
   const original = new Map(snapshot.plugins.map(row => [row.id, row]));
+  // tool-subagent gains the delegation routing whitelist by derivation
+  // (spec issue-151); every other official row must be untouched.
   for (const row of preset.plugins) {
-    if (!original.has(row.id) || ['persona', 'tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-ask-user'].includes(row.id)) continue;
+    if (!original.has(row.id) || ['persona', 'tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-ask-user', 'tool-subagent', 'delegation'].includes(row.id)) continue;
     assert.deepEqual(row, original.get(row.id));
   }
   assert.ok(!JSON.stringify(preset.plugins).includes('official-tools'));

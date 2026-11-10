@@ -311,6 +311,20 @@ test('the README root-bundle warning matches the packages actually present', () 
   )
 })
 
+test('the root package.json description states the bundle count actually present', () => {
+  // The root description drifted to "eight" while nothing pinned it (issue-151
+  // axis-2 review finding); README/AGENTS/CHANGELOG get ordinals elsewhere.
+  const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+  const words = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine' }
+  const claimed = (manifest.description ?? '').match(/([a-z]+) independently installable/)
+  assert.ok(claimed, 'root package.json description must state the bundle count')
+  assert.equal(
+    claimed[1],
+    words[packageDirs().length],
+    `root description says ${claimed[1]} bundles, expected ${words[packageDirs().length]}`,
+  )
+})
+
 // ---------------------------------------------------------------------------
 // P1-6 (lockfile drift)
 //

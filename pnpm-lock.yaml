@@ -10,6 +10,8 @@ importers:
 
   packages/dev-flow: {}
 
+  packages/dsh-auto-delegation: {}
+
   packages/dsh-credential-vault: {}
 
   packages/dsh-deep-ptc-mode:
@@ -25,13 +27,15 @@ importers:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
 
-
-
   packages/dsh-inventory: {}
 
-
-
   packages/dsh-websearch-failover: {}
+
+  packages/ecc-agent-presets:
+    dependencies:
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
 
 packages:
 

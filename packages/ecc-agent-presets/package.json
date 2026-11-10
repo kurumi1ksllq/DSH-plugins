@@ -1,0 +1,38 @@
+{
+  "name": "ecc-agent-presets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ECC engineering agent presets collected from the main profile patch so the Web UI roster stays short; loading the bundle re-registers all 133 rows in the agent-preset-registry, unloading removes them from every UI surface without touching the five whitelisted delegation presets",
+  "engines": {
+    "node": ">=22",
+    "dsh": "^0.2.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg",
+    "./locale/en": "./locale/en.json",
+    "./locale/zh": "./locale/zh.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "js-yaml": "4.3.2"
+  },
+  "main": "./index.js"
+}

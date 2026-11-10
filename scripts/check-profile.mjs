@@ -43,6 +43,8 @@ const SHIPPED = new Map([
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['dev-flow', 'packages/dev-flow'],
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover'],
+  ['dsh-auto-delegation', 'packages/dsh-auto-delegation'],
+  ['ecc-agent-presets', 'packages/ecc-agent-presets'],
 ])
 
 function parseArgs(argv) {

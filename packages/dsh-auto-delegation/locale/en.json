@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Auto delegation",
+    "description": "Injects a delegation discipline and a declarative subagent routing table so the lead and every teammate can decompose tasks and route each piece to a matching subagent preset."
+  }
+}

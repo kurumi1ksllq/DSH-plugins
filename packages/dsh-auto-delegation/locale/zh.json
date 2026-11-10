@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "自动委派编排",
+    "description": "注入委派纪律与声明式子 agent 路由表,让主 agent 与每个队友都能按需拆解任务并把每部分派给匹配的子 agent preset。"
+  }
+}
