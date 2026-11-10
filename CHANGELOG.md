@@ -18,6 +18,17 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **控件质感**:骨架屏改 shimmer(reduced-motion 下静态);开关轨道内描边、滑块阴影收敛;开关与图标按钮用伪元素扩命中区;搜索框聚焦抬升 + caret/placeholder 着色;滚动条细化与 `::selection`;卡片改分层 label 色阴影;警示条同色系描边与着色图标;圆角收敛为 10/8/999 三级;「已隐藏技能」只弱化文字不弱化开关。
 - **测试**:新增 `test/ui-detail.test.mjs`(6 条公开行为契约:焦点覆盖、焦点环形状、状态属性归 CSS、reduced-motion 覆盖、禁 `transition: all`、排版契约),删规则即红;渲染桩抽到 `test/support/react-runtime.mjs` 共用。
 - **边界**:布局、栏目、文案、宿主 API 均未改;MCP 行徽标溢出裁掉行尾开关属断行问题,留后续 issue。
+### dsh-skill-surface 0.2.0 — 领域触发：开工时点名相关技能(#172)
+
+- **背景**：一次真实会话里用户要求「优化页面的 ui 细节」，目录中有 `make-interfaces-feel-better`，但全程 29 次工具调用、0 次 `skill`。诊断结论是「觉得没必要查」，不是「看不到 / 找不到」。
+- 新增 `lib/domains.mjs`：7 个领域的**策展短名单** + 中英关键词，不做检索排序（宽松匹配对同一句话命中 123 条，噪音只会让提示被无视）。
+- `agent/pre-step` 注入一行（代码内 clamp 到 120 字符）：同领域**一个强信号或两个弱信号**才触发；每轮最多一次；**本会话**已加载过该领域技能则不发。
+- 「已加载」同时认两条路径：本包注入的 `skill-invocation` 消息，以及模型自己调 `skill`/`skill_get` 留下的 tool call——只认前者会让 nudge 反复点名刚读过的技能。增量扫描，不重放整段历史。
+- 委派子会话收到的 relay 消息也算任务陈述（否则最需要提示的那批 agent 听不到）。多领域命中时跳过已加载的领域、继续看下一个，不再整条吞掉。
+- 短名单里的名字必须在当前目录里真实存在且 `modelInvocable`，否则丢弃；全丢则整条不发。**一次最多点名 3 个**；前端领域按 react/vue 分栈，不会让 React 项目去看 `vue-patterns`。
+- 对两种加载器都生效：有官方 `skill` 指向 `skill`，只有本包 `skill_get` 的指向 `skill_get`。
+- 新增 `test/domain-trigger.test.mjs`（7 条）：含「回放用户原话必须命中」与「20 条普通消息误触发 ≤2」的噪音预算。
+
 
 ### dsh-deep-ptc-mode 1.13.1 — 缺依赖时按前置跳过(#167/#168)
 
