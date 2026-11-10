@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Skill surface",
+    "description": "Mounts the official skill catalog and loader into the global layer so agents whose preset mounts none can still see and load skills, and injects skill bodies named by a skills: a, b handoff line."
+  }
+}

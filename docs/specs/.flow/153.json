@@ -1,8 +1,8 @@
 {
   "issue": 153,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-10T18:06:00+08:00",
+  "stage": "merge",
+  "updatedAt": "2026-11-10T18:25:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -26,13 +26,15 @@
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "pending-decision",
     "axes": 2,
     "axis1": "done",
     "axis2": "done",
-    "verdict": "rework done: spec 2 revisions (user-approved), main merged, README count fix, tag-discipline sentence, anchored assertions, honest .flow"
+    "verdict": "rework done (user-approved spec revisions + full rework), CI green"
   },
   "merge": {
-    "authorized": false
+    "authorized": true,
+    "via": "ask_user_question card「合并」(#144 提问通道)",
+    "at": "2026-11-10T18:25:00+08:00"
   }
 }

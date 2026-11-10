@@ -45,6 +45,7 @@ const SHIPPED = new Map([
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover'],
   ['dsh-task-dispatcher', 'packages/dsh-task-dispatcher'],
   ['ecc-agent-presets', 'packages/ecc-agent-presets'],
+  ['dsh-skill-surface', 'packages/dsh-skill-surface'],
 ])
 
 function parseArgs(argv) {

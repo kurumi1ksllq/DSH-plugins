@@ -27,6 +27,8 @@ importers:
 
   packages/dsh-inventory: {}
 
+  packages/dsh-skill-surface: {}
+
   packages/dsh-task-dispatcher: {}
 
   packages/dsh-websearch-failover: {}

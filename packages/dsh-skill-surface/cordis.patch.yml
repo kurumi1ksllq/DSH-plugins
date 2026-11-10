@@ -1,0 +1,27 @@
+# Bundle patch for dsh-skill-surface.
+#
+# Why this bundle exists: the dsh-web-app layer disables the host skill-filesystem
+# and tool-skill rows (dsh-web-app/cordis.patch.yml) so that AGENT PRESETS own local
+# skill discovery. Every preset that does not mount those rows therefore has no
+# skill catalog and no skill loader at all. In this deployment that is 6 of 9
+# presets, including all five that the delegation routing table names.
+#
+# Two of the three rows below re-mount the OFFICIAL packages under NEW row ids,
+# which lands their providers in the GLOBAL layer. Reads merge the global layer
+# with the viewer's scope chain and the nearer layer wins a duplicate name, so
+# presets that already mount these rows keep their exact behavior, while
+# preset-less-of-skills agents gain a fallback.
+#
+# The third row is this plugin: the `skills: a, b` delegation handoff.
+
+- insert:
+    - id: skill-filesystem-global
+      name: '@deepseek-ai/dsh-skill-filesystem'
+    - id: tool-skill-global
+      name: '@deepseek-ai/dsh-tool-skill'
+      config:
+        # Measured on this deployment: 269 entries render 83,257 chars at the
+        # official default 500, 59,745 at 200. 200 is the operator's choice.
+        catalogDescriptionMaxLength: 200
+    - id: skill-surface
+      name: 'dsh-skill-surface'
