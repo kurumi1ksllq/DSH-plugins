@@ -1,8 +1,8 @@
 {
   "issue": 167,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-10T23:17:03.985+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-10T23:25:49.614+08:00",
   "tickets": [
     {
       "id": 1,
@@ -11,22 +11,22 @@
     },
     {
       "id": 2,
-      "title": "双环境验证（有/无 node_modules）",
+      "title": "双环境验证（有/无依赖）",
       "state": "done"
     },
     {
       "id": 3,
       "title": "PR + CI（同时关闭 #168）",
-      "state": "red"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
-    "status": "none"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {

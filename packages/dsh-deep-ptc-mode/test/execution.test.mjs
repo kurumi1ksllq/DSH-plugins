@@ -11,19 +11,10 @@ import { assertDerivation, check } from '../scripts/check.mjs';
 import { loadOfficialPreset, parseOfficialPreset } from '../lib/upstream.mjs';
 import { skipUnlessModules } from './support/prerequisites.mjs';
 
-// These cases derive from the INSTALLED Harness declaration, so they can only
-// run where js-yaml resolves and that declaration exists.
-function probeOfficial() {
-  const moduleSkip = skipUnlessModules(['js-yaml']);
-  if (moduleSkip !== undefined) return moduleSkip;
-  try {
-    loadOfficialPreset();
-    return undefined;
-  } catch (error) {
-    return String(error?.message ?? error).split('\n')[0];
-  }
-}
-const compositionSkip = probeOfficial();
+// These cases compose REPO FIXTURES (test/fixtures/*.patch.yml); the only
+// prerequisite is the YAML parser. Requiring the installed Harness here would
+// silently skip them in CI, which does not install @deepseek-ai/dsh-web-app.
+const compositionSkip = skipUnlessModules(['js-yaml']);
 
 test('auto selects the host native shell without guessing the existing root provider', () => {
   assert.equal(resolveEnvironment('auto', 'win32'), 'powershell');

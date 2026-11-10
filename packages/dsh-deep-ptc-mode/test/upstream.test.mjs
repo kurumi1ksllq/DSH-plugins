@@ -157,7 +157,7 @@ testOrSkip('platform and environment coverage select the intended executor', () 
   }
 });
 
-testOrSkip('verifies the installed declaration when pointed at it', () => {
+test('verifies the installed declaration when pointed at it', () => {
   // Only when the runtime exposes the declaration; the offline fixture is the default.
   try {
     const { preset } = loadOfficialPreset();
@@ -206,7 +206,7 @@ testOrSkip('rejects a declaration that is not the ptc preset', () => {
   assert.throws(() => parseOfficialPreset(text), /declares no agent preset with id "ptc"/);
 });
 
-testOrSkip('every host package the plugin imports is peer-declared', () => {
+test('every host package the plugin imports is peer-declared', () => {
   const required = requiredPeerPackages();
   assert.ok(required.includes('@deepseek-ai/dsh-web-app'), 'the official declaration package is routed through peers');
   assert.doesNotThrow(() => assertPeerCoverage());

@@ -9,13 +9,24 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 
 /** First specifier that cannot be resolved, or undefined. */
-export function missingModule(specifiers) {
-  for (const specifier of specifiers) {
+/** Resolvable the way the loader will resolve it: ESM first, then CJS. */
+function resolvable(specifier) {
+  try {
+    import.meta.resolve(specifier)
+    return true
+  } catch {
     try {
       require.resolve(specifier)
+      return true
     } catch {
-      return specifier
+      return false
     }
+  }
+}
+
+export function missingModule(specifiers) {
+  for (const specifier of specifiers) {
+    if (!resolvable(specifier)) return specifier
   }
   return undefined
 }
