@@ -1,4 +1,4 @@
-# dsh-auto-delegation
+# dsh-task-dispatcher
 
 向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`),内含两节:
 

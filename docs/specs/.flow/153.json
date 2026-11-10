@@ -1,0 +1,35 @@
+{
+  "issue": 153,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-10T16:45:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "更名+版本 0.2.0",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "文档接线+零残留",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "部署+PR/CI/review",
+      "state": "green"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

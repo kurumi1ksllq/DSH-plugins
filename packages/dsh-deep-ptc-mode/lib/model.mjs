@@ -120,7 +120,7 @@ const WRAP_TARGETS = [
  * Subagent presets the delegation tool may route to by content, exposed as the
  * `agent_preset` argument of the `subagent` tool (spec issue-151). The ids must
  * exist in the live profile and mirror the routing table in
- * dsh-auto-delegation/lib/delegation-text.mjs — update both together.
+ * dsh-task-dispatcher/lib/delegation-text.mjs — update both together.
  */
 export const DELEGATION_PRESET_WHITELIST = [
   'planner',

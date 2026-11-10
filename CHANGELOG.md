@@ -10,6 +10,10 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.13.0 — 更名接线:镜像契约测试路径与注释指向 dsh-task-dispatcher(#153)
+
+- 随 dsh-auto-delegation → dsh-task-dispatcher 更名,delegation-whitelist 测试与 model.mjs 注释里的跨包路径同步;无行为变化。
+
 ### ecc-agent-presets 0.1.0 — 收纳 133 个 ECC agent preset,默认不进 UI 名册(#151)
 
 - 新 bundle:`cordis.patch.yml` 单个 `- insert:` 块原样迁入主 profile patch 的 133 个非常用 `preset-*` 行(YAML round-trip);不装/停用即从 4 个 UI 显示面消失,启用即整体回归。白名单 5 件套(planner/architect/code-reviewer/security-reviewer/build-error-resolver)保留在主 profile。
@@ -18,9 +22,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 - `DELEGATION_PRESET_WHITELIST`(lib/model.mjs,单一源):deriveDeepPtc 对 spawn 侧 delegation 行确定性附加 `allowedAgentPresets`(planner/architect/code-reviewer/security-reviewer/build-error-resolver),暴露 `subagent` 工具的 `agent_preset` 参数;check 门与 report 同步识别该扩展,官方快照保持原样。
 
+### dsh-task-dispatcher 0.2.0 — 由 dsh-auto-delegation 更名(#153)
+
+- **更名**:`dsh-auto-delegation` 0.1.0(已于 #152 发布并打 tag)更名为 `dsh-task-dispatcher`——"任务调度器"直指行为(AI 拆解任务、按内容路由);行 id `auto-delegation` → `task-dispatcher`,部署侧 remove→install。注入段名(`dsh:auto-delegation-discipline`)、文本、order、路由表、白名单零变化;历史条目见 `dsh-auto-delegation 0.1.0`(下)。
+
 ### dsh-auto-delegation 0.1.0 — 委派纪律 + 子 agent 路由表 runtime-context 注入(#151)
 
-- 新 bundle:向会话所有成员(主 agent 与每个 teammate,经 composeFrom 继承组合同时生效)注入**一个** `systemPrompt.context`(`dsh:auto-delegation-discipline`),内含两节:①委派纪律(开工三问 + 分档表 + 队友向下委派授权);②声明式路由表(可委派 preset id → 职责),模型按子任务内容选 `agent_preset`。
+- (历史,已更名 dsh-task-dispatcher)新 bundle:向会话所有成员(主 agent 与每个 teammate,经 composeFrom 继承组合同时生效)注入**一个** `systemPrompt.context`(`dsh:auto-delegation-discipline`),内含两节:①委派纪律(开工三问 + 分档表 + 队友向下委派授权);②声明式路由表(可委派 preset id → 职责),模型按子任务内容选 `agent_preset`。
 - 路由表 preset id 与 `dsh-deep-ptc-mode` lib/model.mjs 的 `DELEGATION_PRESET_WHITELIST`(derive 期打点)preset id 双向镜像(契约测试守护);locale 暂为固定 zh(操作者工作语言,en 字典预留)。
 
 ### dsh-deep-ptc-mode 1.11.2 — 纪律文案单源化:zh 派生自 COPY 字典 + 谱系落盘(#144,PR #146)

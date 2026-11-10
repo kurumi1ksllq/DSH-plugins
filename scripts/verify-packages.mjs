@@ -44,7 +44,7 @@ const EXPECTED = [
   ['dsh-deep-ptc-mode', 'dsh-deep-ptc-mode'],
   ['dev-flow', 'dev-flow'],
   ['dsh-websearch-failover', 'dsh-websearch-failover'],
-  ['dsh-auto-delegation', 'dsh-auto-delegation'],
+  ['dsh-task-dispatcher', 'dsh-task-dispatcher'],
   ['ecc-agent-presets', 'ecc-agent-presets'],
 ]
 

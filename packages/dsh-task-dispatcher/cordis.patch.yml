@@ -1,4 +1,4 @@
-# Bundle patch for dsh-auto-delegation.
+# Bundle patch for dsh-task-dispatcher.
 #
 # One host row. The plugin injects ONE runtime-context segment through the
 # systemPrompt service; its text carries two sections:
@@ -14,5 +14,5 @@
 # preset moves between the profile and the ecc-agent-presets bundle, update
 # both together (spec issue-151 §验收 C/D).
 - insert:
-    - id: auto-delegation
-      name: 'dsh-auto-delegation'
+    - id: task-dispatcher
+      name: 'dsh-task-dispatcher'

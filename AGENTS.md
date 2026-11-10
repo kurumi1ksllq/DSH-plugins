@@ -78,7 +78,7 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `packages/dsh-credential-vault` | 凭据保险库（AES-256-GCM 存储 + `credential` 工具 + 管理 API） |
 | `packages/dsh-websearch-failover` | `web_search` 有序多提供方失败转移 |
 | `packages/dsh-deep-ptc-mode` | 深度 PTC 会话模式 + 失速治理双引擎（含 Git Bash 替换） |
-| `packages/dsh-auto-delegation` | 委派纪律 + 子 agent 路由表 runtime-context 注入(Lead/teammate 同效) |
+| `packages/dsh-task-dispatcher` | 任务调度器:委派纪律 + 子 agent 路由表 runtime-context 注入(Lead/teammate 同效) |
 | `packages/ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle(默认不进 UI 名册) |
 | `docs/specs/` | 每个 issue 的 spec（停点2 产物） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
