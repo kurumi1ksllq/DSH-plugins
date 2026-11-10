@@ -26,12 +26,12 @@
 ## 边界
 
 - 不改注入文本内容、CONTEXT_NAME、order、路由表、白名单(零行为变化)
-- 不动 ecc-agent-presets、dsh-deep-ptc-mode
+- 不动 ecc-agent-presets;dsh-deep-ptc-mode **不改其行为,仅允许镜像契约接线**(delegation-whitelist 测试与 model.mjs 注释里的跨包路径随更名同步)+ 版本号 + CHANGELOG 条目 —— 2026-11-10 双轴 review 后经用户批准修订(原「不动 dsh-deep-ptc-mode」漏列了目录更名导致的必要路径接线,见 review 轴1 问题1)
 - 旧 tag `dsh-auto-delegation@0.1.0` 保留(指向 merge 前的 0.1.0 历史,git tag 不改写);新 tag merge 后打 `dsh-task-dispatcher@0.2.0`
 
 ## 验收
 
-1. 仓库内不再存在 `dsh-auto-delegation` 引用(grep 全仓零命中,CHANGELOG 历史条目除外——历史条目是记录,不算引用)
+1. **活代码/活文档零残留**(2026-11-10 用户批准收窄口径):README/AGENTS/scripts/lockfile/包名/目录/行 id 层面 grep 零命中;豁免:CHANGELOG 历史与溯源条目、注入段名 `dsh:auto-delegation-discipline` 及其测试字面量(行为面,保留是正确的)、历史 spec(#151)与本 spec 自身。
 2. `pnpm test` 全绿;`pnpm verify` 7 包全绿(check-bundle-versions 接受 0.2.0)
 3. 部署后:profile 组合含 `task-dispatcher` 行、不含 `auto-delegation`;runtime-context 注入段实测仍到达(本会话或新子会话)
 4. dev-flow:issue/分支/TDD/PR/CI/双轴 review/merge 口令;tag 于 merge 后打

@@ -1,8 +1,8 @@
 {
   "issue": 153,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-10T16:45:00+08:00",
+  "stage": "pr",
+  "updatedAt": "2026-11-10T18:06:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -21,13 +21,16 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
-    "axes": 2
+    "state": "running",
+    "axes": 2,
+    "axis1": "done",
+    "axis2": "done",
+    "verdict": "rework done: spec 2 revisions (user-approved), main merged, README count fix, tag-discipline sentence, anchored assertions, honest .flow"
   },
   "merge": {
     "authorized": false

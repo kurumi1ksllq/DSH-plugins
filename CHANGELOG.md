@@ -32,7 +32,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ### dsh-task-dispatcher 0.2.0 — 由 dsh-auto-delegation 更名(#153)
 
-- **更名**:`dsh-auto-delegation` 0.1.0(已于 #152 发布并打 tag)更名为 `dsh-task-dispatcher`——"任务调度器"直指行为(AI 拆解任务、按内容路由);行 id `auto-delegation` → `task-dispatcher`,部署侧 remove→install。注入段名(`dsh:auto-delegation-discipline`)、文本、order、路由表、白名单零变化;历史条目见 `dsh-auto-delegation 0.1.0`(下)。
+- **更名**:`dsh-auto-delegation` 0.1.0(已于 #152 发布并打 tag)更名为 `dsh-task-dispatcher`——"任务调度器"直指行为(AI 拆解任务、按内容路由);行 id `auto-delegation` → `task-dispatcher`,部署侧 remove→install。注入段名(`dsh:auto-delegation-discipline`)、文本、order、路由表、白名单零变化;历史条目见 `dsh-auto-delegation 0.1.0`(下)。tag 纪律:旧 tag `dsh-auto-delegation@0.1.0` 保留不改写,本包 merge 后打 `dsh-task-dispatcher@0.2.0`。
 
 ### dsh-auto-delegation 0.1.0 — 委派纪律 + 子 agent 路由表 runtime-context 注入(#151)
 

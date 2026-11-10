@@ -25,7 +25,7 @@ cd ~/DSH-plugins && pnpm install
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
 
-本仓库共 5 个 bundle,下面全部必装。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
+本仓库共 7 个 bundle,下面全部必装。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
 
 ```json
 "dependencies": {

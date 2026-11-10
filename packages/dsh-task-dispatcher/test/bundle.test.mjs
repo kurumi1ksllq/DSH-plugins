@@ -26,8 +26,8 @@ test('bundle manifest is a valid link-able bundle', async () => {
 test('patch row points at this package with a unique id', async () => {
   const patch = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
   assert.match(patch, /- insert:/)
-  assert.match(patch, /- id: task-dispatcher/)
-  assert.match(patch, /name: '?dsh-task-dispatcher'?/)
+  assert.match(patch, /^- insert:\n    - id: task-dispatcher$/m)
+  assert.match(patch, /^      name: '?dsh-task-dispatcher'?$/m)
 })
 
 test('index exports a name and apply function, and no Config (patch row carries none)', async () => {

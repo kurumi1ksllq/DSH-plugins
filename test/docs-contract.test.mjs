@@ -183,6 +183,21 @@ test('the README names every bundle and gives its path, whatever the format', ()
   assert.deepEqual(missing, [], `README does not document every bundle: ${missing.join('; ')}`)
 })
 
+test('the README link-section count matches the packages actually present', () => {
+  // The install snippet's "共 N 个 bundle" sentence drifted to "five" while the
+  // workspace grew (issue-153 axis-2 finding); it sits next to the link list it
+  // introduces and must agree with packages/. Both numeral styles accepted.
+  const arabic = README.match(/本仓库共 (\d+) 个 bundle/)
+  const chinese = README.match(/本仓库共 ([一二三四五六七八九十]+) 个 bundle/)
+  const claimed = arabic ? Number(arabic[1]) : chinese ? CN_DIGITS.indexOf(chinese[1]) + 1 : null
+  assert.ok(claimed, 'README must state how many bundles the install snippet covers')
+  assert.equal(
+    claimed,
+    packageDirs().length,
+    `README says ${claimed} bundles in the link section, expected ${packageDirs().length}`,
+  )
+})
+
 test('the README bundles list and its link list agree', () => {
   // Listing a package in `dependencies` installs the files; only the bundles row
   // loads it. Both directions are checked, because the failure this issue is
