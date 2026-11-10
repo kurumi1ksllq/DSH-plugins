@@ -2,8 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import React from 'react';
-import Renderer, { act } from 'react-test-renderer';
+import { skipUnlessModules } from './support/prerequisites.mjs';
+
+const uiSkip = skipUnlessModules(['react', 'react-test-renderer']);
+const testOrSkip = (title, fn) => (uiSkip === undefined ? test(title, fn) : test(title, { skip: uiSkip }, () => {}));
+
+const React = uiSkip === undefined ? (await import('react')).default : undefined;
+const { default: Renderer, act } = uiSkip === undefined ? await import('react-test-renderer') : {};
 
 function fixture() {
   let plugin, component, descriptor;
@@ -25,7 +30,7 @@ function fixture() {
   plugin.apply(ctx);
   return { component, descriptor, calls, setOutcome: value => outcome = value };
 }
-test('reload button is in the composer footer and resets only the current conversation through the host command', async () => {
+testOrSkip('reload button is in the composer footer and resets only the current conversation through the host command', async () => {
   const f = fixture();
   assert.equal(f.descriptor.name, 'conversation.composer.dock');
   const injected = f.descriptor.inject('session-A');
@@ -41,7 +46,7 @@ test('reload button is in the composer footer and resets only the current conver
   assert.match(JSON.stringify(view.toJSON()), /toolResetDone/);
   await act(async () => view.unmount());
 });
-test('server denial is displayed as failure; the UI never claims a successful reset', async () => {
+testOrSkip('server denial is displayed as failure; the UI never claims a successful reset', async () => {
   const f = fixture();
   f.setOutcome({ ok: false, error: { code: 'access-denied', message: 'access denied' } });
   let view;
@@ -51,7 +56,7 @@ test('server denial is displayed as failure; the UI never claims a successful re
   assert.doesNotMatch(JSON.stringify(view.toJSON()), /toolResetDone/);
   await act(async () => view.unmount());
 });
-test('other modes do not show Deep PTC tool controls', async () => {
+testOrSkip('other modes do not show Deep PTC tool controls', async () => {
   const f = fixture(); let view;
   await act(async () => { view = Renderer.create(React.createElement(f.component, { ...f.descriptor.inject('s'), useProjection: () => 'standard' })); });
   assert.equal(view.toJSON(), null);

@@ -1,0 +1,30 @@
+{
+  "issue": 168,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-10T23:25:49.614+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "verify-clean 只在缺 node_modules 时跳过那条断言",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "随 #167 同一 PR 交付",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

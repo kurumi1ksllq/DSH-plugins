@@ -10,6 +10,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.13.1 — 缺依赖时按前置跳过(#167/#168)
+
+- 新增 `test/support/prerequisites.mjs`：ESM 优先、CJS 兜底探测可选前置，skip 时给出可操作理由。
+- 新增 `test/prerequisites.test.mjs`：探针双向自检——能解析的必须报「有」，解析不到必须报「缺」。恒返回理由的探针会静默跳过所有套件而门禁仍绿，这两条断言就是防它。
+- `settings-ui` / `tool-controls-ui`：缺 `react`、`react-test-renderer` 时以一条 skip 呈现，而不是加载期崩溃。
+- `upstream`：17 条里 15 条需要 YAML 解析器，缺 `js-yaml` 时跳过；另外 2 条（peer 声明检查、指向性验证）照常运行。
+- `execution`：3 条 composition 用例读仓库内 fixture，前置收窄为 `js-yaml`，不依赖「已安装宿主声明」（那是 peer，CI 不装）。
+- 根 `test/verify-clean.test.mjs`：只把 `node_modules` 那一条断言改成条件（附 diagnostic），泄漏检查照常运行。
+- 效果：无依赖 worktree 里 deep-ptc 177 测 / 153 过 / 0 红 / 24 跳过；依赖齐备时 177/177 全过、零跳过；仓库契约两种环境都是 87/87。
 ### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
 
 - **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。
