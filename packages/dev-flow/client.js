@@ -109,7 +109,7 @@ window.__ModuleLoader__.load({
       'empty_no-review-pending': '没有待裁决的 review',
       'empty_no-pr-awaiting-merge': '没有 PR 等口令',
       'empty_nothing-merged-yet': '还没有合并记录',
-      boardSkillHint: '要开始或推进任务,直接对 agent 说需求 —— dev-flow skill 会接手并驱动这条流程。',
+      boardSkillHint: '要开始或推进任务,直接对 agent 说需求 —— dev-flow 会接手并驱动这条流程。',
       grade_trivial: 'trivial',
       grade_standard: 'standard',
       stale: '状态过期',
@@ -212,7 +212,7 @@ window.__ModuleLoader__.load({
       'empty_no-review-pending': 'No review awaiting a ruling',
       'empty_no-pr-awaiting-merge': 'No PR awaiting the merge word',
       'empty_nothing-merged-yet': 'Nothing merged yet',
-      boardSkillHint: 'To start or advance a task, just tell the agent — the dev-flow skill drives this flow.',
+      boardSkillHint: 'To start or advance a task, just tell the agent — dev-flow drives this flow.',
       grade_trivial: 'trivial',
       grade_standard: 'standard',
       stale: 'Stale state',
@@ -926,7 +926,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         h(NeedsUser, { t, items: board.needsUser ?? [] }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
         h('div', { style: S.board }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
-        // T4.df 面板↔skill 互相指引: the board shows WHERE the work is; this
+        // T4.df 面板↔流程互相指引: the board shows WHERE the work is; this
         // line tells the user how to START work (the skill), closing the loop.
         h('div', { style: S.hint }, t('boardSkillHint')),
       )

@@ -1,5 +1,5 @@
 // T4.df (#125): review pending-decision surfaces in "needs you"; dead locale
-// keys are gone; SKILL.md narrows triggers and cross-references the panel.
+// keys are gone; FLOW.md narrows triggers and cross-references the panel.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -57,11 +57,11 @@ test('dead locale key "stashes" is gone from both dicts', async () => {
   assert.doesNotMatch(source, /^\s+'?stashes'?:\s/m)
 })
 
-test('SKILL.md narrows read-only triggers and cross-references the panel', () => {
-  const skill = readFileSync(join(pkg, 'SKILL.md'), 'utf8')
-  assert.match(skill, /纯只读查询/)
-  assert.match(skill, /不进流程/)
-  assert.match(skill, /Git 面板/)
+test('FLOW.md narrows read-only triggers and cross-references the panel', () => {
+  const flow = readFileSync(join(pkg, 'FLOW.md'), 'utf8')
+  assert.match(flow, /纯只读查询/)
+  assert.match(flow, /不进流程/)
+  assert.match(flow, /Git 面板/)
 })
 
 test('client.js carries the panel→skill hint in BOTH dicts', () => {
