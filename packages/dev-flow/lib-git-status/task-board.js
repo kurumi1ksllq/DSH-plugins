@@ -303,5 +303,9 @@ function buildNeedsUser({ cards }) {
   // A repository without CI, a red CI at the last round and a review report are
   // all visible on the card's evidence line — none of them is a question (#157).
 
-  return [...blockers, ...infos].slice(0, NEEDS_USER_LIMIT)
+  // The constant is the vocabulary, not a comment: anything outside it is a
+  // mistake in this function, and silently rendering it would defeat the point.
+  return [...blockers, ...infos]
+    .filter((entry) => NEEDS_USER_KINDS.includes(entry.kind))
+    .slice(0, NEEDS_USER_LIMIT)
 }

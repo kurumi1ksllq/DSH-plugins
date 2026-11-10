@@ -198,6 +198,7 @@ test('the board asks the user about exactly two things: intent and merge', () =>
   const observed = new Set([...intake.needsUser, ...gate.needsUser].map((n) => n.kind))
   assert.deepEqual([...observed].sort(), ['intake-confirm', 'merge-gate'])
 })
+
 test('buildTaskBoard: missing CI is stated by the cards, not asked of the user', () => {
   const board = buildTaskBoard(snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
@@ -209,6 +210,7 @@ test('buildTaskBoard: missing CI is stated by the cards, not asked of the user',
   const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.prNumber === 5)
   assert.equal(card?.checks, 'none', 'the state still has to be visible on the card')
 })
+
 test('buildTaskBoard: CI red at the last round stays with the agent', () => {
   const flowStates = new Map([[26, {
     issue: 26, grade: 'standard', stage: 'ci', tickets: [],
@@ -223,8 +225,13 @@ test('buildTaskBoard: CI red at the last round stays with the agent', () => {
   }))
   assert.equal(board.needsUser.filter((n) => n.kind === 'ci-red-escalated').length, 0)
   const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.issue === 26)
-  assert.equal(card.action, null, 'a red CI is the agent\'s problem to report, not a card action')
+  assert.equal(card.action, null, 'a red CI is the agent' + "'" + 's problem to report, not a card action')
+  // "still visible" has to mean the facts the card carries, not just the absence
+  // of an action: the renderer draws these two fields verbatim.
+  assert.equal(card.checks, 'red')
+  assert.deepEqual(card.ci, { run: 2, max: 2, status: 'red' })
 })
+
 test('buildTaskBoard: CI red at round 1 is NOT escalated (still self-repairing)', () => {
   const flowStates = new Map([[26, {
     issue: 26, grade: 'standard', stage: 'ci', tickets: [],

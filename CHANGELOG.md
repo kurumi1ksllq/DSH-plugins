@@ -15,6 +15,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **NEEDS_USER_KINDS 只剩两项**:`intake-confirm`、`merge-gate`。删除 `no-ci`、`ci-red-escalated`、`review-pending-decision` 三个条目——它们自 #154 起由 agent 自决,留在这里只会训练用户忽略这条横幅。CI 三态、CI 自修轮次、review 状态仍显示在卡片证据行上。
 - 连带清理:`client.js` 三个不再出现的 `need_*` 文案(zh/en 各一份)、`task-board.js` 已无消费者的 `CI_MAX_ROUNDS` 导出。
 - 测试:`task-board`/`t4-df`/`client-board` 改为断言「词表封闭为两项」,并保留「状态仍可见」的卡片断言。
+
 ### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
 
 - **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。

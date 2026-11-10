@@ -30,26 +30,22 @@ test('a review at pending-decision no longer asks the user (#157)', async () => 
   assert.equal(card?.review?.state, 'pending-decision', 'the state itself must stay visible')
 })
 
-test('a review that is merely running does NOT fire the pending-decision item', async () => {
+test('the worst case — red CI at the last round AND a review report — still asks nothing', async () => {
   const { buildTaskBoard } = await import('../lib-git-status/task-board.js')
-  const snapshot = {
+  const board = buildTaskBoard({
     git: { branches: [{ name: 'issue-9-x', ahead: 1 }] },
     issues: [{ number: 9, state: 'open' }],
     prs: [{ number: 30, headRefName: 'issue-9-x' }],
     mergedPrs: [],
-    checks: { 'issue-9-x': 'green' },
+    checks: { 30: 'red' },
     flowStates: {
-      9: { issue: 9, grade: 'standard', stage: 'review', review: { state: 'running' }, tickets: [] },
+      9: { issue: 9, grade: 'standard', stage: 'review', review: { state: 'pending-decision', axes: 2 }, tickets: [], ci: { run: 2, max: 2, status: 'red' } },
     },
-  }
-  const board = buildTaskBoard(snapshot)
-  const kinds = (board.needsUser ?? []).map((n) => n.kind)
-  assert.equal(kinds.includes('review-pending-decision'), false)
-})
-
-test('NEEDS_USER_KINDS is the closed two-item vocabulary (#157)', async () => {
-  const { NEEDS_USER_KINDS } = await import('../lib-git-status/task-board.js')
-  assert.deepEqual(NEEDS_USER_KINDS, ['intake-confirm', 'merge-gate'])
+  })
+  assert.deepEqual(board.needsUser, [], 'the agent owns both the CI repair and the review ruling')
+  const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.issue === 9)
+  assert.equal(card?.checks, 'red', 'the red CI still has to be readable on the card')
+  assert.equal(card?.review?.state, 'pending-decision', 'and so does the review state')
 })
 
 test('dead locale key "stashes" is gone from both dicts', async () => {

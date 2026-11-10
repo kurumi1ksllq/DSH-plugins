@@ -107,6 +107,8 @@ window.__ModuleLoader__.load({
       'empty_no-branch-awaiting-push': '没有待推送的分支',
       'empty_no-pr-in-ci': '没有 PR 在跑 CI',
       'empty_no-review-pending': '没有 review 报告待处理',
+      review_running: 'review 进行中',
+      'review_pending-decision': 'review 待裁决',
       'empty_no-pr-awaiting-merge': '没有 PR 等口令',
       'empty_nothing-merged-yet': '还没有合并记录',
       boardFlowHint: '要开始或推进任务,直接对 agent 说需求 —— dev-flow 会接手并驱动这条流程。',
@@ -207,6 +209,8 @@ window.__ModuleLoader__.load({
       'empty_no-branch-awaiting-push': 'No branch waiting to push',
       'empty_no-pr-in-ci': 'No PR running CI',
       'empty_no-review-pending': 'No review report waiting',
+      review_running: 'review in progress',
+      'review_pending-decision': 'review pending',
       'empty_no-pr-awaiting-merge': 'No PR awaiting the merge word',
       'empty_nothing-merged-yet': 'Nothing merged yet',
       boardFlowHint: 'To start or advance a task, just tell the agent — dev-flow drives this flow.',
@@ -845,6 +849,10 @@ function DiffView({ t, sessionId, path, statusSha }) {
               : t('checks_unknown')
       if (card.prNumber !== null) meta.push(checksText)
       if (card.ci && Number.isInteger(card.ci.run)) meta.push(`CI ${card.ci.run}/${card.ci.max ?? 2}`)
+      // #157 removed the review item from the strip, so the evidence line is the
+      // only place a review in flight can show up — without this it vanished.
+      const reviewState = card.review?.state
+      if (reviewState === 'running' || reviewState === 'pending-decision') meta.push(t(`review_${reviewState}`))
       const doneTickets = card.tickets.filter((x) => x.state === 'done').length
       if (card.tickets.length > 0) meta.push(t('ticketsDone', doneTickets, card.tickets.length))
 
