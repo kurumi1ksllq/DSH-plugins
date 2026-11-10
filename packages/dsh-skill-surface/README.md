@@ -40,3 +40,7 @@ dsh --profile web --dump-config | grep -c 'id: skill-filesystem'
 
 注意:profile 的 `cordis.patch.yml` 里只有 5 个 preset 行(委派路由表点名的那 5 个),完整 9 个要
 看**组合后的树**,不要只看 profile 文件。
+
+## 上游引用
+
+本文与源码注释里的 `dsh-tool-skill/lib/index.js:935-941` 指**上游 0.2.2-rc.1** 的"被遮蔽即发布空目录"分支。上游升级后行号会漂；`test/bundle.test.mjs` 守的是本包 patch 的形态,不钉上游行号,核对时以函数行为为准。
