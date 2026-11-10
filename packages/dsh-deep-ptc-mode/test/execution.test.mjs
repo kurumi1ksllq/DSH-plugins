@@ -9,6 +9,21 @@ import {
 import { presetLifecycle } from '../lib/lifecycle.mjs';
 import { assertDerivation, check } from '../scripts/check.mjs';
 import { loadOfficialPreset, parseOfficialPreset } from '../lib/upstream.mjs';
+import { skipUnlessModules } from './support/prerequisites.mjs';
+
+// These cases derive from the INSTALLED Harness declaration, so they can only
+// run where js-yaml resolves and that declaration exists.
+function probeOfficial() {
+  const moduleSkip = skipUnlessModules(['js-yaml']);
+  if (moduleSkip !== undefined) return moduleSkip;
+  try {
+    loadOfficialPreset();
+    return undefined;
+  } catch (error) {
+    return String(error?.message ?? error).split('\n')[0];
+  }
+}
+const compositionSkip = probeOfficial();
 
 test('auto selects the host native shell without guessing the existing root provider', () => {
   assert.equal(resolveEnvironment('auto', 'win32'), 'powershell');
@@ -42,7 +57,7 @@ test('macOS Zsh uses an explicit native binary and preserves source literally', 
   assert.deepEqual(shellArgv('zsh', spec, '', 'linux'), ['zsh', '-lc', spec.command]);
 });
 
-test('environment selection isolates executors and leaves every other official tool intact', () => {
+test('environment selection isolates executors and leaves every other official tool intact', { skip: compositionSkip }, () => {
   const before = structuredClone(template);
   const upstream = loadOfficialPreset({ presetPath: new URL('fixtures/ptc-0.2.2-rc.1.patch.yml', import.meta.url) }).preset;
   for (const platform of ['win32', 'darwin', 'linux']) for (const environment of availableEnvironments(platform)) {
@@ -57,7 +72,7 @@ test('environment selection isolates executors and leaves every other official t
   assert.deepEqual(template, before);
 });
 
-test('official composition changes are inherited instead of tripping a drift gate', () => {
+test('official composition changes are inherited instead of tripping a drift gate', { skip: compositionSkip }, () => {
   const upstream = parseOfficialPreset(readFileSync(new URL('fixtures/ptc-0.2.2-rc.1.patch.yml', import.meta.url), 'utf8'));
   const { preset, report } = deriveDeepPtc(upstream, { environment: 'wsl', wslDistribution: '' }, 'win32');
   assertDerivation(upstream, preset, { environment: 'wsl' });
@@ -114,7 +129,7 @@ test('teardown during asynchronous registration releases the late definition exa
   assert.equal(releases, 1);
 });
 
-test('package and verified fixture checks pass', () => {
+test('package and verified fixture checks pass', { skip: compositionSkip }, () => {
   // The version travels with package.json; pinning it here made every release
   // a manual test edit. check() validates the fixture set for the CURRENT
   // package, so equality with the manifest is the real invariant.

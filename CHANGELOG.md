@@ -10,6 +10,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.13.1 — 缺 node_modules 时按前置跳过(#167/#168)
+
+- 新增 `test/support/prerequisites.mjs`：用 `createRequire` 探测可选前置，缺失时给出一句可操作的 skip 理由。
+- `settings-ui` / `tool-controls-ui`：缺 `react`、`react-test-renderer` 时整文件 skip，而不是加载期崩掉。
+- `upstream`（17 条里 15 条需 YAML 解析器）：缺 `js-yaml` 时 skip。
+- `execution`：仅 3 条依赖官方 preset 的 composition 用例按前置 skip。
+- 根 `test/verify-clean.test.mjs`：宿主 checkout 本就没有 `node_modules` 时，该断言改为 skip 并说明原因。
+- 效果：无依赖的 worktree 里 `pnpm test` 不再出现 21 条假红（149 过 / 0 红 / 26 跳过）；有依赖的环境与 CI 仍跑全量 175 条、零跳过。
+
 ### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
 
 - **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。

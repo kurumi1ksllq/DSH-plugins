@@ -6,20 +6,26 @@ import snapshot from '../lib/preset.json' with { type: 'json' };
 import { deriveDeepPtc, personaFrom, PRESET_META, walkRows } from '../lib/model.mjs';
 import { loadOfficialPreset, OFFICIAL_PRESET_SPECIFIER, parseOfficialExecutors, parseOfficialPreset, PRESET_PATH_ENV } from '../lib/upstream.mjs';
 import { assertDerivation, assertPeerCoverage, requiredPeerPackages } from '../scripts/check.mjs';
+import { skipUnlessModules } from './support/prerequisites.mjs';
+
+// Every declaration-parsing case needs the YAML parser the Harness ships; in a
+// bare checkout it does not resolve, so the suite skips instead of failing.
+const yamlSkip = skipUnlessModules(['js-yaml']);
+const testOrSkip = (title, fn) => (yamlSkip === undefined ? test(title, fn) : test(title, { skip: yamlSkip }, () => {}));
 
 const fixtureUrl = name => new URL(`fixtures/${name}`, import.meta.url);
 const current = () => parseOfficialPreset(readFileSync(fixtureUrl('ptc-0.2.2-rc.1.patch.yml'), 'utf8'));
 const older = () => parseOfficialPreset(readFileSync(fixtureUrl('ptc-0.2.1-rc.3.patch.yml'), 'utf8'));
 const derive = (upstream, overrides = {}) => deriveDeepPtc(upstream, { environment: 'wsl', wslDistribution: '', ...overrides }, 'win32');
 
-test('loads the shipped declaration from a file and reports its source', () => {
+testOrSkip('loads the shipped declaration from a file and reports its source', () => {
   const loaded = loadOfficialPreset({ presetPath: fileURLToPath(fixtureUrl('ptc-0.2.2-rc.1.patch.yml')) });
   assert.equal(loaded.preset.id, 'ptc');
   assert.ok(Array.isArray(loaded.preset.plugins) && loaded.preset.plugins.length > 10);
   assert.match(loaded.source, /ptc-0\.2\.2-rc\.1\.patch\.yml$/u);
 });
 
-test('honours the diagnostic preset-path override', () => {
+testOrSkip('honours the diagnostic preset-path override', () => {
   const before = process.env[PRESET_PATH_ENV];
   process.env[PRESET_PATH_ENV] = fileURLToPath(fixtureUrl('ptc-0.2.1-rc.3.patch.yml'));
   try {
@@ -32,7 +38,7 @@ test('honours the diagnostic preset-path override', () => {
   }
 });
 
-test('finds the declaration in any patch layer and preserves loader expressions', () => {
+testOrSkip('finds the declaration in any patch layer and preserves loader expressions', () => {
   const text = [
     '- insert:',
     '    - id: unrelated',
@@ -52,7 +58,7 @@ test('finds the declaration in any patch layer and preserves loader expressions'
   assert.deepEqual(parsed.plugins[0].disabled, { __jsExpr: 'process.platform === "win32"' });
 });
 
-test('inherits unknown future rows untouched', () => {
+testOrSkip('inherits unknown future rows untouched', () => {
   const upstream = structuredClone(current());
   upstream.plugins.push({ id: 'tool-future', name: '@deepseek-ai/dsh-tool-future', config: { mode: 'next' } });
   const { preset } = derive(upstream);
@@ -60,7 +66,7 @@ test('inherits unknown future rows untouched', () => {
   assertDerivation(upstream, preset);
 });
 
-test('survives official row reordering', () => {
+testOrSkip('survives official row reordering', () => {
   const upstream = structuredClone(current());
   const persona = upstream.plugins.shift();
   upstream.plugins.push(persona);
@@ -70,7 +76,7 @@ test('survives official row reordering', () => {
   assertDerivation(upstream, preset);
 });
 
-test('tolerates official rows the plugin wraps disappearing', () => {
+testOrSkip('tolerates official rows the plugin wraps disappearing', () => {
   const upstream = structuredClone(current());
   upstream.plugins = upstream.plugins.filter(row => !['tool-jobs', 'tool-ask-user'].includes(row.id));
   const { preset, report } = derive(upstream);
@@ -81,7 +87,7 @@ test('tolerates official rows the plugin wraps disappearing', () => {
   assertDerivation(upstream, preset);
 });
 
-test('keeps the official shell rows when the chosen environment cannot be mapped onto them', () => {
+testOrSkip('keeps the official shell rows when the chosen environment cannot be mapped onto them', () => {
   const upstream = structuredClone(current());
   upstream.plugins = upstream.plugins.filter(row => !['tool-bash', 'tool-pwsh'].includes(row.id));
   const { preset, report } = derive(upstream);
@@ -98,7 +104,7 @@ test('keeps the official shell rows when the chosen environment cannot be mapped
   assertDerivation(current(), blocked.preset, { mappedExecutor: false });
 });
 
-test('follows official module renames instead of loading a hard-coded name', () => {
+testOrSkip('follows official module renames instead of loading a hard-coded name', () => {
   const upstream = structuredClone(current());
   upstream.plugins.find(row => row.id === 'tool-jobs').name = '@deepseek-ai/dsh-tool-jobs-next';
   upstream.plugins.find(row => row.id === 'tool-bash').name = '@deepseek-ai/dsh-tool-shell';
@@ -112,7 +118,7 @@ test('follows official module renames instead of loading a hard-coded name', () 
   assertDerivation(upstream, preset, { executors });
 });
 
-test('reads the official executors from the base deployment declaration', () => {
+testOrSkip('reads the official executors from the base deployment declaration', () => {
   const executors = parseOfficialExecutors(readFileSync(fixtureUrl('base-0.2.2-rc.1.patch.yml'), 'utf8'));
   assert.deepEqual(executors, {
     bash: { name: '@deepseek-ai/dsh-bash-sandbox', config: { timeoutMs: 60000 } },
@@ -120,19 +126,19 @@ test('reads the official executors from the base deployment declaration', () => 
   });
 });
 
-test('rejects unusable declarations instead of publishing a broken preset', () => {
+testOrSkip('rejects unusable declarations instead of publishing a broken preset', () => {
   assert.throws(() => deriveDeepPtc({}, {}, 'win32'), /no plugin rows/);
   assert.throws(() => deriveDeepPtc({ plugins: [] }, {}, 'win32'), /no plugin rows/);
   assert.throws(() => deriveDeepPtc({ plugins: [null] }, {}, 'win32'), /malformed/);
   assert.throws(() => parseOfficialPreset('- insert: []'), /declares no agent preset/);
 });
 
-test('the bundled fallback snapshot composes like the pinned declaration', () => {
+testOrSkip('the bundled fallback snapshot composes like the pinned declaration', () => {
   assert.deepEqual(derive(snapshot).preset.plugins, derive(current()).preset.plugins);
   assert.equal(derive(snapshot).preset.id, PRESET_META.id);
 });
 
-test('platform and environment coverage select the intended executor', () => {
+testOrSkip('platform and environment coverage select the intended executor', () => {
   const cases = [
     ['win32', 'wsl', 'dsh-deep-ptc-mode/executor', 'wsl'],
     ['win32', 'powershell', '@deepseek-ai/dsh-pwsh-sandbox', undefined],
@@ -151,7 +157,7 @@ test('platform and environment coverage select the intended executor', () => {
   }
 });
 
-test('verifies the installed declaration when pointed at it', () => {
+testOrSkip('verifies the installed declaration when pointed at it', () => {
   // Only when the runtime exposes the declaration; the offline fixture is the default.
   try {
     const { preset } = loadOfficialPreset();
@@ -162,7 +168,7 @@ test('verifies the installed declaration when pointed at it', () => {
   }
 });
 
-test('replaces official rows nested inside a group and keeps the execution group with them', () => {
+testOrSkip('replaces official rows nested inside a group and keeps the execution group with them', () => {
   const upstream = structuredClone(current());
   const movedIds = ['tool-bash', 'tool-pwsh', 'tool-jobs', 'tool-ask-user'];
   const moved = upstream.plugins.filter(row => movedIds.includes(row.id));
@@ -185,7 +191,7 @@ test('replaces official rows nested inside a group and keeps the execution group
   assertDerivation(upstream, preset);
 });
 
-test('rejects a declaration that is not the ptc preset', () => {
+testOrSkip('rejects a declaration that is not the ptc preset', () => {
   const text = [
     '- insert:',
     '    - id: preset-other',
@@ -200,13 +206,13 @@ test('rejects a declaration that is not the ptc preset', () => {
   assert.throws(() => parseOfficialPreset(text), /declares no agent preset with id "ptc"/);
 });
 
-test('every host package the plugin imports is peer-declared', () => {
+testOrSkip('every host package the plugin imports is peer-declared', () => {
   const required = requiredPeerPackages();
   assert.ok(required.includes('@deepseek-ai/dsh-web-app'), 'the official declaration package is routed through peers');
   assert.doesNotThrow(() => assertPeerCoverage());
 });
 
-test('running-host registry compositions override filesystem assumptions and are reread',async()=>{
+testOrSkip('running-host registry compositions override filesystem assumptions and are reread',async()=>{
  const {loadCurrentPreset}=await import('../lib/upstream.mjs');
  const saved=process.env.DSH_DEEP_PTC_PRESET;delete process.env.DSH_DEEP_PTC_PRESET;
  try {

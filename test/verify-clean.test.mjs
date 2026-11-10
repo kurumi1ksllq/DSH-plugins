@@ -80,7 +80,11 @@ test('a failing gate fails the run', () => {
   assert.match(result.stdout + result.stderr, /fail/i)
 })
 
-test('cleanup: no worktree registration and no temp HOME survive the run', () => {
+test('cleanup: no worktree registration and no temp HOME survive the run', (t) => {
+  if (!existsSync(join(ROOT, 'node_modules'))) {
+    t.skip('host checkout has no node_modules; there is nothing for the run to preserve')
+    return
+  }
   const before = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).stdout
   run('console.log(1)')
   const after = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).stdout
