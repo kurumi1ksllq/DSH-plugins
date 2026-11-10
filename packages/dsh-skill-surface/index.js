@@ -18,6 +18,7 @@
 // model reply, so the handoff path degrades to "inject nothing".
 
 import { handoffNames, injectedSkills } from './lib/handoff.mjs'
+import { matchDomains, nudgeLine, shortlist } from './lib/domains.mjs'
 import { hostApi } from './lib/host-api.mjs'
 import { LOADER, hintText, indexLine } from './lib/catalog-hint.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
@@ -176,6 +177,7 @@ function loaderHandle(scope) {
       if (!api.isModelInvocable(skill)) {
         throw new Error('skill "' + args.name + '" is not available for model invocation')
       }
+      injectedSkills(exec.agent).add(args.name)
       return { text: capped(api.renderSkillContent(skill)) }
     },
     presentCall(args) {
@@ -185,6 +187,68 @@ function loaderHandle(scope) {
   }
 }
 
+/** Per-agent record of the turn we last nudged, so one turn speaks once. */
+const nudgedTurn = new WeakMap()
+let nudgeWarned = false
+
+/** Hard ceiling for one nudge line, enforced in code rather than by convention. */
+const NUDGE_MAX_CHARS = 120
+
+function clampLine(line) {
+  return line.length <= NUDGE_MAX_CHARS ? line : line.slice(0, NUDGE_MAX_CHARS - 1) + '…'
+}
+
+/** The text the user themselves typed in this step batch. */
+function userText(messages) {
+  const parts = []
+  for (const message of messages ?? []) {
+    const source = message?.source
+    // A delegated child gets its task as a relayed agent message, not user
+    // text, and those agents are the ones that most need the nudge.
+    if (source?.kind !== 'user' && source?.form !== 'relay') continue
+    for (const block of message.content ?? []) {
+      if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
+    }
+  }
+  return parts.join(String.fromCharCode(10))
+}
+
+/**
+ * Name the skills this turn probably needs, once.
+ * @param scope - the plugin scope carrying the registry.
+ * @param payload - the pre-step payload.
+ * @returns the message to inject, or undefined.
+ */
+async function nudgeFor(scope, { agent, messages, turn, signal }) {
+  const text = userText(messages)
+  if (text === '') return undefined
+  const matches = matchDomains(text)
+  if (matches.length === 0) return undefined
+  if (nudgedTurn.get(agent) === turn) return undefined
+
+  const api = await hostApi()
+  const cwd = await scope.workingDirectory.ensure(agent, signal)
+  const snapshot = await scope.skills.snapshot({ scope: agent, cwd, signal })
+  const available = new Set(snapshot.skills.filter((skill) => api.isModelInvocable(skill)).map((skill) => skill.name))
+  const already = injectedSkills(agent)
+
+  for (const match of matches) {
+    const names = shortlist(match, text).filter((name) => available.has(name))
+    if (names.length === 0) continue
+    // Another domain may still deserve its own line: skip, do not abort.
+    if (names.some((name) => already.has(name))) continue
+    const loader = hasOfficialLoader(scope, agent) ? '`skill`' : '`skill_get`'
+    const line = clampLine(nudgeLine(match.domain, names, loader))
+    if (line === '') continue
+    nudgedTurn.set(agent, turn)
+    return api.createUserMessage({
+      content: [{ type: 'text', text: line }],
+      // A notice-form context must carry a summary, or renderers drop the row.
+      source: { kind: 'skill-nudge', form: 'notice', summary: match.domain.label },
+    })
+  }
+  return undefined
+}
 export function apply(ctx) {
   if (typeof ctx.inject !== 'function') return
   // 1. protocol + hint (never a catalog message)
@@ -205,6 +269,25 @@ export function apply(ctx) {
   // 2. handoff injection — its own block so a failure elsewhere cannot roll it back
   ctx.inject(['skills', 'workingDirectory'], (scope) => {
     scope.effect(() => scope.on('agent/pre-step', handoffListener(scope)), 'skill-surface handoff injection')
+  })
+  // 4. one-line nudge naming the skills this turn probably needs (all agents)
+  ctx.inject(['skills', 'workingDirectory', 'tools'], (scope) => {
+    scope.effect(() => scope.on('agent/pre-step', async (payload, next) => {
+      const decision = await next()
+      if (decision.kind === 'reject') return decision
+      let message
+      try {
+        message = await nudgeFor(scope, payload)
+      } catch (error) {
+        if (!nudgeWarned) {
+          nudgeWarned = true
+          scope.logger?.warn?.(String(error?.message ?? error))
+        }
+        return decision
+      }
+      if (message === undefined || payload.signal?.aborted) return decision
+      return { ...decision, messages: [...decision.messages, message] }
+    }), 'skill-surface domain nudge')
   })
   // 3. fallback loader, hidden from agents that already have the official one
   ctx.inject(['skills', 'workingDirectory', 'tools'], (scope) => {

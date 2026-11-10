@@ -29,7 +29,7 @@ function harness({ officialSkill = false, skills = stubSkills(), workspaceFails 
   const sections = []
   const contexts = []
   const registered = []
-  let listener
+  const listeners = []
   const scope = {
     effect(factory) { return factory() },
     logger: { warn() {} },
@@ -37,7 +37,7 @@ function harness({ officialSkill = false, skills = stubSkills(), workspaceFails 
       section(row) { sections.push(row); return () => {} },
       context(row) { contexts.push(row); return () => {} },
     },
-    on(_event, fn) { listener = fn; return () => {} },
+    on(event, fn) { if (event === 'agent/pre-step') listeners.push(fn); return () => {} },
     skills,
     workingDirectory: {
       ensure() { return workspaceFails ? Promise.reject(new Error('no workspace')) : Promise.resolve('/work') },
@@ -55,7 +55,8 @@ function harness({ officialSkill = false, skills = stubSkills(), workspaceFails 
     registered,
     get loader() { return entry?.definition },
     get registerOptions() { return entry?.options },
-    get listener() { return listener },
+    get listener() { return listeners[0] },
+    get nudge() { return listeners[1] },
   }
 }
 

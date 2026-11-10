@@ -1,4 +1,4 @@
-// `skills: a, b` handoff parsing and per-agent injection memory.
+// `skills: a, b` handoff parsing and per-agent load memory.
 //
 // Only the FIRST handoff line counts: a task that quotes the format twice must
 // not silently load six bodies. The token is matched at the START of a line
@@ -38,34 +38,57 @@ export function handoffNames(messages) {
   return names
 }
 
-const injectedByAgent = new WeakMap()
+/** Loader tool names whose calls mean "this skill is now in context". */
+const LOADER_TOOLS = new Set(['skill', 'skill_get'])
+
+const memory = new WeakMap()
+
+/** One event's contribution to the loaded-skill set, or undefined. */
+function loadedBy(event) {
+  if (event?.type === 'user/message' && event.data?.source?.kind === 'skill-invocation') {
+    const name = event.data.source.name
+    return typeof name === 'string' ? name : undefined
+  }
+  if (event?.type === 'tool/call' && LOADER_TOOLS.has(event.data?.name)) {
+    try {
+      const args = JSON.parse(event.data.arguments ?? '{}')
+      return typeof args?.name === 'string' && args.name !== '' ? args.name : undefined
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
 
 /**
- * Skill names already present in one agent's conversation.
+ * Skill names already in one agent's conversation.
  *
- * Resume and fork copy an earlier session, so process memory alone would inject
- * the same bodies twice; the first call replays the session's own
- * skill-invocation records (the same read dsh-tool-skill uses for its catalog
- * history). A session shape this plugin cannot read degrades to memory-only
- * tracking instead of throwing inside the step listener.
+ * Two sources count, because a skill reaches the context two ways: our own
+ * injection (a skill-invocation message) and the model calling a loader tool
+ * (official `skill` or our `skill_get`), which leaves only a tool call. Missing
+ * the second one made the nudge repeat skills the model had just read.
+ *
+ * The scan is incremental: each call reads only events appended since the last
+ * one, so a long session does not replay its whole history every turn.
  * @param agent - the agent whose conversation is being tracked.
- * @returns the live set of already-injected names for that agent.
+ * @returns the live set of loaded names for that agent.
  */
 export function injectedSkills(agent) {
-  const known = injectedByAgent.get(agent)
-  if (known !== undefined) return known
-  const names = new Set()
+  let record = memory.get(agent)
+  if (record === undefined) {
+    record = { names: new Set(), scanned: 0 }
+    memory.set(agent, record)
+  }
   try {
     const session = agent?.session
     const length = typeof session?.seq === 'number' ? session.seq : 0
-    for (let index = 0; index < length; index += 1) {
-      const event = session.eventAt(index)
-      if (event?.type !== 'user/message') continue
-      if (event.data?.source?.kind === 'skill-invocation') names.add(event.data.source.name)
+    for (let index = record.scanned; index < length; index += 1) {
+      const name = loadedBy(session.eventAt(index))
+      if (name !== undefined) record.names.add(name)
     }
+    record.scanned = Math.max(record.scanned, length)
   } catch {
     // An unreadable history only costs a possible duplicate body.
   }
-  injectedByAgent.set(agent, names)
-  return names
+  return record.names
 }

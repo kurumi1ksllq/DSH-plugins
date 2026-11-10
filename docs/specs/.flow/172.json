@@ -1,0 +1,40 @@
+{
+  "issue": 172,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-11T00:50:21.016+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "领域表 + 匹配器",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "pre-step 注入 + 每轮一次/目录过滤",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "E1-E6 测试",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG/全量验收 + PR",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
