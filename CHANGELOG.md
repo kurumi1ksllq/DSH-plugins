@@ -10,6 +10,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dev-flow 0.6.1 — bundle patch 写成「修改」形态,两行插件从未挂载(#161)
+
+- **根因**:`cordis.patch.yml` 用裸 `- id: dev-flow`(patch 层语义=修改已存在的行),而这两行是新增行;宿主 `applyPatches` 报 `entry "dev-flow" not found` 后 `continue`,于是插件从未运行。#154 的常驻契约、更早的 skill 注册、`git-status` 任务板面板全部因此静默失效。
+- **修复**:改为 `- insert:` 形态(与其余 6 个 bundle 一致)。
+- **回归守卫**:`test/patch-form.test.mjs`(形状)+ `test/patch-mounts.test.mjs`(用宿主真实 `applyPatches` 应用到空树,含裸行负例)。改回裸行 → 3 条红。
+- 行 id 与包名不变;契约/lint/FLOW.md 内容未改。
+
 ### dsh-deep-ptc-mode 1.13.0 — 更名接线:镜像契约测试路径与注释指向 dsh-task-dispatcher(#153)
 
 - 随 dsh-auto-delegation → dsh-task-dispatcher 更名,delegation-whitelist 测试与 model.mjs 注释里的跨包路径同步;无行为变化。
