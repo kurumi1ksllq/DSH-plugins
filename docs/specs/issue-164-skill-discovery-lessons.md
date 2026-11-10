@@ -61,19 +61,22 @@ zstd -dc /root/.dsh/sessions/<workspace>/<session-uuid>/session.v4.jsonl.zstd \
 #   deep_ptc_tools(action="search", query="skill_get") → total 应为 0
 ```
 
-## 运维脚本（**在部署宿主上，不在仓库里，无法 review**）
+## 运维脚本（仓库内 `scripts/`）
 
 ```bash
-bash /root/dsh-wire-160.sh       # 写 link/bundles + pnpm install + 重启；幂等仅指不重复备份、不重复插条目
-bash /root/dsh-rollback-158.sh   # 用 package.json.no-skill-surface.bak 整份覆盖 profile 后重启
+scripts/skill-surface-wire.sh --dry-run      # 先看它要做什么
+scripts/skill-surface-wire.sh               # 写 link/bundles + pnpm install；默认不重启
+scripts/skill-surface-rollback.sh --dry-run # 先看基线内容
+scripts/skill-surface-rollback.sh           # 用基线整份覆盖 profile；默认不重启
 ```
 
-> **两个脚本的最后一步都是 `systemctl restart dsh`。**
-> 按全局 `~/.dsh/AGENTS.md` 的强制条，重启必须先获得用户明确批准，**agent 不得代跑**。
-> 另外两点别误解：`dsh-wire-160.sh` 用 `JSON.stringify` **整份覆写** profile 的 `package.json`；
-> `dsh-rollback-158.sh` 恢复的是**基线那一刻的整份快照**——基线之后其它 bundle 的任何 profile 变更也会被一起回滚，
-> 所以它不是「只摘掉这个插件」。长期应把两个脚本收进 `scripts/`（另开 issue）。
+`--profile DIR` 可换 profile（默认 `$DSH_PROFILE_DIR`，否则 `~/.dsh/profiles/web`）。
 
+> **两个脚本默认都不重启**；只有显式加 `--restart` 才会执行 `systemctl restart dsh`。
+> 按全局 `~/.dsh/AGENTS.md` 的强制条，重启必须先获得用户明确批准，**agent 不得代跑**。
+> 另两点别误解：wire 用 `JSON.stringify` **整份写回** profile 的 `package.json`；
+> rollback 恢复的是**基线那一刻的整份快照**——基线之后其它 bundle 的任何 profile 变更也会被一起回滚，
+> 所以它不是「只摘掉这个插件」。从 `.agents/worktrees/` 里运行时脚本会告警：软链会指向那个工作树。
 ## 明确没做
 
 - 不做词法/语义检索层：一次**性观察**（未留脚本）—— BM25 over name+description 对「cordis composition plugin development」返回 vue/swiftui/react-patterns，是错的；真信号在正文 `## When to Activate` 而不在 description。
