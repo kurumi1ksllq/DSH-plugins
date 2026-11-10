@@ -46,6 +46,7 @@ const EXPECTED = [
   ['dsh-websearch-failover', 'dsh-websearch-failover'],
   ['dsh-auto-delegation', 'dsh-auto-delegation'],
   ['ecc-agent-presets', 'ecc-agent-presets'],
+  ['dsh-skill-surface', 'dsh-skill-surface'],
 ]
 
 function readJson(file) {

@@ -72,7 +72,7 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 
 | 路径 | 内容 |
 | --- | --- |
-| `packages/*` | 七个可独立 `link:` 的 bundle，各自有 `package.json` / `cordis.patch.yml` / 版本号 / 测试 |
+| `packages/*` | 八个可独立 `link:` 的 bundle，各自有 `package.json` / `cordis.patch.yml` / 版本号 / 测试 |
 | `packages/dev-flow` | 开发流程 skill（规则源）+ dev-flow 任务板面板（读 `.flow` 状态） |
 | `packages/dsh-inventory` | 工具管理页（凭据 / 搜索提供方 / 提示词三个分段） |
 | `packages/dsh-credential-vault` | 凭据保险库（AES-256-GCM 存储 + `credential` 工具 + 管理 API） |
@@ -80,6 +80,7 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `packages/dsh-deep-ptc-mode` | 深度 PTC 会话模式 + 失速治理双引擎（含 Git Bash 替换） |
 | `packages/dsh-auto-delegation` | 委派纪律 + 子 agent 路由表 runtime-context 注入(Lead/teammate 同效) |
 | `packages/ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle(默认不进 UI 名册) |
+| `packages/dsh-skill-surface` | 把官方 skill 目录与加载器补挂到宿主平面（无 skill 能力的 preset 也能用），并支持委派时 `skills: a,b` 点名注入 |
 | `docs/specs/` | 每个 issue 的 spec（停点2 产物） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
 | `docs/update-checkout.md` | 权威 checkout 统一方案的执行记录（已执行完成，带现状校准块） |
@@ -98,6 +99,6 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 
 ## 注意
 
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第八个 bundle
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第九个 bundle
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件
 - **未经用户明确批准，严禁重启 DSH 进程**（详见全局 `~/.dsh/AGENTS.md`）

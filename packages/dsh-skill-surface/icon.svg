@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" role="img" aria-label="Skill surface">
+  <circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.7"/>
+  <path d="M12 3.6c2.6 2.2 4 5.2 4 8.4s-1.4 6.2-4 8.4c-2.6-2.2-4-5.2-4-8.4s1.4-6.2 4-8.4Z" stroke="currentColor" stroke-width="1.4"/>
+  <circle cx="12" cy="12" r="1.7" fill="currentColor"/>
+</svg>

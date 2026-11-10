@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "技能表面",
+    "description": "把官方 skill 目录与加载器补挂到宿主平面,让没有 preset 级 provider 的 agent 也能看到并加载技能;并在委派时用 skills: a,b 点名注入技能正文。"
+  }
+}

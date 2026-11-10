@@ -29,6 +29,8 @@ importers:
 
   packages/dsh-inventory: {}
 
+  packages/dsh-skill-surface: {}
+
   packages/dsh-websearch-failover: {}
 
   packages/ecc-agent-presets:
