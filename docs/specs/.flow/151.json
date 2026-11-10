@@ -2,7 +2,7 @@
   "issue": 151,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-10T15:30:00+08:00",
+  "updatedAt": "2026-11-10T15:38:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -40,11 +40,11 @@
     "axes": 2,
     "axis1": "done",
     "axis2": "done",
-    "verdict": "rework-9 done",
-    "note": "9/9 findings reworked; acceptance-C evidence still pending new root session"
+    "verdict": "rework-9 done, CI green; merge deferred by user until acceptance-C"
   },
   "merge": {
-    "authorized": false
+    "authorized": false,
+    "deferred": "acceptance-C evidence pending (new root session test)"
   },
   "note": "user approved DSH restart; see docs/specs/issue-151-deployment-log.md for resume checklist"
 }

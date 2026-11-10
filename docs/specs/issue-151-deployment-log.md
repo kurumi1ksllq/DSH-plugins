@@ -27,3 +27,9 @@
 - 注入段(⓪ + 自动委派编排)在新 runtime-context 中并存 ✓。
 - 组合层 preset = 9(4 内置 + 5 白名单)✓;ecc-agent-presets 停用中,启用实测回归 142 ✓。
 - **白名单 `agent_preset` 参数**:代码/测试/本地 derive 复现(linux/auto,真实 settings)全部正确;重启后注册表持有新定义。子会话仍看不到参数的原因 = **继承语义**(dsh-subagent `composeFrom`:子 agent 绑定 parent 持有的精确 revision,本会话是重启前组合的 cordis 系会话)→ **新定义只影响新根会话**;请在 Web UI 新建任务(deep-ptc 默认)实测 `agent_preset`。
+
+## 验收 C 实测步骤(merge 暂缓,等本项闭合;2026-11-10 用户裁决)
+在 Web UI(http://103.236.71.248:10100/)**新建一个任务**(默认 preset=deep-ptc,即重启后的新根会话,继承语义不适用),对 agent 说:
+> 用 cordis_inspect_query 查你自己的 subagent 工具 schema,报告是否含 agent_preset 参数及其 enum;若有,用 agent_preset="planner" 委派一个只回复"收到"的子 agent。
+
+预期:①参数存在且 enum = planner/architect/code-reviewer/security-reviewer/build-error-resolver;②委派成功。通过后:本文件打勾 → `.flow/151.json` ticket5 → green → 回 PR #152 执行 merge(口令 merge 或点选「merge 本 PR」)。
