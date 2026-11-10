@@ -10,6 +10,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
+
+- **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。
+- **只补发现**：保留官方 `dsh-skill-filesystem` 于 global 层，改用独立 `providerName: skill-surface-filesystem` 消除跨层同名歧义。
+- **加载通路改为自持**：新增 `skill_get`（不带参数列目录、带名字取正文）与一段 `systemPrompt.context` 提示；两者都硬判 `ctx.tools.get('skill', agent)`，已有官方 loader 的 agent 完全不受影响。
+- **保留**：`skills: a, b` 派活握手与既有注入预算/去重行为不变。
+
 ### dev-flow 0.6.1 — bundle patch 写成「修改」形态,两行插件从未挂载(#161)
 
 - **根因**:`cordis.patch.yml` 用裸 `- id: dev-flow`(patch 层语义=修改已存在的行),而这两行是新增行;宿主 `applyEntryPatches` 报 `entry "dev-flow" not found` 后 `continue`,于是插件从未运行:#154 的常驻契约与 `git-status` 面板因此静默失效。(技能目录里搜不到 dev-flow 是另一条独立死因——当时的死链;0.6.0 起已无 skill 注册路径,不在本 issue 解释范围。)

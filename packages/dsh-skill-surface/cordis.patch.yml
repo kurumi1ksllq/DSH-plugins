@@ -1,27 +1,30 @@
 # Bundle patch for dsh-skill-surface.
 #
-# Why this bundle exists: the dsh-web-app layer disables the host skill-filesystem
-# and tool-skill rows (dsh-web-app/cordis.patch.yml) so that AGENT PRESETS own local
-# skill discovery. Every preset that does not mount those rows therefore has no
-# skill catalog and no skill loader at all. In this deployment that is 6 of 9
-# presets, including all five that the delegation routing table names.
+# Problem this bundle exists for: the dsh-web-app layer disables the host
+# skill-filesystem and tool-skill rows so that AGENT PRESETS own local skill
+# discovery. A preset that mounts neither therefore has no skill catalog and no
+# loader at all. In this deployment that is 6 of 9 presets, including all five
+# that the delegation routing table names.
 #
-# Two of the three rows below re-mount the OFFICIAL packages under NEW row ids,
-# which lands their providers in the GLOBAL layer. Reads merge the global layer
-# with the viewer's scope chain and the nearer layer wins a duplicate name, so
-# presets that already mount these rows keep their exact behavior, while
-# preset-less-of-skills agents gain a fallback.
+# HARD RULE, learned from #159: NEVER mount a second `tool-skill`.
+# Its catalog publisher does not fall silent when shadowed by a nearer layer;
+# it publishes an EMPTY catalog that claims to replace every earlier list
+# (dsh-tool-skill/lib/index.js:935-941), which erased the real 270-entry catalog
+# for every standard/ptc session. Discovery (a provider) is safe to add;
+# a second publisher is not.
 #
-# The third row is this plugin: the `skills: a, b` delegation handoff.
+# So this bundle adds only:
+#   1. the official filesystem PROVIDER under a new row id and a distinct
+#      provider name, landing in the GLOBAL layer as a fallback for presets that
+#      mount none. Same-name providers are rejected only within one layer, and a
+#      distinct name removes even that ambiguity.
+#   2. this plugin: a `skill_get` loader plus a one-line hint, both of which stay
+#      SILENT whenever the agent already has the official `skill` tool.
 
 - insert:
     - id: skill-filesystem-global
       name: '@deepseek-ai/dsh-skill-filesystem'
-    - id: tool-skill-global
-      name: '@deepseek-ai/dsh-tool-skill'
       config:
-        # Measured on this deployment: 269 entries render 83,257 chars at the
-        # official default 500, 59,745 at 200. 200 is the operator's choice.
-        catalogDescriptionMaxLength: 200
+        providerName: skill-surface-filesystem
     - id: skill-surface
       name: 'dsh-skill-surface'

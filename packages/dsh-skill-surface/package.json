@@ -1,9 +1,9 @@
 {
   "name": "dsh-skill-surface",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "Gives every agent the official skill catalog and loader by mounting the official host rows into the global layer, and injects skills named by a `skills:` handoff line when the lead delegates",
+  "description": "Fallback skill discovery for agents whose preset mounts no skill provider: an official filesystem provider in the global layer, a skill_get loader and a hint that stay silent whenever the official skill tool already exists",
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0"
@@ -20,7 +20,8 @@
     "./locale/en": "./locale/en.json",
     "./locale/zh": "./locale/zh.json",
     "./package.json": "./package.json",
-    "./host-api": "./lib/host-api.mjs"
+    "./host-api": "./lib/host-api.mjs",
+    "./catalog-hint": "./lib/catalog-hint.mjs"
   },
   "files": [
     "index.js",
@@ -40,7 +41,6 @@
     "@deepseek-ai/dsh-llm": "*",
     "@deepseek-ai/dsh-skill": "*",
     "@deepseek-ai/dsh-skill-filesystem": "*",
-    "@deepseek-ai/dsh-tool-skill": "*",
     "@deepseek-ai/dsh-web-app": ">=0.2.2-rc.1"
   },
   "peerDependenciesMeta": {
@@ -51,9 +51,6 @@
       "optional": true
     },
     "@deepseek-ai/dsh-skill-filesystem": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-tool-skill": {
       "optional": true
     },
     "@deepseek-ai/dsh-web-app": {
