@@ -27,7 +27,7 @@ test('every whitelisted preset id is mirrored by the routing table, both directi
   // on first use, which is the dangerous direction.
   const { DELEGATION_PRESET_WHITELIST } = await import('../lib/model.mjs')
   const routingText = await readFile(
-    join(REPO, 'packages/dsh-auto-delegation/lib/delegation-text.mjs'),
+    join(REPO, 'packages/dsh-task-dispatcher/lib/delegation-text.mjs'),
     'utf8',
   )
   const routing = [...routingText.matchAll(/id: '([^']+)'/g)].map((match) => match[1])

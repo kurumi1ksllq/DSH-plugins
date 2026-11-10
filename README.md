@@ -35,7 +35,7 @@ cd ~/DSH-plugins && pnpm install
   "dsh-websearch-failover": "link:/path/to/DSH-plugins/packages/dsh-websearch-failover",
   "dev-flow": "link:/path/to/DSH-plugins/packages/dev-flow",
   "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
-  "dsh-auto-delegation": "link:/path/to/DSH-plugins/packages/dsh-auto-delegation",
+  "dsh-task-dispatcher": "link:/path/to/DSH-plugins/packages/dsh-task-dispatcher",
   "dsh-skill-surface": "link:/path/to/DSH-plugins/packages/dsh-skill-surface",
   "ecc-agent-presets": "link:/path/to/DSH-plugins/packages/ecc-agent-presets"
 }
@@ -54,7 +54,7 @@ cd ~/DSH-plugins && pnpm install
       "dsh-credential-vault",
       "dev-flow",
       "dsh-deep-ptc-mode",
-      "dsh-auto-delegation",
+      "dsh-task-dispatcher",
       "dsh-skill-surface",
       "ecc-agent-presets"
     ]

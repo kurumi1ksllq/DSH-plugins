@@ -1,0 +1,40 @@
+{
+  "issue": 153,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-10T18:36:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "更名+版本 0.2.0",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "文档接线+零残留",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "部署+PR/CI/review",
+      "state": "green"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2,
+    "axis1": "done",
+    "axis2": "done",
+    "verdict": "rework done (user-approved spec revisions + full rework), CI green"
+  },
+  "merge": {
+    "authorized": true,
+    "via": "ask_user_question card「合并」(#144 提问通道)",
+    "at": "2026-11-10T18:25:00+08:00"
+  }
+}

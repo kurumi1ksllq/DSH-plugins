@@ -1,4 +1,4 @@
-// dsh-auto-delegation — host entry.
+// dsh-task-dispatcher — host entry.
 //
 // Injects ONE runtime-context segment via the systemPrompt service (the same
 // channel dsh-deep-ptc-mode's governor uses; model-visible text must go
@@ -17,7 +17,7 @@ import { renderDelegationText } from './lib/delegation-text.mjs'
 const CONTEXT_NAME = 'dsh:auto-delegation-discipline'
 const CONTEXT_ORDER = 21000 // after the exec-discipline block (20000)
 
-export const name = 'dsh-auto-delegation'
+export const name = 'dsh-task-dispatcher'
 
 // No exported Config: the patch row carries none, and a config on a row
 // without a Config schema fails validation at load.

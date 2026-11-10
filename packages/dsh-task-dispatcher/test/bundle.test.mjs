@@ -9,7 +9,7 @@ const PKG = dirname(HERE)
 
 test('bundle manifest is a valid link-able bundle', async () => {
   const pkg = JSON.parse(await readFile(join(PKG, 'package.json'), 'utf8'))
-  assert.equal(pkg.name, 'dsh-auto-delegation')
+  assert.equal(pkg.name, 'dsh-task-dispatcher')
   assert.equal(pkg.type, 'module')
   assert.ok(pkg.dsh?.bundle?.patch === './cordis.patch.yml', 'must declare dsh.bundle.patch')
   assert.ok(
@@ -26,14 +26,14 @@ test('bundle manifest is a valid link-able bundle', async () => {
 test('patch row points at this package with a unique id', async () => {
   const patch = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
   assert.match(patch, /- insert:/)
-  assert.match(patch, /- id: auto-delegation/)
-  assert.match(patch, /name: '?dsh-auto-delegation'?/)
+  assert.match(patch, /^- insert:\n    - id: task-dispatcher$/m)
+  assert.match(patch, /^      name: '?dsh-task-dispatcher'?$/m)
 })
 
 test('index exports a name and apply function, and no Config (patch row carries none)', async () => {
   const mod = await import('../index.js')
   assert.equal(typeof mod.apply, 'function')
-  assert.equal(mod.name, 'dsh-auto-delegation')
+  assert.equal(mod.name, 'dsh-task-dispatcher')
   assert.equal(mod.Config, undefined, 'a config without a Config schema fails validation at load')
 })
 

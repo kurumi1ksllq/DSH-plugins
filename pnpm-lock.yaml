@@ -10,8 +10,6 @@ importers:
 
   packages/dev-flow: {}
 
-  packages/dsh-auto-delegation: {}
-
   packages/dsh-credential-vault: {}
 
   packages/dsh-deep-ptc-mode:
@@ -30,6 +28,8 @@ importers:
   packages/dsh-inventory: {}
 
   packages/dsh-skill-surface: {}
+
+  packages/dsh-task-dispatcher: {}
 
   packages/dsh-websearch-failover: {}
 

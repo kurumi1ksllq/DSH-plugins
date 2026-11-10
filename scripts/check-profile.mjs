@@ -43,7 +43,7 @@ const SHIPPED = new Map([
   ['dsh-deep-ptc-mode', 'packages/dsh-deep-ptc-mode'],
   ['dev-flow', 'packages/dev-flow'],
   ['dsh-websearch-failover', 'packages/dsh-websearch-failover'],
-  ['dsh-auto-delegation', 'packages/dsh-auto-delegation'],
+  ['dsh-task-dispatcher', 'packages/dsh-task-dispatcher'],
   ['ecc-agent-presets', 'packages/ecc-agent-presets'],
   ['dsh-skill-surface', 'packages/dsh-skill-surface'],
 ])
