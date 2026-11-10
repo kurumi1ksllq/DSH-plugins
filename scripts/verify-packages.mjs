@@ -53,6 +53,51 @@ function readJson(file) {
   return JSON.parse(readFileSync(file, 'utf8'))
 }
 
+/**
+ * A bundle patch mixes two very different things:
+ *
+ *   - insert  — rows this bundle ADDS (no target id, or a group id)
+ *   - bare    — a patch of a row that already exists elsewhere in the tree
+ *
+ * Written the other way round, a new row silently disappears: the layer looks
+ * its id up, does not find it, logs `patch: entry "x" not found` and moves on.
+ * dev-flow shipped that way for months and none of its rows were ever mounted
+ * (#161). A bare entry that overrides nothing is therefore almost always a
+ * mistyped insert, so it fails here for every bundle at once.
+ *
+ * `# verify-packages: allow-bare-row` in the same file is the escape hatch for
+ * a deliberate name-only patch.
+ */
+const BARE_ROW_OVERRIDES = ['config', 'disabled', 'group', 'inject', 'intercept', 'isolate']
+function checkPatchRows(bundleName, text) {
+  if (text.includes('verify-packages: allow-bare-row')) return
+  let current = null
+  const finish = () => {
+    if (current === null) return
+    const overrides = BARE_ROW_OVERRIDES.filter((key) => current.body.some((line) => new RegExp('^\\s+' + key + ':').test(line)))
+    const hasTarget = current.id !== null
+    if (!current.insert && hasTarget && overrides.length === 0 && current.body.length > 0) {
+      problems.push(
+        `packages/${bundleName}: row "${current.id}" only renames/restates a row — the patch layer treats a bare id as a patch of an existing entry, so a NEW row disappears here. Put it under "- insert:" or add an override key.`,
+      )
+    }
+    current = null
+  }
+  for (const line of text.split('\n')) {
+    if (line.startsWith('- ')) {
+      finish()
+      const headId = /^-\s*id:\s*'?([^'\s]+)'?\s*$/.exec(line)
+      current = { insert: line.startsWith('- insert:'), id: headId === null ? null : headId[1], body: [] }
+      continue
+    }
+    if (current === null) continue
+    const idMatch = /^\s*-?\s*id:\s*'?([^'\s]+)'?\s*$/.exec(line)
+    if (idMatch !== null) current.id = idMatch[1]
+    current.body.push(line)
+  }
+  finish()
+}
+
 const problems = []
 const notes = []
 
@@ -74,6 +119,7 @@ for (const entry of readdirSync(join(CHECK_ROOT, 'packages'), { withFileTypes: t
     continue
   }
   if (!existsSync(join(dir, patch))) problems.push(`packages/${entry.name}: patch ${patch} missing`)
+  else checkPatchRows(entry.name, readFileSync(join(dir, patch), 'utf8'))
   checkClientExport(entry.name, dir, manifest)
   foundBundles += 1
 }

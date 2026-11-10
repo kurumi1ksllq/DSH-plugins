@@ -10,6 +10,14 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dev-flow 0.6.1 — bundle patch 写成「修改」形态,两行插件从未挂载(#161)
+
+- **根因**:`cordis.patch.yml` 用裸 `- id: dev-flow`(patch 层语义=修改已存在的行),而这两行是新增行;宿主 `applyEntryPatches` 报 `entry "dev-flow" not found` 后 `continue`,于是插件从未运行:#154 的常驻契约与 `git-status` 面板因此静默失效。(技能目录里搜不到 dev-flow 是另一条独立死因——当时的死链;0.6.0 起已无 skill 注册路径,不在本 issue 解释范围。)
+- **修复**:改为 `- insert:` 形态(与其余 7 个 bundle 一致)。
+- **回归守卫**:`test/patch-form.test.mjs`(形状,任何环境都跑)+ `test/patch-mounts.test.mjs`(宿主真实 `applyEntryPatches`,含裸行负例、insert 不去重用例)。改回裸行 → 本机 3 条红;无宿主树的环境为 2 条(语义用例 skip 并打 diagnostic)。
+- 新增跨 bundle 守卫:`scripts/verify-packages.mjs` 对任何 bundle patch 里「裸 `- id:` 且无任何覆盖键」的行报错(patch 层会把它当修改,新行静默消失);带 `allow-bare-row` 豁免。
+- 行 id 与包名不变;契约/lint/FLOW.md 内容未改。
+
 ### dsh-deep-ptc-mode 1.13.0 — 更名接线:镜像契约测试路径与注释指向 dsh-task-dispatcher(#153)
 
 - 随 dsh-auto-delegation → dsh-task-dispatcher 更名,delegation-whitelist 测试与 model.mjs 注释里的跨包路径同步;无行为变化。
