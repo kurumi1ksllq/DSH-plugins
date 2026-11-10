@@ -61,18 +61,27 @@ zstd -dc /root/.dsh/sessions/<workspace>/<session-uuid>/session.v4.jsonl.zstd \
 #   deep_ptc_tools(action="search", query="skill_get") → total 应为 0
 ```
 
-## 运维脚本（**在部署宿主上，不在仓库里，无法 review**）
+## 运维脚本（仓库内 `scripts/`）
 
 ```bash
-bash /root/dsh-wire-160.sh       # 写 link/bundles + pnpm install + 重启；幂等仅指不重复备份、不重复插条目
-bash /root/dsh-rollback-158.sh   # 用 package.json.no-skill-surface.bak 整份覆盖 profile 后重启
+scripts/skill-surface-wire.sh --dry-run      # 先看它要做什么（不改任何文件）
+scripts/skill-surface-wire.sh               # 写 link/bundles + pnpm install；默认不重启
+scripts/skill-surface-rollback.sh --dry-run # 打印基线内容与「恢复后将丢弃什么」
+scripts/skill-surface-rollback.sh --yes     # 真的恢复；默认不重启
 ```
 
-> **两个脚本的最后一步都是 `systemctl restart dsh`。**
+`--profile DIR` / `--baseline FILE` / `--service UNIT` 可覆盖默认解析（默认 profile 走 `$DSH_PROFILE_DIR`，
+否则 `${DSH_HOME:-$HOME/.dsh}/profiles/${DSH_PROFILE_NAME:-web}`）。
+
+> **两个脚本默认都不重启**；只有显式加 `--restart` 才会执行 `systemctl restart <unit>`，
+> 且重启后会轮询 `systemctl is-active` 核验，10 秒内没起来就 exit 1 并提示看 `journalctl`。
 > 按全局 `~/.dsh/AGENTS.md` 的强制条，重启必须先获得用户明确批准，**agent 不得代跑**。
-> 另外两点别误解：`dsh-wire-160.sh` 用 `JSON.stringify` **整份覆写** profile 的 `package.json`；
-> `dsh-rollback-158.sh` 恢复的是**基线那一刻的整份快照**——基线之后其它 bundle 的任何 profile 变更也会被一起回滚，
-> 所以它不是「只摘掉这个插件」。长期应把两个脚本收进 `scripts/`（另开 issue）。
+>
+> 三个别误解的点：
+> 1. wire 用 `JSON.stringify` **整份写回** profile 的 `package.json`；
+> 2. rollback 恢复的是**基线那一刻的整份快照**——基线之后其它 bundle 的变更也会被一起回滚，所以它不是「只摘掉这个插件」；
+>    因此它要求 `--yes` 才动手，覆盖前还会把当前 profile 备份成 `package.json.pre-rollback.<UTC>`；
+> 3. 从 linked git worktree 运行时 wire **直接拒绝**（除非 `--force`）：软链会指向那个工作树，工作树一删即断。
 
 ## 明确没做
 
