@@ -1,30 +1,47 @@
 # dev-flow
 
-DeepSeek Harness 的工程流程 skill：**issue → branch → TDD → PR → CI → review → merge**。
+DeepSeek Harness 的工程流程 bundle：**意图 → issue → 分支 → TDD → PR → CI → 双轴 review → merge**。
+
+流程规则**常驻**——插件启动时把一段短契约注入系统上下文（`systemPrompt.context`，order 21050，`required: true`），
+每次对话都在,不注册为技能、不依赖模型"想起来加载"。详细规程随包发布（`FLOW.md`），契约里给出它的绝对路径,进流程时读一次。
 
 ```
-前置自检（gh / git remote）
-停点1  意图 + 路径分级（trivial / standard；grill 并入）
-停点2  spec + tickets 落盘确认 → 自动：gh issue create → git switch -c issue-<n>-<desc>
-       TDD 红绿循环（红→确认红对原因→绿→最小实现）→ 完工四件套
-停点3  声明 push → 开 PR → 查 CI 一次（无 CI / 绿 / 红≤2轮自修）
-       双轴 code review（子代理固定模板，输入含 spec 原文 + diff，只报告不改码）
-       merge 闸（具体 merge 口令，"嗯/好/继续"不算）
+常驻契约（每轮都在）
+  ├─ 触发：任何会写仓库文件的请求
+  ├─ 两次交互：① 意图确认（大白话）  ② 是否合并
+  ├─ 自决：分级 / 裁剪 / 无 CI / CI 红 / review 裁决 / spec 变更
+  └─ 硬规则：禁改 main、禁测私有函数、每个节点写 .flow 状态
+
+FLOW.md（进流程时读）
+  └─ 前置自检、TDD 红绿、双轴 review 固定模板、状态文件格式与枚举、分支保护命令
 ```
 
-设计定稿见 [issue #1](https://github.com/kurumi1ksllq/DSH-plugins/issues/1)。
+设计定稿见 issue #154（前史 #47 把 skill 塞进 bundle、#144 停点改 `ask_user_question`）。
 
 ## 组成
 
 | 文件 | 作用 |
 | --- | --- |
-| `SKILL.md` | skill 本体：3 个停点、trivial 硬标准、裁剪声明三步、CI 三态、merge 闸、分支保护命令 |
-| `lib/lint.mjs` | skill 契约 linter：frontmatter / 触发词 / 必需章节 / 禁用措辞（如「双保险」）逐条校验 |
-| `test/skill.test.mjs` | TDD 契约测试：`SKILL.md` 必须过 linter，破坏闸门的编辑会红 |
+| `index.js` | 宿主入口：向 `systemPrompt` 注册 1 个常驻 context（`dev-flow:flow-contract`） |
+| `lib/contract.mjs` | 契约文本（`renderFlowContract`）：只留会改变行为的句子，约 25 行 |
+| `lib/lint.mjs` | 双契约 linter：`lintFlowDoc`（章节 + 禁用措辞）、`lintContract`（常驻硬句 + 长度） |
+| `FLOW.md` | 规程全文：两次交互、自决边界、TDD、双轴 review 模板、任务状态文件、merge 闸 |
+| `lib-git-status/` | 只读任务板/快照（读 `docs/specs/.flow/<issue>.json`，见 `README-git-status.md`） |
 
-## 为什么 skill 也要测试
+## 为什么文档也要测试
 
-skill 是纯文档，最脆的失败模式是"改一句文案把闸门改没了"。`lintSkill` 把契约固化成可断言的结构：路由触发词丢了、merge 闸措辞被稀释、停点章节被删，`pnpm test` 都会直接红。
+规程是纯文档,最脆的失败模式是"改一句文案把闸门改没了"。两个 linter 把契约固化成可断言的结构：
+「两次交互」被删、把「用户点头」写回（规程和常驻契约两处都禁）、常驻契约丢了 `禁止直接改 main`、或契约超过 1600 字符，`pnpm test` 都会直接红。
+规则细节只留在 `lib/lint.mjs`，这里不复述阈值。
+
+反向验证（改坏实现必须变红）：
+
+| 变异 | 结果 |
+| --- | --- |
+| 删掉 `systemPrompt.context` 注册 | `test/contract.test.mjs` 红 |
+| 契约里删掉「两次」 | `lintContract` 红 |
+| FLOW.md 写回「用户点头」 | `lintFlowDoc` 红 |
+| 「两次交互」章节重复出现 | `lintFlowDoc` 红（#154 顺带修了 count 少 `g` 标志的漏检） |
 
 ## 测试
 
@@ -35,16 +52,7 @@ node --test packages/dev-flow/test/*.test.mjs
 
 ## 安装
 
-两条路线**选一即可**，都指向同一个 `SKILL.md`：
-
-| 路线 | 做法 | 生效方式 |
-| --- | --- | --- |
-| profile 声明 | `link:` 依赖 + `dsh.profile.bundles` 里加包名 | 需要一次 profile 重组合（重启 DSH） |
-| 文件系统 | 软链到 `<DSH_HOME>/skills/dev-flow` | `skill-filesystem` 的监视器自动发现，**免重启** |
-
-两条都装上时，runtime 注册（本包的 `apply`）优先级高于 user 根（rank 400），冲突由 catalog 收集阶段按 rank 合并并记一条 `ignored` 警告——不是 `register` 自己打的。
-
-### 路线 1：profile 声明（`dsh.profile.bundles` 必须同时有）
+只有一条路线：在 profile 里声明 bundle。
 
 ```json
 "dependencies": {
@@ -57,19 +65,6 @@ node --test packages/dev-flow/test/*.test.mjs
 }
 ```
 
-这一行让插件的 `apply` 跑起来：它把 `dev-flow` 注册进 `ctx.skills`，正文读包内的 `SKILL.md`。**需要一次 profile 重新组合才生效**（重启 DSH 或等宿主重载）。
+这一行让插件的 `apply` 跑起来,把契约挂进系统上下文。**需要一次 profile 重新组合才生效**（重载 DSH;重启宿主进程必须先获得用户批准）。
 
-### 路线 2：文件系统（免重启）
-
-`@deepseek-ai/dsh-skill-filesystem` 默认扫描 `<DSH_HOME>/skills`（rank 400），且 `watch: true`、`watchFollowSymlinks: true`。把包目录软链过去即可，**不需要重启**：
-
-```bash
-mkdir -p ~/.dsh/skills
-ln -sfn /path/to/DSH-plugins/packages/dev-flow ~/.dsh/skills/dev-flow
-```
-
-这个软链不需要改 profile，也不需要重启：监视器在根目录尚不存在时会先盯着最近的祖先目录（`~/.dsh`），目录一出现就重新解析并刷新目录。
-
-项目 AGENTS.md 建议加一行保证路由：
-
-> 任何改代码的请求，先调用 dev-flow skill，再谈实现。
+> 早先的"软链到 `<DSH_HOME>/skills/dev-flow` 免重启"路线在 #154 取消:那条路把流程降级成 270 个技能里的一个候选,实测会话里根本没出现。

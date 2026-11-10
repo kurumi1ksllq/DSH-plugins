@@ -1,5 +1,5 @@
 // T4.df (#125): review pending-decision surfaces in "needs you"; dead locale
-// keys are gone; SKILL.md narrows triggers and cross-references the panel.
+// keys are gone; FLOW.md narrows triggers and cross-references the panel.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -57,18 +57,18 @@ test('dead locale key "stashes" is gone from both dicts', async () => {
   assert.doesNotMatch(source, /^\s+'?stashes'?:\s/m)
 })
 
-test('SKILL.md narrows read-only triggers and cross-references the panel', () => {
-  const skill = readFileSync(join(pkg, 'SKILL.md'), 'utf8')
-  assert.match(skill, /纯只读查询/)
-  assert.match(skill, /不进流程/)
-  assert.match(skill, /Git 面板/)
+test('FLOW.md narrows read-only triggers and cross-references the panel', () => {
+  const flow = readFileSync(join(pkg, 'FLOW.md'), 'utf8')
+  assert.match(flow, /纯只读查询/)
+  assert.match(flow, /不进流程/)
+  assert.match(flow, /Git 面板/)
 })
 
-test('client.js carries the panel→skill hint in BOTH dicts', () => {
+test('client.js carries the panel→flow hint in BOTH dicts', () => {
   const source = readFileSync(join(pkg, 'client.js'), 'utf8')
   // The zh value contains 会接手; the en value contains drives this flow —
   // requiring both makes deleting either dict's key red.
-  assert.match(source, /boardSkillHint: '[^']*会接手/)
-  assert.match(source, /boardSkillHint: '[^']*drives this flow/)
-  assert.match(source, /t\('boardSkillHint'\)/)
+  assert.match(source, /boardFlowHint: '[^']*会接手/)
+  assert.match(source, /boardFlowHint: '[^']*drives this flow/)
+  assert.match(source, /t\('boardFlowHint'\)/)
 })

@@ -1,0 +1,45 @@
+{
+  "issue": 154,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-10T09:16:35.609+00:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "常驻 context 注册(红)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "lib/contract.mjs + index.js(绿)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "FLOW.md 两次交互重写",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "lint 双契约 + 测试迁移",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "元数据/文档/AGENTS.md/CHANGELOG",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -85,7 +85,12 @@ test('AGENTS.md states the non-negotiables', () => {
 
 test('the README points a new session at the mandatory development flow', () => {
   assert.ok(README.includes('AGENTS.md'), 'README must point at the repo AGENTS.md')
-  assert.ok(README.includes('dev-flow'), 'README must name the dev-flow skill')
+  assert.ok(README.includes('dev-flow'), 'README must name the dev-flow flow')
+  // #154 turned the rules into an always-on contract: the entry document no
+  // longer tells a new session to "call the skill", and it must not link the
+  // rule file that stopped existing.
+  assert.ok(README.includes('packages/dev-flow/FLOW.md'), 'README must link the packaged procedure')
+  assert.equal(README.includes('packages/dev-flow/SKILL.md'), false, 'README must not link the retired SKILL.md')
 })
 
 // ---------------------------------------------------------------------------
