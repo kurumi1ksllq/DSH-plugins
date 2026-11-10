@@ -1,8 +1,8 @@
 {
   "issue": 172,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-11T00:20:42.371+08:00",
+  "stage": "review",
+  "updatedAt": "2026-11-11T00:50:21.016+08:00",
   "tickets": [
     {
       "id": 1,
@@ -22,16 +22,16 @@
     {
       "id": 4,
       "title": "版本/CHANGELOG/全量验收 + PR",
-      "state": "red"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
-    "status": "none"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {

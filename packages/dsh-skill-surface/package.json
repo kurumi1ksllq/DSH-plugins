@@ -21,7 +21,8 @@
     "./locale/zh": "./locale/zh.json",
     "./package.json": "./package.json",
     "./host-api": "./lib/host-api.mjs",
-    "./catalog-hint": "./lib/catalog-hint.mjs"
+    "./catalog-hint": "./lib/catalog-hint.mjs",
+    "./domains": "./lib/domains.mjs"
   },
   "files": [
     "index.js",

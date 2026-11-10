@@ -106,3 +106,60 @@ test('domain matching needs two distinct signals, not one', () => {
   assert.equal(matchDomains('跑一下测试').length, 0)
   assert.equal(matchDomains('看看测试覆盖率').length, 1)
 })
+
+function agentWith(events) {
+  return { session: { seq: events.length, eventAt: (index) => events[index] } }
+}
+
+const loadedSkillCall = (name) => ({
+  type: 'tool/call',
+  data: { name: 'skill', arguments: JSON.stringify({ name }) },
+})
+
+test('E7: a skill the model loaded through the official tool is not named again', async () => {
+  stubHost()
+  const h = harness()
+  const a = agentWith([loadedSkillCall('design-system'), loadedSkillCall('make-interfaces-feel-better')])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 0, 'both shortlist names are already in context')
+})
+
+test('E8: a relayed delegate prompt is treated as the task statement', async () => {
+  stubHost()
+  const h = harness()
+  const relay = { source: { kind: 'agent-message', form: 'relay' }, content: [{ type: 'text', text: '把弹窗的间距调整一下' }] }
+  const decision = await h.nudge({ agent: agent(), messages: [relay], turn: 1, step: 1, signal: undefined }, next)
+  assert.equal(decision.messages.length, 1)
+})
+
+test('E9: an already-loaded domain does not swallow a different domain in the same turn', async () => {
+  stubHost()
+  const withDb = [
+    ...CATALOG,
+    { name: 'database-migrations', description: 'x', provider: 'p', invocation: { modelInvocable: true } },
+  ]
+  const h = harness({ catalog: withDb })
+  const a = agentWith([loadedSkillCall('design-system')])
+  const decision = await run(h, a, '界面样式先放一边,看看数据库索引和迁移', 2)
+  assert.equal(decision.messages.length, 1)
+  assert.match(decision.messages[0].content[0].text, /database-migrations/)
+})
+
+test('E10: one nudge names at most three skills', async () => {
+  stubHost()
+  const h = harness()
+  const decision = await run(h, agent(), '改一下页面样式和配色')
+  const text = decision.messages[0].content[0].text
+  const named = (text.match(/[a-z]+(-[a-z]+)+/g) ?? []).filter((token) => !token.startsWith('skill'))
+  assert.ok(named.length <= 3, 'named ' + named.length + ': ' + text)
+  assert.ok(text.length <= 120, 'length ' + text.length)
+})
+
+test('E11: common Chinese UI phrasings trigger, not just the reported one', async () => {
+  stubHost()
+  for (const text of ['帮我把弹窗美化一下', '把颜色改深一点', '按钮太挤了', '页面的空行和边距再收一收']) {
+    const decision = await run(harness(), agent(), text)
+    assert.equal(decision.messages.length, 1, text)
+  }
+})
+

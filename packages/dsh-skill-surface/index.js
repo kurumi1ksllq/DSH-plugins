@@ -18,7 +18,7 @@
 // model reply, so the handoff path degrades to "inject nothing".
 
 import { handoffNames, injectedSkills } from './lib/handoff.mjs'
-import { matchDomains, nudgeLine } from './lib/domains.mjs'
+import { matchDomains, nudgeLine, shortlist } from './lib/domains.mjs'
 import { hostApi } from './lib/host-api.mjs'
 import { LOADER, hintText, indexLine } from './lib/catalog-hint.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
@@ -177,6 +177,7 @@ function loaderHandle(scope) {
       if (!api.isModelInvocable(skill)) {
         throw new Error('skill "' + args.name + '" is not available for model invocation')
       }
+      injectedSkills(exec.agent).add(args.name)
       return { text: capped(api.renderSkillContent(skill)) }
     },
     presentCall(args) {
@@ -188,12 +189,23 @@ function loaderHandle(scope) {
 
 /** Per-agent record of the turn we last nudged, so one turn speaks once. */
 const nudgedTurn = new WeakMap()
+let nudgeWarned = false
+
+/** Hard ceiling for one nudge line, enforced in code rather than by convention. */
+const NUDGE_MAX_CHARS = 120
+
+function clampLine(line) {
+  return line.length <= NUDGE_MAX_CHARS ? line : line.slice(0, NUDGE_MAX_CHARS - 1) + '…'
+}
 
 /** The text the user themselves typed in this step batch. */
 function userText(messages) {
   const parts = []
   for (const message of messages ?? []) {
-    if (message?.source?.kind !== 'user') continue
+    const source = message?.source
+    // A delegated child gets its task as a relayed agent message, not user
+    // text, and those agents are the ones that most need the nudge.
+    if (source?.kind !== 'user' && source?.form !== 'relay') continue
     for (const block of message.content ?? []) {
       if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
     }
@@ -220,17 +232,19 @@ async function nudgeFor(scope, { agent, messages, turn, signal }) {
   const available = new Set(snapshot.skills.filter((skill) => api.isModelInvocable(skill)).map((skill) => skill.name))
   const already = injectedSkills(agent)
 
-  for (const { domain } of matches) {
-    const names = domain.skills.filter((name) => available.has(name))
+  for (const match of matches) {
+    const names = shortlist(match, text).filter((name) => available.has(name))
     if (names.length === 0) continue
-    if (names.some((name) => already.has(name))) return undefined
+    // Another domain may still deserve its own line: skip, do not abort.
+    if (names.some((name) => already.has(name))) continue
     const loader = hasOfficialLoader(scope, agent) ? '`skill`' : '`skill_get`'
-    const line = nudgeLine(domain, names, loader)
+    const line = clampLine(nudgeLine(match.domain, names, loader))
     if (line === '') continue
     nudgedTurn.set(agent, turn)
     return api.createUserMessage({
       content: [{ type: 'text', text: line }],
-      source: { kind: 'skill-nudge', form: 'notice' },
+      // A notice-form context must carry a summary, or renderers drop the row.
+      source: { kind: 'skill-nudge', form: 'notice', summary: match.domain.label },
     })
   }
   return undefined
@@ -264,7 +278,11 @@ export function apply(ctx) {
       let message
       try {
         message = await nudgeFor(scope, payload)
-      } catch {
+      } catch (error) {
+        if (!nudgeWarned) {
+          nudgeWarned = true
+          scope.logger?.warn?.(String(error?.message ?? error))
+        }
         return decision
       }
       if (message === undefined || payload.signal?.aborted) return decision
