@@ -1,10 +1,9 @@
 // `skills: a, b` handoff parsing and per-agent injection memory.
 //
-// The token is matched only at the START of a line (optionally after a list
-// marker), never mid-sentence: a plan that merely discusses `skills:` must not
-// trigger an injection. Names are validated against the public kebab-case skill
-// grammar, deduplicated in first-seen order, and capped so one handoff cannot
-// flood the child's context.
+// Only the FIRST handoff line counts: a task that quotes the format twice must
+// not silently load six bodies. The token is matched at the START of a line
+// (optionally after a list marker), never mid-sentence, so prose discussing the
+// format never triggers an injection.
 
 /** Longest handoff a delegation may carry. */
 export const HANDOFF_MAX = 6
@@ -13,9 +12,9 @@ const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const HANDOFF_LINE = /^[ \t]*(?:[-*][ \t]+)?skills[ \t]*:[ \t]*(.+)$/gim
 
 /**
- * Skill names a delegation asked for, cleaned and ordered.
+ * Skill names the delegation asked for.
  * @param messages - the step's claimed messages; only direct user input is read.
- * @returns validated, deduplicated names, at most HANDOFF_MAX.
+ * @returns validated, deduplicated names from the first handoff line only.
  */
 export function handoffNames(messages) {
   if (!Array.isArray(messages)) return []
@@ -30,9 +29,10 @@ export function handoffNames(messages) {
           const name = raw.trim()
           if (!SKILL_NAME.test(name) || names.includes(name)) continue
           names.push(name)
+          if (names.length >= HANDOFF_MAX) return names
         }
+        return names
       }
-      if (names.length >= HANDOFF_MAX) return names.slice(0, HANDOFF_MAX)
     }
   }
   return names
@@ -45,8 +45,9 @@ const injectedByAgent = new WeakMap()
  *
  * Resume and fork copy an earlier session, so process memory alone would inject
  * the same bodies twice; the first call replays the session's own
- * skill-invocation records. A session shape this plugin cannot read degrades to
- * memory-only tracking instead of throwing inside the step listener.
+ * skill-invocation records (the same read dsh-tool-skill uses for its catalog
+ * history). A session shape this plugin cannot read degrades to memory-only
+ * tracking instead of throwing inside the step listener.
  * @param agent - the agent whose conversation is being tracked.
  * @returns the live set of already-injected names for that agent.
  */
@@ -63,7 +64,7 @@ export function injectedSkills(agent) {
       if (event.data?.source?.kind === 'skill-invocation') names.add(event.data.source.name)
     }
   } catch {
-    // Unreadable session history only costs a possible duplicate body.
+    // An unreadable history only costs a possible duplicate body.
   }
   injectedByAgent.set(agent, names)
   return names

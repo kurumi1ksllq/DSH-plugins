@@ -10,9 +10,13 @@
 //
 // The catalog and loader themselves are NOT implemented here: cordis.patch.yml
 // re-mounts the official packages into the global layer.
+//
+// Failure posture: a step listener runs inside the request waterfall, where a
+// throw ends the child's turn with no model reply. Every path here therefore
+// degrades to "inject nothing" instead of throwing.
 
 import { HANDOFF_MAX, handoffNames, injectedSkills } from './lib/handoff.mjs'
-import { hostApi, modelInvocable } from './lib/host-api.mjs'
+import { hostApi } from './lib/host-api.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
 
 export const name = 'dsh-skill-surface'
@@ -20,37 +24,44 @@ export const name = 'dsh-skill-surface'
 const SECTION_NAME = 'dsh:skill-surface-handoff'
 const SECTION_ORDER = 20100
 
+async function injectHandoff(scope, { agent, messages, signal }) {
+  const requested = handoffNames(messages)
+  if (requested.length === 0) return undefined
+
+  const injected = injectedSkills(agent)
+  const wanted = requested.filter((skillName) => !injected.has(skillName)).slice(0, HANDOFF_MAX)
+  if (wanted.length === 0) return undefined
+
+  const api = await hostApi()
+  const cwd = await scope.workingDirectory.ensure(agent, signal)
+
+  const additions = []
+  for (const skillName of wanted) {
+    if (signal?.aborted) break
+    const skill = await scope.skills.get(skillName, { scope: agent, cwd, signal })
+    if (skill === undefined || !api.isModelInvocable(skill)) continue
+    injected.add(skillName)
+    additions.push(api.createUserMessage({
+      content: [{ type: 'text', text: api.renderSkillContent(skill) }],
+      source: { kind: 'skill-invocation', name: skillName, form: 'instructions' },
+    }))
+  }
+  return additions.length === 0 ? undefined : additions
+}
+
 function handoffListener(scope) {
   return async ({ agent, messages, signal }, next) => {
     const decision = await next()
     if (decision.kind === 'reject') return decision
-    const requested = handoffNames(messages)
-    if (requested.length === 0) return decision
-
-    const injected = injectedSkills(agent)
-    const wanted = requested.filter((skillName) => !injected.has(skillName)).slice(0, HANDOFF_MAX)
-    if (wanted.length === 0) return decision
-
-    const api = await hostApi()
-    let cwd
+    let additions
     try {
-      cwd = await scope.workingDirectory.ensure(agent, signal)
+      additions = await injectHandoff(scope, { agent, messages, signal })
     } catch {
-      cwd = undefined
+      // A missing host module, an unreadable workspace or a hostile skill
+      // provider must cost the injection, never the child's turn.
+      return decision
     }
-
-    const additions = []
-    for (const skillName of wanted) {
-      if (signal?.aborted) break
-      const skill = await scope.skills.get(skillName, { scope: agent, cwd, signal })
-      if (skill === undefined || !modelInvocable(skill)) continue
-      injected.add(skillName)
-      additions.push(api.createUserMessage({
-        content: [{ type: 'text', text: api.renderSkillContent(skill) }],
-        source: { kind: 'skill-invocation', name: skillName, form: 'instructions' },
-      }))
-    }
-    if (additions.length === 0) return decision
+    if (additions === undefined || signal?.aborted) return decision
     return { ...decision, messages: [...decision.messages, ...additions] }
   }
 }

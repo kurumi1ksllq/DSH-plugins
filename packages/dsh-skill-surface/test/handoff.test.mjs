@@ -6,26 +6,30 @@ const userText = (text) => ({ source: { kind: 'user' }, content: [{ type: 'text'
 
 test('reads the handoff line and cleans the names', () => {
   assert.deepEqual(handoffNames([userText('do it\nskills: dev-flow, security-review')]), ['dev-flow', 'security-review'])
-  // duplicates collapse in first-seen order; full-width commas and extra spaces are tolerated
   assert.deepEqual(handoffNames([userText('skills:  a,，a ,  b')]), ['a', 'b'])
+})
+
+test('only the first handoff line counts, so a repeated format quote cannot flood context', () => {
+  const text = 'skills: dev-flow\n... later ...\nskills: a, b, c, d, e, f, g'
+  assert.deepEqual(handoffNames([userText(text)]), ['dev-flow'])
+  // and the cap still bounds a single long line
+  const many = Array.from({ length: HANDOFF_MAX + 4 }, (_, i) => `s` + i).join(', ')
+  assert.equal(handoffNames([userText('skills: ' + many)]).length, HANDOFF_MAX)
 })
 
 test('only a line-leading token counts, so prose about the format never injects', () => {
   assert.deepEqual(handoffNames([userText('remember to write skills: dev-flow later')]), [])
   assert.deepEqual(handoffNames([userText('the docs say skills: foo')]), [])
-  // a list marker in front of the token is still a handoff
   assert.deepEqual(handoffNames([userText('- skills: dev-flow')]), ['dev-flow'])
 })
 
-test('rejects names outside the public kebab-case grammar and caps the batch', () => {
+test('rejects names outside the public kebab-case grammar', () => {
   assert.deepEqual(handoffNames([userText('skills: Dev_Flow, ../etc, ok-name')]), ['ok-name'])
-  const many = Array.from({ length: HANDOFF_MAX + 4 }, (_, i) => `s` + i).join(', ')
-  assert.equal(handoffNames([userText(`skills: ` + many)]).length, HANDOFF_MAX)
 })
 
 test('only direct user input is read', () => {
-  const assistantish = { source: { kind: 'skill-catalog' }, content: [{ type: 'text', text: 'skills: dev-flow' }] }
-  assert.deepEqual(handoffNames([assistantish]), [])
+  const other = { source: { kind: 'skill-catalog' }, content: [{ type: 'text', text: 'skills: dev-flow' }] }
+  assert.deepEqual(handoffNames([other]), [])
   assert.deepEqual(handoffNames([]), [])
   assert.deepEqual(handoffNames(undefined), [])
 })
