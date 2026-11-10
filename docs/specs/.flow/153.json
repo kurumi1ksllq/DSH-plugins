@@ -1,8 +1,8 @@
 {
   "issue": 153,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-10T18:36:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-10T18:45:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -34,7 +34,7 @@
   },
   "merge": {
     "authorized": true,
-    "via": "ask_user_question card「合并」(#144 提问通道)",
-    "at": "2026-11-10T18:25:00+08:00"
+    "via": "ask_user_question card「合并」",
+    "commit": "a8c445e"
   }
 }
