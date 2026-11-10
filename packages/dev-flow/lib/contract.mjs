@@ -10,6 +10,9 @@
  *   3. which decisions are the agent's own (all the technical ones),
  *   4. the rules that must never bend (main, private tests, state file).
  *
+ * The markers this text must keep are owned by `lintContract` in lib/lint.mjs
+ * (one list, so a rewrite cannot satisfy the doc and miss the injected text).
+ *
  * The procedure itself — TDD loop, review prompt, state-file schema, branch
  * protection commands — stays in the packaged `FLOW.md` and is read once when
  * the flow actually starts. Duplicating it here would cost every turn for text
@@ -17,9 +20,6 @@
  *
  * @module dev-flow/contract
  */
-
-/** Markers the rendered text must carry; mirrored by `lintContract`. */
-export const CONTRACT_MARKERS = ['两次', '意图', '合并', '自决', '分级', 'CI', 'review', '禁止直接改 main', '.flow/', 'FLOW.md']
 
 /**
  * Render the flow contract.
