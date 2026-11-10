@@ -29,13 +29,23 @@ test('patch adds the official PROVIDER under a new id and a distinct provider na
 })
 
 test('the patch NEVER mounts a second tool-skill (#159 regression)', async () => {
-  // A shadowed tool-skill publishes an EMPTY catalog claiming to replace every
-  // earlier list (dsh-tool-skill:935-941). Mounting it here erased the live
-  // 270-entry catalog for standard/ptc sessions. This assertion is the guard.
-  const patch = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
-  // Anchor on YAML structure, not prose: the comment above explains the trap on purpose.
-  assert.doesNotMatch(patch, /name:\s*'@deepseek-ai\/dsh-tool-skill'/, 'mounting the official catalog publisher again must never happen')
-  assert.doesNotMatch(patch, /^\s*- id: tool-skill(-global)?\s*$/m, 'tool-skill is preset-owned; this bundle must not add a row')
+  // A shadowed tool-skill publishes an EMPTY catalog that claims to replace every
+  // earlier list (dsh-tool-skill:935-941), which erased the live 270-entry catalog
+  // for standard/ptc sessions. This assertion is that incident's guard.
+  //
+  // Matched on NORMALIZED YAML, not on the serialized text: quote style, inline
+  // maps and indentation must not be able to slip a row past the guard.
+  const raw = await readFile(join(PKG, 'cordis.patch.yml'), 'utf8')
+  const normalized = raw
+    .split('\n')
+    .map((line) => line.replace(/\s+#.*$/u, '').trimEnd())
+    .filter((line) => line !== '' && !line.trimStart().startsWith('#'))
+    .join('\n')
+    .replaceAll('"', "'")
+    .replace(/\s+/gu, ' ')
+  assert.doesNotMatch(normalized, /name: '@deepseek-ai\/dsh-tool-skill'/, 'mounting the official catalog publisher again must never happen')
+  assert.doesNotMatch(normalized, /- id: tool-skill(-global)? /, 'tool-skill is preset-owned; this bundle must not add a row')
+  assert.doesNotMatch(normalized, /id: tool-skill(-global)?[,}]/, 'inline-map rows count too')
 })
 
 test('index exports a name and apply function, and no Config', async () => {

@@ -29,3 +29,14 @@
 ```bash
 node --test test/*.test.mjs
 ```
+
+## 复核(可复现)
+
+```bash
+# 组合树里有多少 preset 行、其中几行挂了 skill 能力
+dsh --profile web --dump-config | grep -nE '^ *- id: preset-'
+dsh --profile web --dump-config | grep -c 'id: skill-filesystem'
+```
+
+注意:profile 的 `cordis.patch.yml` 里只有 5 个 preset 行(委派路由表点名的那 5 个),完整 9 个要
+看**组合后的树**,不要只看 profile 文件。
