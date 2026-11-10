@@ -53,7 +53,18 @@ function loadedBy(event) {
   // already an object. Missing that event made the nudge repeat skills the
   // model had just loaded (#175).
   if (event?.type === 'tool/ptc-dispatch' && LOADER_TOOLS.has(event.data?.name)) {
-    const dispatched = event.data.arguments
+    // A failed load did not put anything in context, so it must not suppress
+    // the next nudge.
+    if (event.data.isError === true) return undefined
+    const raw = event.data.arguments
+    let dispatched = raw
+    if (typeof raw === 'string') {
+      try {
+        dispatched = JSON.parse(raw)
+      } catch {
+        return undefined
+      }
+    }
     return typeof dispatched?.name === 'string' && dispatched.name !== '' ? dispatched.name : undefined
   }
   if (event?.type === 'tool/call' && LOADER_TOOLS.has(event.data?.name)) {

@@ -6,6 +6,17 @@
 // nudge, so each domain carries a hand-picked shortlist instead; the runtime
 // drops any name the catalog does not actually have.
 
+/** Prefix every nudge line starts with; the echo guard reads it from here. */
+export const NUDGE_PREFIX = '本轮涉及'
+
+/** Suffix closing every nudge line. */
+export const NUDGE_SUFFIX = ',再动手。'
+
+/** Whether a text already carries a rendered nudge line. */
+export function looksLikeNudge(text) {
+  return typeof text === 'string' && text.includes(NUDGE_PREFIX) && text.includes(NUDGE_SUFFIX)
+}
+
 /** Most names one nudge may carry: a hint, not a reading list. */
 export const MAX_NAMES = 3
 
@@ -93,14 +104,20 @@ function occurs(keyword, text) {
 export function matchDomains(text) {
   if (typeof text !== 'string' || text.trim() === '') return []
   const lowered = text.toLowerCase()
+  const sentences = lowered.split(/[。!?；\n]/u).filter((part) => part.trim() !== '')
   const matches = []
   for (const domain of DOMAINS) {
-    const strong = (domain.strong ?? []).filter((word) => occurs(word.toLowerCase(), lowered))
-    const weak = domain.keywords.filter((word) => occurs(word.toLowerCase(), lowered))
-    const hits = strong.length + weak.length
-    // One strong word identifies the domain; otherwise two signals are required.
-    if (strong.length === 0 && weak.length < 2) continue
-    matches.push({ domain, hits, strong: strong.length > 0 })
+    // Score per sentence: two hints scattered across a long paste are not a
+    // request. The best sentence decides.
+    let best = { hits: 0, strong: 0 }
+    for (const sentence of sentences) {
+      const strong = (domain.strong ?? []).filter((word) => occurs(word.toLowerCase(), sentence)).length
+      const weak = domain.keywords.filter((word) => occurs(word.toLowerCase(), sentence)).length
+      const hits = strong + weak
+      if (strong > best.strong || (strong === best.strong && hits > best.hits)) best = { hits, strong }
+    }
+    if (best.strong === 0 && best.hits < 2) continue
+    matches.push({ domain, hits: best.hits, strong: best.strong > 0 })
   }
   return matches.sort((left, right) => Number(right.strong) - Number(left.strong) || right.hits - left.hits)
 }
@@ -132,5 +149,5 @@ export function shortlist(match, text) {
  */
 export function nudgeLine(domain, names, loader) {
   if (names.length === 0) return ''
-  return '本轮涉及' + domain.label + ':用 ' + loader + ' 先看 ' + names.slice(0, MAX_NAMES).join('、') + ',再动手。'
+  return NUDGE_PREFIX + domain.label + ':用 ' + loader + ' 先看 ' + names.slice(0, MAX_NAMES).join('、') + NUDGE_SUFFIX
 }
