@@ -1,0 +1,30 @@
+{
+  issue: 164,
+  grade: standard,
+  stage: review,
+  updatedAt: 2026-11-10T20:14:53.933+08:00,
+  tickets: [
+    {
+      id: 1,
+      title: 写教训文档,
+      state: done
+    },
+    {
+      id: 2,
+      title: 全量验收 + PR,
+      state: done
+    }
+  ],
+  ci: {
+    run: 1,
+    max: 2,
+    status: green
+  },
+  review: {
+    state: running,
+    axes: 2
+  },
+  merge: {
+    authorized: false
+  }
+}
