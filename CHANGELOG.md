@@ -12,7 +12,8 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ### dev-flow 0.6.0 — 规则常驻注入:不再当技能,流程只留两次交互(#154)
 
-- **常驻契约**:`index.js` 改为向 `systemPrompt.context` 注册 `dev-flow:flow-contract`(order 21050,紧随执行纪律 20000 与委派纪律 21000,`required: true`),不再调用 `ctx.skills.register`。实测改动前会话技能目录 270 个、dev-flow 不在其中(`~/.dsh/skills/dev-flow` 还是死链),「先调用 skill」无机制保证。
+- **常驻契约**:`index.js` 改为向 `systemPrompt.context` 注册 `dev-flow:flow-contract`(order 21050,紧随执行纪律 20000 与委派纪律 21000,`required: true`),不再调用 `ctx.skills.register`。实测改动前会话技能目录 270 个、dev-flow 不在其中(原因未定;`~/.dsh/skills/dev-flow` 是死链)。无论原因是目录过滤还是行未激活,「先调用 skill」都没有机制保证。
+- **面板文案同步**:`need_*` 六处改为不要求用户裁决(CI 红=已停止重推、review=agent 正在逐条裁决),`boardSkillHint` 更名 `boardFlowHint`,并新增 `test/assembly.test.mjs` 用宿主真实 `SystemPrompt` 验证组装里确实有这段契约。
 - **两次交互**:停点从 3 个砍到 2 个——意图确认(大白话,`ask_user_question`)与合并确认。分级、裁剪、无 CI(自动补 workflow)、CI 红(自修≤2 轮后不合并)、review 裁决、spec 变更全部改为 agent 自决并留证,不再让用户拍板。
 - **单一真源**:`SKILL.md` 改名 `FLOW.md`(语义不再是 skill),契约文本只给绝对路径;详细规程(TDD、双轴 review 模板、状态文件、分支保护)仍在包内按需读。
 - **lint 双契约**:`lintFlowDoc`(章节 + 禁用措辞「用户点头 / 必须用户明示 / 双保险」)+ `lintContract`(常驻硬句 + 70 行上限);顺带修掉章节重复检测漏 `g` 标志的潜在漏检。

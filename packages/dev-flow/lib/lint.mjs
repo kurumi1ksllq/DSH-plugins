@@ -49,7 +49,12 @@ export const CONTRACT_REQUIRED = [
   ['禁止直接改 main', '必须保留 main 保护'],
   ['.flow/', '必须保留任务板状态文件路径'],
   ['FLOW.md', '必须指认规程全文的位置'],
+  ['禁测私有函数', '必须保留「只测公开行为」这条'],
+  ['破坏性操作', '必须保留危险操作先说明再执行的约束'],
 ]
+
+/** The contract rides every turn, so it gets a budget in characters, not lines. */
+export const CONTRACT_MAX_CHARS = 1600
 
 /**
  * Lint the packaged procedure.
@@ -89,8 +94,15 @@ export function lintContract(text) {
   for (const [marker, fix] of CONTRACT_REQUIRED) {
     if (!text.includes(marker)) violations.push({ rule: 'contract-marker', message: `契约缺少「${marker}」`, fix })
   }
-  if (text.split('\n').length > 70) {
-    violations.push({ rule: 'contract-length', message: '契约超过 70 行,每轮都吃 token', fix: '把细节移回 FLOW.md,只留会改变行为的句子' })
+  // Length is checked in characters, not lines: padding every line with a long
+  // paragraph keeps the line count while multiplying what every turn pays.
+  if (text.length > CONTRACT_MAX_CHARS) {
+    violations.push({ rule: 'contract-length', message: `契约 ${text.length} 字符,超过 ${CONTRACT_MAX_CHARS} 上限`, fix: '把细节移回 FLOW.md,只留会改变行为的句子' })
+  }
+  // The injected text carries more weight than FLOW.md (it is read every turn),
+  // so the phrases that hand judgement back to the user are banned here too.
+  for (const [phrase, fix] of FORBIDDEN_PHRASES) {
+    if (text.includes(phrase)) violations.push({ rule: 'forbidden-phrase', message: `契约出现被禁用的措辞「${phrase}」`, fix })
   }
   return { ok: violations.length === 0, violations }
 }

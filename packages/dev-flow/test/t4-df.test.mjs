@@ -64,11 +64,11 @@ test('FLOW.md narrows read-only triggers and cross-references the panel', () => 
   assert.match(flow, /Git 面板/)
 })
 
-test('client.js carries the panel→skill hint in BOTH dicts', () => {
+test('client.js carries the panel→flow hint in BOTH dicts', () => {
   const source = readFileSync(join(pkg, 'client.js'), 'utf8')
   // The zh value contains 会接手; the en value contains drives this flow —
   // requiring both makes deleting either dict's key red.
-  assert.match(source, /boardSkillHint: '[^']*会接手/)
-  assert.match(source, /boardSkillHint: '[^']*drives this flow/)
-  assert.match(source, /t\('boardSkillHint'\)/)
+  assert.match(source, /boardFlowHint: '[^']*会接手/)
+  assert.match(source, /boardFlowHint: '[^']*drives this flow/)
+  assert.match(source, /t\('boardFlowHint'\)/)
 })

@@ -45,7 +45,7 @@ export function renderFlowContract({ docPath } = {}) {
 
 以下事项自决并留证,不要问用户:
 - 分级(trivial/standard)与是否需要裁剪某阶段 → 写进 spec 与 docs/specs/.flow/<issue>.json。
-- 仓库没有 CI → 自动补一个最小 workflow(test + verify)后继续。
+- 仓库没有 CI → 自动补一个最小 workflow(只跑 test/verify,显式 permissions: contents: read)后继续。
 - CI 红 → 自修,最多 2 轮;仍红则不合并,附失败要点报结论。
 - 双轴 review 的每条发现 → 自己裁决:改,或不改并写理由;结论落进 PR 描述。
 - 实现中发现 spec 需要调整 → 在 spec 里记「变更点 + 理由」后继续,不回头重开确认。
@@ -54,5 +54,6 @@ export function renderFlowContract({ docPath } = {}) {
 - 禁止直接改 main:改动走 issue-<n>-<desc> 分支 → PR。
 - 禁测私有函数、调用次数、内部顺序;只测公开行为与输出。
 - 每个流程节点写一次 docs/specs/.flow/<issue>.json(任务板的唯一进度源)。
-- 破坏性操作(rm -rf、drop/truncate、force-push、重启宿主进程)先说明再问,其余不要停。`
+- 环境前置(gh 认证、git remote)不满足时不要猜:在结论里写明缺口和用户要执行的那一条命令,其余能做的照做。
+- 破坏性操作(rm -rf、drop/truncate、force-push、重启宿主进程)先说明再问——这是安全前置,不计入两次交互。`
 }

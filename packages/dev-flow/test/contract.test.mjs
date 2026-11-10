@@ -35,7 +35,7 @@ const PACKAGE_ROOT = join(HERE, '..')
  */
 function makeContext() {
   const contexts = []
-  const effects = []
+  const disposers = []
   const scope = {
     systemPrompt: {
       context(definition) {
@@ -43,9 +43,10 @@ function makeContext() {
         return () => {}
       },
     },
-    effect(register, label) {
-      effects.push(label)
-      return register()
+    effect(register) {
+      const disposer = register()
+      disposers.push(disposer)
+      return disposer
     },
   }
   const ctx = {
@@ -59,7 +60,7 @@ function makeContext() {
       },
     },
   }
-  return { ctx, contexts, effects }
+  return { ctx, contexts, disposers }
 }
 
 describe('dev-flow injects an always-on contract', () => {
@@ -75,7 +76,7 @@ describe('dev-flow injects an always-on contract', () => {
     const [definition] = contexts
     assert.equal(definition.name, plugin.CONTEXT_NAME)
     assert.equal(typeof definition.order, 'number')
-    assert.equal(definition.order, plugin.CONTEXT_ORDER)
+    assert.equal(typeof definition.text, 'function', 'the text is resolved per assembly, not frozen at boot')
   })
 
   it('places the contract after the discipline blocks and keeps it when runtime context is optional', () => {
@@ -87,11 +88,18 @@ describe('dev-flow injects an always-on contract', () => {
     assert.equal(definition.required, true, 'optional runtime context must not drop the flow contract')
   })
 
-  it('registers through a managed effect so a reload cannot leave a duplicate', () => {
-    const { ctx, effects } = makeContext()
+  it('registers through a managed effect, so the registration is disposable', () => {
+    const { ctx, disposers } = makeContext()
     plugin.apply(ctx)
-    assert.equal(effects.length, 1)
-    assert.match(String(effects[0]), /contract/i)
+    assert.equal(disposers.length, 1, 'one registration, one disposer — re-applying must not stack up')
+    assert.equal(typeof disposers[0], 'function', 'cordis needs the disposer to drop the context on reload')
+  })
+
+  it('does nothing when the host has no inject hook, instead of throwing at boot', () => {
+    // A profile without the service must leave this row inactive, not crash the
+    // boot. The trade-off is that the failure is silent, which is what
+    // test/assembly.test.mjs covers from the other side.
+    assert.doesNotThrow(() => plugin.apply({}))
   })
 
   it('never touches the skill registry', () => {

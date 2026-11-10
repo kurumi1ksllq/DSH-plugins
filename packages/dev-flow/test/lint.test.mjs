@@ -73,8 +73,27 @@ describe('lintContract', () => {
     for (const [marker] of CONTRACT_REQUIRED) assert.ok(missing.includes(marker), 'missing marker ' + marker + ' not reported')
   })
 
-  it('flags a contract that grew too long to ride every turn', () => {
-    const result = lintContract(text + '\n'.repeat(80) + 'x')
-    assert.ok(result.violations.some((violation) => violation.rule === 'contract-length'))
+  it('flags a contract that grew too heavy to ride every turn', () => {
+    // Padding characters, not lines: a long paragraph on every existing line
+    // keeps the line count and still multiplies what each turn pays.
+    const padded = text + '这一句是废话,却每轮都要付费。'.repeat(60)
+    const result = lintContract(padded)
+    assert.ok(result.violations.some((violation) => violation.rule === 'contract-length'), 'the budget is characters, not lines')
+  })
+
+  it('bans the same hand-it-back-to-the-user phrases inside the contract', () => {
+    // The injected text is read on every turn, so it is held to at least the
+    // standard FLOW.md is: writing 「用户点头」 back here must go red even when
+    // the document itself stays clean.
+    const result = lintContract(text + '\n本流程的分级必须用户明示。\n')
+    assert.equal(result.ok, false)
+    assert.ok(result.violations.some((violation) => violation.rule === 'forbidden-phrase'))
+  })
+
+  it('requires the safety and test-discipline markers', () => {
+    for (const marker of ['禁测私有函数', '破坏性操作']) {
+      const result = lintContract(text.replaceAll(marker, '删掉'))
+      assert.equal(result.ok, false, 'removing ' + marker + ' must be caught')
+    }
   })
 })

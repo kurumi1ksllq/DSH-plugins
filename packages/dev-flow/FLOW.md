@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | 分级 | `trivial`(≤1 文件 且 ≤30 行 且 无接口变更)或 `standard`,按计划变更预估,否则一律 standard | spec 首行 + `.flow` 的 `grade` |
 | 裁剪 | 跳过某阶段(如 trivial 免双轴 review)必须写明"依据 X 跳过 Y";拿不准就不裁 | spec 的「裁剪」小节 + commit 信息 |
-| 无 CI | 仓库没有 `.github/workflows` → 自动补一个最小 workflow(test + verify),再 push | PR 描述 |
+| 无 CI | 仓库没有 `.github/workflows` → 自动补一个最小 workflow(只跑 test/verify,显式 `permissions: contents: read`),再 push;PR 描述里点明新增了 workflow | PR 描述 |
 | CI 红 | 自修≤2 轮(读取日志→修改→commit→push→再查),每轮在状态行写"第 N/2 轮";仍红则**不合并**,附失败要点与建议 | PR 评论 + `.flow` 的 `ci` |
 | review 发现 | 自己裁决每条:采纳并修,或不采纳并写明理由;不得静默丢弃 | PR 描述 |
 | spec 变更 | 实现中发现目标/边界/验收要调整,在 spec 里追加「变更点 + 理由」后继续 | spec 的「变更」小节 |
@@ -60,7 +60,7 @@
 gh --version && gh auth status && git remote -v
 ```
 
-- 任一失败 → **停下来报告**,不带着假设往下走。
+- 任一失败 → 不带着假设往下走:把缺口写进最终结论,并给出用户要执行的那一条命令;其余能做的照做,不因此停工(这不是第三次交互)。
 - `gh` 未认证 → `gh auth login` 是交互式的,会卡死 bash 工具;输出命令让用户自己在终端执行,确认后再继续。
 - `git remote -v` 为空 → 与用户确认目标仓库(已有远程 or `gh repo create\))。
 - 远程是镜像地址导致 `gh` 认不出仓库时,用 `gh … -R <owner>/<repo>` 指名,不要因此停工。
@@ -101,7 +101,7 @@ Git 和 GitHub 只知道证据(分支、提交、PR、CI),不知道 TDD 内部�
 | push + 开 PR 后 | `stage: "pr"` → 查到 CI 后 `stage: "ci"`,写 `ci.status` |
 | CI 红自修每轮结束 | `ci.run` 加 1(上限 `max: 2`),`ci.status` 按实况 |
 | CI 绿、发起 review 前 | `stage: "review"`,`review.state: "running"` |
-| review 报告出来后 | `review.state: "pending-decision"`(裁决在 agent 侧,随即 `done`) |
+| review 报告出来后 | `review.state: "running"`(裁决在 agent 侧进行);只有确实需要用户知会时才写 `pending-decision` |
 | 合并请求发出前 | `stage: "merge"` |
 | 合并完成 | `stage: "done"`、`merge.authorized: true` |
 
@@ -120,7 +120,7 @@ Git 和 GitHub 只知道证据(分支、提交、PR、CI),不知道 TDD 内部�
     { "id": 2, "title": "校验", "state": "red" }
   ],
   "ci": { "run": 1, "max": 2, "status": "red" },
-  "review": { "state": "pending-decision", "axes": 2 },
+  "review": { "state": "running", "axes": 2 },
   "merge": { "authorized": false }
 }
 ```
@@ -131,7 +131,7 @@ Git 和 GitHub 只知道证据(分支、提交、PR、CI),不知道 TDD 内部�
 - `stage`: `intake` | `spec` | `dev` | `pr` | `ci` | `review` | `merge` | `done` —— 这八个值就是任务板的八列
 - `tickets[].state`: `todo` | `red` | `green` | `done`
 - `ci.status`: `green` | `red` | `none` | `unknown`
-- `review.state`: `not-started` | `running` | `pending-decision` | `done`
+- `review.state`: `not-started` | `running` | `pending-decision` | `done`(`pending-decision` = 等用户知会,不是等用户裁决;agent 自裁期间写 `running`)
 
 ### 写坏了会怎样
 
