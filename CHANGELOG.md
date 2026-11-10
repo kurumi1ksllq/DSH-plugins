@@ -10,6 +10,15 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.1 — 工具管理页 UI 细节打磨(#170)
+
+- **修复「交互反馈从未生效」**:控件底色/文字色/位移原先写在内联样式里,优先级高于样式表,导致 `STYLES` 里三条 `:hover`/`:active` 规则(开关按压、隐藏按钮悬停、导航悬停)一秒都没执行过。现按 `inv-chip` / `inv-chip-on` / `inv-primary` / `inv-link` / `inv-ctrl` / `inv-hide` 类基态承载外观,内联只留尺寸与排版;开关滑块位移改用自定义属性 `--inv-x`,按压缩放 `scale(0.94)` 才能叠加。
+- **焦点可见性(WCAG 2.2 SC 2.4.11)**:焦点环不再给所有元素强塞 `border-radius: 10px`(会把胶囊开关、导航项的环画错形状);卡内行改为内嵌 `outline-offset: -3px`,不再被 `overflow: hidden` 裁掉半圈;提示词编辑器补焦点态与 placeholder 颜色。
+- **排版**:标题 `text-wrap: balance`、说明与行副标题 `text-wrap: pretty`;徽标数字补 `tabular-nums`;次级文字去掉叠在弱色上的 `opacity: 0.75`(对比度 ≈3.0:1 → ≈4.8:1);面板根补字体平滑。
+- **控件质感**:骨架屏改 shimmer(reduced-motion 下静态);开关轨道内描边、滑块阴影收敛;开关与图标按钮用伪元素扩命中区;搜索框聚焦抬升 + caret/placeholder 着色;滚动条细化与 `::selection`;卡片改分层 label 色阴影;警示条同色系描边与着色图标;圆角收敛为 10/8/999 三级;「已隐藏技能」只弱化文字不弱化开关。
+- **测试**:新增 `test/ui-detail.test.mjs`(6 条公开行为契约:焦点覆盖、焦点环形状、状态属性归 CSS、reduced-motion 覆盖、禁 `transition: all`、排版契约),删规则即红;渲染桩抽到 `test/support/react-runtime.mjs` 共用。
+- **边界**:布局、栏目、文案、宿主 API 均未改;MCP 行徽标溢出裁掉行尾开关属断行问题,留后续 issue。
+
 ### dsh-deep-ptc-mode 1.13.1 — 缺依赖时按前置跳过(#167/#168)
 
 - 新增 `test/support/prerequisites.mjs`：ESM 优先、CJS 兜底探测可选前置，skip 时给出可操作理由。
