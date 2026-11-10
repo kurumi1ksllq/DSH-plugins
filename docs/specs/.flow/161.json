@@ -2,7 +2,7 @@
   "issue": 161,
   "grade": "standard",
   "stage": "merge",
-  "updatedAt": "2026-11-10T11:08:19.360+08:00",
+  "updatedAt": "2026-11-10T11:24:49.349+08:00",
   "tickets": [
     {
       "id": 1,
@@ -11,7 +11,7 @@
     },
     {
       "id": 2,
-      "title": "宿主 applyPatches 红测试",
+      "title": "宿主 applyEntryPatches 红测试",
       "state": "done"
     },
     {
@@ -31,7 +31,7 @@
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {
