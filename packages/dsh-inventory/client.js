@@ -1677,7 +1677,7 @@ window.__ModuleLoader__.load({
         'button',
         {
           type: 'button',
-          className: 'inv-btn',
+          className: 'inv-btn inv-link',
           style: { ...S.linkBtn, ...(isDisabled ? S.linkBtnDisabled : {}) },
           disabled: isDisabled,
           onClick: (event) => {
@@ -1705,7 +1705,7 @@ window.__ModuleLoader__.load({
         'button',
         {
           type: 'button',
-          className: 'inv-btn inv-hide',
+          className: muted ? 'inv-btn inv-hide inv-ctrl' : 'inv-btn inv-hide',
           'aria-label': label,
           title: label,
           disabled: isDisabled,
