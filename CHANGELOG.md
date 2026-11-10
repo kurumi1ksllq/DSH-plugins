@@ -10,6 +10,12 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-skill-surface 0.2.1 — 领域触发两处缺陷(#175)
+
+- **认出 PTC 加载**：deep-ptc 里模型调 `skill` 走 `tool/ptc-dispatch`（`arguments` 已是对象），而「已加载」判定只认 `tool/call` —— 导致该 preset 下加载过的技能下一轮仍被点名。现在两类事件都认。
+- **回声抑制**：子 agent 回报会引用那句提示，父会话原先会把它当新输入再触发一次。含 nudge 标记的文本不再触发。
+- 两条都有反向验证用例：删掉 dispatch 分支 → F1 红；删掉回声守卫 → F2 红。
+
 ### dsh-skill-surface 0.2.0 — 领域触发：开工时点名相关技能(#172)
 
 - **背景**：一次真实会话里用户要求「优化页面的 ui 细节」，目录中有 `make-interfaces-feel-better`，但全程 29 次工具调用、0 次 `skill`。诊断结论是「觉得没必要查」，不是「看不到 / 找不到」。

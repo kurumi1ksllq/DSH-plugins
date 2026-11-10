@@ -163,3 +163,34 @@ test('E11: common Chinese UI phrasings trigger, not just the reported one', asyn
   }
 })
 
+
+const dispatchedLoad = (name) => ({
+  type: 'tool/ptc-dispatch',
+  data: { name: 'skill', arguments: { name }, isError: false },
+})
+
+test('F1: a load recorded through PTC dispatch also suppresses the next nudge', async () => {
+  // deep-ptc routes tool calls through tool/ptc-dispatch; reading only tool/call
+  // made the nudge repeat skills the model had just loaded (#175).
+  stubHost()
+  const h = harness()
+  const a = agentWith([dispatchedLoad('design-system'), dispatchedLoad('make-interfaces-feel-better')])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 0, 'dispatch-recorded loads count as loaded')
+})
+
+test('F1b: an unrelated dispatch does not count as a load', async () => {
+  stubHost()
+  const h = harness()
+  const a = agentWith([{ type: 'tool/ptc-dispatch', data: { name: 'tool_search', arguments: { query: 'x' } } }])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 1, 'only loader dispatches suppress')
+})
+
+test('F2: a message that already contains the nudge line is not nudged again', async () => {
+  stubHost()
+  const quoted = '本轮涉及UI/界面细节:用 `skill` 先看 make-interfaces-feel-better,再动手。'
+  const decision = await run(harness(), agent(), '子 agent 回报:' + quoted)
+  assert.equal(decision.messages.length, 0, 'no echo')
+})
+

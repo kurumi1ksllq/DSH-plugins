@@ -222,6 +222,8 @@ function userText(messages) {
 async function nudgeFor(scope, { agent, messages, turn, signal }) {
   const text = userText(messages)
   if (text === '') return undefined
+  // A relayed report may quote this very line; nudging on it would be an echo.
+  if (text.includes('本轮涉及') && text.includes('再动手。')) return undefined
   const matches = matchDomains(text)
   if (matches.length === 0) return undefined
   if (nudgedTurn.get(agent) === turn) return undefined
