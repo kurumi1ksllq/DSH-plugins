@@ -219,41 +219,90 @@
             )
           : null
 
-      if (status === 'loading' && data === null) {
-        return h(
+      // One shell for every state (issue #179): the rail and the scroll host
+      // must be in the first paint. Before this, loading and error rendered a
+      // single column, so opening the panel jumped to two columns when the
+      // snapshot landed. Counts are passed only when data exists.
+      const navRailFor = (rails) =>
+        h(NavRail, {
+          label: t('navRailLabel'),
+          active: view === 'workspace' ? 'workspaces' : view,
+          onSelect: setView,
+          groups: [
+            {
+              title: t('navGroupOverview'),
+              items: [
+                { key: 'global', label: t('wsOverview'), count: rails?.overview },
+                { key: 'workspaces', label: t('wsWorkspaces'), count: rails?.workspaces },
+              ],
+            },
+            {
+              title: t('navGroupConfig'),
+              items: [
+                { key: 'sync', label: t('syncView') },
+                { key: 'providers', label: t('providerSection') },
+                { key: 'prompt', label: t('promptSection') },
+                { key: 'credentials', label: t('credentialSection') },
+              ],
+            },
+          ],
+        })
+
+      const shell = (navNode, children, rails) =>
+        h(
           'div',
           { style: S.root },
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          navNode,
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
-            h('div', { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
-              h('div', { className: 'inv-skeleton', style: S.skeleton }),
-              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
-              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
+            { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
+            navRailFor(rails),
+            h(
+              'div',
+              {
+                // The scroll host: the rail stays put while the main column
+                // scrolls under the sticky nav.
+                className: 'inv-scroll',
+                style: S.scrollHost,
+                onScroll: (event) => {
+                  const next = event.currentTarget.scrollTop > 24
+                  if (next !== scrolled) setScrolled(next)
+                },
+              },
+              h('div', { style: S.page }, ...children),
             ),
           ),
+        )
+
+      if (status === 'loading' && data === null) {
+        return shell(
+          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
+          h(
+            'div',
+            { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('div', { className: 'inv-skeleton', style: S.skeleton }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
+          ),
+          ],
         )
       }
 
       if (status === 'error' && data === null) {
-        return h(
-          'div',
-          { style: S.root },
+        return shell(
           h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
-            h(
-              'div',
-              { style: S.errorBox },
-              h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
-              h('span', { style: { flex: '1 1 auto' } }, `${t('error')} ${message ? `(${message})` : ''}`),
-              h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
-            ),
+            { style: S.errorBox },
+            h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
+            h('span', { style: { flex: '1 1 auto' } }, t('error') + (message ? ' (' + message + ')' : '')),
+            h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
           ),
+          ],
         )
       }
 
@@ -703,55 +752,7 @@
       // Left navigation rail (issue #91): the six views in two groups. Counts
       // mirror what the views will show; the workspace detail keeps the
       // highlight on 工作区 because it is the same view state.
-      const navRail = h(NavRail, {
-        label: t('navRailLabel'),
-        active: view === 'workspace' ? 'workspaces' : view,
-        onSelect: setView,
-        groups: [
-          {
-            title: t('navGroupOverview'),
-            items: [
-              { key: 'global', label: t('wsOverview'), count: packages.length + mcp.length + skills.length },
-              { key: 'workspaces', label: t('wsWorkspaces'), count: workspaceList.length },
-            ],
-          },
-          {
-            title: t('navGroupConfig'),
-            items: [
-              { key: 'sync', label: t('syncView') },
-              { key: 'providers', label: t('providerSection') },
-              { key: 'prompt', label: t('promptSection') },
-              { key: 'credentials', label: t('credentialSection') },
-            ],
-          },
-        ],
-      })
-
-      return h(
-        'div',
-        {
-          style: S.root,
-        },
-        nav,
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
-          navRail,
-          h(
-            'div',
-            {
-              // The scroll host: the rail stays put while the main column
-              // scrolls under the sticky nav. Takes over S.root's old role.
-              className: 'inv-scroll',
-              style: S.scrollHost,
-              onScroll: (event) => {
-                const next = event.currentTarget.scrollTop > 24
-                if (next !== scrolled) setScrolled(next)
-              },
-            },
-            h(
-              'div',
-              { style: S.page },
+      const pageChildren = [
               // (the page column is a fixed 780px list width on purpose: the tool
               // survey reads like an inset list, and the live sections follow it)
               h(
@@ -872,9 +873,10 @@
                   h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
                 )
               : null,
-            ),
-          ),
-        ),
-      )
-    }
+      ]
 
+      return shell(nav, pageChildren, {
+        overview: packages.length + mcp.length + skills.length,
+        workspaces: workspaceList.length,
+      })
+    }

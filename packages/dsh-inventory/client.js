@@ -886,7 +886,6 @@ window.__ModuleLoader__.load({
         alignItems: 'center',
         height: '32px',
         padding: '0 12px',
-        border: '1px solid transparent',
         boxSizing: 'border-box',
         borderRadius: '10px',
         fontSize: '13px',
@@ -954,7 +953,7 @@ window.__ModuleLoader__.load({
         userSelect: 'none',
         flexShrink: 0,
       },
-      sectionTitle: { ...T.captionStrong, color: C.secondary },
+      sectionTitle: { ...T.captionStrong, color: C.text },
       sectionCount: { ...T.caption, color: C.secondary, fontVariantNumeric: 'tabular-nums' },
       sectionHint: { ...T.caption, color: C.secondary, marginLeft: 'auto', paddingRight: '4px', whiteSpace: 'nowrap' },
       // Per-row icon button (hide a skill); swallows the row's own click.
@@ -1253,8 +1252,17 @@ window.__ModuleLoader__.load({
 .inv-btn, .inv-seg-btn, .inv-chip, .inv-primary, .inv-link, .inv-ctrl,
 .inv-switch, .inv-rail-item, .inv-row, .inv-search, .inv-textarea { outline: none; }
 .inv-btn, .inv-seg-btn { background: transparent; }
-.inv-chip { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent); color: var(--dsw-alias-label-secondary, #6b7280); }
-.inv-chip-on { background: var(--dsw-alias-label-primary, #1f2328); color: var(--dsw-alias-bg-base, #fff); font-weight: 600; }
+.inv-chip {
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.inv-chip-on {
+  background: var(--dsw-alias-label-primary, #1f2328);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-bg-base, #fff);
+  font-weight: 600;
+}
 .inv-primary { background: var(--dsw-alias-label-primary, #1f2328); color: var(--dsw-alias-bg-base, #fff); }
 .inv-link { background: transparent; color: var(--dsw-alias-button-info-fill, #4176e6); }
 .inv-ctrl { background: transparent; color: var(--dsw-alias-label-secondary, #6b7280); border: 1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12)); }
@@ -1270,7 +1278,11 @@ window.__ModuleLoader__.load({
   transition-timing-function: ease-out;
 }
 @media (hover: hover) {
-  .inv-chip:not(.inv-chip-on):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 20%, transparent); }
+  .inv-btn:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 8%, transparent); }
+  .inv-chip:not(.inv-chip-on):hover {
+    background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 18%, transparent);
+    border-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 45%, transparent);
+  }
   .inv-chip-on:hover { filter: brightness(0.96); }
   .inv-primary:hover { filter: brightness(1.06); }
   .inv-link:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 10%, transparent); }
@@ -1280,6 +1292,7 @@ window.__ModuleLoader__.load({
   }
   .inv-hide:hover { color: var(--dsw-alias-label-primary, #111827); opacity: 1; }
 }
+.inv-btn:active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
 .inv-chip:active:enabled, .inv-primary:active:enabled,
 .inv-link:active:enabled, .inv-ctrl:active:enabled { transform: scale(0.96); }
 .inv-btn:disabled, .inv-chip:disabled, .inv-primary:disabled,
@@ -4131,41 +4144,90 @@ window.__ModuleLoader__.load({
             )
           : null
 
-      if (status === 'loading' && data === null) {
-        return h(
+      // One shell for every state (issue #179): the rail and the scroll host
+      // must be in the first paint. Before this, loading and error rendered a
+      // single column, so opening the panel jumped to two columns when the
+      // snapshot landed. Counts are passed only when data exists.
+      const navRailFor = (rails) =>
+        h(NavRail, {
+          label: t('navRailLabel'),
+          active: view === 'workspace' ? 'workspaces' : view,
+          onSelect: setView,
+          groups: [
+            {
+              title: t('navGroupOverview'),
+              items: [
+                { key: 'global', label: t('wsOverview'), count: rails?.overview },
+                { key: 'workspaces', label: t('wsWorkspaces'), count: rails?.workspaces },
+              ],
+            },
+            {
+              title: t('navGroupConfig'),
+              items: [
+                { key: 'sync', label: t('syncView') },
+                { key: 'providers', label: t('providerSection') },
+                { key: 'prompt', label: t('promptSection') },
+                { key: 'credentials', label: t('credentialSection') },
+              ],
+            },
+          ],
+        })
+
+      const shell = (navNode, children, rails) =>
+        h(
           'div',
           { style: S.root },
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          navNode,
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
-            h('div', { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
-              h('div', { className: 'inv-skeleton', style: S.skeleton }),
-              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
-              h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
+            { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
+            navRailFor(rails),
+            h(
+              'div',
+              {
+                // The scroll host: the rail stays put while the main column
+                // scrolls under the sticky nav.
+                className: 'inv-scroll',
+                style: S.scrollHost,
+                onScroll: (event) => {
+                  const next = event.currentTarget.scrollTop > 24
+                  if (next !== scrolled) setScrolled(next)
+                },
+              },
+              h('div', { style: S.page }, ...children),
             ),
           ),
+        )
+
+      if (status === 'loading' && data === null) {
+        return shell(
+          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
+          h(
+            'div',
+            { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('div', { className: 'inv-skeleton', style: S.skeleton }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
+          ),
+          ],
         )
       }
 
       if (status === 'error' && data === null) {
-        return h(
-          'div',
-          { style: S.root },
+        return shell(
           h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
-            h(
-              'div',
-              { style: S.errorBox },
-              h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
-              h('span', { style: { flex: '1 1 auto' } }, `${t('error')} ${message ? `(${message})` : ''}`),
-              h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
-            ),
+            { style: S.errorBox },
+            h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
+            h('span', { style: { flex: '1 1 auto' } }, t('error') + (message ? ' (' + message + ')' : '')),
+            h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
           ),
+          ],
         )
       }
 
@@ -4615,55 +4677,7 @@ window.__ModuleLoader__.load({
       // Left navigation rail (issue #91): the six views in two groups. Counts
       // mirror what the views will show; the workspace detail keeps the
       // highlight on 工作区 because it is the same view state.
-      const navRail = h(NavRail, {
-        label: t('navRailLabel'),
-        active: view === 'workspace' ? 'workspaces' : view,
-        onSelect: setView,
-        groups: [
-          {
-            title: t('navGroupOverview'),
-            items: [
-              { key: 'global', label: t('wsOverview'), count: packages.length + mcp.length + skills.length },
-              { key: 'workspaces', label: t('wsWorkspaces'), count: workspaceList.length },
-            ],
-          },
-          {
-            title: t('navGroupConfig'),
-            items: [
-              { key: 'sync', label: t('syncView') },
-              { key: 'providers', label: t('providerSection') },
-              { key: 'prompt', label: t('promptSection') },
-              { key: 'credentials', label: t('credentialSection') },
-            ],
-          },
-        ],
-      })
-
-      return h(
-        'div',
-        {
-          style: S.root,
-        },
-        nav,
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
-          navRail,
-          h(
-            'div',
-            {
-              // The scroll host: the rail stays put while the main column
-              // scrolls under the sticky nav. Takes over S.root's old role.
-              className: 'inv-scroll',
-              style: S.scrollHost,
-              onScroll: (event) => {
-                const next = event.currentTarget.scrollTop > 24
-                if (next !== scrolled) setScrolled(next)
-              },
-            },
-            h(
-              'div',
-              { style: S.page },
+      const pageChildren = [
               // (the page column is a fixed 780px list width on purpose: the tool
               // survey reads like an inset list, and the live sections follow it)
               h(
@@ -4784,12 +4798,13 @@ window.__ModuleLoader__.load({
                   h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
                 )
               : null,
-            ),
-          ),
-        ),
-      )
-    }
+      ]
 
+      return shell(nav, pageChildren, {
+        overview: packages.length + mcp.length + skills.length,
+        workspaces: workspaceList.length,
+      })
+    }
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-inventory: dictionaries')
       ctx.effect(installStyles, 'dsh-inventory: styles')

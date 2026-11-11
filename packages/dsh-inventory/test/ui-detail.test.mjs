@@ -309,3 +309,115 @@ test('no class in the stylesheet is dead: every one is attached by the panel', a
   const orphan = [...classesIn(css)].filter((name) => name.startsWith('inv-') && !attached.has(name))
   assert.deepEqual(orphan, [], 'stylesheet rules that no rendered element can ever match: ' + orphan.join(', '))
 })
+
+/** Text of a rendered subtree, for label comparisons. */
+function textOf(node) {
+  if (node === null || node === undefined || node === false) return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join(' ')
+  return textOf(node.children)
+}
+
+/** Depth-first search for the first matching node. */
+function findNode(node, predicate) {
+  if (node === null || node === undefined || typeof node !== 'object') return null
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const hit = findNode(child, predicate)
+      if (hit !== null) return hit
+    }
+    return null
+  }
+  if (predicate(node)) return node
+  for (const child of node.children ?? []) {
+    const hit = findNode(child, predicate)
+    if (hit !== null) return hit
+  }
+  return null
+}
+
+/** Labels of the left-hand navigation rail, in render order. */
+function railLabels(tree) {
+  const nav = findNode(tree, (node) => node.type === 'nav')
+  assert.ok(nav, 'no navigation rail in the tree')
+  const labels = []
+  eachNode(nav, (node) => {
+    if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') labels.push(node.props['aria-label'])
+  })
+  return labels
+}
+
+test('loading and error use the same two-column shell as the ready state', async () => {
+  const ready = await bootReady('shell-ready')
+  const readyLabels = railLabels(ready.tree)
+  assert.ok(readyLabels.length >= 6, 'the ready rail should list every view')
+
+  // Loading: the first paint must already be the rail layout, not the old
+  // single column that only grows a rail once data arrives.
+  const loading = await boot('shell-loading')
+  globalThis.fetch = () => new Promise(() => {})
+  const loadingTree = loading.render(loading.main.component, loading.main.spec.inject())
+  assert.deepEqual(railLabels(loadingTree), readyLabels, 'loading must show the same rail (counts omitted)')
+  assert.ok(
+    findNode(loadingTree, (node) => String(node.props?.className ?? '') === 'inv-scroll'),
+    'loading must render the scroll host, or the shell jumps when data lands',
+  )
+  assert.ok(
+    findNode(loadingTree, (node) => String(node.props?.className ?? '') === 'inv-skeleton'),
+    'loading must show the skeleton where the list will appear',
+  )
+
+  // Error: same shell, plus a usable retry.
+  const failed = await boot('shell-error')
+  globalThis.fetch = async () => {
+    throw new Error('boom')
+  }
+  const failedInjected = failed.main.spec.inject()
+  failed.render(failed.main.component, failedInjected)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const errorTree = failed.render(failed.main.component, failedInjected)
+  assert.deepEqual(railLabels(errorTree), readyLabels, 'the error state keeps the same rail')
+  assert.ok(
+    findNode(errorTree, (node) => String(node.props?.className ?? '') === 'inv-scroll'),
+    'the error state must render the scroll host too',
+  )
+  assert.ok(
+    findNode(errorTree, (node) => node.type === 'button' && String(node.props?.className ?? '').includes('inv-primary')),
+    'the error state must keep a retry button',
+  )
+})
+
+test('a control looks like a control, and a heading reads as a heading', async () => {
+  const { css, tree } = await bootReady('affordance')
+
+  // Form, not just colour: a toggle needs an outline plus a fill.
+  const chipRule = rules(css).find((rule) => classesIn(rule.selector).has('inv-chip') && /background/.test(rule.body))
+  assert.ok(chipRule, 'no background rule for .inv-chip')
+  assert.match(chipRule.body, /(^|[;\s])border(-color|-width)?\s*:/, '.inv-chip needs an outline, not only a tint: ' + chipRule.body.trim())
+
+  // Icon and text buttons (back, refresh, section headers) had no hover at all.
+  assert.ok(
+    rules(css).some((rule) => /\.inv-btn:hover/.test(rule.selector) && /background/.test(rule.body)),
+    '.inv-btn needs a hover fill, otherwise it reads as a static label',
+  )
+
+  // Section headers keep full-strength title text, so they do not compete with
+  // the softer, outlined controls.
+  const disclosure = findNode(tree, (node) => node?.props?.['aria-expanded'] !== undefined && node.type === 'button')
+  assert.ok(disclosure, 'no disclosure header found')
+  const colours = []
+  eachNode(disclosure, (node) => {
+    if (typeof node?.props?.style?.color === 'string') colours.push(node.props.style.color)
+  })
+  assert.ok(
+    colours.some((colour) => colour.includes('label-primary')),
+    'the section title must use the primary label colour, got: ' + JSON.stringify(colours),
+  )
+
+  // A toggle is not a disclosure: the two affordances never share an element.
+  const both = findNode(tree, (node) => {
+    const classes = String(node?.props?.className ?? '').split(' ')
+    return classes.includes('inv-chip') && node?.props?.['aria-expanded'] !== undefined
+  })
+  assert.equal(both, null, 'an element cannot be both a toggle and a section header')
+})
