@@ -1,0 +1,40 @@
+{
+  "issue": 170,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T00:47:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "交互态与焦点环",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "排版节奏",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "控件质感",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "层次与主题兜底",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

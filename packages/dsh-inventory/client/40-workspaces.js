@@ -19,7 +19,7 @@
         ),
         h(
           'div',
-          { style: S.card, role: 'list' },
+          { className: 'inv-card', style: S.card, role: 'list' },
           ...workspaces.map((workspace, index) => {
             const counts = workspace.counts ?? {}
             // Same set the detail page lists, so the card reads like the page's
@@ -229,10 +229,10 @@
         const hidden = hiddenSkills.includes(skill.name)
         return h(
           'div',
-          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
+          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}) } },
           h(
             'div',
-            { style: S.rowMain },
+            { style: { ...S.rowMain, ...(hidden ? S.rowTextHidden : {}) } },
             h(
               'div',
               { style: S.subRow },
@@ -276,7 +276,7 @@
           style: { ...S.foldHeader, ...(globalSkillRows.length === 0 ? S.foldHeaderEmpty : {}) },
           onClick: () => setShowGlobalSkills((prev) => !prev),
         },
-        h('span', { style: { ...S.chev, transform: showGlobalSkills ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+        h('span', { className: 'inv-chev', style: { ...S.chev, transform: showGlobalSkills ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
         h('span', { style: S.rowTitle }, t('wsGlobalSkillsFold')),
         h('span', { style: S.sectionCount }, `${globalSkillRows.length} ${t('wsItemCount')}`),
       )
