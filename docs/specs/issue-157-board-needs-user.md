@@ -70,3 +70,44 @@
 ### 与 issue 建议的差异(记录)
 
 issue #157 的建议是「把三类降级为 info」;本 spec 选择**整段删除**,理由是 info 条目仍会被读成待办。为不让状态彻底消失,补了第 1 条的渲染出口——两条路线的目标一致(不喊用户、但别丢信息),取后者。
+
+## 8. 变更(2026-11-11,续用 PR #166)
+
+### 8.1 合并最新 main(解 CHANGELOG 冲突)
+
+分支停在 `78d2b31` 之后,main 已推进到 `064284b`(4 个提交)。`git merge origin/main` 只有一处冲突:`CHANGELOG.md` 的 `## Unreleased`(两边都往顶部插条目)。
+
+处理:保留 main 全部 33 条,把 `### dev-flow 0.7.0` 置顶(仓库惯例:新条目在上),并把 note 行的计数从 33 同步到 34——`test/docs-contract.test.mjs:647` 断言「本段现有 N 个条目」必须等于实际 `### ` 数量,漏改会红。
+
+### 8.2 删除 `buildNeedsUser` 里的死过滤器(本轮新发现)
+
+**变更点**:上一轮 review 第 3 条为「`NEEDS_USER_KINDS` 没有消费者」补了 `.filter(entry => NEEDS_USER_KINDS.includes(entry.kind))`。实测证明这个补法是错的。
+
+**理由(实测)**:`buildNeedsUser` 只有两处 push(`:291` intake-confirm、`:300` merge-gate),都在词表内,所以该 filter **永远是真值**,是可证明的死代码。更糟的是它**主动掩盖回归**:
+
+| 状态 | 222 条测试 |
+| --- | --- |
+| filter 在 + 有人加回 `no-ci` | **全绿**(回归被 filter 静默滤掉) |
+| filter 删 + 有人加回 `no-ci` | 4 条红(新用例 + 原有 3 条) |
+
+即:加 filter 反而把一个原本能被抓住的回归变成抓不住。故删除 filter,并把注释改成「词表就是上面两处 push;这里的过滤器会掩盖回归」。
+
+### 8.3 新增「词表封闭」用例
+
+`task-board.test.mjs` 增一条:把**全部三个历史触发条件**(CI 红 2/2 / review pending-decision / 无 CI)与意图、合并放进**同一个快照**,断言 `needsUser` 的 kind 集合 `deepEqual ['intake-confirm','merge-gate']`。
+
+与既有用例的差别:既有 3 条各自只断言「本场景里某一类不出现」,抓不住(a)第四类被新增,(b)某类在未覆盖的场景里回归。新用例断言的是**封闭集合**,任何越界都会在 diff 里点名。
+
+反向验证(均实测):
+
+| 改坏方式 | 结果 |
+| --- | --- |
+| 加回 `no-ci` push | 4 条红 ✅ |
+| 注入全新 kind `spec-confirm` | 3 条红 ✅ |
+| 删除 filter(本次改动本身) | 222 全绿 ✅(证明 filter 确为死代码) |
+
+### 8.4 验收
+
+- `node --test packages/dev-flow/test/*.test.mjs` → **222/222 绿**(原 221 + 新增 1)。
+- 版本:`packages/dev-flow` 已在上一轮升 `0.7.0`,本轮仅改实现细节与测试,不重复升。
+

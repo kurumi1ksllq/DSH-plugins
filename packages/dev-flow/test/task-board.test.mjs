@@ -199,6 +199,57 @@ test('the board asks the user about exactly two things: intent and merge', () =>
   assert.deepEqual([...observed].sort(), ['intake-confirm', 'merge-gate'])
 })
 
+test('the needs-user vocabulary stays closed when every legacy trigger is present', () => {
+  // #157 removed three kinds (no-ci, ci-red-escalated, review-pending-decision)
+  // from the strip. The existing cases assert each one is absent from ITS OWN
+  // scenario — which cannot notice a fourth kind being added later, and cannot
+  // notice one of the three creeping back in a scenario they do not cover.
+  //
+  // This case puts every legacy trigger in ONE snapshot and asserts the observed
+  // kinds are exactly the closed set. A new kind, or any of the three returning,
+  // makes the deepEqual fail with the offending name in the diff.
+  const flowStates = new Map([
+    // Red CI at the last self-repair round.
+    [26, {
+      issue: 26, grade: 'standard', stage: 'ci', tickets: [],
+      ci: { run: 2, max: 2, status: 'red' }, review: null, merge: null,
+    }],
+    // A review that ran and produced findings.
+    [27, {
+      issue: 27, grade: 'standard', stage: 'review', tickets: [],
+      ci: { run: 0, max: 2, status: 'green' }, review: { state: 'pending-decision', axes: 2 }, merge: null,
+    }],
+    // A finished review waiting for the merge word.
+    [28, {
+      issue: 28, grade: 'standard', stage: 'merge', tickets: [],
+      ci: { run: 0, max: 2, status: 'green' }, review: { state: 'done', axes: 2 }, merge: { authorized: false },
+    }],
+  ])
+  const board = buildTaskBoard(snap({
+    git: {
+      branches: [
+        branch('main', { current: true }),
+        branch('issue-26-a', { ahead: 1 }),
+        branch('issue-27-a', { ahead: 1 }),
+        branch('issue-28-a', { ahead: 1 }),
+      ],
+    },
+    // 29 has no branch at all → the intent stop point.
+    issues: [issue(26), issue(27), issue(28), issue(29)],
+    prs: [pr(5, 'issue-26-a'), pr(6, 'issue-27-a'), pr(7, 'issue-28-a')],
+    // A repository whose checks report nothing at all.
+    checks: { 5: 'red', 6: 'green', 7: 'green', 8: 'none' },
+    flowStates,
+  }))
+
+  const observed = [...new Set(board.needsUser.map((entry) => entry.kind))].sort()
+  assert.deepEqual(
+    observed,
+    ['intake-confirm', 'merge-gate'],
+    'the strip may only carry the two questions dev-flow still asks the user',
+  )
+})
+
 test('buildTaskBoard: missing CI is stated by the cards, not asked of the user', () => {
   const board = buildTaskBoard(snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },

@@ -1,8 +1,8 @@
 {
   "issue": 157,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-10T12:20:54.209Z",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T07:01:56.820Z",
   "tickets": [
     {
       "id": 1,
@@ -23,6 +23,11 @@
       "id": 4,
       "title": "版本/CHANGELOG/spec",
       "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "合并 main 解 CHANGELOG 冲突 + 删死过滤器 + 词表封闭用例",
+      "state": "done"
     }
   ],
   "ci": {
@@ -31,7 +36,7 @@
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {

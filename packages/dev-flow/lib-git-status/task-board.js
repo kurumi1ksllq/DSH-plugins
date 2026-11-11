@@ -303,9 +303,8 @@ function buildNeedsUser({ cards }) {
   // A repository without CI, a red CI at the last round and a review report are
   // all visible on the card's evidence line — none of them is a question (#157).
 
-  // The constant is the vocabulary, not a comment: anything outside it is a
-  // mistake in this function, and silently rendering it would defeat the point.
-  return [...blockers, ...infos]
-    .filter((entry) => NEEDS_USER_KINDS.includes(entry.kind))
-    .slice(0, NEEDS_USER_LIMIT)
+  // The vocabulary is the two pushes above. A needless filter here would hide a
+  // regression: re-adding a third kind would pass silently. The tests assert the
+  // closed set through the board's public output instead (task-board.test.mjs).
+  return [...blockers, ...infos].slice(0, NEEDS_USER_LIMIT)
 }
