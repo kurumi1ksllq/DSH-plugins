@@ -1,8 +1,8 @@
 {
   "issue": 183,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-11T12:45:00+08:00",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T13:00:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -12,16 +12,16 @@
     {
       "id": 2,
       "title": "gate + PR + CI",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
+    "state": "done",
     "axes": 2
   },
   "merge": {
