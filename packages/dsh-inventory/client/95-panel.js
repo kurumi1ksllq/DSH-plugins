@@ -276,7 +276,12 @@
 
       if (status === 'loading' && data === null) {
         return shell(
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          h(
+            'div',
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+          ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
           h(
@@ -292,7 +297,12 @@
 
       if (status === 'error' && data === null) {
         return shell(
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          h(
+            'div',
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+          ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
           h(

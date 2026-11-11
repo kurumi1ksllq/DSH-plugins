@@ -945,7 +945,6 @@ window.__ModuleLoader__.load({
         width: '100%',
         padding: '22px 4px 8px',
         border: 'none',
-        background: 'transparent',
         color: 'inherit',
         font: 'inherit',
         textAlign: 'left',
@@ -4201,7 +4200,12 @@ window.__ModuleLoader__.load({
 
       if (status === 'loading' && data === null) {
         return shell(
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          h(
+            'div',
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+          ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
           h(
@@ -4217,7 +4221,12 @@ window.__ModuleLoader__.load({
 
       if (status === 'error' && data === null) {
         return shell(
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          h(
+            'div',
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+          ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
           h(

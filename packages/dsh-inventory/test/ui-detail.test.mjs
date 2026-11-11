@@ -367,6 +367,30 @@ test('loading and error use the same two-column shell as the ready state', async
     'loading must show the skeleton where the list will appear',
   )
 
+  const railButtons = []
+  eachNode(loadingTree, (node) => {
+    if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') railButtons.push(node)
+  })
+  assert.ok(railButtons.length >= 6, 'the loading rail is missing its buttons')
+  for (const button of railButtons) {
+    assert.equal(
+      textOf(button).trim(),
+      button.props['aria-label'],
+      'loading must not show rail counts before the snapshot lands',
+    )
+  }
+  const readyButtons = []
+  eachNode(ready.tree, (node) => {
+    if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') readyButtons.push(node)
+  })
+  assert.ok(
+    readyButtons.some((button) => textOf(button).trim() !== button.props['aria-label']),
+    'the ready rail does show counts, so the loading assertion above is meaningful',
+  )
+
+  // Do not leave a never-settling stub behind for later tests.
+  globalThis.fetch = async () => ({ ok: true, json: async () => SNAPSHOT })
+
   // Error: same shell, plus a usable retry.
   const failed = await boot('shell-error')
   globalThis.fetch = async () => {
@@ -385,6 +409,13 @@ test('loading and error use the same two-column shell as the ready state', async
     findNode(errorTree, (node) => node.type === 'button' && String(node.props?.className ?? '').includes('inv-primary')),
     'the error state must keep a retry button',
   )
+
+  // All three states wear the same header chrome (title span included), even
+  // though only the ready state can show the toolbar chips.
+  for (const [state, tree] of [['loading', loadingTree], ['error', errorTree]]) {
+    const title = findNode(tree, (node) => String(node.props?.className ?? '') === 'inv-nav-title')
+    assert.ok(title, state + ' state is missing the header title span')
+  }
 })
 
 test('a control looks like a control, and a heading reads as a heading', async () => {
@@ -393,13 +424,25 @@ test('a control looks like a control, and a heading reads as a heading', async (
   // Form, not just colour: a toggle needs an outline plus a fill.
   const chipRule = rules(css).find((rule) => classesIn(rule.selector).has('inv-chip') && /background/.test(rule.body))
   assert.ok(chipRule, 'no background rule for .inv-chip')
-  assert.match(chipRule.body, /(^|[;\s])border(-color|-width)?\s*:/, '.inv-chip needs an outline, not only a tint: ' + chipRule.body.trim())
+  assert.match(
+    chipRule.body,
+    /border\s*:\s*1px\s+solid/,
+    '.inv-chip needs a drawn 1px outline, not only a tint or a border-color: ' + chipRule.body.trim(),
+  )
 
   // Icon and text buttons (back, refresh, section headers) had no hover at all.
   const flatButtonHover = rules(css).find(
     (rule) => /[.]inv-btn[^{,]*:hover/.test(rule.selector) && /background/.test(rule.body),
   )
   assert.ok(flatButtonHover, '.inv-btn needs a hover fill, otherwise it reads as a static label')
+  const hoverFills = flatButtonHover.body
+    .split(String.fromCharCode(10))
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('background'))
+  assert.ok(hoverFills.length > 0, '.inv-btn hover declares no background at all')
+  for (const declaration of hoverFills) {
+    assert.doesNotMatch(declaration, /background(-color)?\s*:\s*transparent/, 'a transparent hover paints nothing: ' + declaration)
+  }
   // The generic hover must not repaint chips or filled primaries, which own
   // their fill: a shared 8% tint would turn the dark pill grey on hover.
   // Ignore the :not() guards themselves: what matters is the rules the hover
@@ -411,6 +454,11 @@ test('a control looks like a control, and a heading reads as a heading', async (
   // the softer, outlined controls.
   const disclosure = findNode(tree, (node) => node?.props?.['aria-expanded'] !== undefined && node.type === 'button')
   assert.ok(disclosure, 'no disclosure header found')
+  assert.equal(
+    disclosure.props?.style?.background,
+    undefined,
+    'an inline background on the header kills its :hover (the issue #170 trap again)',
+  )
   const colours = []
   eachNode(disclosure, (node) => {
     if (typeof node?.props?.style?.color === 'string') colours.push(node.props.style.color)

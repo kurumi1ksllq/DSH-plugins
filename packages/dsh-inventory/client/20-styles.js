@@ -204,7 +204,6 @@
         width: '100%',
         padding: '22px 4px 8px',
         border: 'none',
-        background: 'transparent',
         color: 'inherit',
         font: 'inherit',
         textAlign: 'left',

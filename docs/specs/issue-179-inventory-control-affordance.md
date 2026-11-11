@@ -1,6 +1,6 @@
 # issue-179 — 控件可辨识度 + 加载态布局对齐
 
-**分级：standard**（多文件：client/20-styles.js + 95-panel.js + 30-shared-ui.js + 测试 + 版本号）
+**分级：standard**（改动面：`client/20-styles.js`、`client/95-panel.js`、生成物 `client.js`（由 `scripts/build-inventory-client.mjs` 产出、`test/client-build.test.mjs` 守护）、`test/ui-detail.test.mjs`、`package.json`、`CHANGELOG.md`）
 
 ## 背景（用户实测反馈，issue #170 合并后）
 
