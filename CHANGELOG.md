@@ -18,6 +18,12 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **控件质感**:骨架屏改 shimmer(reduced-motion 下静态);开关轨道内描边、滑块阴影收敛;开关与图标按钮用伪元素扩命中区;搜索框聚焦抬升 + caret/placeholder 着色;滚动条细化与 `::selection`;卡片改分层 label 色阴影;警示条同色系描边与着色图标;圆角收敛为 10/8/999 三级;「已隐藏技能」只弱化文字不弱化开关。
 - **测试**:新增 `test/ui-detail.test.mjs`(6 条公开行为契约:焦点覆盖、焦点环形状、状态属性归 CSS、reduced-motion 覆盖、禁 `transition: all`、排版契约),删规则即红;渲染桩抽到 `test/support/react-runtime.mjs` 共用。
 - **边界**:布局、栏目、文案、宿主 API 均未改;MCP 行徽标溢出裁掉行尾开关属断行问题,留后续 issue。
+### dsh-skill-surface 0.2.1 — 领域触发两处缺陷(#175)
+
+- **认出 PTC 加载**：deep-ptc 里模型调 `skill` 走 `tool/ptc-dispatch`（`arguments` 已是对象），而「已加载」判定只认 `tool/call` —— 导致该 preset 下加载过的技能下一轮仍被点名。现在两类事件都认。
+- **回声抑制**：子 agent 回报会引用那句提示，父会话原先会把它当新输入再触发一次。含 nudge 标记的文本不再触发。
+- 两条都有反向验证用例：删掉 dispatch 分支 → F1 红；删掉回声守卫 → F2 红。
+
 ### dsh-skill-surface 0.2.0 — 领域触发：开工时点名相关技能(#172)
 
 - **背景**：一次真实会话里用户要求「优化页面的 ui 细节」，目录中有 `make-interfaces-feel-better`，但全程 29 次工具调用、0 次 `skill`。诊断结论是「觉得没必要查」，不是「看不到 / 找不到」。

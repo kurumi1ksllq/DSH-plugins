@@ -18,7 +18,7 @@
 // model reply, so the handoff path degrades to "inject nothing".
 
 import { handoffNames, injectedSkills } from './lib/handoff.mjs'
-import { matchDomains, nudgeLine, shortlist } from './lib/domains.mjs'
+import { looksLikeNudge, matchDomains, nudgeLine, shortlist } from './lib/domains.mjs'
 import { hostApi } from './lib/host-api.mjs'
 import { LOADER, hintText, indexLine } from './lib/catalog-hint.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
@@ -207,7 +207,11 @@ function userText(messages) {
     // text, and those agents are the ones that most need the nudge.
     if (source?.kind !== 'user' && source?.form !== 'relay') continue
     for (const block of message.content ?? []) {
-      if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
+      if (block?.type !== 'text' || typeof block.text !== 'string') continue
+      // A relayed report may quote this very line. Drop that block only:
+      // the same batch can still carry the real request.
+      if (looksLikeNudge(block.text)) continue
+      parts.push(block.text)
     }
   }
   return parts.join(String.fromCharCode(10))
@@ -222,6 +226,7 @@ function userText(messages) {
 async function nudgeFor(scope, { agent, messages, turn, signal }) {
   const text = userText(messages)
   if (text === '') return undefined
+
   const matches = matchDomains(text)
   if (matches.length === 0) return undefined
   if (nudgedTurn.get(agent) === turn) return undefined

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { apply } from '../index.js'
 import { setHostApi } from '../lib/host-api.mjs'
-import { matchDomains } from '../lib/domains.mjs'
+import { matchDomains, nudgeLine } from '../lib/domains.mjs'
 
 const CATALOG = [
   'make-interfaces-feel-better', 'design-system', 'frontend-design-direction', 'accessibility',
@@ -163,3 +163,74 @@ test('E11: common Chinese UI phrasings trigger, not just the reported one', asyn
   }
 })
 
+
+const dispatchedLoad = (name) => ({
+  type: 'tool/ptc-dispatch',
+  data: { name: 'skill', arguments: { name }, isError: false },
+})
+
+test('F1: a load recorded through PTC dispatch also suppresses the next nudge', async () => {
+  // deep-ptc routes tool calls through tool/ptc-dispatch; reading only tool/call
+  // made the nudge repeat skills the model had just loaded (#175).
+  stubHost()
+  const h = harness()
+  const a = agentWith([dispatchedLoad('design-system'), dispatchedLoad('make-interfaces-feel-better')])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 0, 'dispatch-recorded loads count as loaded')
+})
+
+test('F1b: a non-loader dispatch never counts, even when it carries a skill name', async () => {
+  stubHost()
+  const h = harness()
+  // tool_describe/skill_search take a `name` argument too; only loader tools count.
+  const a = agentWith([{ type: 'tool/ptc-dispatch', data: { name: 'tool_describe', arguments: { name: 'design-system' }, isError: false } }])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 1, "a name on a non-loader tool is not a load")
+})
+
+test('F1c: a skill_get dispatch counts as a load too', async () => {
+  stubHost()
+  const h = harness()
+  const a = agentWith([{ type: 'tool/ptc-dispatch', data: { name: 'skill_get', arguments: { name: 'design-system' }, isError: false } }, { type: 'tool/ptc-dispatch', data: { name: 'skill_get', arguments: { name: 'make-interfaces-feel-better' }, isError: false } }])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 0)
+})
+
+test('F1d: a FAILED load does not suppress the next nudge', async () => {
+  stubHost()
+  const h = harness()
+  const a = agentWith([{ type: 'tool/ptc-dispatch', data: { name: 'skill', arguments: { name: 'design-system' }, isError: true } }])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 1, "nothing reached the context")
+})
+
+test('F1e: a dispatch whose arguments are a JSON string still counts', async () => {
+  stubHost()
+  const h = harness()
+  const a = agentWith([{ type: 'tool/ptc-dispatch', data: { name: 'skill', arguments: JSON.stringify({ name: 'design-system' }) } }, { type: 'tool/ptc-dispatch', data: { name: 'skill', arguments: JSON.stringify({ name: 'make-interfaces-feel-better' }) } }])
+  const decision = await run(h, a, '改一下页面样式', 2)
+  assert.equal(decision.messages.length, 0)
+})
+
+test('F2: a message quoting a REAL rendered nudge is not nudged again', async () => {
+  stubHost()
+  const quoted = nudgeLine({ label: "UI/界面细节" }, ["make-interfaces-feel-better"], "skill")
+  const decision = await run(harness(), agent(), '子 agent 回报:' + quoted)
+  assert.equal(decision.messages.length, 0, "no echo")
+})
+
+test('F2b: a batch that quotes a nudge AND carries a real request still gets nudged', async () => {
+  stubHost()
+  const h = harness()
+  const quoted = nudgeLine({ label: "UI/界面细节" }, ["make-interfaces-feel-better"], "skill")
+  const relay = { source: { kind: 'agent-message', form: 'relay' }, content: [{ type: 'text', text: '回报:' + quoted }] }
+  const real = { source: { kind: 'user' }, content: [{ type: 'text', text: '顺便把弹窗的间距调一下' }] }
+  const decision = await h.nudge({ agent: agent(), messages: [relay, real], turn: 1, step: 1, signal: undefined }, next)
+  assert.equal(decision.messages.length, 1, "the echo block is dropped, the request is not")
+})
+
+test('F2c: an ordinary request mentioning the phrase is not swallowed', async () => {
+  stubHost()
+  const decision = await run(harness(), agent(), '本轮涉及过的页面样式,再动手改一下配色')
+  assert.equal(decision.messages.length, 1, "only a full nudge line is an echo")
+})
