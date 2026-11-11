@@ -1,8 +1,8 @@
 {
   "issue": 180,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-11T12:05:00+08:00",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T12:20:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -37,13 +37,13 @@
     {
       "id": 7,
       "title": "gate + PR + CI + 双轴 review",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
     "state": "done",
