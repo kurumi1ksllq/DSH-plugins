@@ -323,18 +323,25 @@ test('#157 states stay visible on the card now that the strip no longer lists th
     git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
     issues: [issue(26)],
     prs: [pr(5, 'issue-26-a')],
+    // A repository with no CI has no self-repair round either: run 2/2 + 'none'
+    // is a state that cannot exist, and asserting both on one card would test a
+    // combination no user can ever see.
     checks: { 5: 'none' },
     flowStates: new Map([[26, {
       issue: 26, grade: 'standard', stage: 'review', tickets: [],
-      ci: { run: 2, max: 2, status: 'red' }, review: { state: 'pending-decision', axes: 2 }, merge: { authorized: false },
+      ci: null, review: { state: 'pending-decision', axes: 2 }, merge: { authorized: false },
     }]]),
   })
   const out = textOf(s)
   assert.ok(out.includes('无 CI'), 'missing CI is a card fact now')
-  assert.ok(out.includes('CI 2/2'), 'the self-repair round count must stay readable')
+  assert.ok(!out.includes('CI 2/2'), 'a repository with no CI has no repair rounds')
   assert.ok(out.includes('review 待裁决'), 'a review waiting on the agent must not disappear')
-  assert.ok(!out.includes('需要你:'), 'none of the three is a user question')
+  // The strip's own title is the only honest marker: '需要你:' never renders
+  // (the strip title is '需要你出手', the card action is '需要你回话'), so
+  // asserting its absence was an assertion that could never fail.
+  assert.ok(!out.includes('需要你出手'), 'none of the three may reach the strip')
 })
+
 test('a card with nothing pending renders no action line', () => {
   const s = snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },

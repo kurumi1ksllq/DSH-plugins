@@ -1,5 +1,6 @@
-// T4.df (#125): review pending-decision surfaces in "needs you"; dead locale
-// keys are gone; FLOW.md narrows triggers and cross-references the panel.
+// T4.df (#125, rewritten by #157): the review state is NOT in the "needs you"
+// strip any more — it lives on the card evidence line. What this file still
+// guards is that the state stays visible and that the strip stays closed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'

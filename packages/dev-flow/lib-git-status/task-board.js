@@ -303,8 +303,17 @@ function buildNeedsUser({ cards }) {
   // A repository without CI, a red CI at the last round and a review report are
   // all visible on the card's evidence line — none of them is a question (#157).
 
-  // The vocabulary is the two pushes above. A needless filter here would hide a
-  // regression: re-adding a third kind would pass silently. The tests assert the
-  // closed set through the board's public output instead (task-board.test.mjs).
-  return [...blockers, ...infos].slice(0, NEEDS_USER_LIMIT)
+  // The vocabulary is the two pushes above. A silent .filter() here would HIDE a
+  // regression (re-adding a third kind would just disappear), so the guard is
+  // loud instead: a kind outside NEEDS_USER_KINDS is a bug in this function, and
+  // a test sampling one snapshot cannot be trusted to notice it.
+  const entries = [...blockers, ...infos]
+  for (const entry of entries) {
+    if (!NEEDS_USER_KINDS.includes(entry.kind)) {
+      throw new Error(
+        'needsUser entry "' + entry.kind + '" is outside NEEDS_USER_KINDS (' + NEEDS_USER_KINDS.join(', ') + ')'
+      )
+    }
+  }
+  return entries.slice(0, NEEDS_USER_LIMIT)
 }

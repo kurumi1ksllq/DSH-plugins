@@ -847,7 +847,10 @@ function DiffView({ t, sessionId, path, statusSha }) {
           : card.checks === 'red' ? t('checks_red')
             : card.checks === 'none' ? t('checks_none')
               : t('checks_unknown')
-      if (card.prNumber !== null) meta.push(checksText)
+      // A repository with no CI is a fact about the repository, not about one PR:
+      // #157 removed it from the strip, so it has to survive here even on a card
+      // whose branch has no PR yet (or sits on a branch the board cannot place).
+      if (card.prNumber !== null || card.checks === 'none') meta.push(checksText)
       if (card.ci && Number.isInteger(card.ci.run)) meta.push(`CI ${card.ci.run}/${card.ci.max ?? 2}`)
       // #157 removed the review item from the strip, so the evidence line is the
       // only place a review in flight can show up — without this it vanished.
@@ -895,7 +898,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
       )
     }
 
-    /** The four dev-flow gates that need a human, blockers first. */
+    /** The two dev-flow gates that still need a human (#157), blockers first. */
     function NeedsUser({ t, items }) {
       if (items.length === 0) return null
       return h(

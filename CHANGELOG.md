@@ -139,7 +139,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 34 个条目:29 条有对应 tag;`dsh-skill-surface@0.1.0` 缺 tag(早于 tag 纪律),本次新增 4 条(#180)在合并后补打;待下一次统一归档至 History 段。
+> 本段现有 34 个条目:32 条有对应 tag;缺 tag 的 2 条为 `dev-flow@0.7.0`、`dsh-skill-surface@0.1.0`(dsh-skill-surface@0.1.0 早于 tag 纪律,dev-flow@0.7.0 待本次合并后补打);待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
