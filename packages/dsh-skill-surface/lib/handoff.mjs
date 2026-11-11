@@ -49,6 +49,24 @@ function loadedBy(event) {
     const name = event.data.source.name
     return typeof name === 'string' ? name : undefined
   }
+  // deep-ptc routes tool calls through tool/ptc-dispatch, where arguments is
+  // already an object. Missing that event made the nudge repeat skills the
+  // model had just loaded (#175).
+  if (event?.type === 'tool/ptc-dispatch' && LOADER_TOOLS.has(event.data?.name)) {
+    // A failed load did not put anything in context, so it must not suppress
+    // the next nudge.
+    if (event.data.isError === true) return undefined
+    const raw = event.data.arguments
+    let dispatched = raw
+    if (typeof raw === 'string') {
+      try {
+        dispatched = JSON.parse(raw)
+      } catch {
+        return undefined
+      }
+    }
+    return typeof dispatched?.name === 'string' && dispatched.name !== '' ? dispatched.name : undefined
+  }
   if (event?.type === 'tool/call' && LOADER_TOOLS.has(event.data?.name)) {
     try {
       const args = JSON.parse(event.data.arguments ?? '{}')

@@ -1,0 +1,40 @@
+{
+  "issue": 175,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-11T05:53:45.729+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "PTC dispatch 加载识别",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "回声抑制（逐条 + 标记单源）",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "F1/F2 测试 + 变异验证",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG/PR",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
