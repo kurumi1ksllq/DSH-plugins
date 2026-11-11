@@ -29,9 +29,11 @@ const COPY = {
   zh: {
     heading: '## 自动委派编排(对本会话所有成员生效,包括队友)',
     lanes: [
-      '- 开工前三问:①能拆成 ≥2 个互不依赖、可独立验收的部分吗?②结论值得被第二个独立视角挑战吗?③有没有能同时跑的耗时操作(装依赖/跑测试/拉数据/全量扫描)?',
-      '- 分档:单文件改动或单条命令 → 单线程直接做;1 个聚焦子任务且只需结果 → `subagent`(独立上下文)或 `subagent_fork`(需继承本会话上下文);≥3 个同类独立单元 → `workflow` 扇出;需要多轮交接、共享任务板 → 组队(`spawn_teammate` + 任务板);结论重要且不可回退 → 对抗验证(独立视角复核)。',
-      '- 有疑问时往上一档走:宁可多一次委派,不要返工两次。连续 >8 个工具调用仍无可验收中间物 → 停手重新拆解。',
+      '- 开工第一件事:把三问的答案落到某个载体上——本会话有 `todo_write` 就用它写进首个任务列表(能否拆 / 值不值得第二视角 / 能不能并行);没有该工具时,写进第一条回复。没写这三条不算开工。',
+      '- 分档:单文件改动或单条命令 → 单线程直接做;1 个聚焦子任务且只需结果 → `subagent`(独立上下文)或 `subagent_fork`(需继承本会话上下文);≥3 个同类独立单元 → 扇出:有 `workflow` 工具时用它的 pipeline/parallel 一次铺开,没有该工具时(如 deep-ptc 组合)改用 N 个自包含的 `subagent` 并行发出,效果等价;需要多轮交接、共享任务板 → 组队(`spawn_teammate` + 任务板);结论重要且不可回退 → 对抗验证(独立视角复核)。',
+      '- 有疑问时往上一档走:宁可多一次委派,不要返工两次。同类文件改到第 3 个、或连续 >8 个工具调用仍无可验收中间物 → 停手重新拆解:剩下的能不能并行派出去?',
+      '- 工具覆盖面(persona 未说的事实):`list_agents`/`wait_agent` **看不见已派出的 `subagent`**,它们的结果以 inbox 通知自动到达——不要把这种「查不到」当成「子代理已死」。选档时先定:同一份工作只走一条通道(`subagent` 或 teammate)。',
+      '- 等待与轮询(只补 persona 没写的上限):轮询外部状态时,同一命令同样参数的重试上限沿用 ⑧ 的 2 次,间隔不超过 5 秒——更长的前台等待会被暂停守卫拒绝。有 `job_output` 时改用后台 job 读;没有该工具时按上面的重试上限执行。独立的只读调用一次发出(有 `Promise.all` 就用它,没有就同一轮并行发起)。',
     ],
     routingHeading: '可委派的子 agent preset(按子任务内容选择 `agent_preset`):',
     routingNote: [
@@ -42,9 +44,11 @@ const COPY = {
   en: {
     heading: '## Auto delegation protocol (applies to every member of this session, teammates included)',
     lanes: [
-      '- Three questions before starting: (1) Can this split into >=2 independent, separately acceptable pieces? (2) Does the conclusion deserve an independent second opinion? (3) Are there concurrent long operations (installs, tests, data pulls, full scans)?',
-      '- Lanes: single-file change or one command -> do it inline; one focused subtask where only the result matters -> `subagent` (fresh context) or `subagent_fork` (inherits this conversation); >=3 similar independent units -> `workflow` fan-out; multi-round handoffs or a shared task board -> form a team (`spawn_teammate` + task board); irreversible conclusions -> adversarial verification with an independent reviewer.',
-      '- When in doubt, go one lane up: prefer one extra delegation over reworking twice. After >8 tool calls with no acceptable intermediate artifact, stop and re-decompose.',
+      '- First action: land the three questions on a carrier. If this session has `todo_write`, put the answers in the first task list (can it split / does it deserve a second opinion / can it run concurrently); otherwise write them in your first reply. Without that, work has not started.',
+      '- Lanes: single-file change or one command -> do it inline; one focused subtask where only the result matters -> `subagent` (fresh context) or `subagent_fork` (inherits this conversation); >=3 similar independent units -> fan out: use the `workflow` tool (pipeline/parallel) when it is available, and without it (e.g. the deep-ptc composition) send N self-contained `subagent` calls in parallel instead - equivalent; multi-round handoffs or a shared task board -> form a team (`spawn_teammate` + task board); irreversible conclusions -> adversarial verification with an independent reviewer.',
+      '- When in doubt, go one lane up: prefer one extra delegation over reworking twice. At the third same-kind file, or after >8 tool calls with no acceptable intermediate artifact, stop and re-decompose: can the rest be delegated in parallel?',
+      '- Tool coverage (what persona does not say): `list_agents`/`wait_agent` cannot see a `subagent` you already launched - its result arrives as an inbox notification. Do not read that absence as "the subagent died". Pick the lane first: one job goes through one channel (`subagent` or a teammate), not both.',
+      '- Waiting and polling (only the caps persona lacks): keep the same-argument retry cap at 2 (rule 8) and the interval at 5 seconds or less - a longer foreground wait is refused by the pause guard. With `job_output`, read a background job instead; without it, stay within the retry cap above. Issue independent read-only calls together (with `Promise.all` when available, otherwise in the same turn).',
     ],
     routingHeading: 'Delegable subagent presets (pick `agent_preset` by subtask content):',
     routingNote: [

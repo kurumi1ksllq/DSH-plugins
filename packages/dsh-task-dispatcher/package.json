@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-dispatcher",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Task dispatcher: injects a delegation discipline and a declarative subagent routing table as a runtime context, so the lead agent and every teammate decompose a task on arrival and route each piece to the matching subagent preset by content",
