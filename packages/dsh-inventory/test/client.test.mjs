@@ -2161,11 +2161,15 @@ test('nav rail switches views and keeps the workspace highlight through the deta
 
 // ---- #178: a row whose badges overflow must not clip its switch ------------
 
-test('every switch sits in a row that can wrap instead of clipping', async () => {
+test('every overview switch sits in a row that can wrap instead of clipping', async () => {
   // The card clips with overflow:hidden, and both the badges and the switch are
   // flexShrink:0. A row with many badges therefore pushes the switch past the
   // card edge, where it is silently cut off — invisible and unclickable. Wrapping
   // is the invariant that keeps it reachable.
+  //
+  // Scope: the overview only. The workspace detail page renders its rows through
+  // S.row, which still has no flexWrap — #178 leaves that out of scope, so this
+  // test must not claim to cover "every switch in the app".
   const panel = await bootPanel(toggleSnapshot({
     mcp: [
       mcpRow('long', { transport: 'stdio', source: 'home-patch', enabled: false, toolCount: 12, toggleable: false, disabledReason: 'no-writable-profile' }),
@@ -2176,8 +2180,11 @@ test('every switch sits in a row that can wrap instead of clipping', async () =>
   }), { version: 'wrap-case' })
   const current = openSkillSection(panel)
 
-  const switches = switchesIn(current)
-  assert.ok(switches.length >= 2, 'expected at least one MCP switch and one skill switch')
+  // An exact label set, not a lower bound: a `length >= 2` check stays green
+  // even if the MCP switch disappears from the fixture, which would quietly
+  // shrink what this test covers.
+  const labels = switchesIn(current).map((node) => node.props['aria-label']).sort()
+  assert.deepEqual(labels, ['long', 'long-skill'], 'the fixture must render exactly one MCP and one skill switch')
 
   const offenders = []
   eachNode(current, (node, parent) => {

@@ -1,8 +1,8 @@
 {
   "issue": 178,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-11T11:25:26.551Z",
+  "stage": "review",
+  "updatedAt": "2026-11-11T12:03:45.266Z",
   "tickets": [
     {
       "id": 1,
@@ -23,6 +23,11 @@
       "id": 4,
       "title": "版本/CHANGELOG",
       "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "轴1 review:范围限定 + 措辞纠错 + 测试收紧",
+      "state": "done"
     }
   ],
   "ci": {
@@ -31,8 +36,8 @@
     "status": "unknown"
   },
   "review": {
-    "state": "not-started",
-    "axes": 0
+    "state": "pending-decision",
+    "axes": 2
   },
   "merge": {
     "authorized": false

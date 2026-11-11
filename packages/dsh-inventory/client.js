@@ -1023,7 +1023,11 @@ window.__ModuleLoader__.load({
       // Dimming the whole row also dims its switch, which then reads as disabled
       // while it is still operable. Only the text column steps back.
       rowTextHidden: { opacity: 0.55 },
-      rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
+      // flexBasis: 0 is what keeps a wrapping row honest. With the default
+      // `auto`, the line-breaking decision uses the column's MAX-CONTENT width, so
+      // a long command string (S.rowMono breaks anywhere) would fold the badges to a
+      // second line even in a window where the row would otherwise fit (#178).
+      rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 0', minWidth: 0 },
       rowTitle: { ...T.rowTitle, wordBreak: 'break-word', textWrap: 'pretty' },
       rowTitleMono: { ...T.rowTitle, fontFamily: FONT_MONO, fontSize: '14px', wordBreak: 'break-all' },
       rowSub: { ...T.caption, color: C.secondary, wordBreak: 'break-word', textWrap: 'pretty' },

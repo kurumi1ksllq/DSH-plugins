@@ -13,10 +13,11 @@ A bundle whose directory has changes after its version tag fails the gate.
 ### dsh-inventory 0.12.5 — MCP 行与技能行的开关不再被卡片裁掉(#178)
 
 - **两处行容器补 `flexWrap: 'wrap'`**：`client/95-panel.js` 的 MCP 行与技能行结构相同、都缺换行。行内徽标与开关全是 `flexShrink: 0`，固定宽度之和在窄列里必然超出；超出的部分既不换行也不产生横向滚动，直接落进 `S.card` 的 `overflow: hidden`，于是行尾开关被静默裁掉——既看不见也点不到。
-- issue 只点名 MCP 行，但技能行的固定宽子元素更多（2 徽标 + 开关 + 2 按钮 + 2 spinner），只修一处会漏一半。
+- issue 只点名 MCP 行，但技能行是**同一个结构、同一个缺失的不变量**（行容器同样是 `display: flex` 且无换行，子元素同样 `flexShrink: 0`），只修一处会漏一半。
 - 测试：新增一条遍历渲染树里所有 `role="switch"` 的节点、断言其直接父容器 `flexWrap === 'wrap'` 的用例。反向验证逐处可查：只删 MCP 行的 `flexWrap` → 只有 MCP 那个开关报错；只删技能行的 → 只有技能那个报错。
-- 已知限制（写进 spec 边界）：`flexWrap` 保证「不被裁」，但不保证「开关留在首行」——它是最后一个子元素，极端情况下会跟着徽标换到第二行（仍完整可见可点，`marginLeft: auto` 让它在该行右对齐）。若要求钉在首行需把徽标收进可换行的胶囊组，属更大改动。
+- 已知限制（写进 spec 边界）：`flexWrap` 保证「可换行」因此不会被卡片横向裁掉，但不保证单个超宽徽标也不溢出；开关**不保证留在首行、也不保证在最右**——它后面还有 spinner / vault / 隐藏按钮，`marginLeft: auto` 只能把它推到所在那一行的右侧。长行里开关落到第二行是常规结果，不是极端情况。
 - 未动：`S.card` 的 `overflow: hidden`（圆角裁切与动画依托）、`S.row`、`S.page` 与 rail 宽度。
+
 ### dsh-inventory 0.12.4 — 会话实证在 deep-ptc 会话里不再恒为空(#177)
 
 - **路径 bug（更致命的那条）**：`index.js` 拼 `join(dshHome(), '.dsh', 'sessions')`，而 `dshHome()` 本身已返回 `.dsh` 目录，于是实际读的是 `$DSH_HOME/.dsh/sessions`（不存在）。所有会话实证读取都返回空——补了事件源也看不出效果。改为 `join(dshHome(), 'sessions')`。
