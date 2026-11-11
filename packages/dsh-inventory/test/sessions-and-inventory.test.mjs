@@ -229,6 +229,36 @@ test('malformed dispatches are ignored instead of throwing', () => {
   const rows = collectSkillToolEvidence(events, { window: 8 })
   assert.deepEqual(rows.map((r) => r.skill), ['real'], 'only the settled, well-formed load counts')
 })
+
+test('a skill_get dispatch counts as a load too', () => {
+  // dsh-skill-surface/lib/handoff.mjs models the loader family as
+  // { skill, skill_get }. Keeping only 'skill' here meant a session that used the
+  // fallback loader still produced zero evidence (#177).
+  const events = [
+    dispatch('skill_get', { name: 'via-fallback' }),
+    dispatch('read'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  const row = rows.find((r) => r.skill === 'via-fallback')
+  assert.ok(row, 'a skill_get load must be counted')
+  assert.equal(row.tools.get('read'), 1)
+})
+
+test('a failed load does not open a window', () => {
+  // Same rule as handoff.mjs: a failed load put nothing in context, so counting
+  // the following calls as its toolchain would be false evidence.
+  const events = [
+    { type: 'tool/ptc-dispatch', data: { name: 'skill', arguments: { name: 'broken' }, isError: true } },
+    dispatch('bash'),
+    dispatch('skill', { name: 'working' }),
+    dispatch('grep'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  assert.equal(rows.some((r) => r.skill === 'broken'), false, 'a failed load must not produce evidence')
+  const ok = rows.find((r) => r.skill === 'working')
+  assert.ok(ok, 'the successful load still counts')
+  assert.equal(ok.tools.get('grep'), 1)
+})
 // ---- #177: end-to-end through the public route -------------------------------
 
 test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessions', async () => {
@@ -245,10 +275,26 @@ test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessi
   ]
   writeFileSync(join(sessionDir, 'session.v4.jsonl'), events.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8')
 
-  const previous = { DSH_HOME: process.env.DSH_HOME, DSH_AGENTS_HOME: process.env.DSH_AGENTS_HOME, DSH_CUSTOM_SKILL_DIRS: process.env.DSH_CUSTOM_SKILL_DIRS }
+  // Every DSH_* that apply() resolves must point inside the temp tree, or this
+  // test reads the real profile on whoever runs it and its assertions change
+  // with that machine. The bare three were not enough: resolveProfileDir also
+  // reads DSH_PROFILE_DIR, globalSkillRoots reads DSH_BUNDLED_SKILL_DIR and
+  // pluginRepoRoot reads DSH_PLUGIN_REPO.
+  const ENV_KEYS = [
+    'DSH_HOME',
+    'DSH_AGENTS_HOME',
+    'DSH_CUSTOM_SKILL_DIRS',
+    'DSH_PROFILE_DIR',
+    'DSH_BUNDLED_SKILL_DIR',
+    'DSH_PLUGIN_REPO',
+  ]
+  const previous = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]))
   process.env.DSH_HOME = home
   process.env.DSH_AGENTS_HOME = join(home, 'agents')
   process.env.DSH_CUSTOM_SKILL_DIRS = ''
+  process.env.DSH_PROFILE_DIR = join(home, 'profile')
+  process.env.DSH_BUNDLED_SKILL_DIR = join(home, 'bundled')
+  process.env.DSH_PLUGIN_REPO = join(home, 'repo')
   try {
     const { apply } = await import('../index.js')
     const routes = []
@@ -275,12 +321,19 @@ test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessi
       writeHead() {},
       end(chunk) { text = chunk ?? '' },
     })
-    assert.ok(text.includes('demo-skill'), 'the skill from the session file never reached the snapshot')
-    assert.ok(text.includes('"session"'), 'no edge carries session evidence')
+    // Assert the structure, not a substring of the serialised JSON: a bare
+    // includes('"session"') would also pass on an unrelated field or a path that
+    // happens to contain the word.
+    const snapshot = JSON.parse(text)
+    const edge = snapshot.edges.find((entry) => entry.skill === 'demo-skill')
+    assert.ok(edge, 'the skill from the session file never reached the snapshot')
+    assert.ok(edge.evidence.sources.includes('session'), 'the edge carries no session source')
+    assert.equal(edge.evidence.count, 1, 'the single bash dispatch should count once')
   } finally {
-    if (previous.DSH_HOME === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous.DSH_HOME
-    if (previous.DSH_AGENTS_HOME === undefined) delete process.env.DSH_AGENTS_HOME; else process.env.DSH_AGENTS_HOME = previous.DSH_AGENTS_HOME
-    if (previous.DSH_CUSTOM_SKILL_DIRS === undefined) delete process.env.DSH_CUSTOM_SKILL_DIRS; else process.env.DSH_CUSTOM_SKILL_DIRS = previous.DSH_CUSTOM_SKILL_DIRS
+    for (const key of ENV_KEYS) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
     rmSync(home, { recursive: true, force: true })
   }
 })

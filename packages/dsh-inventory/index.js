@@ -336,6 +336,28 @@ function listSessionFiles(root, limit) {
   return files.sort((a, b) => b.mtime - a.mtime).slice(0, limit)
 }
 
+/**
+ * Decoded session events, keyed by path and invalidated by mtime+size.
+ *
+ * Decoding the newest 12 session logs costs ~0.9 s of synchronous work (zstd +
+ * JSON.parse over ~12 MB). Until #177 that cost was zero only because the path
+ * was wrong and the read failed immediately; now that it works, every forced
+ * refresh would block the event loop for that long without this cache.
+ */
+const sessionEventCache = new Map()
+
+/** Decode one session file, reusing the previous result when the file is unchanged. */
+function readSessionEventsCached(file) {
+  const stat = statSync(file.path)
+  const key = file.path
+  const hit = sessionEventCache.get(key)
+  if (hit !== undefined && hit.mtime === stat.mtimeMs && hit.size === stat.size) return hit
+  const events = readSessionEvents(file.path).events
+  const rows = collectSkillToolEvidence(events, { window: SESSION_WINDOW })
+  const entry = { mtime: stat.mtimeMs, size: stat.size, rows }
+  sessionEventCache.set(key, entry)
+  return entry
+}
 function collectSessionEdges(warnings) {
   // dshHome() already resolves to the .dsh directory itself ($DSH_HOME, or
   // ~/.dsh). Appending .dsh again pointed at $DSH_HOME/.dsh/sessions, which does
@@ -345,15 +367,13 @@ function collectSessionEdges(warnings) {
   const merged = new Map()
   let decoded = 0
   for (const file of files) {
-    let events
+    let rows
     try {
-      const result = readSessionEvents(file.path)
-      events = result.events
+      rows = readSessionEventsCached(file).rows
       decoded += 1
     } catch (error) {
       continue
     }
-    const rows = collectSkillToolEvidence(events, { window: SESSION_WINDOW })
     for (const row of rows) {
       for (const [tool, count] of row.tools) {
         const key = `${row.skill}\u0000${tool}`

@@ -15,7 +15,13 @@
 /** Event types that carry a tool invocation. */
 const TOOL_EVENTS = new Set(['tool/call', 'tool/ptc-dispatch'])
 
-const SKILL_TOOL = 'skill'
+/**
+ * Tools that load a skill into context. Mirrors dsh-skill-surface/lib/handoff.mjs
+ * (LOADER_TOOLS): the official skill and this repo's skill_get fallback both
+ * count as a load. A private single-value copy here silently excluded every
+ * session that used the fallback loader (#177).
+ */
+const LOADER_TOOLS = new Set(['skill', 'skill_get'])
 
 function parseArguments(raw) {
   if (raw !== null && typeof raw === 'object') return raw
@@ -46,7 +52,11 @@ export function collectSkillToolEvidence(events, { window = 8 } = {}) {
     const name = data.name
     if (typeof name !== 'string' || name.length === 0) continue
 
-    if (name === SKILL_TOOL) {
+    if (LOADER_TOOLS.has(name)) {
+      // A failed load did not put anything in context, so it must not open a
+      // window of witnessed use (same rule as handoff.mjs). Only dispatch
+      // events carry isError; tool/call reports failure on tool/result.
+      if (data.isError === true) continue
       const args = parseArguments(data.arguments)
       const skill = args && typeof args.name === 'string' ? args.name : null
       if (skill !== null) {
