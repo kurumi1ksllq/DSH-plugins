@@ -10,6 +10,14 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-websearch-failover 0.5.2 — scripts.test 真正覆盖全部离线套件(#182)
+
+- **门禁不再空转**：旧脚本只跑 host / 集成 / 互斥三个套件，末尾那句 `node --test test/*.test.mjs` 匹配 0 个文件却 exit 0。现改为 `node --test test/mock-failover.mjs test/test-*.mjs`，真正覆盖 10 个文件 29 个测试。
+- **不把辅助模块算成测试**：`test/probe-bundle.mjs` 是零断言的共享模块(被 host 与集成套件 import)，用 `test/*.mjs` 会让它变成一条假通过的测试；新脚本按 `test-*.mjs` 精确取真测试。
+- **测试不再写真实 HOME**：`test-t4web.mjs` 两处 `apply()` 未传 `logPath`，缺省会落到 `$DSH_HOME/websearch-failover/plugin.log`。门禁一旦覆盖它就会污染运行者的 HOME，现改为写测试自己的临时目录。
+- **临时目录不再堆积**：`mock-failover` / `test-runtime` / `test-host-plugin` / `test-integration` 各补一个 `process.on(exit)` 清理钩子。
+- **新增防复发守卫**：`test/scripts-test-globs.test.mjs` 断言每个包 `scripts.test` 里的 `node --test` glob 至少匹配 1 个文件，且根 `package.json` 的每个 `pnpm --filter <name>` 都能对上真实包名。根 `test:websearch` 曾写成已改名的 `websearch-dsh-plugin`，`pnpm` 输出 "No projects matched" 仍 exit 0。
+- 反向验证：把 `lib/core.mjs` 的冷却判断改坏后，旧脚本四个命令全部 exit 0(全绿)，新脚本 exit 1 / 1 条红。同类还有 order 归一化、client 模块 id、过期冷却清理三处。
 ### dev-flow 0.7.0 — 任务板「需要你出手」收敛为意图 + 合并两类(#157)
 
 - **NEEDS_USER_KINDS 只剩两项**:`intake-confirm`、`merge-gate`。删除 `no-ci`、`ci-red-escalated`、`review-pending-decision` 三个条目——它们自 #154 起由 agent 自决,留在这里只会训练用户忽略这条横幅。CI 三态、CI 自修轮次、review 状态仍显示在卡片证据行上。
@@ -139,7 +147,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 34 个条目:32 条有对应 tag;缺 tag 的 2 条为 `dev-flow@0.7.0`、`dsh-skill-surface@0.1.0`(dsh-skill-surface@0.1.0 早于 tag 纪律,dev-flow@0.7.0 待本次合并后补打);待下一次统一归档至 History 段。
+> 本段现有 35 个条目:33 条有对应 tag;缺 tag 的 2 条为 `dsh-websearch-failover@0.5.2`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

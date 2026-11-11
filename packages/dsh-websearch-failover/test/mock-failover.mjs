@@ -46,6 +46,9 @@ const server = http.createServer((req, res) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wsfailover-'));
+// #182: node --test runs each file in its own process. The gate now covers
+// this file, so without an exit hook it leaks one temp directory per run.
+process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }))
 const configPath = path.join(dir, 'providers.json');
 const statePath = path.join(dir, 'state.json');
 

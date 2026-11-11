@@ -127,7 +127,10 @@ test('aborted attempts are counted as aborted in provider stats', async () => {
       webServer: { register: () => {} },
       logger: { info() {}, warn() {}, error() {} },
     }
-    mod.apply(ctx, { statePath, runtimePath, configPath })
+    // Without an explicit logPath, apply() falls back to
+    // $DSH_HOME/websearch-failover/plugin.log and this test writes the real
+    // HOME of whoever runs it (#182). Keep it inside the test directory.
+    mod.apply(ctx, { statePath, runtimePath, configPath, logPath: join(dir, 'plugin.log') })
     for (const fn of registered.effects) fn()
     const provider = registered.providers[0]
     assert.ok(provider, 'search provider registered')
@@ -194,7 +197,7 @@ test('POST /stats/reset zeroes stats for one id or the whole panel', async () =>
       webServer: { register: (route) => registered.routes.push(route) },
       logger: { info() {}, warn() {}, error() {} },
     }
-    mod.apply(ctx, { runtimePath, configPath: join(dir, 'absent.json') })
+    mod.apply(ctx, { runtimePath, configPath: join(dir, 'absent.json'), logPath: join(dir, 'plugin.log') })
     for (const fn of registered.effects) fn()
     // Snapshot to prove stats exist first.
     const snapshot = registered.snapshotPayload ?? (registered.routes.length > 0 ? null : null)

@@ -1,6 +1,6 @@
 {
   "name": "dsh-websearch-failover",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "type": "module",
   "description": "DSH bundle: ordered multi-provider web_search failover with quota-aware cooldown, plus a left-sidebar provider manager that shows every provider's balance in its own billing unit and when that quota resets",
@@ -9,7 +9,7 @@
     "dsh": "^0.2.0"
   },
   "scripts": {
-    "test": "node test/test-host-plugin.mjs && node test/test-integration.mjs && node test/test-mutex.mjs && node --test test/*.test.mjs",
+    "test": "node --test test/mock-failover.mjs test/test-*.mjs",
     "test:engine": "node test/mock-failover.mjs",
     "test:runtime": "node test/test-runtime.mjs",
     "test:balance": "node test/test-balance.mjs",
