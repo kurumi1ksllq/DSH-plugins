@@ -18,13 +18,17 @@
  *      `/`-separated heading segment; a combined heading only vouches for the
  *      pairs it actually contains.
  *
- *   node scripts/check-bundle-versions.mjs           # all rules
- *   node scripts/check-bundle-versions.mjs --json
- *   node scripts/check-bundle-versions.mjs --no-bump-check
+ *   node scripts/check-bundle-versions.mjs [--root DIR] [--json] [--no-bump-check]
  *
- * Rule 3 compares against tags named `<pkg>@<version>`; it is skipped
- * per-bundle until that bundle has a tag (see P0-3), and skipped wholesale
- * outside a git checkout. Never writes.
+ * Rule 3's baseline is the newest tag whose COMMIT declares that same version —
+ * three tags here sit on a commit whose manifest still says the previous version,
+ * so "the newest tag" alone is not a safe baseline. Test paths are exempt; a path
+ * that ships (listed under `files`) is not, even when it lives under a test-like
+ * directory. A package whose tags are ALL mis-tagged is reported as a problem, not
+ * silently skipped. Rule 3 is skipped wholesale outside a git checkout.
+ *
+ * --root DIR checks a throwaway workspace instead of this repository, which is how
+ * the rule-3 contract test avoids importing a private helper. Never writes.
  */
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -93,12 +97,50 @@ function collectBundles() {
 }
 
 /** Crude but honest: does `range` admit the expected DSH minor line? */
-/** Is this path a test artefact that needs no version bump? */
-function isTestPath(path) {
+/**
+ * Is `a` a strictly higher version than `b`?
+ *
+ * Plain numeric comparison of the dotted parts; enough for this workspace's
+ * `MAJOR.MINOR.PATCH` versions and avoids pulling a semver dependency into a
+ * verify script. A downgrade counts as "not higher", which is the point.
+ */
+function isHigherVersion(a, b) {
+  const parse = (v) => String(v).split('-')[0].split('.').map((n) => Number.parseInt(n, 10) || 0)
+  const [x, y] = [parse(a), parse(b)]
+  for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+    const [l, r] = [x[i] ?? 0, y[i] ?? 0]
+    if (l !== r) return l > r
+  }
+  return false
+}
+
+/**
+ * Is this path a test artefact that needs no version bump?
+ *
+ * `files` wins: a directory that ships (dsh-deep-ptc-mode publishes test-governor/)
+ * carries its tests with it, so "it lives under test/" is not enough to be exempt.
+ */
+function isTestPath(path, manifest) {
+  if (shipsPath(manifest, path)) return false
   const segments = path.split('/')
   if (segments.includes('test') || segments.includes('tests') || segments.includes('__tests__')) return true
   const base = segments[segments.length - 1]
-  return /.(test|spec).mjs$/.test(base) || /^test-.*.mjs$/.test(base)
+  // The dots must be escaped: /.(test|spec).mjs$/ also matches lib/latest.mjs and
+  // lib/contest.mjs, which would let a published file skip the bump by its name.
+  return /\.(test|spec)\.mjs$/.test(base) || /^test-.*\.mjs$/.test(base)
+}
+
+/** Does `manifest.files` publish `path` (a repo-relative path under the bundle)? */
+function shipsPath(manifest, path) {
+  const files = manifest.files
+  if (!Array.isArray(files)) return false
+  const at = path.indexOf('/')
+  const rest = at < 0 ? path : path.slice(path.indexOf('/', at + 1) + 1)
+  const local = rest.length > 0 ? rest : path
+  return files.some((entry) => {
+    const trimmed = String(entry).replace(/^\.\//, '').replace(/\/$/, '')
+    return local === trimmed || local.startsWith(trimmed + '/')
+  })
 }
 
 /**
@@ -127,7 +169,10 @@ function lastReleaseTag(name, rel) {
 /** Paths under `rel` that differ from `baseline` (committed, dirty or untracked). */
 function changedSince(baseline, rel) {
   const out = new Set()
-  const diff = git(['diff', '--name-only', baseline, '--', rel]) ?? ''
+  // --no-renames: with rename detection, `git mv lib/a.js test/a.test.mjs` collapses
+  // into a single test path, so a published file could be moved into test/ to skip
+  // the bump entirely.
+  const diff = git(['diff', '--name-only', '--no-renames', baseline, '--', rel]) ?? ''
   for (const line of diff.split('\n').filter(Boolean)) out.add(line)
   const others = git(['ls-files', '--others', '--exclude-standard', '--', rel]) ?? ''
   for (const line of others.split('\n').filter(Boolean)) out.add(line)
@@ -194,11 +239,21 @@ async function main() {
     if (options.bumpCheck && inGit) {
       const baseline = lastReleaseTag(name, rel)
       if (baseline === null) {
-        notes.push(label + ' (' + name + '): no release tag yet, bump check skipped')
+        // Distinguish "never released" from "every tag is mis-tagged": the second
+        // case is a real hole (no baseline means no gate), so it must be visible as
+        // a problem rather than a note that does not affect the exit code.
+        const anyTag = git(['tag', '--merged', 'HEAD', '--list', name + '@*']) ?? ''
+        if (anyTag.length > 0) {
+          problems.push(label + ' (' + name + '): every tag is mis-tagged (no tag matches the version its commit declares) - fix the tags or bump the version')
+        } else {
+          notes.push(label + ' (' + name + '): no release tag yet, bump check skipped')
+        }
       } else {
         const changed = changedSince(baseline.tag, rel)
-        const shipped = changed.filter((file) => !isTestPath(file))
-        if (shipped.length > 0 && manifest.version === baseline.version) {
+        const shipped = changed.filter((file) => !isTestPath(file, manifest))
+        // Any version that is not HIGHER is a missed bump. `===` would let a
+        // downgrade (1.0.0 -> 0.9.0) pass, which is the same defect in disguise.
+        if (shipped.length > 0 && !isHigherVersion(manifest.version, baseline.version)) {
           problems.push(
             label + ' (' + name + '): shipped files changed since ' + baseline.tag + ' but the version is still ' + baseline.version + ' - bump the version',
           )

@@ -20,10 +20,10 @@ test-only changes are exempt.
 - **错位 tag 不再当基线**：本仓有 3 个 tag 打在 manifest 仍声明上一版的提交上（`dsh-inventory@0.12.2`→0.12.1、两个 websearch），取「最新 tag」会算错基线、把漏升版判成通过。
 - **纯测试改动免升版**（此前只是惯例，现在由机制保证）：`test/`/`tests/`/`__tests__/` 目录 + `*.test.mjs`/`*.spec.mjs`/`test-*.mjs`。`test-governor/` 不整目录豁免——它在 `files` 里会随包发布。文档改动仍要升版（#180 惯例）。
 - **新增 `--root DIR`**（照 `verify-packages.mjs` 的先例）：没有它规则3 只能靠 import 私有函数来测，违反仓库「禁测私有函数」的硬规则。
-- **测试 scratch 清理**：`dsh-inventory` 的 16 个测试文件补 `scratchRegistry` + `after()`（`host-route.test.mjs` 的 17 处也在内，它原有内联 `rmSync` 但覆盖不到失败路径）。实测全量跑完残留从 **249 个目录降到 0**，517 测全绿。
-- 另修：`plugin-update.test.mjs` 的注入块曾被放到多行 `import {` 中间（语法错），已归位。
+- **测试 scratch 清理**：`dsh-inventory` 的 **17 个测试文件**补 `scratchRegistry` + `after()`（`host-route.test.mjs` 的 17 处 `mkdtempSync` 也在内——它原有内联 `rmSync` 但覆盖不到失败路径）。实测本机全量跑一次残留从 **249 个目录降到 0**，517 测全绿。
+- 另修：`plugin-update.test.mjs` 的 `scratchRegistry` 块最初被插到多行 `import {` 中间导致语法错，已移到 import 块之后；`host-route.test.mjs` 的 `mkdtempSync` 有嵌套括号，首版正则漏包 1 处，已改用括号配平。
 
-> 边界：规则变严会让**历史提交**变红——`9efbf72` 上会把 `dsh-inventory@0.12.2` 判红（错位 tag 让基线退到 0.12.1）。`064284b` 之后是绿的。从旧提交拉分支被这条拦住属正确行为。
+> 边界：规则3 收紧**不会**让历史提交因它变红——实测 `9efbf72` 上规则3 失败 0 条（基线退到 0.12.1 时 `isHigherVersion(0.12.2, 0.12.1)` 为真，条件不成立）。但历史提交仍会因**规则4**（CHANGELOG 条目缺失）变红，那是既有状态、与本 PR 无关。
 
 ### dsh-task-dispatcher 0.3.0 — 委派纪律补上四条实测缺陷(#185-#188)
 
@@ -202,7 +202,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 40 个条目:38 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
+> 本段现有 40 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

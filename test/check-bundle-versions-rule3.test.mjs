@@ -10,7 +10,7 @@
 // --root, so nothing here imports a private helper and nothing touches this repo.
 
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
@@ -21,8 +21,19 @@ const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(here, '..')
 const SCRIPT = join(ROOT, 'scripts', 'check-bundle-versions.mjs')
 
+// Host git config (a mirror insteadOf, commit.gpgSign=true) can turn these
+// fixtures red or hang them. scripts/verify-clean.mjs hit the same wall (#39), so
+// every git command runs with an isolated HOME and an empty global config.
+const GIT_ENV = (() => {
+  const home = mkdtempSync(join(tmpdir(), 'dsh-rule3-git-home-'))
+  const globalConfig = join(home, '.gitconfig')
+  writeFileSync(globalConfig, '')
+  return { HOME: home, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1' }
+})()
+after(() => { try { rmSync(GIT_ENV.HOME, { recursive: true, force: true }) } catch { /* ignore */ } })
+
 function sh(cwd, ...args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, ...GIT_ENV } })
   if (r.status !== 0) throw new Error('git ' + args.join(' ') + ': ' + (r.stderr ?? ''))
   return (r.stdout ?? '').trim()
 }
@@ -33,8 +44,27 @@ function run(rootDir) {
 }
 
 /** A one-bundle git workspace at `version`, tagged `<name>@<version>`. */
-function makeWorkspace({ name = 'demo-bundle', version = '1.0.0' } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'dsh-check-versions-'))
+// #145: this file builds scratch git repositories. A fixture that throws before the
+// test body assigns `ws` would leak its directory, because `finally` never runs.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
+
+function makeWorkspace({ name = 'demo-bundle', version = '1.0.0', manifest = {} } = {}) {
+  const dir = track(mkdtempSync(join(tmpdir(), 'dsh-check-versions-')))
   const bundle = join(dir, 'packages', name)
   mkdirSync(join(bundle, 'lib'), { recursive: true })
   mkdirSync(join(bundle, 'test'), { recursive: true })
@@ -43,6 +73,7 @@ function makeWorkspace({ name = 'demo-bundle', version = '1.0.0' } = {}) {
     engines: { dsh: '^0.2.0' },
     scripts: { test: 'node --test test/*.test.mjs' },
     dsh: { bundle: { patch: './cordis.patch.yml' } },
+    ...manifest,
   }, null, 2) + '\n')
   writeFileSync(join(bundle, 'cordis.patch.yml'), '# fake\n')
   writeFileSync(join(bundle, 'lib', 'a.js'), 'module.exports = 1\n')
@@ -128,5 +159,81 @@ test('a mis-tagged release is not used as the baseline', () => {
     const r = run(ws.dir)
     assert.match(r.out, /shipped files changed since demo-bundle@1\.1\.0/, 'the honest baseline is 1.1.0: ' + r.out)
     assert.equal(r.status, 1)
+  } finally { ws.cleanup() }
+})
+
+test('a downgrade is not a bump', () => {
+  // `===` would let 1.0.0 -> 0.9.0 pass: the version changed, so the naive check
+  // is satisfied, but nothing was released. Any version that is not HIGHER is a
+  // missed bump.
+  const ws = makeWorkspace()
+  try {
+    writeFileSync(join(ws.bundle, 'lib', 'a.js'), 'module.exports = 9\n')
+    ws.writeManifest('0.9.0')
+    ws.commit('chore: downgrade to 0.9.0')
+    const r = run(ws.dir)
+    assert.equal(r.status, 1, 'a downgrade must not satisfy the bump gate: ' + r.out)
+    assert.match(r.out, /bump the version/)
+  } finally { ws.cleanup() }
+})
+
+test('a published file whose name merely contains test/spec is still gated', () => {
+  // The exemption regex used to be /.(test|spec).mjs$/ — the unescaped dots made it
+  // match lib/latest.mjs, lib/contest.mjs and lib/fastest.mjs, so a published file
+  // could skip the bump by its name alone.
+  for (const name of ['latest.mjs', 'contest.mjs', 'fastest.mjs', 'pretest.mjs']) {
+    const ws = makeWorkspace()
+    try {
+      writeFileSync(join(ws.bundle, 'lib', name), 'module.exports = 1\n')
+      ws.commit('feat: add lib/' + name)
+      const r = run(ws.dir)
+      assert.equal(r.status, 1, 'lib/' + name + ' is a shipped file and must be gated: ' + r.out)
+    } finally { ws.cleanup() }
+  }
+})
+
+test('moving a published file into test/ is still a shipped change', () => {
+  // With rename detection, `git mv lib/a.js test/a.test.mjs` collapses into a single
+  // test path and the gate goes green. --no-renames keeps the deletion visible.
+  const ws = makeWorkspace()
+  try {
+    sh(ws.dir, 'mv', 'packages/demo-bundle/lib/a.js', 'packages/demo-bundle/test/moved.test.mjs')
+    ws.commit('refactor: move the module into test/')
+    const r = run(ws.dir)
+    assert.equal(r.status, 1, 'a rename out of lib/ must not hide the change: ' + r.out)
+  } finally { ws.cleanup() }
+})
+
+test('a shipped fixture under a test-like directory still needs a bump', () => {
+  // `files` decides what ships. dsh-deep-ptc-mode publishes test-governor/, so its
+  // old-keys-baseline.json is a SHIPPED file even though the path says test. A
+  // path-only exemption would let it change without a bump.
+  const ws = makeWorkspace({ manifest: { files: ['lib', 'test-governor'] } })
+  try {
+    mkdirSync(join(ws.bundle, 'test-governor'), { recursive: true })
+    writeFileSync(join(ws.bundle, 'test-governor', 'old-keys-baseline.json'), '{}\n')
+    ws.commit('feat: add shipped fixture')
+    // Baseline is the tagged 1.0.0 commit; now change the shipped fixture.
+    writeFileSync(join(ws.bundle, 'test-governor', 'old-keys-baseline.json'), '{"a":1}\n')
+    ws.commit('chore: change a shipped fixture, no bump')
+    const r = run(ws.dir)
+    assert.equal(r.status, 1, 'a shipped .json under test-governor/ must be gated: ' + r.out)
+  } finally { ws.cleanup() }
+})
+
+test('a package whose tags are all mis-tagged reports a problem, not a silent skip', () => {
+  // With no self-consistent tag there is no baseline, so the gate would pass
+  // everything. That is the same hole as the original bug, only narrower, so it
+  // must be loud.
+  const ws = makeWorkspace()
+  try {
+    // Delete the good tag and replace it with one whose name lies about the version.
+    sh(ws.dir, 'tag', '-d', ws.name + '@1.0.0')
+    sh(ws.dir, 'tag', ws.name + '@2.0.0')
+    writeFileSync(join(ws.bundle, 'lib', 'a.js'), 'module.exports = 8\n')
+    ws.commit('feat: shipped change, version still 1.0.0')
+    const r = run(ws.dir)
+    assert.equal(r.status, 1, 'an all-mis-tagged package must fail loudly: ' + r.out)
+    assert.match(r.out, /mis-tagged/)
   } finally { ws.cleanup() }
 })
