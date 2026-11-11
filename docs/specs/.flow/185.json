@@ -1,0 +1,45 @@
+{
+  "issue": 185,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-11T18:36:53.889Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "#185 workflow 条件化",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "#186 三问绑 todo_write + 停手线可数信号",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "#187 去重 + 投递语义",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "#188 等待/轮询/并发纪律",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "上游请求单 + 测试 + 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}
