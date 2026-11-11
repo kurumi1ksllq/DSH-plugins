@@ -1,0 +1,31 @@
+{
+  "issue": 183,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T13:00:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "两份校准块纠正 ecc 加载状态",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "gate + PR + CI",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  },
+  "note": "裁剪:docs-only 两行事实更新,按 FLOW.md 自决边界跳过双轴 review,理由见 spec §4"
+}

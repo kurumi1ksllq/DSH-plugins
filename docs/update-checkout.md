@@ -5,7 +5,7 @@
 > - profile `/root/.dsh/profiles/web` 的 **8 条**本仓库 `link:` 全部指向 `/root/DSH-plugins`:
 >   `dev-flow`、`dsh-credential-vault`、`dsh-deep-ptc-mode`、`dsh-inventory`、`dsh-task-dispatcher`、`dsh-websearch-failover`、`ecc-agent-presets`、`dsh-skill-surface`。
 > - `node scripts/check-profile.mjs` 在本 worktree 会把 8 条报成「loads from a DIFFERENT checkout」(link 指向主 checkout),这是预期;在主 checkout 里跑应为 `profile ok: 8 linked bundle(s)`、0 条该告警。
-> - **已知缺口**:`ecc-agent-presets` 已在 `dependencies` 里 link,但不在 `dsh.profile.bundles` 中,因此当前不加载;要不要加载由你决定(改 profile 不在本文档范围内)。
+> - `ecc-agent-presets` 曾只 link 未列入 `dsh.profile.bundles`(不加载);**2026-11-11 已由用户启用**,现 8 个本仓库 bundle 全部加载。
 > - `node scripts/update.mjs plan` 会把 8 个本地包全部报 `/root/DSH-plugins`。
 > - 运行时 DSH `0.2.2-rc.1`;registry 4 个:`@deepseek-ai/dsh-mcp-client@0.2.2-rc.1`、`dsh-context@0.83.0`、`dsh-tool-search@0.1.10`、`@wxg-prc-cpg/browser-skill-dsh-plugin@0.4.2`。
 > - 旧 checkout `/root/dsh-workspace/DSH-plugins` 已不再被任何被加载的包引用;**目录本身尚未退役**(移动前先确认脚本不再引用)。

@@ -12,7 +12,7 @@
 > | P1-6 `pnpm-lock.yaml` importers 漂移 | ✅ 已修(2026-11-04;CI 同时加了「install 后 lockfile 不许变」的守卫) | `test/docs-contract.test.mjs` |
 > | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
 > | 本仓库 bundle 数 | **8**:dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / ecc-agent-presets / dsh-skill-surface | `ls packages` |
-> | profile 实际加载 | 8 条 link;**`ecc-agent-presets` 未写进 `dsh.profile.bundles`,当前不加载** | 读 `~/.dsh/profiles/web/package.json` |
+> | profile 实际加载 | 8 条 link,8 个本仓库 bundle 全部在 `dsh.profile.bundles` 中加载(含 `ecc-agent-presets`,2026-11-11 由用户启用) | 读 `~/.dsh/profiles/web/package.json` |
 > | 运行时 DSH | `0.2.2-rc.1` | `node -e "console.log(require('/opt/dsh-runtime/dshcli/lib/node_modules/@deepseek-ai/dsh/package.json').version)"` |
 >
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
