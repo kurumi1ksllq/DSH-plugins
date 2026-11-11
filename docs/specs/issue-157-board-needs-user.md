@@ -1,0 +1,146 @@
+# #157 任务板「需要你出手」收敛为意图 + 合并两类
+
+- 分级:`standard`
+- 关联:#157;上游 #154(只保留两次交互)留下的面板语义尾巴
+- 本阶段会动:`packages/dev-flow/{lib-git-status/task-board.js,client.js,README-git-status.md,package.json,CHANGELOG.md,test/{task-board,t4-df,client-board}.test.mjs}`、根 `CHANGELOG.md`、本 spec 与 `docs/specs/.flow/157.json`
+
+## 1. 现状(可复核)
+
+| 事实 | 证据 |
+| --- | --- |
+| 面板仍把 5 类都当"需要你出手" | `task-board.js:22` `NEEDS_USER_KINDS = ['intake-confirm','no-ci','ci-red-escalated','review-pending-decision','merge-gate']` |
+| 其中 3 类自 #154 起已归 agent 自决 | `FLOW.md`「自决边界」:无 CI 自动补 workflow、CI 红自修≤2 轮后不合并、review 发现由 agent 裁决 |
+| 文案已改、结构未改 | 就这条条带而言,#154 只改了 `client.js` 措辞与 `README-git-status.md` 口径,条目仍在条带里 |
+| 测试仍在断言旧契约 | `test/task-board.test.mjs`「each of the four dev-flow user inputs」; `test/t4-df.test.mjs` 断言 `review-pending-decision` 进 needsUser |
+| 后果 | 用户按新流程忽略条带,面板持续喊话。判据是本 issue 引入的:一条把所有事都列上的横幅会被训练成背景噪声(见 `task-board.js` 的 `NEEDS_USER_KINDS` 注释),不是仓库既有 README 的措辞 |
+
+## 2. 改动
+
+`NEEDS_USER_KINDS` 收为 `['intake-confirm','merge-gate']`;`buildNeedsUser` 删掉 `no-ci`、`ci-red-escalated`、`review-pending-decision` 三个分支。CI 三态、CI 自修轮次、review 状态仍作为**卡片证据行**显示(`checks`/`ci`/`review` 字段未动)。
+
+连带清理:`client.js` 三个 `need_*` 文案(zh/en)、`task-board.js` 的 `CI_MAX_ROUNDS`(已无消费者)。
+
+## 3. Tickets
+
+| # | 标题 | 验收 |
+| --- | --- | --- |
+| T1 | 红:`task-board`/`t4-df` 断言词表封闭为两项;无 CI、CI 红 2/2、review pending 都不进 needsUser,但卡片上仍可见 | 先跑见红(现状 5 类) |
+| T2 | 绿:改 `NEEDS_USER_KINDS` 与 `buildNeedsUser`;删死常量与文案 | T1 全绿 |
+| T3 | 文档:`README-git-status.md` 两处改口径 | 与实现一致 |
+| T4 | 版本 0.6.1 → 0.7.0;两处 CHANGELOG;spec 与 `.flow` | `pnpm verify` 绿 |
+
+## 4. 边界
+
+- 不动 `.flow` 文件格式与 `STAGES` 枚举(面板列不变)。
+- 不动 CI 判定、review 状态机、快照字段。
+- 不改 `FLOW.md` 的流程规则(它已经只写两次交互)。
+
+## 5. 风险
+
+| 风险 | 缓解 |
+| --- | --- |
+| 用户再也收不到「CI 红两次」「review 出报告」的主动提示 | 这些状态仍在卡片证据行(CI 红 · CI 2/2、review pending);且 agent 会在对话/PR 里给结论 |
+| `NEEDS_USER_KINDS` 是对外导出的枚举,可能有仓外消费者 | 仓内唯一消费者是本包;枚举收窄是 minor 版本变更(0.7.0),CHANGELOG 明写 |
+
+## 6. 验收
+
+- `packages/dev-flow` 全绿;`pnpm verify` 绿。
+- 反向验证:把三类塞回 `buildNeedsUser` → 测试红。
+- 面板「需要你出手」最多出现 `intake-confirm` / `merge-gate`。
+
+## 7. 双轴 review 裁决(2026-11-10,PR #166)
+
+两轴共报 16 条,去重后 12 条,全部采纳(3 条为同一根因的不同表述)。
+
+| # | 发现 | 裁决 | 处理 |
+| --- | --- | --- | --- |
+| 1 | review 状态被从条带删掉后**完全没有面板出口**:卡片证据行从不渲染 card.review,README/spec 的「仍可见」承诺为假 | 采纳 | `client.js` 证据行加 `review_running` / `review_pending-decision` 两段文案(zh/en);新增渲染层断言 |
+| 2 | 「仍可见」只在快照字段层断言,渲染层零覆盖 | 采纳 | `client-board` 新增用例:text 输出必须含「无 CI」「CI 2/2」「review 待裁决」且不含「需要你:」 |
+| 3 | `NEEDS_USER_KINDS` 没有消费者,词表形同注释 | 采纳,但**后被 §8.2 推翻** | 原做法是返回前 `.filter()`;实测证明该 filter 是死代码且会掩盖回归,已改为越界抛错(见 §8.2 / §8.5) |
+| 4 | `t4-df` 断言 `NEEDS_USER_KINDS` 数组内容,违反 `docs/specs/test-hygiene-29.md` 的既定决定 | 采纳 | 删除该用例;改为行为用例:红 CI 2/2 + review pending 的板 `needsUser` 必须为空,同时卡片字段仍携带 |
+| 5 | 「review running 不触发」成为恒真僵尸测试 | 采纳 | 并入上一条的最坏情形用例,删除原用例 |
+| 6 | CI 红 2/2 用例只断言 `card.action === null`(等价于重复断言不在 needsUser) | 采纳 | 补 `card.checks === 'red'` 与 `card.ci` 深比较 |
+| 7 | `.flow/157.json` stage 落后(ci 而实况 review),卡片会打「状态过期」 | 采纳 | 改 `stage: "review"` |
+| 8 | `.flow` 的 `updatedAt` 把 UTC 写成 `+08:00`,差 8 小时 | 采纳 | 改用 `toISOString()`(Z)。根因是手写 `replace('Z','+08:00')`;161.json 的历史值不追改,记录在此 |
+| 9 | spec 误归因:「正是 README 自己警告的『训练用户忽略条带』」——仓库里查不到这句话 | 采纳 | 改为「本 issue 引入的判据」,指向 `NEEDS_USER_KINDS` 注释 |
+| 10 | spec 绝对化:「#154 只改了 client.js 与 README」 | 采纳 | 限定为「就这条条带而言」 |
+| 11 | `client-board` 的 host 用例 fixture 自相矛盾(红 CI + review done + merge-gate),且丢了证据行断言 | 采纳 | 改为 green CI + run 1/2;补 `assert 'CI 绿'` |
+| 12 | 两处 CHANGELOG 与测试文件缺空行 | 采纳 | 补齐 |
+
+### 与 issue 建议的差异(记录)
+
+issue #157 的建议是「把三类降级为 info」;本 spec 选择**整段删除**,理由是 info 条目仍会被读成待办。为不让状态彻底消失,补了第 1 条的渲染出口——两条路线的目标一致(不喊用户、但别丢信息),取后者。
+
+## 8. 变更(2026-11-11,续用 PR #166)
+
+### 8.1 合并最新 main(解 CHANGELOG 冲突)
+
+分支停在 `78d2b31` 之后,main 已推进到 `064284b`(`git rev-list --count 78d2b31..064284b` = 18 个提交)。`git merge origin/main` 只有一处冲突:`CHANGELOG.md` 的 `## Unreleased`(两边都往顶部插条目)。
+
+处理:保留 main 全部 33 条,把 `### dev-flow 0.7.0` 置顶(仓库惯例:新条目在上),并把 note 行的计数从 33 同步到 34——`test/docs-contract.test.mjs:647` 断言「本段现有 N 个条目」必须等于实际 `### ` 数量,漏改会红。
+
+### 8.2 删除 `buildNeedsUser` 里的死过滤器(本轮新发现)
+
+**变更点**:上一轮 review 第 3 条为「`NEEDS_USER_KINDS` 没有消费者」补了 `.filter(entry => NEEDS_USER_KINDS.includes(entry.kind))`。实测证明这个补法是错的。
+
+**理由(实测)**:`buildNeedsUser` 只有两处 push(`:291` intake-confirm、`:300` merge-gate),都在词表内,所以该 filter **永远是真值**,是可证明的死代码。更糟的是它**主动掩盖回归**:
+
+| 状态 | 222 条测试 |
+| --- | --- |
+| filter 在 + 有人加回 `no-ci` | **全绿**(回归被 filter 静默滤掉) |
+| filter 删 + 有人加回 `no-ci` | 4 条红(新用例 + 原有 3 条) |
+
+即:加 filter 反而把一个原本能被抓住的回归变成抓不住。故删除 filter,并把注释改成「词表就是上面两处 push;这里的过滤器会掩盖回归」。
+
+### 8.3 新增「词表封闭」用例
+
+`task-board.test.mjs` 增一条:把**全部三个历史触发条件**(CI 红 2/2 / review pending-decision / 无 CI)与意图、合并放进**同一个快照**,断言 `needsUser` 的 kind 集合 `deepEqual ['intake-confirm','merge-gate']`。
+
+与既有用例的差别:既有 3 条各自只断言「本场景里某一类不出现」,抓不住(a)第四类被新增,(b)某类在未覆盖的场景里回归。新用例把三类历史触发条件放进同一快照,覆盖了它们同时出现的组合。
+
+**但采样一个快照并不能真正封闭词表**(两位 reviewer 独立实测:只在 `stage === 'pr'` 时 push 一个新 kind,222 条全绿)。真正的封闭靠 `buildNeedsUser` 返回前的**越界抛错**守卫——越界即 `throw`,而不是静默 `.filter`。两条一起:守卫管运行时,用例管回归。
+
+反向验证(均实测):
+
+| 改坏方式 | 结果 |
+| --- | --- |
+| 加回 `no-ci` push | 4 条红 ✅ |
+| 注入全新 kind `spec-confirm` | 3 条红 ✅ |
+| 删除 filter(本次改动本身) | 222 全绿 ✅(证明 filter 确为死代码) |
+
+### 8.4 验收
+
+- `node --test packages/dev-flow/test/*.test.mjs` → **222/222 绿**(原 221 + 新增 1)。
+- 版本:`packages/dev-flow` 已在上一轮升 `0.7.0`,本轮仅改实现细节与测试,不重复升。
+
+
+### 8.5 双轴 review 第二轮裁决(2026-11-11,续 PR #166)
+
+两轴共报 13 条(轴1 8 条 / 轴2 8 条,去重后 13 条),逐条裁决如下。
+
+| # | 发现(轴) | 裁决 | 处理 |
+| --- | --- | --- | --- |
+| 1 | `client-board.test.mjs` 的 `!out.includes('需要你:')` 是恒真断言:`需要你:` 这个字面量在 `client.js` 里不存在(条带标题是 `需要你出手`,卡片行动是 `需要你回话`) | 采纳 | 改为断言 `!out.includes('需要你出手')`;反向验证:加回 `no-ci` 后该文件从 16/16 全绿变为 1 红 |
+| 2 | 「无 CI 仍显示在卡片证据行」在无 PR / 分支不可放置时是假的:`client.js` 的 checks 文案受 `card.prNumber !== null` 限制,而被删的 `no-ci` 分支正是唯一覆盖该情形的路径 | 采纳 | `client.js` 改为 `card.prNumber !== null \|\| card.checks === 'none'` 也进证据行——兑现「状态没丢」的承诺,而不是把文档降级 |
+| 3 | 「词表封闭」用例并未封闭词表:只在 `stage === 'pr'` 时 push 新 kind,222 条全绿 | 采纳 | 改为 `buildNeedsUser` 返回前**越界抛错**(fail loud),不恢复会掩盖回归的静默 filter;§8.3 措辞同步降级 |
+| 4 | CHANGELOG note 的 tag 计数是错的(写 29,实测 32) | 采纳 | 按实测重写:34 条 / 32 条有 tag / 缺 2 条(`dev-flow@0.7.0` 待补打、`dsh-skill-surface@0.1.0` 早于 tag 纪律) |
+| 5 | spec §8.1 写「4 个提交」,实测 18 | 采纳 | 改为 18 并附复核命令 |
+| 6 | spec §7 第 3 条仍写「按词表过滤,常量有了约束力」,与 §8.2 矛盾 | 采纳 | 该行标注「后被 §8.2 推翻」并指向 §8.5 |
+| 7 | `client-board` 新用例 fixture 自相矛盾(`checks:'none'` 又 `ci run 2/2 red`) | 采纳 | 改为 `ci: null`;`CI 2/2` 断言改为 `!includes('CI 2/2')` |
+| 8 | `client.js` 注释仍写「The four dev-flow gates」 | 采纳 | 改为「The two dev-flow gates」 |
+| 9 | `t4-df.test.mjs` 文件头仍写「review pending-decision surfaces in needs you」,与本文件现有断言相反 | 采纳 | 重写文件头 |
+| 10 | spec 声称「补齐空行」,实际是删掉了两处空行 | 采纳 | 补回 `client-board.test.mjs` 测试间空行 |
+| 11 | 反向验证的精确条数不可复现(我写 4 条,reviewer 复现 3 条) | 采纳 | 下文改为「≥3 条红」这类稳健表述,并给出注入方式 |
+| 12 | `NEEDS_USER_KINDS` 删掉 filter 后仍是零消费者的导出 | 部分采纳 | 保留导出(它是 `.flow` 语义的文档常量,且 `docs/specs/test-hygiene-29.md` 允许断言枚举);但**不再声称它约束运行时**——约束由 §8.5 第 3 条的抛错守卫承担 |
+| 13 | `pnpm test` 整仓红,因 `ecc-agent-presets` 缺 `js-yaml`(worktree 无 `node_modules`) | 不采纳 | 环境问题,与本 issue 无关;干净 checkout 上 `pnpm test` 绿 |
+
+**反向验证(可复现的注入方式)**
+
+| 改坏方式 | 结果 |
+| --- | --- |
+| 在 `buildNeedsUser` 里无条件 `infos.push({kind:'no-ci',…})` | ≥3 条红(`task-board` 词表用例 + 两条 missing-CI 用例);`client-board` 另 1 条红 |
+| 注入词表外的新 kind(如 `draft-pr` / `spec-confirm`) | **越界抛错**:`needsUser entry "X" is outside NEEDS_USER_KINDS (intake-confirm, merge-gate)` |
+| 删除抛错守卫 | 222 全绿——这正是必须保留守卫的理由 |
+
+> 数字说明:第一行在「按 repo 级 push」与「按卡片级 push」两种变异下条数不同(3 vs 1),故写 ≥3 而非固定值。
+

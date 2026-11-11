@@ -316,6 +316,32 @@ test('a card in the merge gate renders its own action line', () => {
   assert.ok(out.includes('等你答是否合并'))
 })
 
+test('#157 states stay visible on the card now that the strip no longer lists them', () => {
+  // The strip asks only about intent and merge. Everything else moved to the
+  // card's evidence line — this is the assertion that keeps it there.
+  const s = snap({
+    git: { branches: [branch('main', { current: true }), branch('issue-26-a', { ahead: 1 })] },
+    issues: [issue(26)],
+    prs: [pr(5, 'issue-26-a')],
+    // A repository with no CI has no self-repair round either: run 2/2 + 'none'
+    // is a state that cannot exist, and asserting both on one card would test a
+    // combination no user can ever see.
+    checks: { 5: 'none' },
+    flowStates: new Map([[26, {
+      issue: 26, grade: 'standard', stage: 'review', tickets: [],
+      ci: null, review: { state: 'pending-decision', axes: 2 }, merge: { authorized: false },
+    }]]),
+  })
+  const out = textOf(s)
+  assert.ok(out.includes('无 CI'), 'missing CI is a card fact now')
+  assert.ok(!out.includes('CI 2/2'), 'a repository with no CI has no repair rounds')
+  assert.ok(out.includes('review 待裁决'), 'a review waiting on the agent must not disappear')
+  // The strip's own title is the only honest marker: '需要你:' never renders
+  // (the strip title is '需要你出手', the card action is '需要你回话'), so
+  // asserting its absence was an assertion that could never fail.
+  assert.ok(!out.includes('需要你出手'), 'none of the three may reach the strip')
+})
+
 test('a card with nothing pending renders no action line', () => {
   const s = snap({
     git: { branches: [branch('main', { current: true }), branch('issue-26-a')] },
@@ -338,8 +364,9 @@ test('the host-provided board is what gets rendered', () => {
           issue: 77, title: 'from the host', url: null, grade: 'standard', stage: 'ci',
           stageIndex: 4, columnCount: 8, stale: false, flowStage: 'ci', hasBranch: true,
           branchName: 'issue-77-x', ahead: 1, prNumber: 9, prUrl: null, prDraft: false,
-          checks: 'red', tickets: [], ci: { run: 2, max: 2, status: 'red' },
-          review: null, merge: null, action: { kind: 'ci-red-escalated', issue: 77, prNumber: 9 },
+          checks: 'green', tickets: [], ci: { run: 1, max: 2, status: 'green' },
+          review: { state: 'done', axes: 2 }, merge: { authorized: false },
+          action: { kind: 'merge-gate', issue: 77, prNumber: 9 },
         }],
         empty: 'no-pr-in-ci',
       },
@@ -347,14 +374,15 @@ test('the host-provided board is what gets rendered', () => {
       { stage: 'merge', cards: [], empty: 'no-pr-awaiting-merge' },
       { stage: 'done', cards: [], empty: 'nothing-merged-yet' },
     ],
-    needsUser: [{ kind: 'ci-red-escalated', issue: 77, prNumber: 9, severity: 'blocker' }],
+    needsUser: [{ kind: 'merge-gate', issue: 77, prNumber: 9, severity: 'blocker' }],
     offFlow: [],
     forgeHint: null,
   }
   const out = textOf(snap({ board }))
   assert.ok(out.includes('from the host'), 'must render the board it was given')
   assert.ok(out.includes('#77'))
-  assert.ok(out.includes('CI 已红到第 2 轮' ))
+  assert.ok(out.includes('等你答是否合并'), 'the action line must render the item the host supplied')
+  assert.ok(out.includes('CI 绿'), 'the evidence line must render the CI state it was given')
 })
 
 test('flow state arriving as a plain object (the HTTP shape) is honoured', () => {

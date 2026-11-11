@@ -10,6 +10,12 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dev-flow 0.7.0 — 任务板「需要你出手」收敛为意图 + 合并两类(#157)
+
+- **NEEDS_USER_KINDS 只剩两项**:`intake-confirm`、`merge-gate`。删除 `no-ci`、`ci-red-escalated`、`review-pending-decision` 三个条目——它们自 #154 起由 agent 自决,留在这里只会训练用户忽略这条横幅。CI 三态、CI 自修轮次、review 状态仍显示在卡片证据行上。
+- 连带清理:`client.js` 三个不再出现的 `need_*` 文案(zh/en 各一份)、`task-board.js` 已无消费者的 `CI_MAX_ROUNDS` 导出。
+- 测试:`task-board`/`t4-df`/`client-board` 改为断言「词表封闭为两项」,并保留「状态仍可见」的卡片断言。
+
 ### dsh-inventory 0.12.3 — README 对齐现状(#180)
 
 - 提示词注入的来源改为本包 `prompt-inject` host 半区(原 `@local/dsh-prompt-inject`,0.10.0 并入);安装段改成 monorepo `link:` + `dsh.profile.bundles` 接线;去掉写死的测试用例数。无代码变更。
@@ -69,6 +75,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - `execution`：3 条 composition 用例读仓库内 fixture，前置收窄为 `js-yaml`，不依赖「已安装宿主声明」（那是 peer，CI 不装）。
 - 根 `test/verify-clean.test.mjs`：只把 `node_modules` 那一条断言改成条件（附 diagnostic），泄漏检查照常运行。
 - 效果：无依赖 worktree 里 deep-ptc 177 测 / 153 过 / 0 红 / 24 跳过；依赖齐备时 177/177 全过、零跳过；仓库契约两种环境都是 87/87。
+
 ### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
 
 - **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。
@@ -132,7 +139,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 33 个条目:28 条有对应 tag;`dsh-skill-surface@0.1.0` 缺 tag(早于 tag 纪律),本次新增 4 条(#180)在合并后补打;待下一次统一归档至 History 段。
+> 本段现有 34 个条目:32 条有对应 tag;缺 tag 的 2 条为 `dev-flow@0.7.0`、`dsh-skill-surface@0.1.0`(dsh-skill-surface@0.1.0 早于 tag 纪律,dev-flow@0.7.0 待本次合并后补打);待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

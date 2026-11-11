@@ -107,6 +107,8 @@ window.__ModuleLoader__.load({
       'empty_no-branch-awaiting-push': '没有待推送的分支',
       'empty_no-pr-in-ci': '没有 PR 在跑 CI',
       'empty_no-review-pending': '没有 review 报告待处理',
+      review_running: 'review 进行中',
+      'review_pending-decision': 'review 待裁决',
       'empty_no-pr-awaiting-merge': '没有 PR 等口令',
       'empty_nothing-merged-yet': '还没有合并记录',
       boardFlowHint: '要开始或推进任务,直接对 agent 说需求 —— dev-flow 会接手并驱动这条流程。',
@@ -115,9 +117,6 @@ window.__ModuleLoader__.load({
       stale: '状态过期',
       staleTip: (flowStage) => `状态文件写着 ${flowStage},与仓库实况不符`,
       'need_intake-confirm': (n) => `#${n} 已建档但还没建分支,等你确认这次要做什么`,
-      'need_no-ci': '本仓库当前没有 CI,agent 会自动补一个最小 workflow(不需要你回话)',
-      'need_ci-red-escalated': (n) => `#${n} 的 CI 已红到第 2 轮,agent 已停止重推并附失败要点;本次不合并`,
-      'need_review-pending-decision': (n, pr) => `PR #${pr}(issue #${n})双轴 review 已出报告,agent 正在逐条裁决(改或不改均写理由)`,
       'need_merge-gate': (n, pr) => `PR #${pr}(issue #${n})等你答是否合并`,
       checks_green: 'CI 绿',
       checks_red: 'CI 红',
@@ -210,6 +209,8 @@ window.__ModuleLoader__.load({
       'empty_no-branch-awaiting-push': 'No branch waiting to push',
       'empty_no-pr-in-ci': 'No PR running CI',
       'empty_no-review-pending': 'No review report waiting',
+      review_running: 'review in progress',
+      'review_pending-decision': 'review pending',
       'empty_no-pr-awaiting-merge': 'No PR awaiting the merge word',
       'empty_nothing-merged-yet': 'Nothing merged yet',
       boardFlowHint: 'To start or advance a task, just tell the agent — dev-flow drives this flow.',
@@ -218,9 +219,6 @@ window.__ModuleLoader__.load({
       stale: 'Stale state',
       staleTip: (flowStage) => `State file says ${flowStage}, which the repository does not back up`,
       'need_intake-confirm': (n) => `#${n} has no branch yet — say what you want done`,
-      'need_no-ci': 'No CI here — the agent adds a minimal workflow itself (no answer needed)',
-      'need_ci-red-escalated': (n) => `CI for #${n} is red at round 2 — auto-push stopped, not merging this time`,
-      'need_review-pending-decision': (n, pr) => `PR #${pr} (issue #${n}) review reports are in — the agent is ruling on each finding`,
       'need_merge-gate': (n, pr) => `PR #${pr} (issue #${n}) awaits your merge answer`,
       checks_green: 'CI green',
       checks_red: 'CI red',
@@ -849,8 +847,15 @@ function DiffView({ t, sessionId, path, statusSha }) {
           : card.checks === 'red' ? t('checks_red')
             : card.checks === 'none' ? t('checks_none')
               : t('checks_unknown')
-      if (card.prNumber !== null) meta.push(checksText)
+      // A repository with no CI is a fact about the repository, not about one PR:
+      // #157 removed it from the strip, so it has to survive here even on a card
+      // whose branch has no PR yet (or sits on a branch the board cannot place).
+      if (card.prNumber !== null || card.checks === 'none') meta.push(checksText)
       if (card.ci && Number.isInteger(card.ci.run)) meta.push(`CI ${card.ci.run}/${card.ci.max ?? 2}`)
+      // #157 removed the review item from the strip, so the evidence line is the
+      // only place a review in flight can show up — without this it vanished.
+      const reviewState = card.review?.state
+      if (reviewState === 'running' || reviewState === 'pending-decision') meta.push(t(`review_${reviewState}`))
       const doneTickets = card.tickets.filter((x) => x.state === 'done').length
       if (card.tickets.length > 0) meta.push(t('ticketsDone', doneTickets, card.tickets.length))
 
@@ -893,7 +898,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
       )
     }
 
-    /** The four dev-flow gates that need a human, blockers first. */
+    /** The two dev-flow gates that still need a human (#157), blockers first. */
     function NeedsUser({ t, items }) {
       if (items.length === 0) return null
       return h(

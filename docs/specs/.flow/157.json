@@ -1,0 +1,50 @@
+{
+  "issue": 157,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-11T08:09:15.417Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "词表收窄红测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "task-board/client 实现",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "文档口径",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG/spec",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "合并 main 解 CHANGELOG 冲突 + 删死过滤器 + 词表封闭用例",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "双轴 review 第二轮 13 条裁决(越界抛错/无 CI 可见/恒真断言)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
