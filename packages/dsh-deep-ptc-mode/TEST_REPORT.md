@@ -1,4 +1,7 @@
-# 1.7.3 实测汇总 / Test summary
+# 1.7.3 实测汇总 / Test summary（历史快照）
+
+> **历史快照（2026-11-05，1.7.3 时期）**：当前包版本是 1.13.2，机制与接线已变化；
+> 现行说明见 [README.md](README.md) 与 [CHANGELOG.md](CHANGELOG.md)。本文正文保留当时的实测记录。
 
 日期 / Date: 2026-11-05。测试宿主：Windows 桌面 DSH 0.2.2-rc.1 + WSL Ubuntu、Node 24。此版本是测试样本，运行时不据此固定工具清单。
 

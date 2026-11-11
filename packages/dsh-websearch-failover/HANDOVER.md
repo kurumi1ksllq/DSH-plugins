@@ -1,5 +1,9 @@
 # 交接书：dsh-websearch-failover（DSH 有序多提供方搜索 + 侧栏余额管理器）
 
+> **历史快照（2026-10-24，0.3.x 时期）**：当时包内还有 `plugin/` 子目录与独立的
+> `scripts/install.mjs`；0.4.0 起包根即 bundle 本体，安装与面板位置也已改为
+> dsh-inventory 的工具管理页。现状见 [README.md](README.md) 与仓库根 CHANGELOG。
+>
 > 最后更新：2026-10-24 20:20（Asia/Shanghai）
 > 仓库：`E:\Project-hub\websearch-dsh-plugin` · GitHub `kurumi1ksllq/websearch-dsh-plugin`
 > 本机 DSH：0.2.1-rc.2（cordis 4.0.5），profile `desktop`，`DSH_HOME=C:\Users\admin\.dsh`

@@ -1,8 +1,8 @@
 {
   "issue": 29,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-03T22:35:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-11T11:15:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -36,10 +36,11 @@
     "status": "unknown"
   },
   "review": {
-    "state": "not-started",
+    "state": "done",
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #180(2026-11-11):issue #29 已于 2026-11-03 关闭;合并提交 ea81629 (PR #33) 是 main 的祖先;ci.status 保留 unknown,不回填伪造"
 }

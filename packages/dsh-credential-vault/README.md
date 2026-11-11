@@ -39,6 +39,7 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
   去重（同名不同内容的凭据报告冲突、绝不覆盖），导入端用本机 master.key 重新加密。
   面板有导出/导入表单；CLI 为 `bin/vault-sync.mjs`（`pnpm vault:export` / `vault:import`），
   口令只从 stdin 读，**没有环境变量入口**。威胁模型见下文「已知限制」。
+- **凭据级 TTL（0.6.0）**：`set` / `update` / HTTP API 接受可选 `ttlSeconds`（正整数，或 `null` 清除）；`use` 拿到的授权以它封顶，并在返回值里报 `ttlSeconds`；过期后重新 `use` 即可。存量无 TTL 的记录行为不变。
 - **管理界面（在「工具管理」页里）**：`dsh-inventory` 的**工具管理**页有「凭据保险库」分区与同名
   分段标签：凭据列表（掩码预览）+ 详情 + 新增/编辑/删除 + 主密钥轮换 + 使用日志。
   本 bundle 的浏览器半区只注册 `credential-vault` 命名空间的文案字典，**不再注册侧边栏槽位**。
@@ -46,15 +47,15 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
 
 ## 安装
 
-profile 的 `package.json` 里加一行：
+本包是 [DSH-plugins](../../README.md) 仓库的 8 个 bundle 之一。先按根 README 的「装上」clone 并 `pnpm install`，再在 profile 的 `package.json` 里接两处：
 
 ```json
 "dependencies": {
-  "dsh-credential-vault": "link:../../packages/dsh-credential-vault"
+  "dsh-credential-vault": "link:<仓库绝对路径>/packages/dsh-credential-vault"
 }
 ```
 
-然后 `pnpm install`，重启 DSH。
+并把 `"dsh-credential-vault"` 加进同一份 `package.json` 的 `dsh.profile.bundles`——只加依赖不会加载。首次接线需要一次 DSH 冷启动才会读新的 `package.json`；**重启必须先拿到用户明确批准**（见 `AGENTS.md`）。
 
 ## HTTP 接口（工具管理页用，非界面调用方请勿依赖）
 
@@ -168,7 +169,7 @@ node scripts/scrub-session-secrets.mjs --roots A,B  # 额外/自定义扫描根
 pnpm --filter dsh-credential-vault test
 ```
 
-208 个测试覆盖：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
+测试覆盖（`test/*.test.mjs`，离线）：加解密往返与防篡改、掩码规则、文件权限、名称校验（含危险键名与 Unicode 分隔符）、store 全操作、
 `normalizeKey` / `slug` / 别名去重 / slug 撞名拒绝 / v1 旧库兼容、五级命中
 （exact→slug→alias→service→keyword）与 `ambiguous` 不猜、动态提示词（函数求值 +
 索引 + 硬规则）、`use` 的零明文返回与按会话注入（含 TTL 过期、跨会话隔离、

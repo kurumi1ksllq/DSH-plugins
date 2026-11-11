@@ -88,6 +88,8 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `docs/update-scheme.md` | 插件可靠更新方案（调查结论与运行时机制，带现状校准块） |
 | `scripts/` | 打包校验脚本，`pnpm verify` 调它们 |
 | `test/` | 仓库级文档契约测试 |
+| `docs/README.md` | 文档地图：现行文档与历史 spec 的边界 |
+| `README.md` / `CHANGELOG.md` | 使用者入口，以及每个 bundle 的发布记录与版本纪律 |
 
 ## 纪律文本谱系（防误归因，#144）
 

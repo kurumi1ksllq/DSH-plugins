@@ -5,7 +5,7 @@ DSH 的安装清单插件。左侧栏 **「工具管理」** 面板分两部分�
 - **总览**：先放三块**可改的运行时设置**——**Web 搜索提供方**（调用优先级、各家余额、冷却倒计时、启用/停用、刷新余额）、**凭据保险库**（掩码列表、新增/编辑/删除、主密钥轮换、使用日志）、**提示词注入**（注入到所有 Agent 系统提示词的文本，直接编辑保存），然后才是这台机器上装了什么：**插件包 / MCP 服务器 / 技能** 三块；
 - **工作区**：先列出所有工作区，点进某一个工作区就是它的详情页——每个 MCP / 技能一行，**一个能力只有一处开关能改结果**。
 
-分段控件另有 **同步**。Web 搜索提供方 / 凭据保险库 / 提示词注入各有自己的分段标签，可以单独打开成大页；三者都直接读 host 的路由（`/websearch-failover/api/*`、`/credential-vault/api/*`、`/prompt-inject/state`），**不再占用侧边栏入口**（`dsh-websearch-failover`、`dsh-credential-vault`、`@local/dsh-prompt-inject` 的浏览器半区现在只注册各自的文案字典，页面由本面板渲染）。
+分段控件另有 **同步**。Web 搜索提供方 / 凭据保险库 / 提示词注入各有自己的分段标签，可以单独打开成大页；三者都直接读 host 的路由（`/websearch-failover/api/*`、`/credential-vault/api/*`、`/prompt-inject/state`），**不再占用侧边栏入口**（`dsh-websearch-failover`、`dsh-credential-vault`，以及原 `@local/dsh-prompt-inject`（0.10.0 起并入本包）的浏览器半区现在只注册各自的文案字典，页面由本面板渲染）。
 
 本包有**两个插件入口**：
 
@@ -104,7 +104,7 @@ Routes: `GET /inventory/plugin-update` (state + per-bundle versions) and
 |---|---|---|
 | **Web 搜索提供方** | `GET/POST /websearch-failover/api/*`（`dsh-websearch-failover` 的 host 半区） | 顺序即调用优先级：拖动或上/下移按钮调整；每行显示余额（按各家单位）、状态点与冷却倒计时；详情给出重置时间、密钥、本地调用统计、启用/停用、只刷新这一家。**余额只在点「刷新余额」时才请求**（接口按次计费） |
 | **凭据保险库** | `GET/POST /credential-vault/api/*`（`dsh-credential-vault` 的 host 半区） | 掩码列表 + 详情；新增/编辑（留空密钥即保留原值）含**服务**与**别名**字段、名称下方实时显示**规范化 slug**、`kind` 可选「数据库」；删除、主密钥轮换、使用日志；**导出/导入**（0.5.0：口令加密 `.dsvault` 信封跨设备同步，按 id 去重）。**任何路由都不回传明文**，面板只显示 `preview`；别名是 AI 唯一不可写的元数据 |
-| **提示词注入** | `GET/POST /prompt-inject/state`（`@local/dsh-prompt-inject` 的 host 半区） | 编辑注入到所有 Agent 系统提示词的文本；空文本本地拦截不发请求，保存后新的模型请求即生效 |
+| **提示词注入** | `GET/POST /prompt-inject/state`（本包的 `prompt-inject` host 半区；原 `@local/dsh-prompt-inject`，0.10.0 并入） | 编辑注入到所有 Agent 系统提示词的文本；空文本本地拦截不发请求，保存后新的模型请求即生效 |
 | 插件包 | profile `package.json`（dependencies + `dsh.profile.bundles`） | 标出未安装（orphan）、已加载、声明来源 |
 | MCP 服务器 | `@deepseek-ai/dsh-mcp-client` 行 + 运行时工具前缀 | 每台的连接状态、工具数、脱敏后的 command/url；全局开关在这一行 |
 | 技能 | 磁盘根目录扫描 + `ctx.skills.list()` | 只列磁盘上的技能：含 `disable-model-invocation` 的屏蔽桩、来源 rank；插件在运行时注册的（没有目录、没有 SKILL.md）**不列也不计数**；全局开关在这一行 |
@@ -136,7 +136,7 @@ bundle 的宿主路由**。
 | --- | --- | --- |
 | 凭据保险库 | `/credential-vault/api/*` | `dsh-credential-vault` |
 | Web 搜索提供方 | `/websearch-failover/api/*` | `dsh-websearch-failover` |
-| 提示词注入 | `/prompt-inject/*` | `@local/dsh-prompt-inject` |
+| 提示词注入 | `/prompt-inject/*` | `dsh-inventory`（行 id `prompt-inject`；原 `@local/dsh-prompt-inject`） |
 
 这三个 bundle 在 `package.json` 里**没有声明为本插件的依赖**（DSH 的 bundle 之间没有
 依赖机制，profile 决定谁被加载）。所以：
@@ -304,15 +304,12 @@ POST /inventory/vault
 
 ## 安装
 
-```bash
-git clone https://github.com/kurumi1ksllq/dsh-inventory.git
+本包是 [DSH-plugins](../../README.md) 仓库的 8 个 bundle 之一。先按根 README 的「装上」把仓库 clone 并 `pnpm install`，再把下面两处接进 profile：
 
-# 在 profile 目录下，把插件 link 进 profile
-cd ~/.dsh/profiles/desktop
-pnpm add "link:<仓库克隆到的绝对路径>/dsh-inventory"
-```
+1. profile 的 `dependencies` 写 `"dsh-inventory": "link:<仓库绝对路径>/packages/dsh-inventory"`；
+2. 同一份 `package.json` 的 `dsh.profile.bundles` 里加 `"dsh-inventory"`。
 
-然后把 `dsh-inventory` 加进 `package.json` 的 `dsh.profile.bundles`，并在 `cordis.patch.yml` 追加：
+需要工作区门控时，再在 profile 的 `cordis.patch.yml` 追加：
 
 ```yaml
 - insert:
@@ -322,7 +319,7 @@ pnpm add "link:<仓库克隆到的绝对路径>/dsh-inventory"
       name: "dsh-inventory/gate"
 ```
 
-重启 DSH 后，左侧栏会出现「工具管理」入口；点进去是整页面板，左上角「‹ 返回对话」回到聊天。
+首次接线需要一次 DSH 冷启动才会读新的 `package.json`——**重启必须先拿到用户明确批准**（见仓库根 `AGENTS.md`）。重启后左侧栏会出现「工具管理」入口；点进去是整页面板，左上角「‹ 返回对话」回到聊天。后续改包内文件按更新方案热生效，不必重启。
 
 `inventory-gate` 是可选的：只插 `inventory` 就只有清单页，没有按工作区门控；需要门控就一起插上，再给各工作区放 `.dsh/mcp.json`（格式见上文「模型怎么知道这个能力」）。
 
@@ -334,7 +331,7 @@ node scripts/preview.mjs        # 用 profile 配置 + 真实 skill 目录跑一
 node scripts/smoke.mjs --snapshot=<snapshot.json>   # 用抓到的真实快照跑 host 集成冒烟
 ```
 
-`npm test` 覆盖（253 个用例 / 22 个文件）：多帧 zstd 会话解码、frontmatter（含 CRLF / BOM / symlink）、技能扫描与去重、四层边匹配、会话实证窗口、快照组装、包安装判定、工具归属推断、tool-search 折叠判定、客户端侧栏入口 + 主面板注册与三态渲染、**总览三块**（插件包 / MCP / 技能，统计卡与分区同名同数）、**分配写入面**（`lib/assign.js` 的 MCP 声明与技能链接，断言写完之后门控 `planMount` 与技能扫描真的能看见；路由的 405/400/404、缓存作废、未登记工作区拒绝、**全局根技能拒写**）、**全局开关**（frontmatter 与 patch 写入、pluginManager 路径、兜底往返）、**技能仓库**（`lib/vault.js` 的移进/移出/重名/单文件；路由的 in/out/in-all、bundled 跳过、移动后快照翻转、仓库技能可分配）、客户端仓库 UI（无开关的仓库行、收进/移回/全部收进三个按钮的 POST body、仅注册徽标），以及**工作区详情行语义**（全局已挂载的 MCP 锁定并标「重复挂载」、全局技能锁定「全局可用 / 全局已禁用」并折进「全局已可用」、只有仓库技能给开关、头部「已开启 N/M · 全局 K」）。
+`npm test` 覆盖（`test/*.test.mjs`，离线，不依赖 DSH）：多帧 zstd 会话解码、frontmatter（含 CRLF / BOM / symlink）、技能扫描与去重、四层边匹配、会话实证窗口、快照组装、包安装判定、工具归属推断、tool-search 折叠判定、客户端侧栏入口 + 主面板注册与三态渲染、**总览三块**（插件包 / MCP / 技能，统计卡与分区同名同数）、**分配写入面**（`lib/assign.js` 的 MCP 声明与技能链接，断言写完之后门控 `planMount` 与技能扫描真的能看见；路由的 405/400/404、缓存作废、未登记工作区拒绝、**全局根技能拒写**）、**全局开关**（frontmatter 与 patch 写入、pluginManager 路径、兜底往返）、**技能仓库**（`lib/vault.js` 的移进/移出/重名/单文件；路由的 in/out/in-all、bundled 跳过、移动后快照翻转、仓库技能可分配）、客户端仓库 UI（无开关的仓库行、收进/移回/全部收进三个按钮的 POST body、仅注册徽标），以及**工作区详情行语义**（全局已挂载的 MCP 锁定并标「重复挂载」、全局技能锁定「全局可用 / 全局已禁用」并折进「全局已可用」、只有仓库技能给开关、头部「已开启 N/M · 全局 K」）。
 
 `scripts/smoke.mjs` 会起一个 stub Cordis 上下文（含一个临时工作区），跑真实的 `apply()` 和三个 HTTP handler，验证 17 项：HTTP 200、幽灵包识别、deferred 计算、`bsk_*` 归属、`tool_search` 归属、**已启用的 MCP 全部连通**、技能扫描、屏蔽桩、会话实证、冷构建 <3s、agent 平面工具收录、global 平面 mcp 工具收录、平面计数上报、payload 无密钥，以及**分配往返**（给临时工作区分配一个 MCP → 刷新快照能看到 → 移除 → 快照恢复）。本机实测冷构建 **~600 ms**，15s 缓存命中 **3–4 ms**，payload 约 80 KB。
 

@@ -104,9 +104,9 @@ test('the README points a new session at the mandatory development flow', () => 
 
 /** Every package under packages/ that registers itself as a DSH bundle. */
 function bundlePackages() {
+  // Every package directory is its own bundle root (dsh-websearch-failover was
+  // flattened back to the package root in 0.4.0; there is no plugin/ subdir).
   const dirs = packageDirs().map((name) => join(ROOT, 'packages', name))
-  // dsh-websearch-failover is a repo root; the installable bundle is plugin/.
-  dirs.push(join(ROOT, 'packages', 'dsh-websearch-failover', 'plugin'))
 
   const bundles = []
   for (const dir of dirs) {
@@ -231,20 +231,31 @@ test('the README says a dependency line alone does not load the bundle', () => {
 
 const UPDATE_DOCS = ['docs/update-scheme.md', 'docs/update-checkout.md']
 
-test('the update docs do not state the pre-repair bundle count as current', () => {
-  // These docs are the record of an eight-bundle survey, so the old number is
-  // allowed to appear — but only on a line that says it is history. A bare
-  // "8 个包(bundle)" reads as today's fact and is how the first pass slipped by.
-  const stale = /(?:八|8)\s*个\s*(?:bundle|包)/
+test('the update docs do not state a bundle/link count other than the current one as current', () => {
+  // These docs are the record of an earlier survey, so old numbers are allowed to
+  // appear — but only on a line that says it is history. Any bare count next to
+  // bundle/package/link/plugin must equal what packages/ holds today; pinning the
+  // guard to one hard-coded number is how "8 个包" stayed wrong after the count
+  // changed, and how it would then flag the correct number.
+  const current = packageDirs().length
+  // Only counts that describe the repository/profile itself: "4 个包新、2 个包旧"
+  // or "这 4 个包" are scenario prose, not a scope claim.
+  const counted = /(?:([一二三四五六七八九十]+)|(\d+))\s*(?:个|条)\s*(?:bundle|link|插件|包全报)/g
+  const cn = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 }
   for (const doc of UPDATE_DOCS) {
     const text = readFileSync(join(ROOT, doc), 'utf8')
-    const offenders = text
-      .split('\n')
-      .filter((line) => stale.test(line) && !line.includes('当时'))
+    const offenders = []
+    for (const line of text.split('\n')) {
+      if (/当时|历史上/.test(line) || /registry\s*包/.test(line)) continue
+      for (const match of line.matchAll(counted)) {
+        const value = match[2] ? Number(match[2]) : cn[match[1]]
+        if (value !== current) offenders.push(line.trim())
+      }
+    }
     assert.deepEqual(
-      offenders,
+      [...new Set(offenders)],
       [],
-      `${doc} states ${offenders.join(' / ')} as current — packages/ holds ${packageDirs().length} bundles`,
+      `${doc} states a count other than ${current} as current: ${offenders.join(' / ')}`,
     )
   }
 })
@@ -593,4 +604,68 @@ test('no CHANGELOG entry heading appears more than once', () => {
     [],
     `duplicate ### entry headings across the CHANGELOG: ${duplicates.join(' | ')}`,
   )
+})
+
+// ---------------------------------------------------------------------------
+// Documentation maintenance (#180)
+//
+// The README table and the docs map are the first things a reader uses; both
+// drifted while every other contract stayed green because nothing required a
+// bundle to appear *in the table* (only somewhere in the file) and nothing
+// checked that the docs tree had an entry point at all.
+
+test('the README plugin table covers every bundle in packages/', () => {
+  const tablePaths = new Set(
+    README.split('\n')
+      .filter((line) => /^\|/.test(line))
+      .flatMap((line) => [...line.matchAll(/\]\((packages\/[^)]+)\)/g)].map((match) => match[1])),
+  )
+  const missing = packageDirs()
+    .map((name) => `packages/${name}`)
+    .filter((path) => !tablePaths.has(path))
+  assert.deepEqual(
+    missing,
+    [],
+    `README plugin table does not link every bundle: ${missing.join(', ')}`,
+  )
+})
+
+test('the CHANGELOG Unreleased note count matches the entries it describes', () => {
+  // The note is the only place that tells a reader how much is pending
+  // archival; leaving it at an old number is a factual error, not a typo.
+  const unreleased = unreleasedSection(readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8'))
+  const entries = (unreleased.match(/^### /gm) || []).length
+  const claimed = unreleased.match(/本段现有 (\d+) 个条目/)
+  assert.ok(claimed, 'CHANGELOG Unreleased must state how many entries it holds')
+  assert.equal(
+    Number(claimed[1]),
+    entries,
+    `CHANGELOG says ${claimed[1]} entries but holds ${entries}`,
+  )
+})
+
+test('docs/README.md maps the live documents and their links resolve', () => {
+  const map = readFileSync(join(ROOT, 'docs', 'README.md'), 'utf8')
+  for (const target of ['../README.md', '../AGENTS.md', '../CHANGELOG.md', 'update-scheme.md', 'update-checkout.md', 'specs/']) {
+    assert.ok(map.includes(target), `docs/README.md must link ${target}`)
+  }
+  assert.match(map, /历史/, 'docs/README.md must mark specs/ as the historical record')
+})
+
+test('the deep-ptc READMEs state the version the package actually has', () => {
+  // The English and Chinese READMEs stayed at 1.7.3 through six minor releases;
+  // the install snippet therefore told a reader to install a version that no
+  // longer matches the code in this repository.
+  const pkg = JSON.parse(
+    readFileSync(join(ROOT, 'packages', 'dsh-deep-ptc-mode', 'package.json'), 'utf8'),
+  )
+  for (const file of ['README.md', 'README.zh.md']) {
+    const text = readFileSync(join(ROOT, 'packages', 'dsh-deep-ptc-mode', file), 'utf8')
+    const head = text.split('\n').slice(0, 8).join('\n')
+    assert.ok(head.includes(pkg.version), `${file} header must state ${pkg.version}`)
+    assert.ok(
+      text.includes(`dsh-deep-ptc-mode@${pkg.version}`),
+      `${file} install snippet must target dsh-deep-ptc-mode@${pkg.version}`,
+    )
+  }
 })

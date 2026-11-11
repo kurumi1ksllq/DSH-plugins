@@ -10,6 +10,22 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.3 — README 对齐现状(#180)
+
+- 提示词注入的来源改为本包 `prompt-inject` host 半区(原 `@local/dsh-prompt-inject`,0.10.0 并入);安装段改成 monorepo `link:` + `dsh.profile.bundles` 接线;去掉写死的测试用例数。无代码变更。
+
+### dsh-deep-ptc-mode 1.13.2 — README 回到当前版本线(#180)
+
+- 版本头与安装片段从 1.7.3 更新到 1.13.2;新增 1.8–1.13 的变更摘要(中英);`TEST_REPORT.md` 标注为 1.7.3 时期的历史快照。无代码变更。
+
+### dsh-websearch-failover 0.5.1 — README 移除已退役的 plugin/ 布局(#180)
+
+- 安装段改指 monorepo `link:`;删除 0.4.0 已退役的 `plugin/`、`scripts/build-plugin.mjs`、`scripts/install.mjs`、`test-install` 等描述;测试清单按实际文件更新;`HANDOVER.md` / `doublecheck-report.md` 标为历史快照。无代码变更。
+
+### dsh-credential-vault 0.6.1 — README 安装/测试段对齐(#180)
+
+- 安装段改成 monorepo `link:` + `dsh.profile.bundles` 接线;去掉写死的测试数;补 0.6.0 的凭据级 TTL 说明。无代码变更。
+
 ### dsh-inventory 0.12.2 — 控件可辨识度与加载态布局(#179)
 
 - **控件看得出是控件**：在原有 12% 浅底之上补 1px 细描边、文字改用主文字色，悬停加深描边与底色、按下微缩；分组标题升级为主文字色且保持无框，靠左侧箭头表示可展开。此前两者字号、颜色、无描边全部同款，用户分不出"能点的"和"只是标题的"。
@@ -115,7 +131,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 15 个条目,全部已随各自 tag 发布;待下一次统一归档至 History 段。
+> 本段现有 33 个条目:已发布的 29 条各自有 tag,新增 4 条(#180 的文档版本)在合并后补打;待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
