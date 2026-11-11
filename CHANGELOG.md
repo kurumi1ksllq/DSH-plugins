@@ -10,6 +10,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.4 — 会话实证在 deep-ptc 会话里不再恒为空(#177)
+
+- **路径 bug（更致命的那条）**：`index.js` 拼 `join(dshHome(), '.dsh', 'sessions')`，而 `dshHome()` 本身已返回 `.dsh` 目录，于是实际读的是 `$DSH_HOME/.dsh/sessions`（不存在）。所有会话实证读取都返回空——补了事件源也看不出效果。改为 `join(dshHome(), 'sessions')`。
+- **事件源**：采集器只认 `tool/call`，而 deep-ptc 会话里外层 `tool/call` 只有 `run_code`，真正的 `skill` 加载落在 `tool/ptc-dispatch`（`arguments` 已是对象）。现两类事件都收。
+- **注释纠错**：原注释写「`tool/ptc-dispatch` 被有意忽略——外层 `tool/call` 已经点名它们」，与事实相反。
+- 测试：新增 4 条（dispatch 产生证据 / 两类事件源对称 / 畸形 dispatch 不炸 / **端到端从 `$DSH_HOME/sessions` 读到会话边**）。最后一条是唯一能抓住路径 bug 的用例——把路径改回去时只有它变红，把事件门改回去时四条全红，两条根因分别被锁住。
+- 未改统计口径：仍不按 `isError` 过滤、不排除 `run_code` 占用窗口。
 ### dsh-deep-ptc-mode 1.13.3 — 把从未执行过的 test-t4ptc 接进门禁(#182)
 
 - `test/test-t4ptc.mjs` 有 10 条 `node:test` 用例，但从未出现在本包的 `scripts.test` 里——任何一次改动都能在它不跑的情况下全绿。
@@ -155,7 +162,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 36 个条目:33 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.13.3`、`dsh-websearch-failover@0.5.2`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
+> 本段现有 37 个条目:35 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.12.4`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

@@ -337,7 +337,10 @@ function listSessionFiles(root, limit) {
 }
 
 function collectSessionEdges(warnings) {
-  const root = join(dshHome(), '.dsh', 'sessions')
+  // dshHome() already resolves to the .dsh directory itself ($DSH_HOME, or
+  // ~/.dsh). Appending .dsh again pointed at $DSH_HOME/.dsh/sessions, which does
+  // not exist, so every session-evidence read came back empty (#177).
+  const root = join(dshHome(), 'sessions')
   const files = listSessionFiles(root, SESSION_FILE_LIMIT)
   const merged = new Map()
   let decoded = 0

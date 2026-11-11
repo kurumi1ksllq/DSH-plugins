@@ -1,13 +1,19 @@
 /**
  * Session evidence: which tools a skill actually pulled in.
  *
- * A skill load is an ordinary `tool/call` named `skill` whose arguments carry
- * `{"name": "<skill>"}`. Every tool call in the following window counts as a
+ * A skill load is a tool event named `skill` whose arguments carry
+ * `{"name": "<skill>"}`. Every tool event in the following window counts as a
  * witnessed use of that skill's toolchain.
  *
- * Note: `tool/ptc-dispatch` calls are nested dispatches of a `run_code` call
- * and are deliberately ignored — the outer `tool/call` already names them.
+ * Two event shapes carry tool calls: native sessions record `tool/call` (with
+ * `arguments` as a JSON string), while Deep PTC records `tool/ptc-dispatch`
+ * (with `arguments` already an object). Reading only `tool/call` left every
+ * deep-ptc session with zero evidence, because there the outer call is always
+ * `run_code` and the real skill load is the nested dispatch (#177).
  */
+
+/** Event types that carry a tool invocation. */
+const TOOL_EVENTS = new Set(['tool/call', 'tool/ptc-dispatch'])
 
 const SKILL_TOOL = 'skill'
 
@@ -34,7 +40,7 @@ export function collectSkillToolEvidence(events, { window = 8 } = {}) {
   let remaining = 0
 
   for (const event of events) {
-    if (!event || event.type !== 'tool/call') continue
+    if (!event || !TOOL_EVENTS.has(event.type)) continue
     const data = event.data
     if (!data || typeof data !== 'object') continue
     const name = data.name

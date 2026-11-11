@@ -1,0 +1,40 @@
+{
+  "issue": 177,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-11T09:43:37.757Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "修 index.js 的会话路径(根因 A)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "事件源放宽为 tool/call + tool/ptc-dispatch(根因 B)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "修正注释 + T1-T4 测试",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}
