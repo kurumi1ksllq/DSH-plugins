@@ -55,4 +55,4 @@
 
 ## 为什么不在本仓库「代理」这些改动
 
-用 dispatcher 注册一个同名工具覆盖 `wait_agent` 会双重注册冲突：`systemPrompt.context` 的 `NamedEntries` 对同 scope 同名注册直接抛错（`dsh-system-prompt/lib/index.js:205-207`），工具注册走 `tools.register` 的 scope 遮蔽，覆盖官方工具属高危行为。不做。
+用 dispatcher 注册一个同名工具覆盖 `wait_agent` 不是纯文本改动，而是**工具注册层的 scope 遮蔽**——`tools.register` 按 scope 解析同名工具，遮蔽官方工具会让调用方的预期与运行时行为脱节，属高危操作。（`dsh-system-prompt/lib/index.js:205-207` 的 `NamedEntries` 只约束 prompt section/context 的同名注册，不是工具注册，不适用于本句。）不做。

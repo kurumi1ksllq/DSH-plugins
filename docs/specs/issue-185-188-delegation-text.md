@@ -8,7 +8,7 @@
 
 四条 issue 来自同一次会话复盘（`session-9dcf2a20`），且**全部落在 `packages/dsh-task-dispatcher/lib/delegation-text.mjs` 的同一段 `COPY` 里**。分开做会在同一处文本上反复冲突，也看不出四条之间的口径是否自洽。
 
-数据核对：我用 `/tmp/sess9/{auth,verify,files4}.cjs` 重跑了该会话（`s.jsonl` 与真实 `session.v4.jsonl.zstd` 解压后 SHA256 一致，2107 行）。权威数字与 issue 复述有出入的已在各节标注。
+数据核对：会话原始事件在 `~/.dsh/sessions/--root-DSH-plugins--/session-9dcf2a20-05bd-4ad6-9923-0f6440034140/session.v4.jsonl.zstd`（2107 行）。复核时把该文件解压后按事件类型统计（`tool/ptc-dispatch` 的 `name`/`arguments`、`step/start` 的 `turn`/`step`、`turn/start` 的时间戳），结果与 issue 复述有出入的已在各节标注。**取证脚本是临时的，未入库**——本句只保证上述路径与统计方法可重跑。
 
 ## 四条 issue 的实测复核
 
@@ -120,9 +120,17 @@ spec 引 `README.zh.md:193` → 实际 `:206`；上游请求单标题「B/C/E �
 
 ### 8. 每轮成本（实测）
 
-注入文本是**每轮都付费**的上下文。实测 zh 段从 **759 字符 / 10 条 bullet** 增长到 **1173 字符 / 12 条 bullet**（+55%）。en 段 2748 字符 / 12 条，与 zh 同构。
+注入文本是**每轮都付费**的上下文。实测 zh 段从 **759 字符 / 10 条 bullet** 增长到 **1221 字符 / 12 条 bullet**（+61%）；en 段 1853 → 2833（+53%）。
 
-参照：deep-ptc 的 discipline0..9 段约 1400+ 字符。本段仍在同一量级，但这是有意识的取舍——四条 issue 的根因都是「文本没说到位」，而文本是本仓库唯一能改的载体。若将来还要加条款，应先考虑压缩既有 bullet 而不是继续增长。
+**更正一处先前的错误比较**：初版说「discipline0..9 约 1400+ 字符，本段同量级」——那是 en 的数字。实测 discipline0..9 的 **zh** 只有 514 字符，所以本段 zh 已是它的 **2.4 倍**。这不是「同量级」。
+
+另一个事实：本部署 `index.js` 写死 `renderDelegationText('zh')`，en 段**不会被渲染**——en 的 +980 字符是纯维护成本。
+
+取舍：四条 issue 的根因都是「文本没说到位」，而文本是本仓库唯一能改的载体。但 review 已削掉了与 persona 重复的部分（见下），**后续若还要加条款，应先压缩既有 bullet 而不是继续增长**。
+
+### 与 persona 的重复已削
+
+`preset.json:10` 的 persona 已有「Never sleep, busy-poll」「Batch independent inspections」「Do not duplicate running work」「Collect results through the channel」。初版的等待条与去重条几乎逐句复述。现改为只写 persona 没有的**工具级事实**与**具体上限**：`list_agents`/`wait_agent` 看不见已派出的 `subagent`、重试上限 2 次、间隔上限 5 秒。
 
 ## 验收（更新后）
 

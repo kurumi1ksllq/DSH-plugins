@@ -117,8 +117,8 @@ test('the stop line carries a countable signal next to the call count', async ()
 test('the text separates the two result channels and forbids running both at once', async () => {
   const { renderDelegationText } = await import('../lib/delegation-text.mjs')
   for (const [locale, dedupe, delivery] of [
-    ['zh', /不要同时用|先定档再发/, /inbox|通知/],
-    ['en', /never run one job through both|pick the lane first/i, /inbox|notification/i],
+    ['zh', /只走一条通道|先定档/, /inbox|通知/],
+    ['en', /one channel|pick the lane first/i, /inbox|notification/i],
   ]) {
     const bullet = bulletWith(renderDelegationText(locale), 'wait_agent')
     assert.ok(bullet, locale + ': the delivery bullet must name wait_agent')

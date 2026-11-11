@@ -16,8 +16,8 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 - **`workflow` 不再是无条件死条款(#185)**：deep-ptc preset 把 `workflow-ptc` 与 `tool-workflow` 都设为 `disabled: true`(继承上游 ptc preset),而该会话的 SDK 里确实没有 `workflow` 工具——原文却写着「≥3 个同类独立单元 → `workflow` 扇出」。现改为条件式：有则用 pipeline/parallel,没有则用 N 个自包含的 `subagent` 并行发出,效果等价。
 - **三问绑到载体(#186)**：事故会话里 `todo_write` **可用却 0 次调用**,而原文本的三问是纯抽象要求。现改为「开工第一件事:用 `todo_write` 写进首个任务列表」,并带降级(无该工具时写进首条回复)——否则就复制了 #185 的病。停手线同时补上可数信号「同类文件改到第 3 个」,与原有「>8 次调用」取或。
-- **两条结果通道分开(#187)**：原文本对「底: 派出子代理后怎么办」只字未提,而 `wait_agent` 的 noProgress 文案全部在讲 Team member。事故里模型据此判定「子代理已死」,在 subagent 正跑时又 `spawn_teammate` 两个做同样的 review,白跑 226 秒。现补：已派出的 `subagent` 不出现在 `list_agents`/`wait_agent` 里,结果以 inbox 通知自动到达;同一份工作不要同时用两档。
-- **等待与轮询纪律(#188)**：事故里等待期 13 步 / 243 秒零产出,`gh pr checks 184` 同参数重复 12 次,39 个多工具 root call 里仅 1 个用 `Promise.all`。现补：等外部结果时先做独立工作、没有就结束本轮;轮询优先后台 job + `job_output`,前台同参数最多 3 次且间隔翻倍;独立只读调用用 `Promise.all` 并行。
+- **两条结果通道分开(#187)**：原文本对「派出子代理之后该怎么办」只字未提,而 `wait_agent` 的 noProgress 文案全部在讲 Team member。事故里模型据此判定「子代理已死」,在 subagent 正跑时又 `spawn_teammate` 两个做同样的 review,白跑 226 秒。现补：已派出的 `subagent` 不出现在 `list_agents`/`wait_agent` 里,结果以 inbox 通知自动到达;同一份工作不要同时用两档。
+- **等待与轮询纪律(#188)**：事故里等待期 13 步 / 243 秒零产出,`gh pr checks 184` 同参数重复 12 次,39 个多工具 root call 里仅 1 个用 `Promise.all`。现补：轮询优先后台 job + `job_output`；必须前台轮询时**沿用 ⑧ 的 2 次重试上限、间隔不超过 5 秒**——初版曾写「3 次 / 10s 起翻倍」，与同 prompt 里 discipline8 的「最多 2 次」冲突，且 10s 会被暂停守卫直接拒绝（`MAX_PAUSE_SECONDS = 5`）；独立只读调用用 `Promise.all` 并行。
 
 **边界(不假装闭环)**:`wait_agent` / `spawn_teammate` / `subagent` 的工具描述与 `spawn_teammate` 的 `agent_preset` 支持都在 DSH 运行时包内,不在任何 git 仓库,本仓库改不到。已逐条写成 `docs/specs/issue-187-upstream-request.md`。
 
