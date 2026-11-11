@@ -27,6 +27,9 @@ function ok(name, fn) {
 }
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-runtime-'))
+// #182: node --test runs each file in its own process. The gate now covers
+// this file, so without an exit hook it leaks one temp directory per run.
+process.on('exit', () => fs.rmSync(tempRoot, { recursive: true, force: true }))
 const runtimeFile = path.join(tempRoot, 'nested', 'runtime.json')
 
 const providers = [

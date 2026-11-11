@@ -10,7 +10,7 @@
   "scripts": {
     "test": "pnpm -r --if-present run test && node --test test/*.test.mjs",
     "test:inventory": "pnpm --filter dsh-inventory run test",
-    "test:websearch": "pnpm --filter websearch-dsh-plugin run test",
+    "test:websearch": "pnpm --filter dsh-websearch-failover run test",
     "test:dev-flow": "node --test packages/dev-flow/test/*.test.mjs",
     "verify": "node scripts/verify-packages.mjs && node scripts/check-profile.mjs && node scripts/check-bundle-versions.mjs",
     "gate": "pnpm verify && pnpm test",

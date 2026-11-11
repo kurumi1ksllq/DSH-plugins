@@ -25,6 +25,9 @@ async function ok(name, fn) {
 const probe = makeProbeBundle(repoRoot)
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-plugin-'))
+// #182: node --test runs each file in its own process. The gate now covers
+// this file, so without an exit hook it leaks one temp directory per run.
+process.on('exit', () => fs.rmSync(tempRoot, { recursive: true, force: true }))
 const configPath = path.join(tempRoot, 'providers.json')
 const runtimePath = path.join(tempRoot, 'runtime.json')
 const statePath = path.join(tempRoot, 'state.json')

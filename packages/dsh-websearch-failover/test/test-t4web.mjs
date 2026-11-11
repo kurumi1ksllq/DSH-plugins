@@ -127,7 +127,11 @@ test('aborted attempts are counted as aborted in provider stats', async () => {
       webServer: { register: () => {} },
       logger: { info() {}, warn() {}, error() {} },
     }
-    mod.apply(ctx, { statePath, runtimePath, configPath })
+    // Without an explicit logPath, apply() falls back to defaultLogPath(), which is
+    // $DSH_HOME/websearch-failover/plugin.log when DSH_HOME is set (otherwise
+    // ~/.dsh/...). Running this test then appends to the log file the live plugin
+    // is using, which is worse than dirtying a home directory (#182).
+    mod.apply(ctx, { statePath, runtimePath, configPath, logPath: join(dir, 'plugin.log') })
     for (const fn of registered.effects) fn()
     const provider = registered.providers[0]
     assert.ok(provider, 'search provider registered')
@@ -194,7 +198,10 @@ test('POST /stats/reset zeroes stats for one id or the whole panel', async () =>
       webServer: { register: (route) => registered.routes.push(route) },
       logger: { info() {}, warn() {}, error() {} },
     }
-    mod.apply(ctx, { runtimePath, configPath: join(dir, 'absent.json') })
+    // statePath defaults to $DSH_HOME/websearch-failover-state.json too. Nothing here
+    // reads it today, but the next assertion that touches snapshot() or search()
+    // would silently use the developer real state file (#182).
+    mod.apply(ctx, { statePath: join(dir, 'state.json'), runtimePath, configPath: join(dir, 'absent.json'), logPath: join(dir, 'plugin.log') })
     for (const fn of registered.effects) fn()
     // Snapshot to prove stats exist first.
     const snapshot = registered.snapshotPayload ?? (registered.routes.length > 0 ? null : null)
