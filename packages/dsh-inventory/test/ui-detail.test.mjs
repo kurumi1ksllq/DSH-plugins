@@ -367,10 +367,17 @@ test('loading and error use the same two-column shell as the ready state', async
     'loading must show the skeleton where the list will appear',
   )
 
-  const railButtons = []
-  eachNode(loadingTree, (node) => {
-    if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') railButtons.push(node)
-  })
+  const railButtonsOf = (tree) => {
+    const nav = findNode(tree, (node) => node.type === 'nav')
+    assert.ok(nav, 'no navigation rail in the tree')
+    const buttons = []
+    eachNode(nav, (node) => {
+      if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') buttons.push(node)
+    })
+    return buttons
+  }
+
+  const railButtons = railButtonsOf(loadingTree)
   assert.ok(railButtons.length >= 6, 'the loading rail is missing its buttons')
   for (const button of railButtons) {
     assert.equal(
@@ -379,14 +386,7 @@ test('loading and error use the same two-column shell as the ready state', async
       'loading must not show rail counts before the snapshot lands',
     )
   }
-  const readyButtons = []
-  eachNode(ready.tree, (node) => {
-    if (node?.type === 'button' && typeof node.props?.['aria-label'] === 'string') readyButtons.push(node)
-  })
-  assert.ok(
-    readyButtons.some((button) => textOf(button).trim() !== button.props['aria-label']),
-    'the ready rail does show counts, so the loading assertion above is meaningful',
-  )
+  const readyButtons = railButtonsOf(ready.tree)
 
   // Do not leave a never-settling stub behind for later tests.
   globalThis.fetch = async () => ({ ok: true, json: async () => SNAPSHOT })
@@ -405,9 +405,20 @@ test('loading and error use the same two-column shell as the ready state', async
     findNode(errorTree, (node) => String(node.props?.className ?? '') === 'inv-scroll'),
     'the error state must render the scroll host too',
   )
+  const retry = findNode(
+    errorTree,
+    (node) => node.type === 'button' && String(node.props?.className ?? '').includes('inv-primary'),
+  )
+  assert.ok(retry, 'the error state must keep a retry button')
+  assert.equal(typeof retry.props.onClick, 'function', 'the retry button must actually reload')
+  // Clicking retry has to put the panel back into the loading state, not leave
+  // the error on screen while a request runs.
+  globalThis.fetch = () => new Promise(() => {})
+  retry.props.onClick()
+  const retrying = failed.render(failed.main.component, failedInjected)
   assert.ok(
-    findNode(errorTree, (node) => node.type === 'button' && String(node.props?.className ?? '').includes('inv-primary')),
-    'the error state must keep a retry button',
+    findNode(retrying, (node) => String(node.props?.className ?? '') === 'inv-skeleton'),
+    'retry must re-enter the loading state',
   )
 
   // All three states wear the same header chrome (title span included), even
@@ -415,6 +426,9 @@ test('loading and error use the same two-column shell as the ready state', async
   for (const [state, tree] of [['loading', loadingTree], ['error', errorTree]]) {
     const title = findNode(tree, (node) => String(node.props?.className ?? '') === 'inv-nav-title')
     assert.ok(title, state + ' state is missing the header title span')
+    const refresh = findNode(tree, (node) => node?.type === 'button' && node.props?.['aria-label'] === '刷新')
+    assert.ok(refresh, state + ' needs a refresh button, or a hung load has no exit')
+    assert.equal(typeof refresh.props.onClick, 'function', state + ' refresh must be wired')
   }
 })
 
@@ -430,11 +444,25 @@ test('a control looks like a control, and a heading reads as a heading', async (
     '.inv-chip needs a drawn 1px outline, not only a tint or a border-color: ' + chipRule.body.trim(),
   )
 
+  // The reported symptom: the chip text used the quiet secondary colour, so a
+  // control read like a caption. It has to be the primary label colour.
+  assert.match(
+    chipRule.body,
+    /color\s*:\s*var\(--dsw-alias-label-primary/,
+    '.inv-chip text must use the primary label colour: ' + chipRule.body.trim(),
+  )
+
   // Icon and text buttons (back, refresh, section headers) had no hover at all.
   const flatButtonHover = rules(css).find(
     (rule) => /[.]inv-btn[^{,]*:hover/.test(rule.selector) && /background/.test(rule.body),
   )
   assert.ok(flatButtonHover, '.inv-btn needs a hover fill, otherwise it reads as a static label')
+  // Boundary 2 promises a pressed state as well, not only hover.
+  const flatButtonActive = rules(css).find(
+    (rule) => /[.]inv-btn[^{,]*:active/.test(rule.selector) && /background/.test(rule.body),
+  )
+  assert.ok(flatButtonActive, '.inv-btn needs a :active fill too')
+  assert.doesNotMatch(flatButtonActive.body, /background(-color)?\s*:\s*transparent/, 'a transparent pressed state paints nothing')
   const hoverFills = flatButtonHover.body
     .split(String.fromCharCode(10))
     .map((line) => line.trim())

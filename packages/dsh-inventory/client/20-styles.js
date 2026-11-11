@@ -536,7 +536,7 @@
   transition-timing-function: ease-out;
 }
 @media (hover: hover) {
-  .inv-btn:not(.inv-chip):not(.inv-primary):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 8%, transparent); }
+  .inv-btn:not(.inv-chip):not(.inv-primary):not(.inv-link):not(.inv-ctrl):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 8%, transparent); }
   .inv-chip:not(.inv-chip-on):hover {
     background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 18%, transparent);
     border-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 45%, transparent);
@@ -550,7 +550,7 @@
   }
   .inv-hide:hover { color: var(--dsw-alias-label-primary, #111827); opacity: 1; }
 }
-.inv-btn:not(.inv-chip):not(.inv-primary):active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
+.inv-btn:not(.inv-chip):not(.inv-primary):not(.inv-link):not(.inv-ctrl):active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
 .inv-chip:active:enabled, .inv-primary:active:enabled,
 .inv-link:active:enabled, .inv-ctrl:active:enabled { transform: scale(0.96); }
 .inv-btn:disabled, .inv-chip:disabled, .inv-primary:disabled,

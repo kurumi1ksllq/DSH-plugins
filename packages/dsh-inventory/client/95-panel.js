@@ -281,6 +281,18 @@
             { style: S.nav, className: 'inv-nav' },
             backToChat,
             h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: S.iconBtn,
+                className: 'inv-btn',
+                'aria-label': t('refresh'),
+                title: t('refresh'),
+                onClick: () => load(true),
+              },
+              h(Icon, { name: 'refresh', size: 19 }),
+            ),
           ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
@@ -302,6 +314,18 @@
             { style: S.nav, className: 'inv-nav' },
             backToChat,
             h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: S.iconBtn,
+                className: 'inv-btn',
+                'aria-label': t('refresh'),
+                title: t('refresh'),
+                onClick: () => load(true),
+              },
+              h(Icon, { name: 'refresh', size: 19 }),
+            ),
           ),
           [
           h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
@@ -309,7 +333,7 @@
             'div',
             { style: S.errorBox },
             h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
-            h('span', { style: { flex: '1 1 auto' } }, t('error') + (message ? ' (' + message + ')' : '')),
+            h('span', { style: { flex: '1 1 auto' } }, t('error') + ' ' + (message ? '(' + message + ')' : '')),
             h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
           ),
           ],
