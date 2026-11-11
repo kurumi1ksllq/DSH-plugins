@@ -18,9 +18,10 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 - 版本头与安装片段从 1.7.3 更新到 1.13.2;新增 1.8–1.13 的变更摘要(中英);`TEST_REPORT.md` 标注为 1.7.3 时期的历史快照。无代码变更。
 
-### dsh-websearch-failover 0.5.1 — README 移除已退役的 plugin/ 布局(#180)
+### dsh-websearch-failover 0.5.1 — README 对齐 0.4.0 布局 + 清理死脚本(#180)
 
-- 安装段改指 monorepo `link:`;删除 0.4.0 已退役的 `plugin/`、`scripts/build-plugin.mjs`、`scripts/install.mjs`、`test-install` 等描述;测试清单按实际文件更新;`HANDOVER.md` / `doublecheck-report.md` 标为历史快照。无代码变更。
+- 安装段改指 monorepo `link:`;删除 0.4.0 已退役的 `plugin/`、`scripts/build-plugin.mjs`、`scripts/install.mjs`、`test-install` 等描述;测试清单按实际执行方式更新;`HANDOVER.md` / `doublecheck-report.md` 标为历史快照。
+- `package.json` 删除 6 个指向已删除文件的死脚本(`test:install`、`build`、`build:check`、`plugin:dry`、`plugin:install`、`plugin:uninstall`)。除此之外无代码变更。
 
 ### dsh-credential-vault 0.6.1 — README 安装/测试段对齐(#180)
 
@@ -131,7 +132,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 33 个条目:已发布的 29 条各自有 tag,新增 4 条(#180 的文档版本)在合并后补打;待下一次统一归档至 History 段。
+> 本段现有 33 个条目:28 条有对应 tag;`dsh-skill-surface@0.1.0` 缺 tag(早于 tag 纪律),本次新增 4 条(#180)在合并后补打;待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

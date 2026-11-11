@@ -26,7 +26,7 @@ DSH 自带的 `ctx.web` 只解析**一个**搜索提供方（`@deepseek-ai/dsh-w
 
 ## 2. 安装
 
-本包是 [DSH-plugins](../../README.md) 仓库的 8 个 bundle 之一。0.4.0 起包根就是 bundle 本体（不再有 `plugin/` 子目录，也没有需要构建的副本）；按根 README 的「装上」接线：
+本包是 [DSH-plugins](../../README.md) 仓库的 bundle 之一(完整清单见根 README)。0.4.0 起包根就是 bundle 本体（不再有 `plugin/` 子目录，也没有需要构建的副本）；按根 README 的「装上」接线：
 
 1. profile 的 `dependencies` 写 `"dsh-websearch-failover": "link:<仓库绝对路径>/packages/dsh-websearch-failover"`；
 2. 同一份 `package.json` 的 `dsh.profile.bundles` 加 `"dsh-websearch-failover"`——只加依赖不会加载；
@@ -182,11 +182,11 @@ providers.json / runtime.json / websearch-failover-state.json / plugin.log
 
 0.4.0 起 `plugin/` 子目录、`lib/` → `plugin/lib/` 的构建副本、以及 `scripts/build-plugin.mjs` / `scripts/install.mjs` 都已退役：包根就是被 `link:` 的 bundle，`lib/` 即源码本体。`HANDOVER.md` 与 `doublecheck-report.md` 是更早布局的历史快照，安装部分以本文与根 README 为准。
 
-根 `package.json` 里的脚本（与仓库内实际定义一致）：
+包内 `package.json` 里仍可用的脚本：
 
 | 脚本 | 命令 |
 | --- | --- |
-| `npm test` | 依次跑 §10 的离线测试 |
+| `npm test` | 跑 host / 集成 / 互斥三个套件（见 §10） |
 | `npm run test:engine` | `node test/mock-failover.mjs` |
 | `npm run test:runtime` | `node test/test-runtime.mjs` |
 | `npm run test:balance` | `node test/test-balance.mjs` |
@@ -217,7 +217,7 @@ node test/test-t4web.mjs           # T4.web 配置/示例/余额探测契约
 node test/probe-bundle.mjs         # 打包后的 bundle 入口可解析
 ```
 
-`npm test` 会先跑 host/集成/互斥三个套件，再用 `node --test` 跑其余的 `.test.mjs`。全部离线，不碰真实 profile。
+`npm test` 只跑 host / 集成 / 互斥三个套件；下面其余 `test-*.mjs` 需要按需逐个运行（它们当前不在包内 `test` 脚本的 glob 里）。全部离线，不碰真实 profile。
 
 ## 11. 安全说明
 
@@ -242,5 +242,5 @@ MIT，见 `LICENSE`。
 - **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search. Built-in balance probes (verified against the live APIs on 2026-10-24): firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits` (v1 snake_case also accepted), tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`.
 - **State:** `~/.dsh/websearch-failover/runtime.json` (order, disabled, balances, stats), `~/.dsh/websearch-failover-state.json` (cooldowns), `~/.dsh/websearch-failover/plugin.log`.
 - **API:** `/websearch-failover/api/{state,order,refresh,enable}`; POST bodies `{order:[...]}`, `{ids?:[...]}`, `{id,enabled}`. Same-origin checked, 128 KiB body cap, never returns API keys.
-- **Tests:** `npm test` runs the offline suites: `test/mock-failover.mjs`, `test/test-runtime.mjs`, `test/test-balance.mjs`, `test/test-api.mjs`, `test/test-host-plugin.mjs`, `test/test-integration.mjs` (real `node:http` loopback), `test/test-client-static.mjs`, `test/test-client-render.mjs` (mini hook runtime executing `client.js`), `test/test-mutex.mjs`, `test/test-t4web.mjs`, `test/probe-bundle.mjs`.
+- **Tests:** `npm test` runs the host, integration and mutex suites (`test/test-host-plugin.mjs`, `test/test-integration.mjs`, `test/test-mutex.mjs`). The remaining offline files (`test/mock-failover.mjs`, `test/test-runtime.mjs`, `test/test-balance.mjs`, `test/test-api.mjs`, `test/test-client-static.mjs`, `test/test-client-render.mjs`, `test/test-t4web.mjs`, `test/probe-bundle.mjs`) are run individually; they are not part of the package's test glob today.
 - **Security:** API keys live only in `~/.dsh` as plaintext, never in this repository; `.gitignore` covers the config/state/log files.

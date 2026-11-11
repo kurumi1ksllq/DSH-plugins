@@ -4,7 +4,7 @@
 
 > **历史快照（0.1.0 时期，2026-10-25 前后）**：本文验证的是后来并入 `dsh-inventory` 的
 > `@local/dsh-prompt-inject`；包名、`E:\Project-hub` 路径与侧栏 UI 均已被后续版本取代。
-> 现状见 [README.md](README.md)、[CHANGELOG.md](../../CHANGELOG.md) 与 `packages/dsh-inventory/prompt-inject/`。
+> 现状见 [README.md](README.md)、[README-prompt-inject.md](README-prompt-inject.md)、[CHANGELOG.md](../../CHANGELOG.md) 与 `lib-prompt-inject.js`。
 
 - 任务：task-1（构建并安装提示词注入插件）
 - 工作区：`E:\Project-hub\dsh-reverse-plugin`

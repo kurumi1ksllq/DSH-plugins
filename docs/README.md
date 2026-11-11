@@ -11,8 +11,8 @@
 | [CHANGELOG.md](../CHANGELOG.md) | 每个 bundle 的版本条目与发布纪律 | 改包、升版本、查某版改了什么 |
 | [update-scheme.md](update-scheme.md) | 插件可靠更新方案:运行时机制、L1/L2 事务器、回退 | 要更新已装插件 / 排查「改完没生效」 |
 | [update-checkout.md](update-checkout.md) | 权威 checkout 统一方案的执行记录 | 排查 profile 到底加载了哪份代码 |
-| [specs/](specs/) | 每个 issue 的 spec(开工前落盘,agent 自定) | 想知道某个改动为什么这么做 |
-| [specs/.flow/](specs/.flow/) | 任务板状态文件(运行时状态,随分支走) | 看 TDD / CI / review 的内部进度 |
+| [specs/.flow/](specs/.flow/) | 任务板状态文件(运行时状态,随分支走;不代表功能仍然存在) | 看 TDD / CI / review 的内部进度 |
+| [packages/dev-flow/FLOW.md](../packages/dev-flow/FLOW.md) | 流程规程全文(TDD、双轴 review、状态文件、merge 闸) | 进入 dev-flow 后按需读 |
 
 两份 update 文档都带 `现状校准(YYYY-MM-DD,main @ <sha>)` 块:正文是调查当时的记录,校准块才是今天的操作依据。**改 profile、重启 DSH 前先看校准块与 `AGENTS.md` 的硬规则。**
 
@@ -24,6 +24,6 @@
 
 ## 维护规则
 
-- 现行文档的事实由 `test/docs-contract.test.mjs` 钉住:插件数、README 表格覆盖、安装片段的 `link:` 行、CHANGELOG 条目、update 文档校准块、包 README 版本。
+- 现行文档的事实由 `test/docs-contract.test.mjs` 钉住:插件数、README 表格覆盖、安装片段的 `link:` 行、CHANGELOG 条目与计数、update 文档校准块、`dsh-deep-ptc-mode` 的中英 README 版本。其他包 README 目前没有版本/安装入口契约。
 - 改 `packages/` 下任何文件(含包内 README)→ 升该包版本 + 写 CHANGELOG 条目;只改仓库级文档(根 README、AGENTS、`docs/`)→ 不需要升包版本。
 - 历史 spec 不追改正文;需要更正时,在对应 spec 末尾追加「变更点 + 理由」。

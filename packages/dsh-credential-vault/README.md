@@ -47,7 +47,7 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
 
 ## 安装
 
-本包是 [DSH-plugins](../../README.md) 仓库的 8 个 bundle 之一。先按根 README 的「装上」clone 并 `pnpm install`，再在 profile 的 `package.json` 里接两处：
+本包是 [DSH-plugins](../../README.md) 仓库的 bundle 之一(完整清单见根 README)。先按根 README 的「装上」clone 并 `pnpm install`，再在 profile 的 `package.json` 里接两处：
 
 ```json
 "dependencies": {

@@ -304,7 +304,7 @@ POST /inventory/vault
 
 ## 安装
 
-本包是 [DSH-plugins](../../README.md) 仓库的 8 个 bundle 之一。先按根 README 的「装上」把仓库 clone 并 `pnpm install`，再把下面两处接进 profile：
+本包是 [DSH-plugins](../../README.md) 仓库的 bundle 之一(完整清单见根 README)。先按根 README 的「装上」把仓库 clone 并 `pnpm install`，再把下面两处接进 profile：
 
 1. profile 的 `dependencies` 写 `"dsh-inventory": "link:<仓库绝对路径>/packages/dsh-inventory"`；
 2. 同一份 `package.json` 的 `dsh.profile.bundles` 里加 `"dsh-inventory"`。

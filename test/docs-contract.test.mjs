@@ -238,18 +238,27 @@ test('the update docs do not state a bundle/link count other than the current on
   // guard to one hard-coded number is how "8 个包" stayed wrong after the count
   // changed, and how it would then flag the correct number.
   const current = packageDirs().length
-  // Only counts that describe the repository/profile itself: "4 个包新、2 个包旧"
-  // or "这 4 个包" are scenario prose, not a scope claim.
-  const counted = /(?:([一二三四五六七八九十]+)|(\d+))\s*(?:个|条)\s*(?:bundle|link|插件|包全报)/g
+  // Counts that describe the repository/profile itself, in either the Chinese
+  // ("8 个包", "8 条 link") or the check-profile output form
+  // ("8 linked bundle(s)"). Scenario prose ("4 个包新", "这 4 个包", registry
+  // counts) is exempt, and the history exemption is applied per clause rather
+  // than per line so "当时 5 个,今天 8 个" cannot slip through whole.
+  const counted = /(?:([一二三四五六七八九十]+)|(\d+))\s*(?:个|条|linked)\s*(?:bundle|link|插件|包)/g
   const cn = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 }
+  const exempt = /当时|历史上|调查当时|registry|混代|包新|包旧|每(?:一)?个|这\s*(?:\d+|[一二三四五六七八九十]+)\s*个包/
+  // Only clauses that talk about the repository/profile scope. A count inside a
+  // scenario ("4 个包换成 A 的版本", "A 上 4 个包目录") is not a scope claim.
+  const scope = /本仓库|仓库|profile|全报|link|插件|linked bundle/
   for (const doc of UPDATE_DOCS) {
     const text = readFileSync(join(ROOT, doc), 'utf8')
     const offenders = []
     for (const line of text.split('\n')) {
-      if (/当时|历史上/.test(line) || /registry\s*包/.test(line)) continue
-      for (const match of line.matchAll(counted)) {
-        const value = match[2] ? Number(match[2]) : cn[match[1]]
-        if (value !== current) offenders.push(line.trim())
+      for (const clause of line.split(/[，,；;。]/)) {
+        if (exempt.test(clause) || !scope.test(clause)) continue
+        for (const match of clause.matchAll(counted)) {
+          const value = match[2] ? Number(match[2]) : cn[match[1]]
+          if (value !== current) offenders.push(clause.trim())
+        }
       }
     }
     assert.deepEqual(
@@ -645,9 +654,12 @@ test('the CHANGELOG Unreleased note count matches the entries it describes', () 
 })
 
 test('docs/README.md maps the live documents and their links resolve', () => {
+  // A map whose links are only checked as strings stays green after a rename or
+  // a delete — exactly the drift it exists to prevent. Resolve every target.
   const map = readFileSync(join(ROOT, 'docs', 'README.md'), 'utf8')
-  for (const target of ['../README.md', '../AGENTS.md', '../CHANGELOG.md', 'update-scheme.md', 'update-checkout.md', 'specs/']) {
+  for (const target of ['../README.md', '../AGENTS.md', '../CHANGELOG.md', 'update-scheme.md', 'update-checkout.md', 'specs/', 'specs/.flow/', '../packages/dev-flow/FLOW.md']) {
     assert.ok(map.includes(target), `docs/README.md must link ${target}`)
+    assert.ok(existsSync(join(ROOT, 'docs', target)), `docs/README.md link target does not exist: ${target}`)
   }
   assert.match(map, /历史/, 'docs/README.md must mark specs/ as the historical record')
 })

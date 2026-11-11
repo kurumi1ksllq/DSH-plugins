@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | 1 | **红**:新增 4 条文档契约(README 表格覆盖全部包、CHANGELOG 注记计数=实际条目、docs/README.md 存在且链接现行文档、deep-ptc README 头部版本=包版本) | 4 条均因当前文档而红,失败信息指向具体缺口 |
 | 2 | README 补 `dsh-task-dispatcher` / `ecc-agent-presets` 两行;新增 `docs/README.md` 地图;README/AGENTS 链到地图 | T1 的表格与地图契约转绿 |
-| 3 | CHANGELOG 注记改为 29 条 | T1 计数契约转绿 |
+| 3 | CHANGELOG 注记改为实际条目数(当前 33) | T1 计数契约转绿 |
 | 4 | 两份 update 文档重新校准(2026-11-11 @ 9efbf72、8 条 link、运行时/registry 版本、ecc 缺口、可执行命令) | 校准块日期/commit 真实;文中不再出现「今天 5 个」;命令可在仓库内执行 |
 | 5 | 各包 README 对齐:deep-ptc 1.13.1 + 1.8–1.13 变更摘要(en/zh);inventory 旧包名/安装/测试计数;vault 测试计数;历史报告加「历史快照」声明 | T1 版本契约转绿;README 描述与 package.json/代码一致 |
 | 6 | `.flow/29.json` → `stage: done`、`merge.authorized: true`、note 写 `ea81629`/PR #33 | 任务板不再停在 pr |
@@ -64,10 +64,26 @@
 
 - **变更**:包内 README 也属于 bundle 内容,`pnpm verify` 的版本纪律要求升版本。原 §边界「不升版本」不成立,改为:
   `dsh-credential-vault` 0.6.0→0.6.1、`dsh-deep-ptc-mode` 1.13.1→1.13.2、`dsh-inventory` 0.12.2→0.12.3、
-  `dsh-websearch-failover` 0.5.0→0.5.1,并在 CHANGELOG Unreleased 加四条「无代码变更」条目。
+  `dsh-websearch-failover` 0.5.0→0.5.1,并在 CHANGELOG Unreleased 加四条条目。
 - **理由**:版本纪律(AGENTS.md「改动了某个包就必须升它的版本号」)对包内文档一视同仁;不升会被
   `check-bundle-versions` 拦下。合并后需按常规打四个 tag。
-- **不变**:仍不改任何包代码、不改 profile、不重启 DSH。
+- **追加(双轴 review 发现)**:`dsh-websearch-failover/package.json` 仍有 6 个指向已删除文件的死脚本
+  (`test:install`/`build`/`build:check`/`plugin:dry`/`plugin:install`/`plugin:uninstall`),
+  与本 PR 写的「已退役」冲突。已在 0.5.1 内删除,属打包元数据修正,无运行时行为变化。
+- **不变**:不改插件运行代码、不改 profile、不重启 DSH。
+
+### review 裁决(双轴)
+
+- 轴1 #2 / 轴2 #3:旧计数 `5 linked bundle(s)` 漏改、计数契约对 `linked bundle(s)` 与「N 个包」形态漏检 → **采纳**:改 8 并扩正则到 `个|条|linked` + 分句级历史豁免。
+- 轴1 #3 / 轴2 #7:「29 条各自有 tag」不实(`dsh-skill-surface@0.1.0` 无 tag)→ **采纳**:注记改为 28 条有 tag + 1 条历史缺 tag + 4 条待补。
+- 轴1 #4:`docs/README.md` 把 `specs/` 同时列进现行与历史 → **采纳**:现行表移除 `specs/`,只留 `.flow/` 并注明运行时状态。
+- 轴1 #5:历史声明指向不存在的 `prompt-inject/` → **采纳**:改指 `README-prompt-inject.md` 与 `lib-prompt-inject.js`。
+- 轴1 #8 / 轴2 #5:地图契约只查字符串、不查文件存在 → **采纳**:逐个 `existsSync` 解析。
+- 轴1 #7 / 轴2 #6:地图称「包 README 版本」被契约覆盖,实际只有 deep-ptc → **采纳**:收窄措辞;顺带去掉三处包内「8 个 bundle」硬计数。
+- 轴1 #10:`update-checkout` 缺运行时/registry 快照 → **采纳**:补一行。
+- 轴2 #1:`websearch` 的 `npm test` 实际只跑 3 个套件,README 列了 11 个 → **采纳**:按实际执行方式分段说明;未改 `scripts.test`(扩大执行面属代码/CI 变更,另开工单)。
+- 轴2 #4:P1-9 说所有包 `engines.dsh` 都是 `^0.2.0`,deep-ptc 不同 → **采纳**:改为逐包事实。
+- 轴2 补充:地图漏列 `FLOW.md` → **采纳**:补一行。
 
 ## 6. 风险
 

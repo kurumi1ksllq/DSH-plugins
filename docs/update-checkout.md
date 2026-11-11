@@ -7,6 +7,7 @@
 > - `node scripts/check-profile.mjs` 在本 worktree 会把 8 条报成「loads from a DIFFERENT checkout」(link 指向主 checkout),这是预期;在主 checkout 里跑应为 `profile ok: 8 linked bundle(s)`、0 条该告警。
 > - **已知缺口**:`ecc-agent-presets` 已在 `dependencies` 里 link,但不在 `dsh.profile.bundles` 中,因此当前不加载;要不要加载由你决定(改 profile 不在本文档范围内)。
 > - `node scripts/update.mjs plan` 会把 8 个本地包全部报 `/root/DSH-plugins`。
+> - 运行时 DSH `0.2.2-rc.1`;registry 4 个:`@deepseek-ai/dsh-mcp-client@0.2.2-rc.1`、`dsh-context@0.83.0`、`dsh-tool-search@0.1.10`、`@wxg-prc-cpg/browser-skill-dsh-plugin@0.4.2`。
 > - 旧 checkout `/root/dsh-workspace/DSH-plugins` 已不再被任何被加载的包引用;**目录本身尚未退役**(移动前先确认脚本不再引用)。
 > - 正文里的 `dsh-ctx-guard`、`@local/dsh-prompt-inject`、`dsh-git-status` 是当时记录的包,现已删除或并入其他包。
 > - 阶段 3(重启)以 Web GUI 插件页的实际 `active` 数为准——本文不做断言。

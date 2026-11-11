@@ -130,9 +130,9 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 
 **2026-11-04 复核(逐条核对仓库实况)**:
 
-- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(`profile ok: 5 linked bundle(s)`);2026-11-04 起它还会扫 `node_modules` 里**未被 manifest 声明**的符号链接:目标不存在一律 `fail`(exit 1),目标还在但没人声明给 `warn`——`dsh-ctx-guard` 这类「包删了、pnpm 还留着链接」的残留就是被这一条抓住的,见 **#43**。
+- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(主 checkout 复核:`profile ok: 8 linked bundle(s)`;别的 worktree 里会看到 8 条「DIFFERENT checkout」告警,属预期);2026-11-04 起它还会扫 `node_modules` 里**未被 manifest 声明**的符号链接:目标不存在一律 `fail`(exit 1),目标还在但没人声明给 `warn`——`dsh-ctx-guard` 这类「包删了、pnpm 还留着链接」的残留就是被这一条抓住的,见 **#43**。
 - ✅ **P1-8** 每个包都有 `scripts.test`(8/8),`pnpm -r --if-present` 不再静默跳过。
-- ✅ **P1-9** 每个包都有 `engines.dsh: ^0.2.0`(8/8)。
+- ✅ **P1-9** 8/8 都声明了 `engines.dsh`:其中 7 个为 `^0.2.0`,`dsh-deep-ptc-mode` 为 `>=0.2.2-rc.1 <0.3.0-0`。
 - ✅ **P1-10** `ls .github/workflows/ci.yml` 存在(CI 只看文件在不在,`pnpm verify` 不覆盖这条);README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
 - ✅ **P1-6 已修**(2026-11-04):importers 补齐 `dsh-credential-vault` / `dsh-git-status`、去掉已删除的 `packages/dsh-ctx-guard`;CI 加了一道 `git diff --exit-code -- pnpm-lock.yaml`,因为 `pnpm install --frozen-lockfile` 会 **exit 0 却改写** lockfile,单靠它守不住。
 - ✅ **P1-4 已不适用**(2026-11-11 复核):0.4.0 起 `dsh-websearch-failover` 包根即源码本体,不再有 `plugin/lib` 生成物,原 `check:websearch` 命令已删除;生成物新鲜度这条故障模式随之消失。
@@ -248,7 +248,7 @@ L3 运行侧:registry 插件走 DSH 自带 plugin-manager(不自己造)
 | **1 plan(只读)** | 对每个 bundle:`readlink -f` 出**实际加载路径** → 定位 checkout → 比对当前 commit / 目标 tag → 产出动作表;标出 `blocked`(平台/依赖)与「依赖增差」 | 只读,无副作用 |
 | **2 fetch+stage** | 在权威 checkout 里 fetch;`git worktree add` 出目标 commit 到 `<checkout>/.tmp/update/staging`(同文件系统);**在 stage 里**跑 `build` | 丢弃 stage,工作树不变 |
 
-| **3 verify(硬门)** | ① `verify-packages.mjs` ② 包内 test ③ `build:check`(生成物新鲜度) ④ **L2 import-probe**(入口可 import,失败 0) ⑤ `dsh --profile web --dump-config`,**要求 stderr 为空**(把 bundle 被 skip 从「退出码 0 的静默」变成硬失败) ⑥ **依赖增差检测**:新代新增了依赖 → **不走 L2,转 §4.3 车道**(否则会「关卡全绿但换上去 import 失败,而旧版已停」) | 丢弃 stage,工作树不变 |
+| **3 verify(硬门)** | ① `verify-packages.mjs` ② 包内 test ③ `build:check`(仅对仍有生成物的包;websearch 0.4.0 起已退役) ④ **L2 import-probe**(入口可 import,失败 0) ⑤ `dsh --profile web --dump-config`,**要求 stderr 为空**(把 bundle 被 skip 从「退出码 0 的静默」变成硬失败) ⑥ **依赖增差检测**:新代新增了依赖 → **不走 L2,转 §4.3 车道**(否则会「关卡全绿但换上去 import 失败,而旧版已停」) | 丢弃 stage,工作树不变 |
 | **4 swap(原子)** | `renameat2(RENAME_EXCHANGE)` 一次 syscall 交换 stage 与目标目录(**本机已实测可用**):旧代码自动落在 stage 路径 = **免费的回滚副本**,零窗口期 | 反向 exchange 即回滚 |
 | **5 apply(免重启)** | 触发一次重组合:优先 plugin_manager 关→开该行(不等文件事件);否则写一条幂等 patch。**不改端口、不改 bundles 列表** | — |
 | **6 observe** | 读三个信号:服务日志有无 `restart required:` / 插件页 fiber `active|failed` / `pluginInventory` 快照。出现 `failed` → **不重启**,走 `rollback` | rollback |
