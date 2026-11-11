@@ -1,8 +1,8 @@
 {
   "issue": 157,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-11T07:01:56.820Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-11T08:09:15.417Z",
   "tickets": [
     {
       "id": 1,
@@ -28,12 +28,17 @@
       "id": 5,
       "title": "合并 main 解 CHANGELOG 冲突 + 删死过滤器 + 词表封闭用例",
       "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "双轴 review 第二轮 13 条裁决(越界抛错/无 CI 可见/恒真断言)",
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "green"
+    "status": "unknown"
   },
   "review": {
     "state": "done",
