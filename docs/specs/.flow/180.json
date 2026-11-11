@@ -1,8 +1,8 @@
 {
   "issue": 180,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-11T12:20:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-11T12:30:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -50,6 +50,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
-  }
+    "authorized": true
+  },
+  "note": "board-flip #180(2026-11-11):合并证据 PR #181 squash merge 9dc092d,已核验 merge 提交在 main 上;CI 绿、双轴 review 10 条全部采纳;四个文档版本 tag 由用户在 main 上补打"
 }
