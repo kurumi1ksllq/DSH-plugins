@@ -4,6 +4,8 @@
 
 ## 为什么合并成一个 PR
 
+> **任务板**：四条共用 `docs/specs/.flow/185.json` 一块板（合并 PR，同一分支同一工作单元）。`186/187/188.json` 不单独建，避免面板出现四张同步推进的卡。
+
 四条 issue 来自同一次会话复盘（`session-9dcf2a20`），且**全部落在 `packages/dsh-task-dispatcher/lib/delegation-text.mjs` 的同一段 `COPY` 里**。分开做会在同一处文本上反复冲突，也看不出四条之间的口径是否自洽。
 
 数据核对：我用 `/tmp/sess9/{auth,verify,files4}.cjs` 重跑了该会话（`s.jsonl` 与真实 `session.v4.jsonl.zstd` 解压后 SHA256 一致，2107 行）。权威数字与 issue 复述有出入的已在各节标注。
@@ -36,7 +38,7 @@
 
 分档行改为「有 `workflow` 时用它；没有时用 N 个 `subagent` 并行，等价」。
 
-**不采纳**「在 deep-ptc preset 里启用 workflow」：上游禁它可能与其 PTC 中断语义冲突（`README.zh.md:193` 提到长 workflow 内部的等待不能被插话提前结束），且改 `preset.json` 会被 `scripts/check.mjs:179` 的 snapshot 同步断言拦下，需连带改 derive 与两道门。
+**不采纳**「在 deep-ptc preset 里启用 workflow」：上游禁它可能与其 PTC 中断语义冲突（`README.zh.md:206` 提到长 workflow 内部的等待不能被插话提前结束），且改 `preset.json` 会被 `scripts/check.mjs:179` 的 snapshot 同步断言拦下，需连带改 derive 与两道门。
 
 ### 2. 三问绑到 `todo_write`（#186）
 
@@ -72,3 +74,52 @@
 - 不改 persona（`preset.json:10` 已有「Never sleep, busy-poll」与「Batch independent inspections」，重复写会稀释）
 - 不改运行时工具描述（改不到，走上游请求单）
 - 人工验收口径（首委派调用数、等待期步数、CI 重复次数）**不进 CI**，CI 里没有真实会话
+
+## 变更（2026-11-12，双轴 review 后）
+
+轴1 报 6 条，全部采纳。四处改变了实现：
+
+### 1. 新增文案与仓库既有上限冲突（最严重）
+
+原文案写「同参数最多 3 次，间隔从 10s 起翻倍」，但：
+
+- `governor-copy.mjs:81` 的 discipline8 是「失败最多重试 **2** 次」——同一 prompt 里出现 2 和 3；
+- `sleep-lint.mjs:4` 的 `MAX_PAUSE_SECONDS = 5`，前台 `>5s` 的等待会被守卫拒绝——照文案执行会拿到 `Deep PTC refuses a 10 s foreground pause`。
+
+这正是本 PR 合并四条时要避免的「口径不自洽」。已改为「重试上限沿用 ⑧ 的 2 次，间隔不超过 5 秒」。
+
+### 2. 测试断言不绑定 bullet，删条款仍绿
+
+原断言是对整段文本的松散正则。实测：删掉 `todo_write` 的降级语后，`/没有|不可用/` 会命中**上一条 workflow bullet** 里的「没有该工具时」，测试仍绿。同理 inbox、`Promise.all`、去重句。
+
+改为 `bulletWith(text, needle)` 先切出含该关键词的那一条 bullet，再在该条内匹配。四条变异现在全部变红（实测）。
+
+### 3. 去重纪律无人守
+
+spec 要求「含去重纪律」，但原 5 条测试没有任何一条断言它——而「同一份工作不要同时用两档」才是白跑 226 秒的直接原因。已在「两条结果通道」用例里补上 `dedupe` 断言。
+
+### 4. 重复了 persona 已有的内容
+
+`preset.json:10` 的 persona 已写「Never sleep, busy-poll」「`job_output`」「Batch independent inspections」「end the turn」。原 bullet 几乎逐句复述，而 spec §边界 自己写着「重复写会稀释」。
+
+已压到只保留 persona 没有的信息：重试上限 + 间隔上限 + 「改用 `job_output`」。
+
+### 5. 文档结构漂移
+
+README 说「内含两节」但列表列了三条；`renderDelegationText` 实际只输出两个标题，等待纪律是 lanes 里的一条 bullet。已改 README 与 `index.js` 注释，写明「只有两个标题」。
+
+### 6. 事实引用
+
+spec 引 `README.zh.md:193` → 实际 `:206`；上游请求单标题「B/C/E 三项」→ 正文四节，第 4 节是扩展发现，已标注；`.flow` 只建 `185.json` 是**有意的**（四条共用一块板），已在 spec 写明。
+
+## 验收（更新后）
+
+| 项 | 结果 |
+| --- | --- |
+| dispatcher | 12/12 绿 |
+| 仓库契约 | 94/94 绿 |
+| 跨包白名单镜像 | 4/4 绿 |
+| 删 `todo_write` 降级语 | 红 |
+| 删去重句 | 红 |
+| 删 inbox 句 | 红 |
+| 只改 zh 不改 en | 同构断言红（删整条时） |

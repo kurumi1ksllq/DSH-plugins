@@ -1,6 +1,8 @@
-# 上游请求单（#187 的 B/C/E 项）
+# 上游请求单（#187 的 B/C/E 项 + 一项扩展）
 
 本文件记录**本仓库改不到、需要向上游 DSH 提的改动**。四个 issue（#185-#188）里，凡是落在运行时工具描述与 schema 上的部分都在这里，仓库侧只能改注入文本。
+
+> 第 4 节（`waitForChildren` 未暴露为工具）**不在原 issue 的四项边界内**，是本轮调研的扩展发现——它解释了「模型手上没有『等我这 N 个后台子代理』这个动作」，与 #187 的根因 3 同源，故一并记录。
 
 出处均在 `/opt/dsh-runtime/dshcli/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`（不在任何 git 仓库、locale 只有 `meta` 键、`Config` schema 无 description 覆盖字段）。
 

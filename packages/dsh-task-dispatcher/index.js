@@ -3,8 +3,9 @@
 // Injects ONE runtime-context segment via the systemPrompt service (the same
 // channel dsh-deep-ptc-mode's governor uses; model-visible text must go
 // through systemPrompt.section/context, never through event payloads). The
-// segment text carries two sections:
-//   1. delegation discipline + declarative routing table (lib/delegation-text.mjs)
+// segment text carries two headings:
+//   1. delegation discipline (lanes: startup questions, lanes, stop line, dedupe,
+//      waiting/polling) + the declarative routing table (lib/delegation-text.mjs)
 // The segment appears for the lead agent and every teammate alike, because
 // teammates join the parent's composition via composeFrom.
 //

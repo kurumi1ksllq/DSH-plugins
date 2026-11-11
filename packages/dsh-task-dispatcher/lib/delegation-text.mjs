@@ -33,7 +33,7 @@ const COPY = {
       '- 分档:单文件改动或单条命令 → 单线程直接做;1 个聚焦子任务且只需结果 → `subagent`(独立上下文)或 `subagent_fork`(需继承本会话上下文);≥3 个同类独立单元 → 扇出:有 `workflow` 工具时用它的 pipeline/parallel 一次铺开,没有该工具时(如 deep-ptc 组合)改用 N 个自包含的 `subagent` 并行发出,效果等价;需要多轮交接、共享任务板 → 组队(`spawn_teammate` + 任务板);结论重要且不可回退 → 对抗验证(独立视角复核)。',
       '- 有疑问时往上一档走:宁可多一次委派,不要返工两次。同类文件改到第 3 个、或连续 >8 个工具调用仍无可验收中间物 → 停手重新拆解:剩下的能不能并行派出去?',
       '- 派出去就别重复派:同一份工作不要同时用 `subagent` 和 teammate,先定档再发。已经派出的 `subagent` 不会出现在 `list_agents`/`wait_agent` 里——它们的结果以 inbox 通知自动到达,不要据此判定「子代理已死」并另起一套。',
-      '- 等待与轮询:等外部结果时不要空转,先做不依赖它的独立工作,没有可做的就结束本轮(通知会唤醒你)。轮询外部状态(CI/部署/远端任务)优先起后台 job 用 `job_output` 读;必须前台轮询时同一命令同样参数最多 3 次,间隔从 10s 起翻倍。相互独立的只读调用(`git status`/`gh pr view`/`ls`/`grep`)放在同一次调用里用 `Promise.all` 并行发出,不要一步一等。',
+      '- 等待与轮询(只补 persona 没写的上限):轮询外部状态时,同一命令同样参数的重试上限沿用 ⑧ 的 2 次,间隔不超过 5 秒——更长的前台等待会被暂停守卫拒绝,请改用 `job_output` 读后台 job。独立的只读调用用 `Promise.all` 并行发出。',
     ],
     routingHeading: '可委派的子 agent preset(按子任务内容选择 `agent_preset`):',
     routingNote: [
@@ -48,7 +48,7 @@ const COPY = {
       '- Lanes: single-file change or one command -> do it inline; one focused subtask where only the result matters -> `subagent` (fresh context) or `subagent_fork` (inherits this conversation); >=3 similar independent units -> fan out: use the `workflow` tool (pipeline/parallel) when it is available, and without it (e.g. the deep-ptc composition) send N self-contained `subagent` calls in parallel instead - equivalent; multi-round handoffs or a shared task board -> form a team (`spawn_teammate` + task board); irreversible conclusions -> adversarial verification with an independent reviewer.',
       '- When in doubt, go one lane up: prefer one extra delegation over reworking twice. At the third same-kind file, or after >8 tool calls with no acceptable intermediate artifact, stop and re-decompose: can the rest be delegated in parallel?',
       '- Do not delegate the same work twice: never run one job through both `subagent` and a teammate; pick the lane first. A `subagent` you already launched does not appear in `list_agents`/`wait_agent` - its result arrives as an inbox notification. Do not read that absence as "the subagent died" and start a second set.',
-      '- Waiting and polling: do not idle while waiting for an external result - do independent work first, and if none is left, end the turn (the notification wakes you). To poll external state (CI, deploys, remote jobs), start a background job and read it with `job_output`; when you must poll in the foreground, run the same command with the same arguments at most 3 times, doubling the interval from 10s. Issue independent read-only calls (`git status`/`gh pr view`/`ls`/`grep`) together in one call with `Promise.all` instead of awaiting them one by one.',
+      '- Waiting and polling (only the caps persona lacks): keep the same-argument retry cap at 2 (rule 8) and the interval at 5 seconds or less - a longer foreground wait is refused by the pause guard, so read a background job with `job_output` instead. Issue independent read-only calls with `Promise.all`.',
     ],
     routingHeading: 'Delegable subagent presets (pick `agent_preset` by subtask content):',
     routingNote: [

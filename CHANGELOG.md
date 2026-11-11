@@ -21,7 +21,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 **边界(不假装闭环)**:`wait_agent` / `spawn_teammate` / `subagent` 的工具描述与 `spawn_teammate` 的 `agent_preset` 支持都在 DSH 运行时包内,不在任何 git 仓库,本仓库改不到。已逐条写成 `docs/specs/issue-187-upstream-request.md`。
 
-测试 5 条新断言(zh/en 同构由既有 bullet 数相等断言继续守着),反向验证：删掉 `todo_write` 绑定 → 对应用例红;只改 zh 不改 en → 同构断言红。
+测试 5 条新断言,**每条都绑定到具体 bullet**(先切出含关键词的那一条再匹配)——对整段做松散正则会命中相邻 bullet 的同款措辞,删条款仍绿。反向验证逐条实测:删 `todo_write` 降级语 / 删去重句 / 删 inbox 句 / 删 `Promise.all` 句,各自变红。
 
 ### dsh-inventory 0.12.5 — MCP 行与技能行的开关不再被卡片裁掉(#178)
 

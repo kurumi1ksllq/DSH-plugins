@@ -1,10 +1,11 @@
 # dsh-task-dispatcher
 
-向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`),内含两节:
+向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`)。段内只有**两个标题**:
 
-1. **委派纪律**:开工三问(绑到 `todo_write`,无该工具时写进首条回复) + 分档表(单线程 / `subagent`·`subagent_fork` / 扇出:有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证),含队友向下委派的显式授权。
-2. **等待纪律**:派出去的后台子代理结果以 inbox 通知到达,`wait_agent`/`list_agents` 看不见它们;不要用这两者轮询,也不要据此另起一套。轮询外部状态优先起后台 job;独立只读调用用 `Promise.all` 并行发出。
-3. **声明式路由表**:列出可委派的子 agent preset(id → 职责),模型按子任务内容选择 `agent_preset` 参数——"AI 理解内容并决策派给哪个 subagent"的依据。
+1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + 分档表(单线程 / `subagent`·`subagent_fork` / 扇出:有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
+2. **声明式路由表**(routingHeading):列出可委派的子 agent preset(id → 职责),模型按子任务内容选择 `agent_preset` 参数——"AI 理解内容并决策派给哪个 subagent"的依据。
+
+等待/轮询/并发是委派纪律下的**一条 bullet**,不是独立小节——`renderDelegationText` 只输出上面两个标题。
 
 > 运行时工具描述(`spawn_teammate` / `wait_agent` / `subagent`)不在本仓库,改不到的部分记在 `docs/specs/issue-187-upstream-request.md`。
 
