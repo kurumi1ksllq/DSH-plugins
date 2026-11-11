@@ -1,15 +1,27 @@
 /**
  * Session evidence: which tools a skill actually pulled in.
  *
- * A skill load is an ordinary `tool/call` named `skill` whose arguments carry
- * `{"name": "<skill>"}`. Every tool call in the following window counts as a
+ * A skill load is a tool event named `skill` whose arguments carry
+ * `{"name": "<skill>"}`. Every tool event in the following window counts as a
  * witnessed use of that skill's toolchain.
  *
- * Note: `tool/ptc-dispatch` calls are nested dispatches of a `run_code` call
- * and are deliberately ignored — the outer `tool/call` already names them.
+ * Two event shapes carry tool calls: native sessions record `tool/call` (with
+ * `arguments` as a JSON string), while Deep PTC records `tool/ptc-dispatch`
+ * (with `arguments` already an object). Reading only `tool/call` left every
+ * deep-ptc session with zero evidence, because there the outer call is always
+ * `run_code` and the real skill load is the nested dispatch (#177).
  */
 
-const SKILL_TOOL = 'skill'
+/** Event types that carry a tool invocation. */
+const TOOL_EVENTS = new Set(['tool/call', 'tool/ptc-dispatch'])
+
+/**
+ * Tools that load a skill into context. Mirrors dsh-skill-surface/lib/handoff.mjs
+ * (LOADER_TOOLS): the official skill and this repo's skill_get fallback both
+ * count as a load. A private single-value copy here silently excluded every
+ * session that used the fallback loader (#177).
+ */
+const LOADER_TOOLS = new Set(['skill', 'skill_get'])
 
 function parseArguments(raw) {
   if (raw !== null && typeof raw === 'object') return raw
@@ -34,13 +46,17 @@ export function collectSkillToolEvidence(events, { window = 8 } = {}) {
   let remaining = 0
 
   for (const event of events) {
-    if (!event || event.type !== 'tool/call') continue
+    if (!event || !TOOL_EVENTS.has(event.type)) continue
     const data = event.data
     if (!data || typeof data !== 'object') continue
     const name = data.name
     if (typeof name !== 'string' || name.length === 0) continue
 
-    if (name === SKILL_TOOL) {
+    if (LOADER_TOOLS.has(name)) {
+      // A failed load did not put anything in context, so it must not open a
+      // window of witnessed use (same rule as handoff.mjs). Only dispatch
+      // events carry isError; tool/call reports failure on tool/result.
+      if (data.isError === true) continue
       const args = parseArguments(data.arguments)
       const skill = args && typeof args.name === 'string' ? args.name : null
       if (skill !== null) {

@@ -10,6 +10,17 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.4 — 会话实证在 deep-ptc 会话里不再恒为空(#177)
+
+- **路径 bug（更致命的那条）**：`index.js` 拼 `join(dshHome(), '.dsh', 'sessions')`，而 `dshHome()` 本身已返回 `.dsh` 目录，于是实际读的是 `$DSH_HOME/.dsh/sessions`（不存在）。所有会话实证读取都返回空——补了事件源也看不出效果。改为 `join(dshHome(), 'sessions')`。
+- **事件源**：采集器只认 `tool/call`，而 deep-ptc 会话里外层 `tool/call` 只有 `run_code`，真正的 `skill` 加载落在 `tool/ptc-dispatch`（`arguments` 已是对象）。现两类事件都收。
+- **注释纠错**：原注释写「`tool/ptc-dispatch` 被有意忽略——外层 `tool/call` 已经点名它们」，与事实相反。
+- 测试：新增 4 条（dispatch 产生证据 / 两类事件源对称 / 畸形 dispatch 不炸 / **端到端从 `$DSH_HOME/sessions` 读到会话边**）。最后一条是唯一能抓住路径 bug 的用例——把路径改回去时只有它变红，把事件门改回去时四条全红，两条根因分别被锁住。
+- **`skill_get` 也算加载**：仓库早已在 `dsh-skill-surface/lib/handoff.mjs` 定义 `LOADER_TOOLS = {skill, skill_get}`。原先只认 `skill`，等于让用了 fallback 加载器的会话继续恒为空。
+- **失败的加载不开窗**：照 handoff 先例在 dispatch 上过滤 `isError === true`——一次没成功的加载没往上下文里放任何东西，把它后面 8 次调用记成该技能的工具链是假证据。
+- **补同步解码缓存**：修复前路径不存在、这段代码代价恒为 0；修复后它真的开始读 12 个会话文件(12.4 MB)，同步解码实测 892 ms，而面板刷新与 sync/preview、sync/publish 都会强制重建。加 `(path, mtime, size)` 缓存后冷 1232 ms → 热 205 ms。热路径那 ~200 ms 与会话无关(空 DSH_HOME 实测 182 ms)，是扫包扫技能的固有成本。
+- 测试隔离补全：端到端用例原先只隔离 3 个 `DSH_*`，但 `apply()` 还读 `DSH_PROFILE_DIR` / `DSH_BUNDLED_SKILL_DIR` / `DSH_PLUGIN_REPO`，实测会把真实 profile 编进快照；现 6 个全部指向临时目录。断言也从「对序列化 JSON 做子串匹配」改为「解析后断言 `evidence.sources` 与 `count`」。
+
 ### dsh-deep-ptc-mode 1.13.3 — 把从未执行过的 test-t4ptc 接进门禁(#182)
 
 - `test/test-t4ptc.mjs` 有 10 条 `node:test` 用例，但从未出现在本包的 `scripts.test` 里——任何一次改动都能在它不跑的情况下全绿。
@@ -155,7 +166,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 36 个条目:33 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.13.3`、`dsh-websearch-failover@0.5.2`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
+> 本段现有 37 个条目:35 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.12.4`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

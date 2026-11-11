@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 
 import { collectSkillToolEvidence } from '../lib/collect-sessions.js'
 import { buildSnapshot, summarizeConfig } from '../lib/inventory.js'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const call = (name, args = {}) => ({ type: 'tool/call', data: { name, arguments: JSON.stringify(args) } })
 
@@ -175,4 +178,172 @@ test('long opaque tokens are masked even without both letters and digits', () =>
   assert.match(JSON.stringify(lettersOnly), /<redacted>/)
   const digitsOnly = summarizeConfig({ args: ['--token', '123456789012345678901234567890123456789012'] })
   assert.match(JSON.stringify(digitsOnly), /<redacted>/)
+})
+
+// ---- #177: deep-ptc dispatches the skill tool instead of calling it ----
+
+/** A `tool/ptc-dispatch` event: `arguments` is already an object here. */
+const dispatch = (name, args = {}, extra = {}) => ({ type: 'tool/ptc-dispatch', data: { name, arguments: args, isError: false, ...extra } })
+
+test('a skill loaded through tool/ptc-dispatch produces evidence', () => {
+  // In deep-ptc the outer tool/call is always run_code; the real skill load is a
+  // nested dispatch. Reading only tool/call made this statistic empty in every
+  // deep-ptc session.
+  const events = [
+    call('run_code', { code: 'x' }),
+    dispatch('skill', { name: 'design-system' }),
+    dispatch('bash', { command: 'ls' }),
+    dispatch('edit', { file_path: 'a.js' }),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  const row = rows.find((r) => r.skill === 'design-system')
+  assert.ok(row, 'a dispatched skill load must be counted')
+  assert.equal(row.tools.get('bash'), 1)
+  assert.equal(row.tools.get('edit'), 1)
+})
+
+test('both event sources are recognised in one session', () => {
+  // The two shapes must stay symmetric: a native session and a deep-ptc session
+  // can be mixed in one transcript when a preset changes mid-session.
+  const events = [
+    call('skill', { name: 'from-native' }),
+    call('read'),
+    dispatch('skill', { name: 'from-ptc' }),
+    dispatch('grep'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  assert.ok(rows.some((r) => r.skill === 'from-native'), 'tool/call skill load lost')
+  assert.ok(rows.some((r) => r.skill === 'from-ptc'), 'tool/ptc-dispatch skill load lost')
+})
+
+test('malformed dispatches are ignored instead of throwing', () => {
+  const events = [
+    dispatch('skill', null),
+    dispatch('skill', { name: 42 }),
+    { type: 'tool/ptc-dispatch', data: null },
+    { type: 'tool/ptc-dispatch' },
+    { type: 'tool/ptc-dispatch-start', data: { name: 'skill', arguments: { name: 'not-a-settle' } } },
+    dispatch('skill', { name: 'real' }),
+    dispatch('read'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  assert.deepEqual(rows.map((r) => r.skill), ['real'], 'only the settled, well-formed load counts')
+})
+
+test('a skill_get dispatch counts as a load too', () => {
+  // dsh-skill-surface/lib/handoff.mjs models the loader family as
+  // { skill, skill_get }. Keeping only 'skill' here meant a session that used the
+  // fallback loader still produced zero evidence (#177).
+  const events = [
+    dispatch('skill_get', { name: 'via-fallback' }),
+    dispatch('read'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  const row = rows.find((r) => r.skill === 'via-fallback')
+  assert.ok(row, 'a skill_get load must be counted')
+  assert.equal(row.tools.get('read'), 1)
+})
+
+test('a failed load does not open a window', () => {
+  // Same rule as handoff.mjs: a failed load put nothing in context, so counting
+  // the following calls as its toolchain would be false evidence.
+  const events = [
+    { type: 'tool/ptc-dispatch', data: { name: 'skill', arguments: { name: 'broken' }, isError: true } },
+    dispatch('bash'),
+    dispatch('skill', { name: 'working' }),
+    dispatch('grep'),
+  ]
+  const rows = collectSkillToolEvidence(events, { window: 8 })
+  assert.equal(rows.some((r) => r.skill === 'broken'), false, 'a failed load must not produce evidence')
+  const ok = rows.find((r) => r.skill === 'working')
+  assert.ok(ok, 'the successful load still counts')
+  assert.equal(ok.tools.get('grep'), 1)
+})
+// ---- #177: end-to-end through the public route -------------------------------
+
+test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessions', async () => {
+  // The path bug this pins: dshHome() already returns the .dsh directory, so
+  // appending '.dsh' again pointed at a directory that does not exist. Every
+  // session read came back empty and no fixture could tell, because the
+  // collector was never given a file in the first place.
+  const home = mkdtempSync(join(tmpdir(), 'inv-177-home-'))
+  const sessionDir = join(home, 'sessions', '--demo--', 'sess-1')
+  mkdirSync(sessionDir, { recursive: true })
+  // The panel renders item.edges (skills[].edges), not the top-level edges array.
+  // Without a real skill on a skill root the snapshot has skills: [] and the panel
+  // shows nothing, so an assertion on the top-level array would be green while the
+  // user sees an empty card.
+  const skillDir = join(home, 'skills', 'demo-skill')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(join(skillDir, 'SKILL.md'), '---' + String.fromCharCode(10) + 'name: demo-skill' + String.fromCharCode(10) + 'description: fixture' + String.fromCharCode(10) + '---' + String.fromCharCode(10) + 'body' + String.fromCharCode(10), 'utf8')
+  const events = [
+    { type: 'tool/ptc-dispatch', seq: 1, data: { name: 'skill', arguments: { name: 'demo-skill' }, isError: false } },
+    { type: 'tool/ptc-dispatch', seq: 2, data: { name: 'bash', arguments: { command: 'ls' }, isError: false } },
+  ]
+  writeFileSync(join(sessionDir, 'session.v4.jsonl'), events.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8')
+
+  // Every DSH_* that apply() resolves must point inside the temp tree, or this
+  // test reads the real profile on whoever runs it and its assertions change
+  // with that machine. The bare three were not enough: resolveProfileDir also
+  // reads DSH_PROFILE_DIR, globalSkillRoots reads DSH_BUNDLED_SKILL_DIR and
+  // pluginRepoRoot reads DSH_PLUGIN_REPO.
+  const ENV_KEYS = [
+    'DSH_HOME',
+    'DSH_AGENTS_HOME',
+    'DSH_CUSTOM_SKILL_DIRS',
+    'DSH_PROFILE_DIR',
+    'DSH_BUNDLED_SKILL_DIR',
+    'DSH_PLUGIN_REPO',
+  ]
+  const previous = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]))
+  process.env.DSH_HOME = home
+  process.env.DSH_AGENTS_HOME = join(home, 'agents')
+  process.env.DSH_CUSTOM_SKILL_DIRS = ''
+  process.env.DSH_PROFILE_DIR = join(home, 'profile')
+  process.env.DSH_BUNDLED_SKILL_DIR = join(home, 'bundled')
+  process.env.DSH_PLUGIN_REPO = join(home, 'repo')
+  try {
+    const { apply } = await import('../index.js')
+    const routes = []
+    const ctx = {
+      baseUrl: 'file:///C:/nope/',
+      logger: { warn() {}, info() {}, error() {} },
+      get(name) {
+        if (name === 'loader') return { entries: () => [] }
+        if (name === 'tools') return { schemas: () => [] }
+        if (name === 'workspaceRegistry') return { list: () => [] }
+        return undefined
+      },
+      effect(fn) { return fn() },
+      webServer: { register(route) { routes.push(route) } },
+      slots: { register() {} },
+      locale: { register() {}, bind: () => (key) => key },
+      systemPrompt: { context: () => () => {} },
+    }
+    apply(ctx)
+    const route = routes.find((r) => r.path === '/inventory/snapshot')
+    assert.ok(route, 'snapshot route not registered')
+    let text = ''
+    await route.handler({ method: 'GET', url: 'http://127.0.0.1/inventory/snapshot?refresh=1' }, {
+      writeHead() {},
+      end(chunk) { text = chunk ?? '' },
+    })
+    // Assert the structure, not a substring of the serialised JSON: a bare
+    // includes('"session"') would also pass on an unrelated field or a path that
+    // happens to contain the word.
+    const snapshot = JSON.parse(text)
+    // Assert through skills[].edges: that is the array the panel actually renders.
+    const skill = snapshot.skills.find((entry) => entry.name === 'demo-skill')
+    assert.ok(skill, 'the fixture skill must be scanned, or the panel shows an empty card')
+    const edge = skill.edges.find((entry) => entry.id === 'bash')
+    assert.ok(edge, "the session evidence never reached the skill the panel renders")
+    assert.ok(edge.evidence.sources.includes('session'), 'the edge carries no session source')
+    assert.equal(edge.evidence.count, 1, 'the single bash dispatch should count once')
+  } finally {
+    for (const key of ENV_KEYS) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
+    rmSync(home, { recursive: true, force: true })
+  }
 })
