@@ -10,6 +10,13 @@ A bundle whose directory has changes after its version tag fails the gate.
 
 ## Unreleased
 
+### dsh-inventory 0.12.5 — MCP 行与技能行的开关不再被卡片裁掉(#178)
+
+- **两处行容器补 `flexWrap: 'wrap'`**：`client/95-panel.js` 的 MCP 行与技能行结构相同、都缺换行。行内徽标与开关全是 `flexShrink: 0`，固定宽度之和在窄列里必然超出；超出的部分既不换行也不产生横向滚动，直接落进 `S.card` 的 `overflow: hidden`，于是行尾开关被静默裁掉——既看不见也点不到。
+- issue 只点名 MCP 行，但技能行的固定宽子元素更多（2 徽标 + 开关 + 2 按钮 + 2 spinner），只修一处会漏一半。
+- 测试：新增一条遍历渲染树里所有 `role="switch"` 的节点、断言其直接父容器 `flexWrap === 'wrap'` 的用例。反向验证逐处可查：只删 MCP 行的 `flexWrap` → 只有 MCP 那个开关报错；只删技能行的 → 只有技能那个报错。
+- 已知限制（写进 spec 边界）：`flexWrap` 保证「不被裁」，但不保证「开关留在首行」——它是最后一个子元素，极端情况下会跟着徽标换到第二行（仍完整可见可点，`marginLeft: auto` 让它在该行右对齐）。若要求钉在首行需把徽标收进可换行的胶囊组，属更大改动。
+- 未动：`S.card` 的 `overflow: hidden`（圆角裁切与动画依托）、`S.row`、`S.page` 与 rail 宽度。
 ### dsh-inventory 0.12.4 — 会话实证在 deep-ptc 会话里不再恒为空(#177)
 
 - **路径 bug（更致命的那条）**：`index.js` 拼 `join(dshHome(), '.dsh', 'sessions')`，而 `dshHome()` 本身已返回 `.dsh` 目录，于是实际读的是 `$DSH_HOME/.dsh/sessions`（不存在）。所有会话实证读取都返回空——补了事件源也看不出效果。改为 `join(dshHome(), 'sessions')`。
@@ -166,7 +173,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 37 个条目:35 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.12.4`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
+> 本段现有 38 个条目:36 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.12.5`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

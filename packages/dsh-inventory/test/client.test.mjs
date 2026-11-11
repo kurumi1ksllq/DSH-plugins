@@ -2158,3 +2158,34 @@ test('nav rail switches views and keeps the workspace highlight through the deta
   assert.match(textOf(current), /还没有保存的凭据/, 'the vault body must resolve in the panel tree and reach its idle empty state')
   assert.equal(textOf(current).includes('正在读取凭据'), false, 'the vault must not stay stuck in the loading state')
 })
+
+// ---- #178: a row whose badges overflow must not clip its switch ------------
+
+test('every switch sits in a row that can wrap instead of clipping', async () => {
+  // The card clips with overflow:hidden, and both the badges and the switch are
+  // flexShrink:0. A row with many badges therefore pushes the switch past the
+  // card edge, where it is silently cut off — invisible and unclickable. Wrapping
+  // is the invariant that keeps it reachable.
+  const panel = await bootPanel(toggleSnapshot({
+    mcp: [
+      mcpRow('long', { transport: 'stdio', source: 'home-patch', enabled: false, toolCount: 12, toggleable: false, disabledReason: 'no-writable-profile' }),
+    ],
+    skills: [
+      skillRow('long-skill', { source: 'user-dsh', vaulted: false, global: true, edges: [{ kind: 'tool', id: 'a' }] }),
+    ],
+  }), { version: 'wrap-case' })
+  const current = openSkillSection(panel)
+
+  const switches = switchesIn(current)
+  assert.ok(switches.length >= 2, 'expected at least one MCP switch and one skill switch')
+
+  const offenders = []
+  eachNode(current, (node, parent) => {
+    if (node.props?.role !== 'switch') return
+    const style = parent?.props?.style ?? {}
+    if (style.flexWrap !== 'wrap') {
+      offenders.push((node.props['aria-label'] ?? '(unnamed)') + ' -> flexWrap=' + String(style.flexWrap))
+    }
+  })
+  assert.deepEqual(offenders, [], 'a switch in a non-wrapping row can be clipped by the card')
+})

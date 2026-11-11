@@ -1,6 +1,6 @@
 {
   "name": "dsh-inventory",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "private": true,
   "description": "Inventory for DeepSeek Harness: installed plugin packages, loader rows, MCP servers, skills and tools — plus a per-workspace view that assigns or removes an MCP server / skill with one click. Adds an 'Inventory' tab under Settings > Plugins.",
   "type": "module",
