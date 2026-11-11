@@ -2158,3 +2158,41 @@ test('nav rail switches views and keeps the workspace highlight through the deta
   assert.match(textOf(current), /还没有保存的凭据/, 'the vault body must resolve in the panel tree and reach its idle empty state')
   assert.equal(textOf(current).includes('正在读取凭据'), false, 'the vault must not stay stuck in the loading state')
 })
+
+// ---- #178: a row whose badges overflow must not clip its switch ------------
+
+test('every overview switch sits in a row that can wrap instead of clipping', async () => {
+  // The card clips with overflow:hidden, and both the badges and the switch are
+  // flexShrink:0. A row with many badges therefore pushes the switch past the
+  // card edge, where it is silently cut off — invisible and unclickable. Wrapping
+  // is the invariant that keeps it reachable.
+  //
+  // Scope: the overview only. The workspace detail page renders its rows through
+  // S.row, which still has no flexWrap — #178 leaves that out of scope, so this
+  // test must not claim to cover "every switch in the app".
+  const panel = await bootPanel(toggleSnapshot({
+    mcp: [
+      mcpRow('long', { transport: 'stdio', source: 'home-patch', enabled: false, toolCount: 12, toggleable: false, disabledReason: 'no-writable-profile' }),
+    ],
+    skills: [
+      skillRow('long-skill', { source: 'user-dsh', vaulted: false, global: true, edges: [{ kind: 'tool', id: 'a' }] }),
+    ],
+  }), { version: 'wrap-case' })
+  const current = openSkillSection(panel)
+
+  // An exact label set, not a lower bound: a `length >= 2` check stays green
+  // even if the MCP switch disappears from the fixture, which would quietly
+  // shrink what this test covers.
+  const labels = switchesIn(current).map((node) => node.props['aria-label']).sort()
+  assert.deepEqual(labels, ['long', 'long-skill'], 'the fixture must render exactly one MCP and one skill switch')
+
+  const offenders = []
+  eachNode(current, (node, parent) => {
+    if (node.props?.role !== 'switch') return
+    const style = parent?.props?.style ?? {}
+    if (style.flexWrap !== 'wrap') {
+      offenders.push((node.props['aria-label'] ?? '(unnamed)') + ' -> flexWrap=' + String(style.flexWrap))
+    }
+  })
+  assert.deepEqual(offenders, [], 'a switch in a non-wrapping row can be clipped by the card')
+})

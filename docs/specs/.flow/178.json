@@ -1,0 +1,45 @@
+{
+  "issue": 178,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-11T12:03:45.266Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "红测试:遍历 switch 断言父容器 flexWrap",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "MCP 行 + 技能行加 flexWrap",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "重建 client.js",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "版本/CHANGELOG",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "轴1 review:范围限定 + 措辞纠错 + 测试收紧",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "pending-decision",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

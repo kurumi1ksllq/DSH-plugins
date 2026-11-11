@@ -547,7 +547,9 @@
                       'aria-expanded': isOpen ? 'true' : 'false',
                       className: 'inv-row',
                       'data-interactive': 'true',
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
+                      // flexWrap keeps a long badge run from pushing the switch past the card
+                      // edge, where overflow:hidden would clip it out of reach (#178).
+                      style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
@@ -629,7 +631,9 @@
                       'aria-expanded': isOpen ? 'true' : 'false',
                       className: 'inv-row',
                       'data-interactive': 'true',
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
+                      // flexWrap keeps a long badge run from pushing the switch past the card
+                      // edge, where overflow:hidden would clip it out of reach (#178).
+                      style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },

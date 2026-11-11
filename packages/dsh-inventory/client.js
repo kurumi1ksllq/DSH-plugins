@@ -1023,7 +1023,11 @@ window.__ModuleLoader__.load({
       // Dimming the whole row also dims its switch, which then reads as disabled
       // while it is still operable. Only the text column steps back.
       rowTextHidden: { opacity: 0.55 },
-      rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
+      // flexBasis: 0 is what keeps a wrapping row honest. With the default
+      // `auto`, the line-breaking decision uses the column's MAX-CONTENT width, so
+      // a long command string (S.rowMono breaks anywhere) would fold the badges to a
+      // second line even in a window where the row would otherwise fit (#178).
+      rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 0', minWidth: 0 },
       rowTitle: { ...T.rowTitle, wordBreak: 'break-word', textWrap: 'pretty' },
       rowTitleMono: { ...T.rowTitle, fontFamily: FONT_MONO, fontSize: '14px', wordBreak: 'break-all' },
       rowSub: { ...T.caption, color: C.secondary, wordBreak: 'break-word', textWrap: 'pretty' },
@@ -4471,7 +4475,9 @@ window.__ModuleLoader__.load({
                       'aria-expanded': isOpen ? 'true' : 'false',
                       className: 'inv-row',
                       'data-interactive': 'true',
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
+                      // flexWrap keeps a long badge run from pushing the switch past the card
+                      // edge, where overflow:hidden would clip it out of reach (#178).
+                      style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
@@ -4553,7 +4559,9 @@ window.__ModuleLoader__.load({
                       'aria-expanded': isOpen ? 'true' : 'false',
                       className: 'inv-row',
                       'data-interactive': 'true',
-                      style: { display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
+                      // flexWrap keeps a long badge run from pushing the switch past the card
+                      // edge, where overflow:hidden would clip it out of reach (#178).
+                      style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', cursor: 'pointer', minWidth: 0 },
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
