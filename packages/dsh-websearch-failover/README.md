@@ -186,7 +186,7 @@ providers.json / runtime.json / websearch-failover-state.json / plugin.log
 
 | 脚本 | 命令 |
 | --- | --- |
-| `npm test` | 跑全部 10 个离线测试文件（29 个测试，见 §10） |
+| `npm test` | 跑全部离线测试文件（见 §10） |
 | `npm run test:engine` | `node test/mock-failover.mjs` |
 | `npm run test:runtime` | `node test/test-runtime.mjs` |
 | `npm run test:balance` | `node test/test-balance.mjs` |
@@ -217,7 +217,7 @@ node test/test-t4web.mjs           # T4.web 配置/示例/余额探测契约
 # test/probe-bundle.mjs 是共享模块（打包探针），被 host / 集成套件 import，不单独跑
 ```
 
-`npm test` 跑 `test/mock-failover.mjs` 与全部 `test/test-*.mjs`（10 个文件 / 29 个测试）。它们都离线运行，不碰真实 profile，也不写运行者的 HOME（`logPath` 指向测试自己的临时目录）。
+`npm test` 跑 `test/mock-failover.mjs` 与全部 `test/*.test.mjs`、`test/test-*.mjs`。它们都离线运行，不碰真实 profile，也不写当前 `$DSH_HOME`（缺省 `~/.dsh`）下正在使用的 `plugin.log`——每处 `apply()` 都显式传了 `logPath` 指向测试自己的临时目录。
 
 ## 11. 安全说明
 
@@ -242,5 +242,5 @@ MIT，见 `LICENSE`。
 - **Config:** `~/.dsh/websearch-failover/providers.json` (or `$WEBSEARCH_FAILOVER_CONFIG`) — providers in priority order, key via `apiKey` / `apiKeyEnv` / `keyFile`; adapters `tavily serper brave bocha exa jina searxng parallel firecrawl custom`. Hot-reloaded on the next search. Built-in balance probes (verified against the live APIs on 2026-10-24): firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits` (v1 snake_case also accepted), tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`.
 - **State:** `~/.dsh/websearch-failover/runtime.json` (order, disabled, balances, stats), `~/.dsh/websearch-failover-state.json` (cooldowns), `~/.dsh/websearch-failover/plugin.log`.
 - **API:** `/websearch-failover/api/{state,order,refresh,enable}`; POST bodies `{order:[...]}`, `{ids?:[...]}`, `{id,enabled}`. Same-origin checked, 128 KiB body cap, never returns API keys.
-- **Tests:** `npm test` runs `test/mock-failover.mjs` plus every `test/test-*.mjs` — 10 offline files, 29 tests. `test/probe-bundle.mjs` is a shared probe module imported by the host and integration suites, not a suite of its own, so it is deliberately outside the glob.
+- **Tests:** `npm test` runs `test/mock-failover.mjs` plus every `test/*.test.mjs` and `test/test-*.mjs`. `test/probe-bundle.mjs` is a shared probe module imported by the host and integration suites, not a suite of its own, so it is deliberately outside the glob.
 - **Security:** API keys live only in `~/.dsh` as plaintext, never in this repository; `.gitignore` covers the config/state/log files.

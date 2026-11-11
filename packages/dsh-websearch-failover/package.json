@@ -9,7 +9,7 @@
     "dsh": "^0.2.0"
   },
   "scripts": {
-    "test": "node --test test/mock-failover.mjs test/test-*.mjs",
+    "test": "node --test test/mock-failover.mjs test/*.test.mjs test/test-*.mjs",
     "test:engine": "node test/mock-failover.mjs",
     "test:runtime": "node test/test-runtime.mjs",
     "test:balance": "node test/test-balance.mjs",

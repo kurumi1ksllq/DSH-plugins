@@ -1,22 +1,22 @@
 {
   "issue": 182,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-11T08:31:30.453Z",
+  "stage": "review",
+  "updatedAt": "2026-11-11T09:23:22.198Z",
   "tickets": [
     {
       "id": 1,
-      "title": "改 scripts.test + 修 t4web HOME 污染",
+      "title": "改 scripts.test + 修 t4web 的 logPath/statePath",
       "state": "done"
     },
     {
       "id": 2,
-      "title": "四个文件补临时目录清理",
+      "title": "临时目录清理(含 probe-bundle)",
       "state": "done"
     },
     {
       "id": 3,
-      "title": "新增 scripts-test-globs guard",
+      "title": "新增 scripts-test-globs guard(3 条,含覆盖率)",
       "state": "done"
     },
     {
@@ -26,18 +26,23 @@
     },
     {
       "id": 5,
-      "title": "版本/CHANGELOG/note 校准/README 同步",
+      "title": "glob 覆盖两种命名 + 修出 deep-ptc 漏跑的 t4ptc",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "版本/CHANGELOG/README/spec(两轮 review)",
       "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
     "status": "unknown"
   },
   "review": {
-    "state": "not-started",
-    "axes": 0
+    "state": "done",
+    "axes": 2
   },
   "merge": {
     "authorized": false

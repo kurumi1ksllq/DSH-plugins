@@ -6,88 +6,151 @@
 // the root as `pnpm --filter <name>`: an unknown name prints "No projects
 // matched the filters" and still exits 0.
 //
+// A glob that matches SOMETHING is not enough: a package whose files are named
+// `test-*.mjs` while the whole rest of the repository names them `*.test.mjs`
+// silently ignores every test written the conventional way. So one case below
+// asserts coverage (every test file is reached by some glob), not just
+// non-emptiness.
+//
 // These cases read package.json and the filesystem only. They never import a
 // bundle's internals, so they cannot drift with an implementation.
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, globSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(here, '..')
 
-/** Expand one `node --test` argument that may contain a single `*`. */
-function expand(dir, pattern) {
-  if (!pattern.includes('*')) return existsSync(join(dir, pattern)) ? [pattern] : []
-  const star = pattern.indexOf('*')
-  const prefix = pattern.slice(0, star)
-  const suffix = pattern.slice(star + 1)
-  // Only the file-name segment is globbed; a pattern with a slash in the suffix
-  // would need real glob semantics and is out of scope for this guard.
-  if (suffix.includes('/')) return null
-  const slash = prefix.lastIndexOf('/')
-  const sub = slash < 0 ? '' : prefix.slice(0, slash)
-  const head = slash < 0 ? prefix : prefix.slice(slash + 1)
-  const abs = join(dir, sub)
-  if (!existsSync(abs)) return []
-  return readdirSync(abs)
-    .filter((name) => name.startsWith(head) && name.endsWith(suffix))
-    .map((name) => (sub ? sub + '/' + name : name))
-}
+/** `node --test` flags that consume the following token as a value. */
+const VALUE_FLAGS = new Set([
+  '--test-reporter',
+  '--test-reporter-destination',
+  '--test-timeout',
+  '--test-concurrency',
+  '--test-name-pattern',
+  '--test-skip-pattern',
+  '--test-shard',
+])
 
-/** Every `node --test` argument in a manifest's test script, with its matches. */
+/** Files that are deliberately outside every test glob (shared helpers). */
+const NOT_TESTS = new Set([
+  'packages/dsh-websearch-failover/test/probe-bundle.mjs',
+  'packages/dsh-credential-vault/test/owner-mode.mjs',
+  'packages/dsh-deep-ptc-mode/test-governor/fixtures.mjs',
+  'packages/dsh-deep-ptc-mode/test-governor/eval-module.mjs',
+  'packages/dsh-deep-ptc-mode/test-governor/integrity-runner.mjs',
+])
+
+/**
+ * Every `node --test` path argument in a script, expanded against `dir`.
+ *
+ * A flag with a value (`--test-reporter spec`) must not have its value mistaken
+ * for a path: that turns a legitimate script edit into a red guard, and a guard
+ * that cries wolf gets deleted. A token containing a wildcard is expanded for
+ * real (globSync, node >= 22) so a nested pattern is never silently skipped.
+ */
 function testArgs(dir, script) {
   const found = []
   for (const segment of script.split(/&&|\|\|/)) {
     const tokens = segment.trim().split(/\s+/)
     const at = tokens.indexOf('--test')
     if (at < 0) continue
-    for (const token of tokens.slice(at + 1)) {
-      if (token.startsWith('-')) continue
-      found.push({ pattern: token, matches: expand(dir, token) })
+    const rest = tokens.slice(at + 1)
+    for (let i = 0; i < rest.length; i += 1) {
+      const token = rest[i]
+      if (token.startsWith('-')) {
+        if (VALUE_FLAGS.has(token)) i += 1
+        continue
+      }
+      if (!token.includes('*') && !token.endsWith('.mjs') && !token.endsWith('.js')) continue
+      const matches = token.includes('*')
+        ? globSync(token, { cwd: dir }).sort()
+        : existsSync(join(dir, token)) ? [token] : []
+      found.push({ pattern: token, matches })
     }
   }
   return found
 }
 
-/** Bundles the workspace knows about, by directory name under packages/. */
-function bundles() {
-  const dir = join(ROOT, 'packages')
-  return readdirSync(dir)
-    .filter((name) => existsSync(join(dir, name, 'package.json')))
-    .map((name) => ({ name, dir: join(dir, name), manifest: JSON.parse(readFileSync(join(dir, name, 'package.json'), 'utf8')) }))
+/** Every `pnpm --filter <name>` / `--filter=<name>` argument in a script. */
+function filterNames(script) {
+  return [...script.matchAll(/--filter[=\s]+(?:'([^']+)'|"([^"]+)"|(\S+))/g)]
+    .map((match) => match[1] ?? match[2] ?? match[3])
+    .filter((name) => !name.startsWith('!'))
 }
 
-test('every node --test glob in a bundle test script matches at least one file', () => {
-  // A glob that matches nothing is the defect this guard exists for. Asserting
-  // ">= 1 match" rather than an exact count keeps the guard from pinning a
-  // number that changes whenever a test file is added.
+/** Manifests that declare scripts: the workspace bundles plus the root. */
+function manifests() {
+  const dir = join(ROOT, 'packages')
+  const bundles = readdirSync(dir)
+    .filter((name) => existsSync(join(dir, name, 'package.json')))
+    .map((name) => ({ label: name, dir: join(dir, name), manifest: JSON.parse(readFileSync(join(dir, name, 'package.json'), 'utf8')) }))
+  const root = { label: '(root)', dir: ROOT, manifest: JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) }
+  return [root, ...bundles]
+}
+
+test('no test script is a single empty glob', () => {
+  // The original defect: a script whose ONLY test argument matches nothing. A
+  // script may legitimately list a pattern that is empty today — it covers the
+  // conventional naming for tests written later — but then another argument has
+  // to carry the load. A script that runs nothing at all is the bug.
   const bad = []
-  for (const bundle of bundles()) {
-    const script = bundle.manifest.scripts?.test
-    if (typeof script !== 'string') continue
-    for (const arg of testArgs(bundle.dir, script)) {
-      if (arg.matches === null) continue
-      if (arg.matches.length === 0) bad.push(bundle.name + ': "' + arg.pattern + '" matches no file')
+  for (const { label, dir, manifest } of manifests()) {
+    for (const [key, script] of Object.entries(manifest.scripts ?? {})) {
+      if (typeof script !== 'string') continue
+      const args = testArgs(dir, script)
+      if (args.length === 0) continue
+      const total = args.reduce((sum, arg) => sum + arg.matches.length, 0)
+      if (total === 0) {
+        bad.push(label + ' scripts.' + key + ': every argument matches no file (' + args.map((a) => a.pattern).join(', ') + ')')
+      }
     }
   }
-  assert.deepEqual(bad, [], 'a test glob that matches nothing runs zero tests and exits 0')
+  assert.deepEqual(bad, [], 'a test script that runs zero files is the defect this guard exists for')
+})
+
+test('every test file is reached by some glob in its own package test script', () => {
+  // Coverage, not just non-emptiness. A package that names its files
+  // `test-*.mjs` while the repository names them `*.test.mjs` passes the case
+  // above and still never runs a conventionally-named new test.
+  const bad = []
+  for (const { label, dir, manifest } of manifests()) {
+    const script = manifest.scripts?.test
+    if (typeof script !== 'string') continue
+    const reached = new Set()
+    for (const arg of testArgs(dir, script)) {
+      for (const match of arg.matches) reached.add(join(dir, match))
+    }
+    const testDir = join(dir, 'test')
+    if (!existsSync(testDir)) continue
+    for (const name of readdirSync(testDir)) {
+      if (!name.endsWith('.mjs')) continue
+      const abs = join(testDir, name)
+      const rel = relative(ROOT, abs).split('\\').join('/')
+      if (NOT_TESTS.has(rel)) continue
+      if (!reached.has(abs)) bad.push(rel + ' is never run by ' + label + ' scripts.test')
+    }
+  }
+  assert.deepEqual(bad, [], 'a test file outside every glob is dead weight that still looks alive')
 })
 
 test('every pnpm --filter name in the root scripts names a real workspace package', () => {
   // `pnpm --filter <unknown>` prints "No projects matched the filters" and exits
   // 0, so a renamed package silently stops being tested.
   const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
-  const known = new Set(bundles().map((bundle) => bundle.manifest.name))
+  const known = new Set(
+    readdirSync(join(ROOT, 'packages'))
+      .filter((name) => existsSync(join(ROOT, 'packages', name, 'package.json')))
+      .map((name) => JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8')).name),
+  )
   const bad = []
   for (const [key, value] of Object.entries(root.scripts ?? {})) {
     if (typeof value !== 'string') continue
-    for (const match of value.matchAll(/--filter\s+(?:'([^']+)'|"([^"]+)"|(\S+))/g)) {
-      const name = match[1] ?? match[2] ?? match[3]
-      if (name.startsWith('!')) continue
-      if (!known.has(name)) bad.push(key + ': --filter ' + name + ' names no package')
+    for (const name of filterNames(value)) {
+      if (!known.has(name)) bad.push('scripts.' + key + ': --filter ' + name + ' names no package')
     }
   }
   assert.deepEqual(bad, [])

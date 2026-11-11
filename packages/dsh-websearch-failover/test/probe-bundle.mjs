@@ -28,6 +28,9 @@ const PLUGIN_FILES = ['index.js', 'client.js', 'cordis.patch.yml', 'package.json
  */
 export function makeProbeBundle(repoRoot) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wsf-probe-'));
+// #182: cleanup() only runs on the success path. An assertion that fails
+// first would leave this tree behind, and the gate now runs every suite.
+process.on('exit', () => fs.rmSync(root, { recursive: true, force: true }))
   const pluginDir = path.join(root, 'plugin');
   fs.mkdirSync(path.join(pluginDir, 'lib'), { recursive: true });
 
