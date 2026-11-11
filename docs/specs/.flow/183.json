@@ -1,8 +1,8 @@
 {
   "issue": 183,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-11T13:00:00+08:00",
+  "stage": "done",
+  "updatedAt": "2026-11-11T13:05:00+08:00",
   "tickets": [
     {
       "id": 1,
@@ -25,7 +25,7 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   },
-  "note": "裁剪:docs-only 两行事实更新,按 FLOW.md 自决边界跳过双轴 review,理由见 spec §4"
+  "note": "board-flip #183(2026-11-11):合并证据 PR #184 squash merge af25f52,已在 main 上;CI 绿;按 spec §4 裁掉双轴 review(两行事实更新)"
 }
