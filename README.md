@@ -4,6 +4,15 @@
 
 **这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管，都不在这里；这里只说 profile 接上去所需的最小接线。
 
+## 文档地图
+
+- [README.md](README.md) — 这份文件：插件清单、安装、开发、边界。
+- [AGENTS.md](AGENTS.md) — 本仓库的硬规则，新会话先读。
+- [CHANGELOG.md](CHANGELOG.md) — 每个 bundle 的发布记录与版本纪律。
+- [docs/README.md](docs/README.md) — 文档地图：哪些是现行文档、哪些是历史 spec。
+- [docs/update-scheme.md](docs/update-scheme.md) — 插件可靠更新方案与运行时机制。
+- [docs/update-checkout.md](docs/update-checkout.md) — 权威 checkout 统一的执行记录。
+
 | 目录 | 包名 | 在 DSH 里做什么 |
 | --- | --- | --- |
 | [`packages/dsh-credential-vault`](packages/dsh-credential-vault) | `dsh-credential-vault` | 凭据保险库：服务器密码 / GitHub token / API key 的 AES-256-GCM 加密存储，`credential` 工具按名读取（reveal 全审计），管理界面在 dsh-inventory 的工具管理页 |
@@ -11,7 +20,9 @@
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-deep-ptc-mode`](packages/dsh-deep-ptc-mode) | `dsh-deep-ptc-mode` | 深度 PTC 会话模式（preset 插件）：执行环境选择（含 Git Bash 替换）、失速治理双引擎（结论锚点/软切拦截） |
-| [`packages/dsh-skill-surface`](packages/dsh-skill-surface) | `dsh-skill-surface` | 把官方 skill 目录与加载器补挂到宿主平面（无 skill 能力的 preset 也能用），并支持委派时 `skills: a,b` 点名注入 |
+| [`packages/dsh-task-dispatcher`](packages/dsh-task-dispatcher) | `dsh-task-dispatcher` | 委派纪律 + 子 agent 路由表注入（主 agent 与 teammate 同效），让模型按任务内容选 `agent_preset` |
+| [`packages/ecc-agent-presets`](packages/ecc-agent-presets) | `ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle（默认不进 UI 名册，启用即整体回归） |
+| [`packages/dsh-skill-surface`](packages/dsh-skill-surface) | `dsh-skill-surface` | 只把官方 skill 发现器(provider)补挂到宿主平面;加载器由本包自带且仅对没有官方 skill 的 agent 可见,并支持委派时 `skills: a,b` 点名注入 |
 
 ## 装上
 

@@ -219,7 +219,7 @@
           'button',
           {
             type: 'button',
-            className: 'inv-seg-btn',
+            className: 'inv-seg-btn inv-primary',
             style: { ...S.primary, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
             disabled: busy,
             onClick: busy ? undefined : onClick,

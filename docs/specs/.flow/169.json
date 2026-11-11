@@ -1,0 +1,35 @@
+{
+  "issue": 169,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-10T23:02:01.226+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "脚本入库 + 参数化 + 默认不重启",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "文档同步",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "全量验收 + PR",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}

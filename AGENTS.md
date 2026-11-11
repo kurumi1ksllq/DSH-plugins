@@ -81,13 +81,15 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 | `packages/dsh-deep-ptc-mode` | 深度 PTC 会话模式 + 失速治理双引擎（含 Git Bash 替换） |
 | `packages/dsh-task-dispatcher` | 任务调度器:委派纪律 + 子 agent 路由表 runtime-context 注入(Lead/teammate 同效) |
 | `packages/ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle(默认不进 UI 名册) |
-| `packages/dsh-skill-surface` | 把官方 skill 目录与加载器补挂到宿主平面（无 skill 能力的 preset 也能用），并支持委派时 `skills: a,b` 点名注入 |
+| `packages/dsh-skill-surface` | 只把官方 skill 发现器(provider)补挂到宿主平面;加载器由本包自带且仅对没有官方 skill 的 agent 可见,并支持委派时 `skills: a,b` 点名注入 |
 | `docs/specs/` | 每个 issue 的 spec（开工前落盘，agent 自定，用户可复核） |
 | `docs/specs/.flow/` | 任务板状态文件（运行时状态，随分支走） |
 | `docs/update-checkout.md` | 权威 checkout 统一方案的执行记录（已执行完成，带现状校准块） |
 | `docs/update-scheme.md` | 插件可靠更新方案（调查结论与运行时机制，带现状校准块） |
 | `scripts/` | 打包校验脚本，`pnpm verify` 调它们 |
 | `test/` | 仓库级文档契约测试 |
+| `docs/README.md` | 文档地图：现行文档与历史 spec 的边界 |
+| `README.md` / `CHANGELOG.md` | 使用者入口，以及每个 bundle 的发布记录与版本纪律 |
 
 ## 纪律文本谱系（防误归因，#144）
 

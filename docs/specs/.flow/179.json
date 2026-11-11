@@ -1,0 +1,35 @@
+{
+  "issue": 179,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-11T10:40:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "控件形态与 .inv-btn 反馈",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "加载/错误态复用两栏外壳",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本号与变更记录",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}

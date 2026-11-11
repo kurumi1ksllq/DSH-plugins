@@ -1,0 +1,56 @@
+{
+  "issue": 180,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-11T12:30:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "新增文档契约(先红)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "README 补两行 + docs 地图",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "CHANGELOG 注记计数",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "两份 update 文档重新校准",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "各包 README 与历史报告对齐",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": ".flow/29 翻终态",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "gate + PR + CI + 双轴 review",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  },
+  "note": "board-flip #180(2026-11-11):合并证据 PR #181 squash merge 9dc092d,已核验 merge 提交在 main 上;CI 绿、双轴 review 10 条全部采纳;四个文档版本 tag 由用户在 main 上补打"
+}

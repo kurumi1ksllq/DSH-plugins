@@ -1,16 +1,18 @@
 # D1 — 统一权威 checkout(运维方案)
 
-> **现状校准（2026-11-04,main @ 54b61c0）**：本方案**已执行完成**,下文保留为执行当时的原始记录。
+> **现状校准（2026-11-11,main @ 9efbf72）**：本方案**已执行完成**,下文保留为执行当时的原始记录。
 >
-> - profile `/root/.dsh/profiles/web` 的 5 条 `link:` 全部指向 `/root/DSH-plugins`:
->   `dsh-credential-vault`、`dsh-git-status`、`dsh-inventory`、`@local/dsh-prompt-inject`、`dsh-websearch-failover/plugin`。
-> - `node scripts/check-profile.mjs` → `profile ok: 5 linked bundle(s)`,0 条「loads from a DIFFERENT checkout」告警。
-> - `node scripts/update.mjs plan` → `local=5 manager=4 updatable=0`,5 行全为 `/root/DSH-plugins`。
+> - profile `/root/.dsh/profiles/web` 的 **8 条**本仓库 `link:` 全部指向 `/root/DSH-plugins`:
+>   `dev-flow`、`dsh-credential-vault`、`dsh-deep-ptc-mode`、`dsh-inventory`、`dsh-task-dispatcher`、`dsh-websearch-failover`、`ecc-agent-presets`、`dsh-skill-surface`。
+> - `node scripts/check-profile.mjs` 在本 worktree 会把 8 条报成「loads from a DIFFERENT checkout」(link 指向主 checkout),这是预期;在主 checkout 里跑应为 `profile ok: 8 linked bundle(s)`、0 条该告警。
+> - `ecc-agent-presets` 曾只 link 未列入 `dsh.profile.bundles`(不加载);**2026-11-11 已由用户启用**,现 8 个本仓库 bundle 全部加载。
+> - `node scripts/update.mjs plan` 会把 8 个本地包全部报 `/root/DSH-plugins`。
+> - 运行时 DSH `0.2.2-rc.1`;registry 4 个:`@deepseek-ai/dsh-mcp-client@0.2.2-rc.1`、`dsh-context@0.83.0`、`dsh-tool-search@0.1.10`、`@wxg-prc-cpg/browser-skill-dsh-plugin@0.4.2`。
 > - 旧 checkout `/root/dsh-workspace/DSH-plugins` 已不再被任何被加载的包引用;**目录本身尚未退役**(移动前先确认脚本不再引用)。
-> - 正文里的 `dsh-ctx-guard` 是当时记录的包,现已从仓库删除。
-> - 阶段 3(重启)是否已执行,以 Web GUI 插件页 5 个插件是否 `active` 为准——本文不做断言。
+> - 正文里的 `dsh-ctx-guard`、`@local/dsh-prompt-inject`、`dsh-git-status` 是当时记录的包,现已删除或并入其他包。
+> - 阶段 3(重启)以 Web GUI 插件页的实际 `active` 数为准——本文不做断言。
 
-- 状态:**已执行完成(2026-11-04 复核)**——原文状态为「待批准」,现已作废。
+- 状态:**已执行完成(2026-11-11 复核)**——原文状态为「待批准」,现已作废。
 - 关联:`docs/update-scheme.md` §4.4、决策点 D1。
 - 前置结论:**未经你明确同意,不重启 DSH**。
 
@@ -77,7 +79,7 @@ profile 的 `node_modules/<pkg>` 是符号链接,必须指向新目标。用 **p
 cd /root/.dsh/profiles/web && pnpm install --prefer-offline
 ```
 
-然后 `node scripts/update.mjs plan` 确认:5 个包全报 `/root/DSH-plugins`,混代警告消失。
+然后 `node scripts/update.mjs plan` 确认:8 个包全报 `/root/DSH-plugins`,混代警告消失。
 
 ### 阶段 3 — 重启 DSH(需要你明确批准)
 
@@ -87,10 +89,10 @@ cd /root/.dsh/profiles/web && pnpm install --prefer-offline
 
 ```bash
 node scripts/check-profile.mjs     # 期望 0 warning
-node scripts/update.mjs plan       # 期望 5 包同属一个 checkout
+node scripts/update.mjs plan       # 期望 8 包同属一个 checkout
 ```
 
-再在 Web GUI 插件页确认 5 个插件都是 `active`(不是 `failed`)。
+再在 Web GUI 插件页确认 8 个插件都是 `active`(不是 `failed`)。
 
 ## 5. 回退
 

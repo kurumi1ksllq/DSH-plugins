@@ -743,13 +743,13 @@ window.__ModuleLoader__.load({
     const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
 
     const T = {
-      large: { fontSize: '28px', fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', margin: 0 },
+      large: { fontSize: '28px', fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', margin: 0, textWrap: 'balance' },
       nav: { fontSize: '17px', fontWeight: 600, letterSpacing: '-0.01em' },
-      listTitle: { fontSize: '17px', fontWeight: 600, lineHeight: 1.25, letterSpacing: '-0.01em' },
-      rowTitle: { fontSize: '15px', fontWeight: 500, lineHeight: 1.3 },
+      listTitle: { fontSize: '17px', fontWeight: 600, lineHeight: 1.25, letterSpacing: '-0.01em', textWrap: 'pretty' },
+      rowTitle: { fontSize: '15px', fontWeight: 500, lineHeight: 1.35, letterSpacing: '-0.003em' },
       caption: { fontSize: '13px', lineHeight: 1.4 },
       captionStrong: { fontSize: '13px', fontWeight: 600 },
-      badge: { fontSize: '12px', fontWeight: 500 },
+      badge: { fontSize: '12px', fontWeight: 500, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' },
       stat: { fontSize: '20px', fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' },
       mono: { fontFamily: FONT_MONO, fontSize: '12.5px' },
     }
@@ -765,6 +765,10 @@ window.__ModuleLoader__.load({
         flexDirection: 'column',
         color: C.text,
         font: 'inherit',
+        // The host does not guarantee antialiased text; ask for it here so glyphs
+        // stay crisp without touching the global html element.
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale',
         padding: 0,
       },
       // The scroll host of the rail layout: the sticky nav and the rail stay
@@ -803,7 +807,6 @@ window.__ModuleLoader__.load({
         padding: '0 8px 0 4px',
         border: 'none',
         borderRadius: '10px',
-        background: 'transparent',
         color: C.text,
         fontSize: '15px',
         fontWeight: 500,
@@ -818,7 +821,6 @@ window.__ModuleLoader__.load({
         height: '40px',
         border: 'none',
         borderRadius: '10px',
-        background: 'transparent',
         color: C.text,
         cursor: 'pointer',
         flexShrink: 0,
@@ -835,7 +837,7 @@ window.__ModuleLoader__.load({
       },
       hero: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px 0 4px', flexShrink: 0 },
       h1: { ...T.large },
-      subtitle: { ...T.caption, color: C.secondary, margin: 0, maxWidth: '62ch' },
+      subtitle: { ...T.caption, color: C.secondary, margin: 0, maxWidth: '62ch', lineHeight: 1.5, textWrap: 'pretty' },
       controls: { display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 0 0', flexWrap: 'wrap', flexShrink: 0 },
       // Left navigation rail (issue #91). A fixed 196px column beside the main
       // list; groups are caption-styled headers, the active item is the
@@ -861,7 +863,6 @@ window.__ModuleLoader__.load({
         padding: '0 10px',
         border: 'none',
         borderRadius: '8px',
-        background: 'transparent',
         color: C.secondary,
         fontSize: '13.5px',
         fontWeight: 500,
@@ -876,23 +877,24 @@ window.__ModuleLoader__.load({
         boxShadow: '0 1px 3px rgba(0,0,0,0.18)',
       },
       railItemLabel: { flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' },
-      railItemCount: { ...T.caption, fontVariantNumeric: 'tabular-nums', opacity: 0.75, flexShrink: 0 },
+      railItemCount: { ...T.caption, fontVariantNumeric: 'tabular-nums', flexShrink: 0 },
+      // Size and typography only: background, colour and the on-state live in
+      // .inv-chip / .inv-chip-on, because an inline background would outrank the
+      // :hover rule and leave the control with no feedback at all.
       chip: {
         display: 'inline-flex',
         alignItems: 'center',
         height: '32px',
         padding: '0 12px',
-        border: 'none',
-        borderRadius: '9px',
-        background: C.fill,
-        color: C.secondary,
+        boxSizing: 'border-box',
+        borderRadius: '10px',
         fontSize: '13px',
         fontWeight: 500,
         cursor: 'pointer',
         flexShrink: 0,
-        transition: `background-color 200ms ${EASE}, color 200ms ${EASE}`,
+        minWidth: 0,
       },
-      chipOn: { background: C.invertedFill, color: C.invertedText, fontWeight: 600 },
+      chipOn: { fontWeight: 600 },
       stamp: { ...T.caption, color: C.secondary, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' },
       searchWrap: {
         display: 'flex',
@@ -901,7 +903,8 @@ window.__ModuleLoader__.load({
         height: '36px',
         padding: '0 10px',
         borderRadius: '10px',
-        background: C.fill,
+        border: '1px solid transparent',
+        boxSizing: 'border-box',
         flexShrink: 0,
         marginTop: '10px',
       },
@@ -913,7 +916,7 @@ window.__ModuleLoader__.load({
         background: 'transparent',
         color: C.text,
         fontSize: '15px',
-        outline: 'none',
+        caretColor: C.accent,
         padding: 0,
       },
       card: {
@@ -922,7 +925,9 @@ window.__ModuleLoader__.load({
         border: `1px solid ${C.hairline}`,
         overflow: 'hidden',
         flexShrink: 0,
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        // Label-tinted shadows instead of pure black: black vanishes on the dark
+        // theme and looks dirty on the light one.
+        boxShadow: '0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary, #1f2328) 8%, transparent), 0 12px 28px color-mix(in srgb, var(--dsw-alias-label-primary, #1f2328) 10%, transparent)',
       },
       stats: {
         display: 'grid',
@@ -940,7 +945,6 @@ window.__ModuleLoader__.load({
         width: '100%',
         padding: '22px 4px 8px',
         border: 'none',
-        background: 'transparent',
         color: 'inherit',
         font: 'inherit',
         textAlign: 'left',
@@ -948,9 +952,9 @@ window.__ModuleLoader__.load({
         userSelect: 'none',
         flexShrink: 0,
       },
-      sectionTitle: { ...T.captionStrong, color: C.secondary },
-      sectionCount: { ...T.caption, color: C.secondary, opacity: 0.75, fontVariantNumeric: 'tabular-nums' },
-      sectionHint: { ...T.caption, color: C.secondary, opacity: 0.75, marginLeft: 'auto', paddingRight: '4px', whiteSpace: 'nowrap' },
+      sectionTitle: { ...T.captionStrong, color: C.text },
+      sectionCount: { ...T.caption, color: C.secondary, fontVariantNumeric: 'tabular-nums' },
+      sectionHint: { ...T.caption, color: C.secondary, marginLeft: 'auto', paddingRight: '4px', whiteSpace: 'nowrap' },
       // Per-row icon button (hide a skill); swallows the row's own click.
       rowIconBtn: {
         display: 'inline-flex',
@@ -960,10 +964,7 @@ window.__ModuleLoader__.load({
         height: '26px',
         padding: 0,
         border: 'none',
-        borderRadius: '7px',
-        background: 'transparent',
-        color: C.secondary,
-        opacity: 0.7,
+        borderRadius: '8px',
         cursor: 'pointer',
         flexShrink: 0,
       },
@@ -976,10 +977,7 @@ window.__ModuleLoader__.load({
         width: '24px',
         height: '24px',
         padding: 0,
-        border: `1px solid ${C.hairline}`,
-        borderRadius: '7px',
-        background: 'transparent',
-        color: C.secondary,
+        borderRadius: '8px',
         cursor: 'pointer',
         flexShrink: 0,
       },
@@ -1022,11 +1020,13 @@ window.__ModuleLoader__.load({
         flexShrink: 0,
       },
       rowLast: { borderBottom: 'none' },
-      rowHidden: { opacity: 0.55 },
+      // Dimming the whole row also dims its switch, which then reads as disabled
+      // while it is still operable. Only the text column steps back.
+      rowTextHidden: { opacity: 0.55 },
       rowMain: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 auto', minWidth: 0 },
-      rowTitle: { ...T.rowTitle, wordBreak: 'break-word' },
+      rowTitle: { ...T.rowTitle, wordBreak: 'break-word', textWrap: 'pretty' },
       rowTitleMono: { ...T.rowTitle, fontFamily: FONT_MONO, fontSize: '14px', wordBreak: 'break-all' },
-      rowSub: { ...T.caption, color: C.secondary, wordBreak: 'break-word' },
+      rowSub: { ...T.caption, color: C.secondary, wordBreak: 'break-word', textWrap: 'pretty' },
       rowMono: { ...T.mono, color: C.secondary, wordBreak: 'break-all' },
       note: {
         ...T.caption,
@@ -1035,6 +1035,7 @@ window.__ModuleLoader__.load({
         WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical',
         overflow: 'hidden',
+        textWrap: 'pretty',
       },
       badge: {
         display: 'inline-flex',
@@ -1066,6 +1067,7 @@ window.__ModuleLoader__.load({
         borderRadius: '999px',
         border: 'none',
         background: C.switchOff,
+        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
         cursor: 'pointer',
         transition: `background-color 220ms ${EASE}`,
       },
@@ -1077,9 +1079,9 @@ window.__ModuleLoader__.load({
         height: '27px',
         borderRadius: '999px',
         background: C.knob,
-        boxShadow: '0 2px 4px rgba(0,0,0,0.18), 0 0 0 0.5px rgba(0,0,0,0.04)',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.2), 0 3px 8px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)',
       },
-      chevronMuted: { color: C.secondary, opacity: 0.7 },
+      chevronMuted: { color: C.secondary },
       listRow: { cursor: 'pointer' },
       subRow: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 },
       edgeList: {
@@ -1101,7 +1103,8 @@ window.__ModuleLoader__.load({
         gap: '10px',
         padding: '12px 14px',
         borderRadius: '14px',
-        background: 'color-mix(in srgb, var(--dsw-static-amber-500, #b7791f) 14%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--dsw-static-amber-500, #b7791f) 26%, transparent)',
+        background: 'color-mix(in srgb, var(--dsw-static-amber-500, #b7791f) 12%, var(--dsw-alias-bg-layer-2, #fff))',
         color: C.text,
         ...T.caption,
         flexShrink: 0,
@@ -1112,7 +1115,8 @@ window.__ModuleLoader__.load({
         gap: '10px',
         padding: '12px 14px',
         borderRadius: '14px',
-        background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #d14343) 12%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary, #d14343) 24%, transparent)',
+        background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #d14343) 10%, var(--dsw-alias-bg-layer-2, #fff))',
         color: C.text,
         ...T.caption,
         flexShrink: 0,
@@ -1131,7 +1135,7 @@ window.__ModuleLoader__.load({
         borderRadius: '14px',
         background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary, #d14343) 14%, var(--dsw-alias-bg-layer-2, #fff))',
         border: `1px solid ${C.hairline}`,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+        boxShadow: '0 2px 6px color-mix(in srgb, var(--dsw-alias-label-primary, #1f2328) 12%, transparent), 0 14px 36px color-mix(in srgb, var(--dsw-alias-label-primary, #1f2328) 14%, transparent)',
         color: C.text,
         ...T.caption,
         flexShrink: 0,
@@ -1148,17 +1152,19 @@ window.__ModuleLoader__.load({
         flexShrink: 0,
       },
       primary: {
-        border: 'none',
+        border: '1px solid transparent',
+        boxSizing: 'border-box',
         borderRadius: '10px',
-        background: C.invertedFill,
-        color: C.invertedText,
         fontSize: '13px',
         fontWeight: 600,
         padding: '8px 16px',
+        minHeight: '32px',
         cursor: 'pointer',
         flexShrink: 0,
       },
-      skeleton: { height: '14px', borderRadius: '6px', background: C.fill, flexShrink: 0 },
+      // Fill + shimmer live in .inv-skeleton: an inline background would outrank
+      // the keyframes that move it.
+      skeleton: { height: '14px', borderRadius: '8px', flexShrink: 0 },
       // Quiet one-line note for "written to cordis.patch.yml, applies next start".
       notice: {
         display: 'flex',
@@ -1178,12 +1184,13 @@ window.__ModuleLoader__.load({
       // reads as a link next to the row title instead of a second control.
       linkBtn: {
         border: 'none',
-        background: 'transparent',
-        color: C.accent,
+        display: 'inline-flex',
+        alignItems: 'center',
+        minHeight: '26px',
+        borderRadius: '8px',
         fontSize: '13px',
         fontWeight: 600,
-        padding: '4px 6px',
-        borderRadius: '8px',
+        padding: '4px 8px',
         cursor: 'pointer',
         flexShrink: 0,
         whiteSpace: 'nowrap',
@@ -1212,7 +1219,7 @@ window.__ModuleLoader__.load({
         width: '16px',
         height: '16px',
         borderRadius: '999px',
-        border: `2px solid ${C.fillStrong}`,
+        border: `2px solid color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 26%, transparent)`,
         borderTopColor: C.accent,
         flexShrink: 0,
       },
@@ -1223,46 +1230,171 @@ window.__ModuleLoader__.load({
      * Pseudo-states and motion. Inline styles cannot express :hover,
      * :focus-visible or a media query, so the panel ships one stylesheet.
      */
-    const STYLES = `
+    const STYLES = `/* Rows ------------------------------------------------------------------
+   Tap targets are >=44px tall via S.row. Hover is guarded by (hover: hover)
+   so a touch screen never leaves a row stuck in its hover colour. */
 .inv-row { -webkit-tap-highlight-color: transparent; }
 .inv-row[data-interactive="true"] { transition: background-color 120ms ease; }
 @media (hover: hover) {
   .inv-row[data-interactive="true"]:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 8%, transparent); }
 }
 .inv-row[data-interactive="true"]:active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
-.inv-switch:active > span { transform: scale(0.94); }
+/* Rows live inside a card with overflow: hidden, so their ring is drawn
+   inside the row instead of 5px outside it, where the card would clip it
+   (WCAG 2.2 SC 2.4.11 Focus Not Obscured). */
+.inv-row[data-interactive="true"]:focus-visible { outline: 2px solid var(--dsw-alias-button-info-fill, #4176e6); outline-offset: -3px; }
+
+/* Buttons ---------------------------------------------------------------
+   Inline styles cannot express :hover / :active, so every control carries a
+   class hook and the states live here. The press scale is deliberately small:
+   it must read as touch feedback, not as movement. */
+.inv-btn, .inv-seg-btn, .inv-chip, .inv-primary, .inv-link, .inv-ctrl,
+.inv-switch, .inv-rail-item, .inv-row, .inv-search, .inv-textarea { outline: none; }
+.inv-btn, .inv-seg-btn { background: transparent; }
+.inv-chip {
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12));
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.inv-chip-on {
+  background: var(--dsw-alias-label-primary, #1f2328);
+  border-color: var(--dsw-alias-label-primary, #1f2328);
+  color: var(--dsw-alias-bg-base, #fff);
+  font-weight: 600;
+}
+.inv-primary { background: var(--dsw-alias-label-primary, #1f2328); color: var(--dsw-alias-bg-base, #fff); }
+.inv-link { background: transparent; color: var(--dsw-alias-button-info-fill, #4176e6); }
+.inv-ctrl { background: transparent; color: var(--dsw-alias-label-secondary, #6b7280); border: 1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12)); }
+.inv-hide { color: var(--dsw-alias-label-secondary, #6b7280); opacity: 0.7; }
+/* Bigger hit areas than the visible boxes (WCAG 2.5.8 wants 24px minimum and
+   a thumb wants more); the ink does not move. */
+.inv-switch, .inv-hide { position: relative; }
+.inv-switch::after { content: ''; position: absolute; inset: -6px; }
+.inv-hide::after { content: ''; position: absolute; inset: -7px; }
+.inv-chip, .inv-primary, .inv-link, .inv-ctrl, .inv-hide {
+  transition-property: background-color, border-color, color, opacity, filter, transform;
+  transition-duration: 140ms;
+  transition-timing-function: ease-out;
+}
 @media (hover: hover) {
+  .inv-btn:not(.inv-chip):not(.inv-primary):not(.inv-link):not(.inv-ctrl):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 8%, transparent); }
+  .inv-chip:not(.inv-chip-on):hover {
+    background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 18%, transparent);
+    border-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 45%, transparent);
+  }
+  .inv-chip-on:hover { filter: brightness(0.96); }
+  .inv-primary:hover { filter: brightness(1.06); }
+  .inv-link:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 10%, transparent); }
+  .inv-ctrl:hover {
+    background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent);
+    border-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 30%, transparent);
+  }
   .inv-hide:hover { color: var(--dsw-alias-label-primary, #111827); opacity: 1; }
 }
-.inv-switch, .inv-btn, .inv-seg-btn, .inv-rail-item, .inv-row { outline: none; }
-.inv-switch:focus-visible, .inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-rail-item:focus-visible, .inv-row[data-interactive="true"]:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 45%, transparent);
+.inv-btn:not(.inv-chip):not(.inv-primary):not(.inv-link):not(.inv-ctrl):active { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 14%, transparent); }
+.inv-chip:active:enabled, .inv-primary:active:enabled,
+.inv-link:active:enabled, .inv-ctrl:active:enabled { transform: scale(0.96); }
+.inv-btn:disabled, .inv-chip:disabled, .inv-primary:disabled,
+.inv-link:disabled, .inv-ctrl:disabled,
+.inv-switch:disabled { transform: none; cursor: default; opacity: 0.5; }
+/* The knob travel lives in a custom property so the press scale can stack on
+   top of it instead of fighting the inline transform. */
+.inv-switch > span { transform: translateX(var(--inv-x, 0px)); transition: transform 260ms ${EASE}; }
+.inv-switch:active:enabled > span { transform: translateX(var(--inv-x, 0px)) scale(0.94); }
+
+/* Focus rings -----------------------------------------------------------
+   The ring follows each control's own shape (999px pill, 8px rail item, 10px
+   button) because it decorates the element instead of redrawing the box
+   (WCAG 2.2 SC 2.4.13 Focus Appearance). */
+.inv-btn:focus-visible, .inv-seg-btn:focus-visible, .inv-chip:focus-visible,
+.inv-primary:focus-visible, .inv-link:focus-visible, .inv-ctrl:focus-visible,
+.inv-rail-item:focus-visible, .inv-switch:focus-visible,
+.inv-search:focus-visible, .inv-textarea:focus-visible {
+  outline: 2px solid var(--dsw-alias-button-info-fill, #4176e6);
   outline-offset: 2px;
-  border-radius: 10px;
 }
-.inv-search-wrap { transition: background-color 160ms ease, box-shadow 160ms ease; }
+.inv-search:focus-visible { outline-offset: 0; }
+
+/* Search ---------------------------------------------------------------- */
+.inv-search-wrap {
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
 .inv-search-wrap:focus-within {
   background: var(--dsw-alias-bg-layer-2, #fff);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 40%, transparent);
 }
+.inv-search::placeholder { color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 78%, transparent); }
+
+/* Multiline editor (prompt) --------------------------------------------- */
+.inv-textarea { caret-color: var(--dsw-alias-button-info-fill, #4176e6); transition: border-color 160ms ease, box-shadow 160ms ease; }
+.inv-textarea::placeholder { color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 78%, transparent); }
+.inv-textarea:disabled { opacity: 0.6; }
+
+/* Left rail ------------------------------------------------------------- */
 .inv-rail-item { transition: background-color 200ms ${EASE}, color 200ms ${EASE}; }
 @media (hover: hover) {
   .inv-rail-item:not(.inv-rail-active):hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 10%, transparent); }
 }
+
+/* Section entrance + fold chevron --------------------------------------- */
 .inv-section-body { animation: inv-section-in 200ms ${EASE}; }
 @keyframes inv-section-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.inv-chev { display: inline-flex; }
+
+/* Skeleton -------------------------------------------------------------- */
+.inv-skeleton {
+  background-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 12%, transparent);
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 9%, transparent) 45%, transparent 90%);
+  background-repeat: no-repeat;
+  background-size: 200% 100%;
+  animation: inv-shimmer 1400ms ease-in-out infinite;
+}
+@keyframes inv-shimmer { from { background-position: 140% 0; } to { background-position: -60% 0; } }
+
+/* Spinner --------------------------------------------------------------- */
 .inv-spin { animation: inv-spin 720ms linear infinite; }
 @keyframes inv-spin { to { transform: rotate(360deg); } }
+
+/* Scrollbar + selection: the details that make a panel feel owned -------- */
+.inv-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 35%, transparent) transparent;
+  overscroll-behavior: contain;
+}
+.inv-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.inv-scroll::-webkit-scrollbar-track { background: transparent; }
+.inv-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 32%, transparent);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+.inv-scroll::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--dsw-alias-label-secondary, #6b7280) 52%, transparent); background-clip: content-box; }
+.inv-scroll ::selection { background: color-mix(in srgb, var(--dsw-alias-button-info-fill, #4176e6) 24%, transparent); }
+
+/* Preference fallbacks -------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  .inv-row, .inv-switch, .inv-switch > span, .inv-seg-btn, .inv-rail-item, .inv-search-wrap { transition-duration: 0ms !important; }
+  .inv-row, .inv-switch, .inv-switch > span, .inv-seg-btn, .inv-chip, .inv-primary,
+  .inv-link, .inv-ctrl, .inv-hide, .inv-rail-item, .inv-search-wrap, .inv-textarea,
+  .inv-chev, .inv-provider-fill, .inv-nav-title { transition-duration: 0ms !important; }
+  .inv-chip:active:enabled, .inv-primary:active:enabled, .inv-link:active:enabled,
+  .inv-ctrl:active:enabled, .inv-switch:active:enabled > span { transform: none !important; }
   .inv-section-body { animation: none; }
+  .inv-skeleton { animation: none; }
   .inv-spin { animation-duration: 1.6s; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .inv-nav { background: var(--dsw-alias-bg-base, #fff) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 }
 @media (prefers-contrast: more) {
+  /* Every colour here is also set inline, so !important is the only way a
+     preference can win (the same reason the panel keeps state colours in CSS). */
   .inv-card { border-color: currentColor !important; }
+  .inv-row { border-bottom-color: currentColor !important; }
+  .inv-search-wrap { box-shadow: inset 0 0 0 1px currentColor; }
+  .inv-chip, .inv-primary, .inv-ctrl { border-color: currentColor !important; }
+  .inv-switch { box-shadow: inset 0 0 0 1px currentColor !important; }
 }
 `
 
@@ -1491,12 +1623,12 @@ window.__ModuleLoader__.load({
             className: 'inv-btn',
             onClick: onToggle,
           },
-          h('span', { style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
+          h('span', { className: 'inv-chev', style: { ...S.chev, transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 16 })),
           h('span', { style: S.sectionTitle }, title),
           showCount === false ? null : h('span', { style: S.sectionCount }, `${count} ${t('wsItemCount')}`),
           hint ? h('span', { style: S.sectionHint }, hint) : null,
         ),
-        open ? h('div', { style: S.card, className: 'inv-section-body' }, ...body) : null,
+        open ? h('div', { style: S.card, className: 'inv-section-body inv-card' }, ...body) : null,
       )
     }
 
@@ -1542,7 +1674,9 @@ window.__ModuleLoader__.load({
           },
         },
         h('span', {
-          style: { ...S.switchKnob, transform: isOn ? 'translateX(20px)' : 'translateX(0px)', transition: `transform 260ms ${EASE}` },
+          // Travel lives in a custom property so :active can scale on top of it
+          // instead of fighting an inline transform.
+          style: { ...S.switchKnob, '--inv-x': isOn ? '20px' : '0px' },
         }),
       )
     }
@@ -1557,7 +1691,7 @@ window.__ModuleLoader__.load({
         'button',
         {
           type: 'button',
-          className: 'inv-btn',
+          className: 'inv-btn inv-link',
           style: { ...S.linkBtn, ...(isDisabled ? S.linkBtnDisabled : {}) },
           disabled: isDisabled,
           onClick: (event) => {
@@ -1585,7 +1719,7 @@ window.__ModuleLoader__.load({
         'button',
         {
           type: 'button',
-          className: 'inv-btn inv-hide',
+          className: muted ? 'inv-btn inv-hide inv-ctrl' : 'inv-btn inv-hide',
           'aria-label': label,
           title: label,
           disabled: isDisabled,
@@ -1624,7 +1758,7 @@ window.__ModuleLoader__.load({
         ),
         h(
           'div',
-          { style: S.card, role: 'list' },
+          { className: 'inv-card', style: S.card, role: 'list' },
           ...workspaces.map((workspace, index) => {
             const counts = workspace.counts ?? {}
             // Same set the detail page lists, so the card reads like the page's
@@ -1834,10 +1968,10 @@ window.__ModuleLoader__.load({
         const hidden = hiddenSkills.includes(skill.name)
         return h(
           'div',
-          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}), ...(hidden ? S.rowHidden : {}) } },
+          { key: `ws-skill-${workspace.id}-${skill.name}`, style: { ...S.row, ...(last ? S.rowLast : {}) } },
           h(
             'div',
-            { style: S.rowMain },
+            { style: { ...S.rowMain, ...(hidden ? S.rowTextHidden : {}) } },
             h(
               'div',
               { style: S.subRow },
@@ -1881,7 +2015,7 @@ window.__ModuleLoader__.load({
           style: { ...S.foldHeader, ...(globalSkillRows.length === 0 ? S.foldHeaderEmpty : {}) },
           onClick: () => setShowGlobalSkills((prev) => !prev),
         },
-        h('span', { style: { ...S.chev, transform: showGlobalSkills ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+        h('span', { className: 'inv-chev', style: { ...S.chev, transform: showGlobalSkills ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
         h('span', { style: S.rowTitle }, t('wsGlobalSkillsFold')),
         h('span', { style: S.sectionCount }, `${globalSkillRows.length} ${t('wsItemCount')}`),
       )
@@ -2197,7 +2331,7 @@ window.__ModuleLoader__.load({
 
       const configCard = h(
         'div',
-        { style: { ...S.card, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+        { className: 'inv-card', style: { ...S.card, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
         configured
           ? null
           : h('div', { style: S.rowSub }, t('syncNotConfigured')),
@@ -2258,7 +2392,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip inv-chip-on',
               style: { ...S.chip, ...S.chipOn, opacity: busy === 'save' ? 0.5 : 1 },
               disabled: busy === 'save',
               onClick: save,
@@ -2269,7 +2403,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'load' ? 0.5 : 1 },
               disabled: busy === 'load',
               onClick: load,
@@ -2290,7 +2424,7 @@ window.__ModuleLoader__.load({
 
       const diffCard = h(
         'div',
-        { style: S.card },
+        { className: 'inv-card', style: S.card },
         h(
           'div',
           { style: S.row },
@@ -2312,7 +2446,7 @@ window.__ModuleLoader__.load({
                   checked: selection.includes(item.key),
                   onChange: () => toggleRow(item.key),
                   'aria-label': `${syncKindLabel(t, item.kind)} ${item.name}`,
-                  style: { width: '17px', height: '17px', flexShrink: 0, cursor: 'pointer' },
+                  style: { width: '17px', height: '17px', flexShrink: 0, cursor: 'pointer', accentColor: C.accent },
                 })
               : h('span', { style: { width: '17px', flexShrink: 0 } }),
             h('div', { style: S.rowMain },
@@ -2328,13 +2462,13 @@ window.__ModuleLoader__.load({
 
       const actionsCard = h(
         'div',
-        { style: { ...S.card, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+        { className: 'inv-card', style: { ...S.card, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
           h(
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip inv-chip-on',
               style: { ...S.chip, ...S.chipOn, opacity: busy === 'install' || selection.length === 0 ? 0.45 : 1 },
               disabled: busy === 'install' || selection.length === 0,
               onClick: install,
@@ -2345,7 +2479,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               onClick: () => setSelection(selection.length === installable.length ? [] : installable.map((item) => item.key)),
             },
@@ -2355,7 +2489,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'publish' ? 0.5 : 1 },
               disabled: busy === 'publish',
               onClick: publish,
@@ -2366,7 +2500,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'preview' ? 0.5 : 1 },
               disabled: busy === 'preview',
               onClick: showPreview,
@@ -2587,7 +2721,7 @@ window.__ModuleLoader__.load({
               'button',
               {
                 type: 'submit',
-                className: 'inv-btn',
+                className: 'inv-btn inv-primary',
                 style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) },
                 disabled: !canSave || busy,
               },
@@ -2633,7 +2767,7 @@ window.__ModuleLoader__.load({
             { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
             h(
               'button',
-              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              { type: 'submit', className: 'inv-btn inv-primary', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
               busy ? t('credentialSaving') : t('credentialExportGo'),
             ),
             h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
@@ -2683,7 +2817,7 @@ window.__ModuleLoader__.load({
             { key: 'actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
             h(
               'button',
-              { type: 'submit', className: 'inv-btn', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
+              { type: 'submit', className: 'inv-btn inv-primary', style: { ...S.primary, ...(canSave && !busy ? {} : { opacity: 0.5, cursor: 'default' }) }, disabled: !canSave || busy },
               busy ? t('credentialSaving') : t('credentialImportGo'),
             ),
             h(RowButton, { label: t('credentialCancel'), onClick: onCancel }),
@@ -2874,10 +3008,10 @@ window.__ModuleLoader__.load({
 
       const list =
         entries.length === 0
-          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('credentialLoading') : t('credentialNoEntries')))
+          ? h('div', { className: 'inv-card', style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('credentialLoading') : t('credentialNoEntries')))
           : h(
               'div',
-              { style: S.card, role: 'list' },
+              { className: 'inv-card', style: S.card, role: 'list' },
               ...entries.map((entry, index) =>
                 h(
                   'div',
@@ -2958,7 +3092,7 @@ window.__ModuleLoader__.load({
           : selected !== null
             ? h(
                 'div',
-                { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+                { className: 'inv-card', style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
                 h(
                   'div',
                   { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -2991,7 +3125,7 @@ window.__ModuleLoader__.load({
                     'button',
                     {
                       type: 'button',
-                      className: 'inv-btn',
+                      className: 'inv-btn inv-chip',
                       style: S.chip,
                       onClick: () => setEditing({ ...selected, secret: '' }),
                     },
@@ -3005,7 +3139,7 @@ window.__ModuleLoader__.load({
       const auditPanel = showAudit
         ? h(
             'div',
-            { style: { ...S.card, padding: '6px 16px 10px' } },
+            { className: 'inv-card', style: { ...S.card, padding: '6px 16px 10px' } },
             h('div', { style: { ...S.sectionHead, cursor: 'default', padding: '8px 0 6px' } }, h('span', { style: S.sectionTitle }, t('credentialAudit'))),
             audit.length === 0
               ? h('div', { style: S.empty }, t('credentialAuditEmpty'))
@@ -3040,7 +3174,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               onClick: () => setEditing({}),
             },
@@ -3050,7 +3184,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: showAudit ? 'inv-btn inv-chip inv-chip-on' : 'inv-btn inv-chip',
               'aria-pressed': showAudit ? 'true' : 'false',
               style: { ...S.chip, ...(showAudit ? S.chipOn : {}) },
               onClick: () => setShowAudit((prev) => !prev),
@@ -3061,7 +3195,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => setAux((current) => (current === 'export' ? null : 'export')),
@@ -3072,7 +3206,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => setAux((current) => (current === 'import' ? null : 'import')),
@@ -3083,7 +3217,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: rotate,
@@ -3094,7 +3228,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               disabled: busy,
               onClick: () => reload(),
@@ -3308,7 +3442,7 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { style: S.providerTrack, role: 'presentation' },
-        known ? h('div', { style: { ...S.providerFill, width: `${(ratio * 100).toFixed(2)}%`, background: color } }) : null,
+        known ? h('div', { className: 'inv-provider-fill', style: { ...S.providerFill, width: `${(ratio * 100).toFixed(2)}%`, background: color } }) : null,
       )
     }
 
@@ -3479,10 +3613,10 @@ window.__ModuleLoader__.load({
 
       const card =
         providers.length === 0
-          ? h('div', { style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('providerLoading') : t('providerNoProviders')))
+          ? h('div', { className: 'inv-card', style: S.card }, h('div', { style: S.empty }, phase === 'loading' ? t('providerLoading') : t('providerNoProviders')))
           : h(
               'div',
-              { style: S.card },
+              { className: 'inv-card', style: S.card },
               ...providers.map((provider, index) => {
                 const tone = providerStatus(provider)
                 const ratio = providerRatio(provider, maxRemaining)
@@ -3588,7 +3722,7 @@ window.__ModuleLoader__.load({
           )
         detail = h(
           'div',
-          { style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
+          { className: 'inv-card', style: { ...S.card, display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' } },
           h(
             'div',
             { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
@@ -3604,7 +3738,7 @@ window.__ModuleLoader__.load({
           ProviderField({ label: t('providerKey'), value: selected.keyPresent === true ? t('providerKeyPresent') : t('providerKeyMissing') }),
           h(
             'div',
-            { style: { ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', background: C.fill, border: 'none', gap: '2px' } },
+            { className: 'inv-card', style: { ...S.card, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', background: C.fill, border: 'none', gap: '2px' } },
             statCell('calls', t('providerCalls'), String(providerNum(stats.calls) ?? 0)),
             statCell('successes', t('providerSuccesses'), String(providerNum(stats.successes) ?? 0)),
             statCell('failures', t('providerFailures'), String(providerNum(stats.failures) ?? 0)),
@@ -3617,7 +3751,7 @@ window.__ModuleLoader__.load({
               'button',
               {
                 type: 'button',
-                className: 'inv-btn',
+                className: selected.enabled === false ? 'inv-btn inv-chip inv-chip-on' : 'inv-btn inv-chip',
                 style: { ...S.chip, ...(selected.enabled === false ? S.chipOn : {}) },
                 disabled: phase === 'saving',
                 onClick: () => toggleEnabled(selected),
@@ -3642,7 +3776,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
               disabled: busy,
               onClick: () => refresh(),
@@ -3654,7 +3788,7 @@ window.__ModuleLoader__.load({
                 'button',
                 {
                   type: 'button',
-                  className: 'inv-btn',
+                  className: 'inv-btn inv-chip',
                   style: S.chip,
                   onClick: () => {
                     reload()
@@ -3738,7 +3872,7 @@ window.__ModuleLoader__.load({
         h('span', { style: { ...T.caption, color: C.secondary } }, t('promptDescription')),
         h(
           'div',
-          { style: { ...S.card, padding: '10px 12px', background: C.fill, border: 'none' } },
+          { className: 'inv-card', style: { ...S.card, padding: '10px 12px', background: C.fill, border: 'none' } },
           h('textarea', {
             className: 'inv-textarea',
             style: {
@@ -3752,7 +3886,6 @@ window.__ModuleLoader__.load({
               background: C.base,
               border: `1px solid ${C.hairline}`,
               borderRadius: '10px',
-              outline: 'none',
               fontFamily: FONT_MONO,
               fontSize: '12.5px',
               lineHeight: 1.6,
@@ -3778,7 +3911,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-primary',
               style: { ...S.primary, ...(disabled ? { opacity: 0.5, cursor: 'default' } : {}) },
               disabled,
               onClick: onSave,
@@ -4010,41 +4143,124 @@ window.__ModuleLoader__.load({
             )
           : null
 
-      if (status === 'loading' && data === null) {
-        return h(
+      // One shell for every state (issue #179): the rail and the scroll host
+      // must be in the first paint. Before this, loading and error rendered a
+      // single column, so opening the panel jumped to two columns when the
+      // snapshot landed. Counts are passed only when data exists.
+      const navRailFor = (rails) =>
+        h(NavRail, {
+          label: t('navRailLabel'),
+          active: view === 'workspace' ? 'workspaces' : view,
+          onSelect: setView,
+          groups: [
+            {
+              title: t('navGroupOverview'),
+              items: [
+                { key: 'global', label: t('wsOverview'), count: rails?.overview },
+                { key: 'workspaces', label: t('wsWorkspaces'), count: rails?.workspaces },
+              ],
+            },
+            {
+              title: t('navGroupConfig'),
+              items: [
+                { key: 'sync', label: t('syncView') },
+                { key: 'providers', label: t('providerSection') },
+                { key: 'prompt', label: t('promptSection') },
+                { key: 'credentials', label: t('credentialSection') },
+              ],
+            },
+          ],
+        })
+
+      const shell = (navNode, children, rails) =>
+        h(
           'div',
           { style: S.root },
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+          navNode,
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
-            h('div', { style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
-              h('div', { style: S.skeleton }),
-              h('div', { style: { ...S.skeleton, width: '70%' } }),
-              h('div', { style: { ...S.skeleton, width: '85%' } }),
+            { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
+            navRailFor(rails),
+            h(
+              'div',
+              {
+                // The scroll host: the rail stays put while the main column
+                // scrolls under the sticky nav.
+                className: 'inv-scroll',
+                style: S.scrollHost,
+                onScroll: (event) => {
+                  const next = event.currentTarget.scrollTop > 24
+                  if (next !== scrolled) setScrolled(next)
+                },
+              },
+              h('div', { style: S.page }, ...children),
             ),
           ),
+        )
+
+      if (status === 'loading' && data === null) {
+        return shell(
+          h(
+            'div',
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
+            h(
+              'button',
+              {
+                type: 'button',
+                style: S.iconBtn,
+                className: 'inv-btn',
+                'aria-label': t('refresh'),
+                title: t('refresh'),
+                onClick: () => load(true),
+              },
+              h(Icon, { name: 'refresh', size: 19 }),
+            ),
+          ),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title')), h('p', { style: S.subtitle }, t('loading'))),
+          h(
+            'div',
+            { className: 'inv-card', style: { ...S.card, padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+            h('div', { className: 'inv-skeleton', style: S.skeleton }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '70%' } }),
+            h('div', { className: 'inv-skeleton', style: { ...S.skeleton, width: '85%' } }),
+          ),
+          ],
         )
       }
 
       if (status === 'error' && data === null) {
-        return h(
-          'div',
-          { style: S.root },
-          h('div', { style: S.nav, className: 'inv-nav' }, backToChat, h('span', { style: S.navTitle }, t('title'))),
+        return shell(
           h(
             'div',
-            { style: S.page },
-            h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
+            { style: S.nav, className: 'inv-nav' },
+            backToChat,
+            h('span', { className: 'inv-nav-title', style: S.navTitle, 'aria-hidden': 'true' }, t('title')),
             h(
-              'div',
-              { style: S.errorBox },
-              h(Icon, { name: 'alert', size: 18 }),
-              h('span', { style: { flex: '1 1 auto' } }, `${t('error')} ${message ? `(${message})` : ''}`),
-              h('button', { type: 'button', style: S.primary, onClick: () => load(true) }, t('retry')),
+              'button',
+              {
+                type: 'button',
+                style: S.iconBtn,
+                className: 'inv-btn',
+                'aria-label': t('refresh'),
+                title: t('refresh'),
+                onClick: () => load(true),
+              },
+              h(Icon, { name: 'refresh', size: 19 }),
             ),
           ),
+          [
+          h('div', { style: S.hero }, h('h3', { style: S.h1 }, t('title'))),
+          h(
+            'div',
+            { style: S.errorBox },
+            h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
+            h('span', { style: { flex: '1 1 auto' } }, t('error') + ' ' + (message ? '(' + message + ')' : '')),
+            h('button', { type: 'button', className: 'inv-primary', style: S.primary, onClick: () => load(true) }, t('retry')),
+          ),
+          ],
         )
       }
 
@@ -4108,6 +4324,7 @@ window.__ModuleLoader__.load({
             )
           : backToChat,
         h('span', {
+          className: 'inv-nav-title',
           style: { ...S.navTitle, opacity: scrolled ? 1 : 0, transition: 'opacity 180ms ease' },
           'aria-hidden': 'true',
         }, view === 'workspace' && activeWorkspace ? activeWorkspace.title : t('title')),
@@ -4137,7 +4354,7 @@ window.__ModuleLoader__.load({
         'button',
         {
           type: 'button',
-          className: 'inv-seg-btn',
+          className: showOfficial ? 'inv-seg-btn inv-chip inv-chip-on' : 'inv-seg-btn inv-chip',
           'aria-pressed': showOfficial ? 'true' : 'false',
           style: { ...S.chip, ...(showOfficial ? S.chipOn : {}) },
           title: t('officialHint'),
@@ -4153,7 +4370,7 @@ window.__ModuleLoader__.load({
               'button',
               {
                 type: 'button',
-                className: 'inv-seg-btn',
+                className: showHiddenSkills ? 'inv-seg-btn inv-chip inv-chip-on' : 'inv-seg-btn inv-chip',
                 'aria-pressed': showHiddenSkills ? 'true' : 'false',
                 style: { ...S.chip, ...(showHiddenSkills ? S.chipOn : {}) },
                 title: t('hiddenSkillsHint'),
@@ -4164,7 +4381,7 @@ window.__ModuleLoader__.load({
 
       const stats = h(
         'div',
-        { style: { ...S.card, ...S.stats } },
+        { className: 'inv-card', style: { ...S.card, ...S.stats } },
         ...[
           [t('packages'), packages.length],
           [t('mcp'), mcp.length],
@@ -4258,7 +4475,7 @@ window.__ModuleLoader__.load({
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
-                    h('span', { style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+                    h('span', { className: 'inv-chev', style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
                     h(
                       'div',
                       { style: S.rowMain },
@@ -4327,7 +4544,7 @@ window.__ModuleLoader__.load({
                 // Anything the host cannot switch is a project-scoped skill.
                 return h(
                   'div',
-                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), ...(hiddenSkills.includes(item.name) ? S.rowHidden : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
+                  { key, style: { ...S.row, ...(index === skills.length - 1 ? S.rowLast : {}), flexDirection: 'column', alignItems: 'stretch', gap: '6px' } },
                   h(
                     'div',
                     {
@@ -4340,10 +4557,10 @@ window.__ModuleLoader__.load({
                       onClick: toggleRow,
                       onKeyDown: activate(toggleRow),
                     },
-                    h('span', { style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
+                    h('span', { className: 'inv-chev', style: { ...S.chev, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' } }, h(Icon, { name: 'chevronDown', size: 15 })),
                     h(
                       'div',
-                      { style: S.rowMain },
+                      { style: { ...S.rowMain, ...(hiddenSkills.includes(item.name) ? S.rowTextHidden : {}) } },
                       h(
                         'div',
                         { style: S.subRow },
@@ -4493,54 +4710,7 @@ window.__ModuleLoader__.load({
       // Left navigation rail (issue #91): the six views in two groups. Counts
       // mirror what the views will show; the workspace detail keeps the
       // highlight on 工作区 because it is the same view state.
-      const navRail = h(NavRail, {
-        label: t('navRailLabel'),
-        active: view === 'workspace' ? 'workspaces' : view,
-        onSelect: setView,
-        groups: [
-          {
-            title: t('navGroupOverview'),
-            items: [
-              { key: 'global', label: t('wsOverview'), count: packages.length + mcp.length + skills.length },
-              { key: 'workspaces', label: t('wsWorkspaces'), count: workspaceList.length },
-            ],
-          },
-          {
-            title: t('navGroupConfig'),
-            items: [
-              { key: 'sync', label: t('syncView') },
-              { key: 'providers', label: t('providerSection') },
-              { key: 'prompt', label: t('promptSection') },
-              { key: 'credentials', label: t('credentialSection') },
-            ],
-          },
-        ],
-      })
-
-      return h(
-        'div',
-        {
-          style: S.root,
-        },
-        nav,
-        h(
-          'div',
-          { style: { display: 'flex', flexDirection: 'row', flex: '1 1 auto', minHeight: 0, alignItems: 'stretch' } },
-          navRail,
-          h(
-            'div',
-            {
-              // The scroll host: the rail stays put while the main column
-              // scrolls under the sticky nav. Takes over S.root's old role.
-              style: S.scrollHost,
-              onScroll: (event) => {
-                const next = event.currentTarget.scrollTop > 24
-                if (next !== scrolled) setScrolled(next)
-              },
-            },
-            h(
-              'div',
-              { style: S.page },
+      const pageChildren = [
               // (the page column is a fixed 780px list width on purpose: the tool
               // survey reads like an inset list, and the live sections follow it)
               h(
@@ -4592,7 +4762,7 @@ window.__ModuleLoader__.load({
               ? h(
                   'div',
                   { style: { ...S.warn, marginTop: '14px' } },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.warning } }),
                   h(
                     'div',
                     { style: { display: 'flex', flexDirection: 'column', gap: '2px' } },
@@ -4637,18 +4807,18 @@ window.__ModuleLoader__.load({
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('wsActionFailed')}: ${wsError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setWsError('') }, t('wsDismiss')),
                 )
               : null,
             globalError.length > 0
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('globalToggleFailed')}: ${globalError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setGlobalError('') }, t('wsDismiss')),
                 )
               : null,
             globalNotice.length > 0 ? h('div', { style: S.notice, role: 'status' }, globalNotice) : null,
@@ -4656,17 +4826,18 @@ window.__ModuleLoader__.load({
               ? h(
                   'div',
                   { style: S.toast, role: 'alert' },
-                  h(Icon, { name: 'alert', size: 18 }),
+                  h(Icon, { name: 'alert', size: 18, style: { color: C.danger } }),
                   h('span', { style: { flex: '1 1 auto' } }, `${t('vaultFailed')}: ${vaultError}`),
-                  h('button', { type: 'button', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
+                  h('button', { type: 'button', className: 'inv-btn', style: S.toastBtn, onClick: () => setVaultError('') }, t('wsDismiss')),
                 )
               : null,
-            ),
-          ),
-        ),
-      )
-    }
+      ]
 
+      return shell(nav, pageChildren, {
+        overview: packages.length + mcp.length + skills.length,
+        workspaces: workspaceList.length,
+      })
+    }
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-inventory: dictionaries')
       ctx.effect(installStyles, 'dsh-inventory: styles')
@@ -4888,7 +5059,7 @@ window.__ModuleLoader__.load({
           'button',
           {
             type: 'button',
-            className: 'inv-seg-btn',
+            className: 'inv-seg-btn inv-primary',
             style: { ...S.primary, ...(busy ? { opacity: 0.5, cursor: 'default' } : {}) },
             disabled: busy,
             onClick: busy ? undefined : onClick,

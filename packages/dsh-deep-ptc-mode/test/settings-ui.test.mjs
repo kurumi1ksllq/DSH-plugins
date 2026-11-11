@@ -2,8 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import React from 'react';
-import Renderer, { act } from 'react-test-renderer';
+import { skipUnlessModules } from './support/prerequisites.mjs';
+
+const uiSkip = skipUnlessModules(['react', 'react-test-renderer']);
+const testOrSkip = (title, fn) => (uiSkip === undefined ? test(title, fn) : test(title, { skip: uiSkip }, () => {}));
+
+const React = uiSkip === undefined ? (await import('react')).default : undefined;
+const { default: Renderer, act } = uiSkip === undefined ? await import('react-test-renderer') : {};
 
 function setup(platform) {
   let plugin;
@@ -44,7 +49,7 @@ function setup(platform) {
   return { Card, form, writes, setSnapshot: value => { snapshot = value; for (const listener of listeners) listener(); } };
 }
 
-test('Windows settings save WSL and distribution atomically through the revisioned host form', async () => {
+testOrSkip('Windows settings save WSL and distribution atomically through the revisioned host form', async () => {
   const fixture = setup('win32');
   let view;
   await act(async () => { view = Renderer.create(React.createElement(fixture.Card, { view: 'config' })); });
@@ -63,7 +68,7 @@ test('Windows settings save WSL and distribution atomically through the revision
   await act(async () => { view.unmount(); });
 });
 
-test('macOS offers native Zsh and Bash, and excludes Windows-only selections', async () => {
+testOrSkip('macOS offers native Zsh and Bash, and excludes Windows-only selections', async () => {
   const fixture = setup('darwin');
   let view;
   await act(async () => { view = Renderer.create(React.createElement(fixture.Card, { view: 'config' })); });
@@ -75,7 +80,7 @@ test('macOS offers native Zsh and Bash, and excludes Windows-only selections', a
   await act(async () => { view.unmount(); });
 });
 
-test('a stale draft keeps its original revision fence when another window updates settings', async () => {
+testOrSkip('a stale draft keeps its original revision fence when another window updates settings', async () => {
   const fixture = setup('win32');
   let view;
   await act(async () => { view = Renderer.create(React.createElement(fixture.Card, { view: 'config' })); });

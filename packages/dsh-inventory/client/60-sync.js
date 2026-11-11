@@ -192,7 +192,7 @@
 
       const configCard = h(
         'div',
-        { style: { ...S.card, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+        { className: 'inv-card', style: { ...S.card, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
         configured
           ? null
           : h('div', { style: S.rowSub }, t('syncNotConfigured')),
@@ -253,7 +253,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip inv-chip-on',
               style: { ...S.chip, ...S.chipOn, opacity: busy === 'save' ? 0.5 : 1 },
               disabled: busy === 'save',
               onClick: save,
@@ -264,7 +264,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'load' ? 0.5 : 1 },
               disabled: busy === 'load',
               onClick: load,
@@ -285,7 +285,7 @@
 
       const diffCard = h(
         'div',
-        { style: S.card },
+        { className: 'inv-card', style: S.card },
         h(
           'div',
           { style: S.row },
@@ -307,7 +307,7 @@
                   checked: selection.includes(item.key),
                   onChange: () => toggleRow(item.key),
                   'aria-label': `${syncKindLabel(t, item.kind)} ${item.name}`,
-                  style: { width: '17px', height: '17px', flexShrink: 0, cursor: 'pointer' },
+                  style: { width: '17px', height: '17px', flexShrink: 0, cursor: 'pointer', accentColor: C.accent },
                 })
               : h('span', { style: { width: '17px', flexShrink: 0 } }),
             h('div', { style: S.rowMain },
@@ -323,13 +323,13 @@
 
       const actionsCard = h(
         'div',
-        { style: { ...S.card, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+        { className: 'inv-card', style: { ...S.card, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px' } },
         h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
           h(
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip inv-chip-on',
               style: { ...S.chip, ...S.chipOn, opacity: busy === 'install' || selection.length === 0 ? 0.45 : 1 },
               disabled: busy === 'install' || selection.length === 0,
               onClick: install,
@@ -340,7 +340,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: S.chip,
               onClick: () => setSelection(selection.length === installable.length ? [] : installable.map((item) => item.key)),
             },
@@ -350,7 +350,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'publish' ? 0.5 : 1 },
               disabled: busy === 'publish',
               onClick: publish,
@@ -361,7 +361,7 @@
             'button',
             {
               type: 'button',
-              className: 'inv-btn',
+              className: 'inv-btn inv-chip',
               style: { ...S.chip, opacity: busy === 'preview' ? 0.5 : 1 },
               disabled: busy === 'preview',
               onClick: showPreview,

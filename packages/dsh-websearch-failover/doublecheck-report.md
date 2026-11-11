@@ -1,5 +1,8 @@
-# Doublecheck report
+# Doublecheck report（历史快照）
 
+> **历史快照（2026-10-25，0.3.x 时期）**：本文记录的是旧 `plugin/` 布局与独立安装器的
+> 一次排查；安装方式与包布局已在 0.4.0 变更，现状见 [README.md](README.md)。
+>
 > Verdict: **green**
 
 > 由 `doublecheck_report` 生成（2026-10-25T23:5x+08:00，本会话两次调用）。本机 `fs` seam 未挂载，工具无法自行落盘，故按工具返回的正文原样写入本文件。

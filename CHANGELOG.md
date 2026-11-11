@@ -16,6 +16,66 @@ A bundle whose directory has changes after its version tag fails the gate.
 - 连带清理:`client.js` 三个不再出现的 `need_*` 文案(zh/en 各一份)、`task-board.js` 已无消费者的 `CI_MAX_ROUNDS` 导出。
 - 测试:`task-board`/`t4-df`/`client-board` 改为断言「词表封闭为两项」,并保留「状态仍可见」的卡片断言。
 
+### dsh-inventory 0.12.3 — README 对齐现状(#180)
+
+- 提示词注入的来源改为本包 `prompt-inject` host 半区(原 `@local/dsh-prompt-inject`,0.10.0 并入);安装段改成 monorepo `link:` + `dsh.profile.bundles` 接线;去掉写死的测试用例数。无代码变更。
+
+### dsh-deep-ptc-mode 1.13.2 — README 回到当前版本线(#180)
+
+- 版本头与安装片段从 1.7.3 更新到 1.13.2;新增 1.8–1.13 的变更摘要(中英);`TEST_REPORT.md` 标注为 1.7.3 时期的历史快照。无代码变更。
+
+### dsh-websearch-failover 0.5.1 — README 对齐 0.4.0 布局 + 清理死脚本(#180)
+
+- 安装段改指 monorepo `link:`;删除 0.4.0 已退役的 `plugin/`、`scripts/build-plugin.mjs`、`scripts/install.mjs`、`test-install` 等描述;测试清单按实际执行方式更新;`HANDOVER.md` / `doublecheck-report.md` 标为历史快照。
+- `package.json` 删除 6 个指向已删除文件的死脚本(`test:install`、`build`、`build:check`、`plugin:dry`、`plugin:install`、`plugin:uninstall`)。除此之外无代码变更。
+
+### dsh-credential-vault 0.6.1 — README 安装/测试段对齐(#180)
+
+- 安装段改成 monorepo `link:` + `dsh.profile.bundles` 接线;去掉写死的测试数;补 0.6.0 的凭据级 TTL 说明。无代码变更。
+
+### dsh-inventory 0.12.2 — 控件可辨识度与加载态布局(#179)
+
+- **控件看得出是控件**：在原有 12% 浅底之上补 1px 细描边、文字改用主文字色，悬停加深描边与底色、按下微缩；分组标题升级为主文字色且保持无框，靠左侧箭头表示可展开。此前两者字号、颜色、无描边全部同款，用户分不出"能点的"和"只是标题的"。
+- **`.inv-btn` 补悬停/按下反馈**：返回、刷新、分组标题这类图标/文字按钮此前只有焦点态，鼠标划过毫无变化。其中分组标题原先内联写了 `background: transparent`，会压掉样式表里的悬停底色 —— 本次把底色交给 CSS，悬停才真正画得出来。
+- **加载态与错误态改用同一套两栏外壳**：以前只有数据到位后才出现左侧导航栏与滚动容器，打开面板会先竖排再跳成两栏。现在 nav + 导航栏 + `inv-scroll` 在第一帧就位，骨架/错误条落在将来出内容的位置；数据未到时导航栏不显示计数（测试双向守住：加载无计数、就绪有计数）。
+- 测试：新增两条契约——「加载/错误与就绪外壳同构（导航栏标签逐一相等、滚动容器与骨架在位、错误态保留可点重试）」与「控件带描边+底色、标题用主文字色、`.inv-btn` 有 hover、切换件与折叠头结构互斥」。
+
+### dsh-inventory 0.12.1 — 工具管理页 UI 细节打磨(#170)
+
+- **修复「交互反馈从未生效」**:控件底色/文字色/位移原先写在内联样式里,优先级高于样式表,导致 `STYLES` 里三条 `:hover`/`:active` 规则(开关按压、隐藏按钮悬停、导航悬停)一秒都没执行过。现按 `inv-chip` / `inv-chip-on` / `inv-primary` / `inv-link` / `inv-ctrl` / `inv-hide` 类基态承载外观,内联只留尺寸与排版;开关滑块位移改用自定义属性 `--inv-x`,按压缩放 `scale(0.94)` 才能叠加。
+- **焦点可见性(WCAG 2.2 SC 2.4.11)**:焦点环不再给所有元素强塞 `border-radius: 10px`(会把胶囊开关、导航项的环画错形状);卡内行改为内嵌 `outline-offset: -3px`,不再被 `overflow: hidden` 裁掉半圈;提示词编辑器补焦点态与 placeholder 颜色。
+- **排版**:标题 `text-wrap: balance`、说明与行副标题 `text-wrap: pretty`;徽标数字补 `tabular-nums`;次级文字去掉叠在弱色上的 `opacity: 0.75`(对比度 ≈3.0:1 → ≈4.8:1);面板根补字体平滑。
+- **控件质感**:骨架屏改 shimmer(reduced-motion 下静态);开关轨道内描边、滑块阴影收敛;开关与图标按钮用伪元素扩命中区;搜索框聚焦抬升 + caret/placeholder 着色;滚动条细化与 `::selection`;卡片改分层 label 色阴影;警示条同色系描边与着色图标;圆角收敛为 10/8/999 三级;「已隐藏技能」只弱化文字不弱化开关。
+- **测试**:新增 `test/ui-detail.test.mjs`(6 条公开行为契约:焦点覆盖、焦点环形状、状态属性归 CSS、reduced-motion 覆盖、禁 `transition: all`、排版契约),删规则即红;渲染桩抽到 `test/support/react-runtime.mjs` 共用。
+- **边界**:布局、栏目、文案、宿主 API 均未改;MCP 行徽标溢出裁掉行尾开关属断行问题,留后续 issue。
+### dsh-skill-surface 0.2.1 — 领域触发两处缺陷(#175)
+
+- **认出 PTC 加载**：deep-ptc 里模型调 `skill` 走 `tool/ptc-dispatch`（`arguments` 已是对象），而「已加载」判定只认 `tool/call` —— 导致该 preset 下加载过的技能下一轮仍被点名。现在两类事件都认。
+- **回声抑制**：子 agent 回报会引用那句提示，父会话原先会把它当新输入再触发一次。含 nudge 标记的文本不再触发。
+- 两条都有反向验证用例：删掉 dispatch 分支 → F1 红；删掉回声守卫 → F2 红。
+
+### dsh-skill-surface 0.2.0 — 领域触发：开工时点名相关技能(#172)
+
+- **背景**：一次真实会话里用户要求「优化页面的 ui 细节」，目录中有 `make-interfaces-feel-better`，但全程 29 次工具调用、0 次 `skill`。诊断结论是「觉得没必要查」，不是「看不到 / 找不到」。
+- 新增 `lib/domains.mjs`：7 个领域的**策展短名单** + 中英关键词，不做检索排序（宽松匹配对同一句话命中 123 条，噪音只会让提示被无视）。
+- `agent/pre-step` 注入一行（代码内 clamp 到 120 字符）：同领域**一个强信号或两个弱信号**才触发；每轮最多一次；**本会话**已加载过该领域技能则不发。
+- 「已加载」同时认两条路径：本包注入的 `skill-invocation` 消息，以及模型自己调 `skill`/`skill_get` 留下的 tool call——只认前者会让 nudge 反复点名刚读过的技能。增量扫描，不重放整段历史。
+- 委派子会话收到的 relay 消息也算任务陈述（否则最需要提示的那批 agent 听不到）。多领域命中时跳过已加载的领域、继续看下一个，不再整条吞掉。
+- 短名单里的名字必须在当前目录里真实存在且 `modelInvocable`，否则丢弃；全丢则整条不发。**一次最多点名 3 个**；前端领域按 react/vue 分栈，不会让 React 项目去看 `vue-patterns`。
+- 对两种加载器都生效：有官方 `skill` 指向 `skill`，只有本包 `skill_get` 的指向 `skill_get`。
+- 新增 `test/domain-trigger.test.mjs`（7 条）：含「回放用户原话必须命中」与「20 条普通消息误触发 ≤2」的噪音预算。
+
+
+### dsh-deep-ptc-mode 1.13.1 — 缺依赖时按前置跳过(#167/#168)
+
+- 新增 `test/support/prerequisites.mjs`：ESM 优先、CJS 兜底探测可选前置，skip 时给出可操作理由。
+- 新增 `test/prerequisites.test.mjs`：探针双向自检——能解析的必须报「有」，解析不到必须报「缺」。恒返回理由的探针会静默跳过所有套件而门禁仍绿，这两条断言就是防它。
+- `settings-ui` / `tool-controls-ui`：缺 `react`、`react-test-renderer` 时以一条 skip 呈现，而不是加载期崩溃。
+- `upstream`：17 条里 15 条需要 YAML 解析器，缺 `js-yaml` 时跳过；另外 2 条（peer 声明检查、指向性验证）照常运行。
+- `execution`：3 条 composition 用例读仓库内 fixture，前置收窄为 `js-yaml`，不依赖「已安装宿主声明」（那是 peer，CI 不装）。
+- 根 `test/verify-clean.test.mjs`：只把 `node_modules` 那一条断言改成条件（附 diagnostic），泄漏检查照常运行。
+- 效果：无依赖 worktree 里 deep-ptc 177 测 / 153 过 / 0 红 / 24 跳过；依赖齐备时 177/177 全过、零跳过；仓库契约两种环境都是 87/87。
+
 ### dsh-skill-surface 0.1.1 — 不再挂第二个 tool-skill(#160)
 
 - **修复 #159 上线事故**：宿主平面重复挂载官方 `tool-skill` 会让被遮蔽的实例发布"空目录替换消息"，把 standard/ptc 会话的 270 条技能目录清空。本版删除该行，并加回归断言禁止再次出现。
@@ -79,7 +139,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 15 个条目,全部已随各自 tag 发布;待下一次统一归档至 History 段。
+> 本段现有 34 个条目:29 条有对应 tag;`dsh-skill-surface@0.1.0` 缺 tag(早于 tag 纪律),本次新增 4 条(#180)在合并后补打;待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
