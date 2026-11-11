@@ -269,6 +269,13 @@ test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessi
   const home = mkdtempSync(join(tmpdir(), 'inv-177-home-'))
   const sessionDir = join(home, 'sessions', '--demo--', 'sess-1')
   mkdirSync(sessionDir, { recursive: true })
+  // The panel renders item.edges (skills[].edges), not the top-level edges array.
+  // Without a real skill on a skill root the snapshot has skills: [] and the panel
+  // shows nothing, so an assertion on the top-level array would be green while the
+  // user sees an empty card.
+  const skillDir = join(home, 'skills', 'demo-skill')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(join(skillDir, 'SKILL.md'), '---' + String.fromCharCode(10) + 'name: demo-skill' + String.fromCharCode(10) + 'description: fixture' + String.fromCharCode(10) + '---' + String.fromCharCode(10) + 'body' + String.fromCharCode(10), 'utf8')
   const events = [
     { type: 'tool/ptc-dispatch', seq: 1, data: { name: 'skill', arguments: { name: 'demo-skill' }, isError: false } },
     { type: 'tool/ptc-dispatch', seq: 2, data: { name: 'bash', arguments: { command: 'ls' }, isError: false } },
@@ -325,8 +332,11 @@ test('session evidence is read from $DSH_HOME/sessions, not $DSH_HOME/.dsh/sessi
     // includes('"session"') would also pass on an unrelated field or a path that
     // happens to contain the word.
     const snapshot = JSON.parse(text)
-    const edge = snapshot.edges.find((entry) => entry.skill === 'demo-skill')
-    assert.ok(edge, 'the skill from the session file never reached the snapshot')
+    // Assert through skills[].edges: that is the array the panel actually renders.
+    const skill = snapshot.skills.find((entry) => entry.name === 'demo-skill')
+    assert.ok(skill, 'the fixture skill must be scanned, or the panel shows an empty card')
+    const edge = skill.edges.find((entry) => entry.id === 'bash')
+    assert.ok(edge, "the session evidence never reached the skill the panel renders")
     assert.ok(edge.evidence.sources.includes('session'), 'the edge carries no session source')
     assert.equal(edge.evidence.count, 1, 'the single bash dispatch should count once')
   } finally {

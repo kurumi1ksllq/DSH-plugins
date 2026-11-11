@@ -63,7 +63,7 @@ correct:    /root/.dsh/sessions        ← 存在(实测约 370 个，随会话�
 - **T4（端到端）**：临时 `DSH_HOME` + 真实会话文件 → `GET /inventory/snapshot` 有 session 边。**这是唯一能在 CI 上抓住路径 bug 的测试**
 
 反向验证：
-- 改回只认 `tool/call` → T1/T2/T4 红
+- 改回只认 `tool/call` → T1/T2/T3/T4 四条全红
 - 改回 `.dsh/.dsh` → **只有 T4 红**（证明两条测试锁不同根因）
 
 ## 边界
@@ -72,6 +72,27 @@ correct:    /root/.dsh/sessions        ← 存在(实测约 370 个，随会话�
 - 不改 UI。
 - 验收不能写「本机面板必须出现会话边」——本机最近 12 个会话里 skill 加载数为 0，修好也可能看不到；只能断言构造的 fixture。
 
+## 验收（review 后补，共 6 条）
+
+| # | 验收项 | 反向验证 |
+| --- | --- | --- |
+| T1 | dispatch 事件里的 skill 加载产生证据 | 门改回 tool/call → 红 |
+| T2 | 两类事件源在同一会话里都被认 | 同上 → 红 |
+| T3 | 畸形 dispatch 不炸（-start 不算结算事件） | 同上 → 红 |
+| T4 | 端到端：从 $DSH_HOME/sessions 读到会话边，**断言走 skills[].edges**（面板实际渲染的数组，不是顶层 edges） | 路径改回 .dsh/.dsh → 红 |
+| T5 | skill_get 也算加载（复用 handoff.mjs 的 LOADER_TOOLS 口径） | 改回单值 → 红 |
+| T6 | 失败的加载不产生证据（dispatch 的 isError === true 不开窗） | 去掉过滤 → 红 |
+
+性能验收（review 补）：
+
+- 会话解码不得让 refresh=1 的端到端从 ~200 ms 量级涨到秒级。实测基线：空 DSH_HOME 冷 236 / 热 182 ms；带 12 个真实会话冷 1232 ms。
+- 加 (path, mtime, size) 缓存后热路径 205 ms，与会话无关的部分不变。
+
+口径说明（避免下一轮误判）：
+
+- skill_get 还有 {"query":"tdd"} 这种无 name 的形状，按现有 args.name 校验会自然跳过——这是预期，不是漏项。
+- run_code 仍占窗口：它是 PTC 的传输工具而非技能带出的工具链成员，但排除它属改统计口径，本次不做，留给后续票。
+- T2 在本机数据里没有真实样本（347 个含工具事件的会话中 0 个同时含两类事件源），它是防御性用例。
 ## 变更（2026-11-11，双轴 review 后）
 
 轴2 报 7 条，全部采纳。最重要的两条：
