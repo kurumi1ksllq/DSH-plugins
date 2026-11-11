@@ -139,3 +139,33 @@ test('polling and concurrency have their own rule, aligned with the existing lim
     assert.match(bullet, /5 ?秒|5 seconds/, locale + ': the interval must fit the pause guard')
   }
 })
+
+test('zh and en carry the same rule set, not just the same bullet count', () => {
+  // The count assertion alone is blind to wording drift: changing a zh clause
+  // without touching en keeps the counts equal and stays green (measured). What
+  // matters is that each rule has a counterpart in the other locale, so pair the
+  // markers instead of counting lines.
+  return import('../lib/delegation-text.mjs').then(({ renderDelegationText }) => {
+    const zh = renderDelegationText('zh')
+    const en = renderDelegationText('en')
+    const pairs = [
+      ['todo_write', 'todo_write'],
+      ['workflow', 'workflow'],
+      ['subagent', 'subagent'],
+      ['wait_agent', 'wait_agent'],
+      ['list_agents', 'list_agents'],
+      ['inbox', 'inbox'],
+      ['job_output', 'job_output'],
+      ['Promise.all', 'Promise.all'],
+      ['第 3 个', 'third'],
+      ['2 次', 'cap at 2'],
+      ['5 秒', '5 seconds'],
+    ]
+    const missing = []
+    for (const [zhNeedle, enNeedle] of pairs) {
+      if (!zh.includes(zhNeedle)) missing.push('zh is missing ' + zhNeedle)
+      if (!en.includes(enNeedle)) missing.push('en is missing ' + enNeedle)
+    }
+    assert.deepEqual(missing, [], 'every rule must exist in both locales')
+  })
+})
