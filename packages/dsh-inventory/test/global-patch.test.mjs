@@ -1,10 +1,30 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { definedIds, patchLayerOf, setPatchEnabled, writePatchEnabled } from '../lib/global-patch.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 /**
  * `setPatchEnabled` edits a profile `cordis.patch.yml` by hand: comments and
@@ -134,7 +154,7 @@ test('a block with only an id counts as enabled, so enabling it is a no-op', () 
 })
 
 test('writePatchEnabled persists a new block and preserves the trailing newline', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'inv-global-patch-'))
+  const dir = track(mkdtempSync(join(tmpdir(), 'inv-global-patch-')))
   const file = join(dir, 'cordis.patch.yml')
   const source = '# profile patch\n- id: dsh-inventory\n  disabled: false\n'
   writeFileSync(file, source, 'utf8')
@@ -155,7 +175,7 @@ test('writePatchEnabled persists a new block and preserves the trailing newline'
 })
 
 test('writePatchEnabled flips an existing block and keeps its neighbours', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'inv-global-patch-flip-'))
+  const dir = track(mkdtempSync(join(tmpdir(), 'inv-global-patch-flip-')))
   const file = join(dir, 'cordis.patch.yml')
   writeFileSync(file, '# keep\n- id: mcp-officecli\n  disabled: false\n', 'utf8')
 

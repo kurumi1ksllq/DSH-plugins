@@ -58,6 +58,12 @@ node scripts/verify-clean.mjs -- <command…>   # 或只跑自定义命令（同
 改动了某个包就必须升它的版本号（`check-bundle-versions` 会拦），
 合并后在 main 上打 `<包名>@<版本>` 的 tag。
 
+口径（#145 起由机制保证，不再靠惯例）：
+
+- 判定基准是**上一个自洽的 release tag**——tag 名必须等于该提交里 `package.json` 声明的版本。本仓有 3 个错位 tag，取「最新 tag」会算错基线。
+- **纯测试改动免升版**：`test/`、`tests/`、`__tests__/` 目录下的文件，以及 `*.test.mjs` / `*.spec.mjs` / `test-*.mjs`。注意 `test-governor/` 在 `files` 里、会随包发布，其中非测试文件仍要升版。
+- **文档改动仍要升版**（#180 的惯例：改 README 也打 tag）。
+
 ## 提交与回复
 
 - commit 只在流程节点执行（push/PR 前、CI 自修重推时），其余时候等用户明确要求

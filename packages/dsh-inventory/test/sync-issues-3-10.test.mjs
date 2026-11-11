@@ -13,9 +13,9 @@
  * Tests run one at a time: they swap a process-wide environment variable, and
  * the default `node --test` mode runs files in parallel but tests sequentially.
  */
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -23,6 +23,26 @@ import { buildManifest } from '../lib/manifest.js'
 import { publicState } from '../lib/sync-state.js'
 import { prepareManifestText, publishManifest, sameManifest } from '../lib/sync-publish.js'
 import { syncApply, syncPublish, syncStatus } from '../lib/sync-service.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 function caps(overrides = {}) {
   return { platform: 'linux', hasCommand: () => false, gpu: false, ...overrides }
@@ -99,7 +119,7 @@ const SNAPSHOT_MANIFEST_TEXT = JSON.stringify(
  */
 async function withTempHome(run) {
   const previous = process.env.DSH_HOME
-  process.env.DSH_HOME = mkdtempSync(join(tmpdir(), 'dsh-sync-issues-3-10-'))
+  process.env.DSH_HOME = track(mkdtempSync(join(tmpdir(), 'dsh-sync-issues-3-10-')))
   try {
     const mod = await import('../lib/sync-state.js')
     return await run(mod)
@@ -306,13 +326,13 @@ test('#10 syncApply success records lastPullAt and honours the injected clock', 
   await withTempHome(async ({ readState }) => {
     // A skill install is a filesystem copy, so it can succeed without any
     // package manager: that is the success path this test needs.
-    const profile = mkdtempSync(join(tmpdir(), 'dsh-profile-'))
+    const profile = track(mkdtempSync(join(tmpdir(), 'dsh-profile-')))
     writeFileSync(join(profile, 'package.json'), '{"name":"p","dependencies":{}}')
-    const repoRoot = mkdtempSync(join(tmpdir(), 'dsh-repo-'))
+    const repoRoot = track(mkdtempSync(join(tmpdir(), 'dsh-repo-')))
     mkdirSync(join(repoRoot, 'skills', 'ui-design'), { recursive: true })
     writeFileSync(join(repoRoot, 'skills', 'ui-design', 'SKILL.md'), '# ui-design')
-    const vaultDir = mkdtempSync(join(tmpdir(), 'dsh-vault-'))
-    const skillRoot = mkdtempSync(join(tmpdir(), 'dsh-skills-'))
+    const vaultDir = track(mkdtempSync(join(tmpdir(), 'dsh-vault-')))
+    const skillRoot = track(mkdtempSync(join(tmpdir(), 'dsh-skills-')))
     const text = JSON.stringify({
       manifestVersion: 1,
       generatedAt: 0,
@@ -343,9 +363,9 @@ test('#10 syncApply success records lastPullAt and honours the injected clock', 
 
 test('#10 syncApply without an injected clock still records a pull', async () => {
   await withTempHome(async ({ readState }) => {
-    const profile = mkdtempSync(join(tmpdir(), 'dsh-profile-'))
+    const profile = track(mkdtempSync(join(tmpdir(), 'dsh-profile-')))
     writeFileSync(join(profile, 'package.json'), '{"name":"p","dependencies":{}}')
-    const repoRoot = mkdtempSync(join(tmpdir(), 'dsh-repo-'))
+    const repoRoot = track(mkdtempSync(join(tmpdir(), 'dsh-repo-')))
     mkdirSync(join(repoRoot, 'skills', 'ui-design'), { recursive: true })
     writeFileSync(join(repoRoot, 'skills', 'ui-design', 'SKILL.md'), '# ui-design')
     const text = JSON.stringify({
@@ -359,8 +379,8 @@ test('#10 syncApply without an injected clock still records a pull', async () =>
       options: {
         profileDir: profile,
         repoRoot,
-        vaultDir: mkdtempSync(join(tmpdir(), 'dsh-vault-')),
-        skillRoot: mkdtempSync(join(tmpdir(), 'dsh-skills-')),
+        vaultDir: track(mkdtempSync(join(tmpdir(), 'dsh-vault-'))),
+        skillRoot: track(mkdtempSync(join(tmpdir(), 'dsh-skills-'))),
         capabilities: caps(),
         fetchImpl: async () => ({ ok: true, status: 200, text: async () => text }),
       },

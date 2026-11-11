@@ -8,8 +8,11 @@
  *      built for, so the host fails at install instead of at activation.
  *   2. **a test script** (P1-8) - every bundle declares its own `test`, so
  *      `pnpm -r --if-present` cannot skip a package in silence.
- *   3. **a version bump** (P1-7) - a bundle whose code changed since its last
- *      tag must have a higher `version`.
+ *   3. **a version bump** (P1-7) - a bundle whose SHIPPED files changed since its
+ *      last release must declare a higher `version`. "Last release" means the newest
+ *      tag whose commit declares that same version: three tags in this repository
+ *      sit on a commit whose manifest still says the previous version, so the newest
+ *      tag alone is not a safe baseline. Test-only changes are exempt.
  *   4. **a CHANGELOG entry** (T0.2/#99) - every tagged version is documented in
  *      the root CHANGELOG.md. Name and version must be adjacent inside one
  *      `/`-separated heading segment; a combined heading only vouches for the
@@ -29,7 +32,24 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const ROOT = resolve(HERE, '..')
+const DEFAULT_ROOT = resolve(HERE, '..')
+
+/**
+ * `--root DIR`: check a throwaway workspace instead of this repository.
+ *
+ * Rule 3 must be provable with PUBLIC behaviour: build a workspace with real
+ * git history, run the script, read the exit code. Without this flag the only
+ * way to test it is importing a private helper, which this repository forbids.
+ * Mirrors scripts/verify-packages.mjs.
+ */
+function rootFromArgv(argv) {
+  const at = argv.indexOf('--root')
+  if (at === -1) return DEFAULT_ROOT
+  const value = argv[at + 1]
+  if (value === undefined) throw new Error('--root needs a directory')
+  return resolve(value)
+}
+const ROOT = rootFromArgv(process.argv.slice(2))
 
 /** The DSH range every bundle in this workspace is expected to support. */
 const EXPECTED_DSH_RANGE = '^0.2.0'
@@ -73,6 +93,46 @@ function collectBundles() {
 }
 
 /** Crude but honest: does `range` admit the expected DSH minor line? */
+/** Is this path a test artefact that needs no version bump? */
+function isTestPath(path) {
+  const segments = path.split('/')
+  if (segments.includes('test') || segments.includes('tests') || segments.includes('__tests__')) return true
+  const base = segments[segments.length - 1]
+  return /.(test|spec).mjs$/.test(base) || /^test-.*.mjs$/.test(base)
+}
+
+/**
+ * The newest tag for `name` whose COMMIT declares that same version.
+ *
+ * Three tags in this repository sit on a commit whose manifest still declares the
+ * previous version (dsh-inventory@0.12.2 -> 0.12.1, two websearch ones). Taking the
+ * newest tag blindly compares against the wrong version and turns a missing bump
+ * into a pass, so a tag only counts as a baseline when it is self-consistent.
+ */
+function lastReleaseTag(name, rel) {
+  const list = git(['tag', '--merged', 'HEAD', '--list', name + '@*', '--sort=-v:refname']) ?? ''
+  for (const tag of list.split('\n').filter(Boolean)) {
+    const declared = git(['show', tag + ':' + rel + '/package.json'])
+    if (declared === null) continue
+    try {
+      const version = JSON.parse(declared).version
+      if (tag === name + '@' + version) return { tag, version }
+    } catch {
+      // A malformed manifest at that tag cannot vouch for anything.
+    }
+  }
+  return null
+}
+
+/** Paths under `rel` that differ from `baseline` (committed, dirty or untracked). */
+function changedSince(baseline, rel) {
+  const out = new Set()
+  const diff = git(['diff', '--name-only', baseline, '--', rel]) ?? ''
+  for (const line of diff.split('\n').filter(Boolean)) out.add(line)
+  const others = git(['ls-files', '--others', '--exclude-standard', '--', rel]) ?? ''
+  for (const line of others.split('\n').filter(Boolean)) out.add(line)
+  return [...out]
+}
 function satisfiesRuntime(range) {
   const expected = EXPECTED_DSH_RANGE.replace(/^[\^~]/, '')
   if (range === '*' || range === 'x') return true
@@ -130,16 +190,23 @@ async function main() {
       problems.push(label + ' (' + name + '): no scripts.test - pnpm -r --if-present skips it silently')
     }
 
-    // 3. version bump since the bundle's last tag
+    // 3. version bump since the bundle's last RELEASE (a self-consistent tag)
     if (options.bumpCheck && inGit) {
-      const tag = name + '@' + manifest.version
-      if (!tags.includes(tag)) {
-        notes.push(label + ' (' + name + '): untagged version ' + manifest.version + ' (tag it as ' + tag + ' - see P0-3)')
+      const baseline = lastReleaseTag(name, rel)
+      if (baseline === null) {
+        notes.push(label + ' (' + name + '): no release tag yet, bump check skipped')
       } else {
-        const changed = git(['status', '--porcelain', '--', rel])
-        if (changed !== null && changed.length > 0) {
-          problems.push(label + ' (' + name + '): ' + tag + ' is tagged but the bundle has uncommitted changes - bump the version')
+        const changed = changedSince(baseline.tag, rel)
+        const shipped = changed.filter((file) => !isTestPath(file))
+        if (shipped.length > 0 && manifest.version === baseline.version) {
+          problems.push(
+            label + ' (' + name + '): shipped files changed since ' + baseline.tag + ' but the version is still ' + baseline.version + ' - bump the version',
+          )
         }
+      }
+      const current = name + '@' + manifest.version
+      if (!tags.includes(current)) {
+        notes.push(label + ' (' + name + '): untagged version ' + manifest.version + ' (tag it as ' + current + ' - see P0-3)')
       }
     }
 

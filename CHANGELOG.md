@@ -6,9 +6,24 @@ bundle it belongs to; the tag on each release is `<package-name>@<version>`
 
 Version discipline (enforced by `node scripts/check-bundle-versions.mjs`, wired
 into `pnpm verify`): **changing a bundle's code requires bumping its version**.
-A bundle whose directory has changes after its version tag fails the gate.
+A bundle whose shipped files changed after its last release tag fails the gate;
+test-only changes are exempt.
 
 ## Unreleased
+
+### 仓库级工具（无版本号）— 版本门规则3 改成 diff-based + inventory 测试 scratch 清理(#145)
+
+仓库级工具与测试，不属于任何 bundle，无版本号变更。
+
+- **规则3 此前在正常 PR 流程里 100% 放行**（实测）：`scripts/check-bundle-versions.mjs` 的实现是两层前置条件——当前版本没打 tag 时只 push 一条 note、永不失败；打了 tag 才查 `git status --porcelain`。所以「已提交的代码改动 + 没升版」exit 0，「未提交的改动」才被拦。注释里的 "since its last tag" 在代码里没有对应物。
+- **重写为相对上一个自洽 release tag 的 diff**：基线 = `git tag --merged HEAD --list '<name>@*' --sort=-v:refname` 里第一个**其提交的 manifest 确实声明该版本**的 tag；变更集 = `git diff --name-only <baseline>` + `git ls-files --others`（吞掉原来的 porcelain 检查）；含非测试文件且版本未变即失败。
+- **错位 tag 不再当基线**：本仓有 3 个 tag 打在 manifest 仍声明上一版的提交上（`dsh-inventory@0.12.2`→0.12.1、两个 websearch），取「最新 tag」会算错基线、把漏升版判成通过。
+- **纯测试改动免升版**（此前只是惯例，现在由机制保证）：`test/`/`tests/`/`__tests__/` 目录 + `*.test.mjs`/`*.spec.mjs`/`test-*.mjs`。`test-governor/` 不整目录豁免——它在 `files` 里会随包发布。文档改动仍要升版（#180 惯例）。
+- **新增 `--root DIR`**（照 `verify-packages.mjs` 的先例）：没有它规则3 只能靠 import 私有函数来测，违反仓库「禁测私有函数」的硬规则。
+- **测试 scratch 清理**：`dsh-inventory` 的 16 个测试文件补 `scratchRegistry` + `after()`（`host-route.test.mjs` 的 17 处也在内，它原有内联 `rmSync` 但覆盖不到失败路径）。实测全量跑完残留从 **249 个目录降到 0**，517 测全绿。
+- 另修：`plugin-update.test.mjs` 的注入块曾被放到多行 `import {` 中间（语法错），已归位。
+
+> 边界：规则变严会让**历史提交**变红——`9efbf72` 上会把 `dsh-inventory@0.12.2` 判红（错位 tag 让基线退到 0.12.1）。`064284b` 之后是绿的。从旧提交拉分支被这条拦住属正确行为。
 
 ### dsh-task-dispatcher 0.3.0 — 委派纪律补上四条实测缺陷(#185-#188)
 
@@ -187,7 +202,7 @@ A bundle whose directory has changes after its version tag fails the gate.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 39 个条目:37 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.3.0`、`dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
+> 本段现有 40 个条目:38 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

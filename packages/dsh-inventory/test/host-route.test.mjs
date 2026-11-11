@@ -1,4 +1,4 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { execFileSync } from 'node:child_process'
@@ -21,6 +21,26 @@ import {
   SYNC_ROUTE,
   VAULT_ROUTE,
 } from '../index.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. The file already had some inline rmSync calls, but they do not
+// cover the failure path: an assertion that throws first leaves the tree behind.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 /**
  * Host-half route contract, with an empty loader/tool registry: the routes must
@@ -198,13 +218,13 @@ test('a throwing collector surfaces as a 500 with an error payload', async () =>
 // ---- POST /inventory/workspace ------------------------------------------
 
 function makeAssignContext({ skillName = 'demo-skill', scope = 'vault' } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'inv-route-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-route-home-')))
   // `vault` is the only scope a workspace link may target; `global` is a
   // machine-wide root that every workspace already sees.
   const skillDir = scope === 'global' ? join(home, 'skills', skillName) : join(home, 'inventory', 'skills', skillName)
   mkdirSync(skillDir, { recursive: true })
   writeFileSync(join(skillDir, 'SKILL.md'), `---\nname: ${skillName}\ndescription: route fixture\n---\nbody\n`, 'utf8')
-  const workspace = mkdtempSync(join(tmpdir(), 'inv-route-ws-'))
+  const workspace = track(mkdtempSync(join(tmpdir(), 'inv-route-ws-')))
   const previous = { DSH_HOME: process.env.DSH_HOME, DSH_AGENTS_HOME: process.env.DSH_AGENTS_HOME, DSH_CUSTOM_SKILL_DIRS: process.env.DSH_CUSTOM_SKILL_DIRS }
   process.env.DSH_HOME = home
   process.env.DSH_AGENTS_HOME = join(home, 'agents')
@@ -465,13 +485,13 @@ function makeGlobalContext({
   runtimeSkills = [],
   profilePatchBlocked = false,
 } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'inv-global-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-global-home-')))
   const userSkillFile = writeSkillFixture(join(home, 'skills'), 'demo-skill', 'global fixture')
 
-  const projectDir = mkdtempSync(join(tmpdir(), 'inv-global-project-'))
+  const projectDir = track(mkdtempSync(join(tmpdir(), 'inv-global-project-')))
   const projectSkillFile = writeSkillFixture(join(projectDir, '.dsh', 'skills'), 'project-skill', 'project fixture')
 
-  const profileDir = mkdtempSync(join(tmpdir(), 'inv-global-profile-'))
+  const profileDir = track(mkdtempSync(join(tmpdir(), 'inv-global-profile-')))
   writeFileSync(
     join(profileDir, 'package.json'),
     JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
@@ -793,7 +813,7 @@ test('the snapshot carries global toggle metadata on MCP and skill rows', async 
  * bundled), one project skill, and one registered workspace.
  */
 function makeVaultContext() {
-  const home = mkdtempSync(join(tmpdir(), 'inv-vault-route-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-vault-route-home-')))
   const userSkills = join(home, 'skills')
   writeSkillFixture(userSkills, 'alpha-skill', 'user alpha')
   writeSkillFixture(userSkills, 'beta-skill', 'user beta')
@@ -803,14 +823,14 @@ function makeVaultContext() {
   const bundledDir = join(home, 'bundled-skills')
   writeSkillFixture(bundledDir, 'bundled-skill', 'bundled fixture')
 
-  const projectDir = mkdtempSync(join(tmpdir(), 'inv-vault-route-project-'))
+  const projectDir = track(mkdtempSync(join(tmpdir(), 'inv-vault-route-project-')))
   writeSkillFixture(join(projectDir, '.dsh', 'skills'), 'project-skill', 'project fixture')
 
-  const workspace = mkdtempSync(join(tmpdir(), 'inv-vault-route-ws-'))
+  const workspace = track(mkdtempSync(join(tmpdir(), 'inv-vault-route-ws-')))
   // Pin the workspace's project root to itself (DSH walks up to the nearest .git).
   mkdirSync(join(workspace, '.git'), { recursive: true })
 
-  const profileDir = mkdtempSync(join(tmpdir(), 'inv-vault-route-profile-'))
+  const profileDir = track(mkdtempSync(join(tmpdir(), 'inv-vault-route-profile-')))
   writeFileSync(
     join(profileDir, 'package.json'),
     JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
@@ -1098,9 +1118,9 @@ test('a vaulted skill can be assigned to a workspace', async () => {
  * workspace registry: the snapshot must still pin it first and name it.
  */
 function makeDefaultWorkspaceContext() {
-  const home = mkdtempSync(join(tmpdir(), 'inv-default-home-'))
-  const defaultDir = mkdtempSync(join(tmpdir(), 'inv-default-ws-'))
-  const otherDir = mkdtempSync(join(tmpdir(), 'inv-default-other-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-default-home-')))
+  const defaultDir = track(mkdtempSync(join(tmpdir(), 'inv-default-ws-')))
+  const otherDir = track(mkdtempSync(join(tmpdir(), 'inv-default-other-')))
   mkdirSync(join(home, 'storages'), { recursive: true })
   writeFileSync(
     join(home, 'storages', 'workspace.json'),
@@ -1116,7 +1136,7 @@ function makeDefaultWorkspaceContext() {
     'utf8',
   )
 
-  const profileDir = mkdtempSync(join(tmpdir(), 'inv-default-profile-'))
+  const profileDir = track(mkdtempSync(join(tmpdir(), 'inv-default-profile-')))
   writeFileSync(
     join(profileDir, 'package.json'),
     JSON.stringify({ name: 'fixture-profile', dependencies: {}, dsh: { profile: { bundles: [] } } }),
@@ -1215,7 +1235,7 @@ test('the apply route updates the checkout it is pointed at, and only that one',
   // End-to-end on throwaway directories: the route's real POST path runs, but the
   // repository and the state directory are both injected, so nothing outside the
   // temporary tree is touched (issue #60).
-  const origin = mkdtempSync(join(tmpdir(), 'hr-origin-'))
+  const origin = track(mkdtempSync(join(tmpdir(), 'hr-origin-')))
   const g = (dir, ...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
   g(origin, 'init', '-q', '-b', 'main')
   g(origin, 'config', 'user.email', 't@example.com')
@@ -1226,7 +1246,7 @@ test('the apply route updates the checkout it is pointed at, and only that one',
   g(origin, 'add', '.')
   g(origin, 'commit', '-q', '-m', 'one')
 
-  const repo = mkdtempSync(join(tmpdir(), 'hr-repo-'))
+  const repo = track(mkdtempSync(join(tmpdir(), 'hr-repo-')))
   g(origin, 'clone', '-q', origin, repo)
   g(repo, 'config', 'user.email', 't@example.com')
   g(repo, 'config', 'user.name', 'T')
@@ -1234,7 +1254,7 @@ test('the apply route updates the checkout it is pointed at, and only that one',
   g(origin, 'add', '.')
   g(origin, 'commit', '-q', '-m', 'bump')
 
-  const home = mkdtempSync(join(tmpdir(), 'hr-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'hr-home-')))
   // Snapshot the real things this test must NOT touch, so "and only that one" is
   // a claim with an assertion behind it.
   const realLast = join(dshHome(), 'plugin-update', 'last.json')

@@ -1,10 +1,30 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { parseFrontmatter, scanSkillRoots } from '../lib/scan-skills.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 function bundle(root, dir, frontmatter, body = '# body\n') {
   mkdirSync(join(root, dir), { recursive: true })
@@ -26,8 +46,8 @@ test('parses CRLF frontmatter (files written by Windows editors)', () => {
 })
 
 test('follows a symlinked skill directory', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-skills-link-'))
-  const real = mkdtempSync(join(tmpdir(), 'inv-skills-real-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-skills-link-')))
+  const real = track(mkdtempSync(join(tmpdir(), 'inv-skills-real-')))
   writeFileSync(join(real, 'SKILL.md'), '---\nname: linked\ndescription: Linked skill\n---\n# linked\n')
   try {
     symlinkSync(real, join(root, 'linked'), 'junction')
@@ -39,7 +59,7 @@ test('follows a symlinked skill directory', () => {
 })
 
 test('scans bundle dirs and flat files, flags shadowed skills, skips broken ones', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-skills-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-skills-')))
   bundle(root, 'alpha', 'name: alpha\ndescription: Alpha skill')
   bundle(root, 'beta', 'name: beta\ndescription: Beta skill\ndisable-model-invocation: true')
   writeFileSync(join(root, 'flat.md'), '---\nname: flat\ndescription: Flat skill\n---\n# flat\n')
@@ -69,8 +89,8 @@ test('a missing or unreadable root is skipped without diagnostics noise', () => 
 })
 
 test('a lower rank wins a duplicate name and the loser is reported', () => {
-  const project = mkdtempSync(join(tmpdir(), 'inv-skills-proj-'))
-  const user = mkdtempSync(join(tmpdir(), 'inv-skills-user-'))
+  const project = track(mkdtempSync(join(tmpdir(), 'inv-skills-proj-')))
+  const user = track(mkdtempSync(join(tmpdir(), 'inv-skills-user-')))
   bundle(project, 'alpha', 'name: alpha\ndescription: Project variant')
   bundle(user, 'alpha', 'name: alpha\ndescription: User variant')
 

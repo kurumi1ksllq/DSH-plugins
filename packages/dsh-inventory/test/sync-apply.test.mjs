@@ -1,13 +1,33 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { applyItems, findPackageDir, resolveSpec, writePluginDependencies } from '../lib/sync-apply.js'
 
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
+
 function scratch() {
-  return mkdtempSync(join(tmpdir(), 'dsh-apply-'))
+  return track(mkdtempSync(join(tmpdir(), 'dsh-apply-')))
 }
 
 /** A profile directory with a package.json, as dsh actually stores it. */

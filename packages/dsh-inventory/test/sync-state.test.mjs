@@ -1,6 +1,6 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,8 +14,28 @@ import {
 } from '../lib/sync-state.js'
 import { LEGACY_ID } from '../lib/fleet.js'
 
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
+
 function scratchHome() {
-  return mkdtempSync(join(tmpdir(), 'dsh-state-'))
+  return track(mkdtempSync(join(tmpdir(), 'dsh-state-')))
 }
 
 /** `STATE_DEFAULTS` minus the fields a read is allowed to fill in for us. */

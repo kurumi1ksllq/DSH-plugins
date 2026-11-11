@@ -6,10 +6,10 @@
  * back. So every refusal has to happen BEFORE a single file moves, and the
  * reasons have to be specific enough to act on.
  */
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -28,13 +28,33 @@ import {
   runUpdate,
 } from '../lib/plugin-update.js'
 
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
+
 function git(dir, ...args) {
   return execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
 }
 
 /** A checkout with one commit on `main`, and a sibling worktree-free clone to pull from. */
 function initCheckout(prefix = 'pu-') {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
+  const dir = track(mkdtempSync(join(tmpdir(), prefix)))
   git(dir, 'init', '-q', '-b', 'main')
   git(dir, 'config', 'user.email', 't@example.com')
   git(dir, 'config', 'user.name', 'T')
@@ -65,7 +85,7 @@ test('readCheckoutState reports a dirty tree with the files that made it dirty',
 })
 
 test('readCheckoutState reports a missing repository instead of throwing', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'pu-norepo-'))
+  const dir = track(mkdtempSync(join(tmpdir(), 'pu-norepo-')))
   const state = readCheckoutState(dir)
   assert.equal(state.ok, false)
   assert.match(state.error, /not a git repository/i)
@@ -226,6 +246,7 @@ test('runUpdate reports a failed recomposition as failed, not as rolled back', a
   assert.equal(result.ok, false)
   assert.equal(result.stage, 'reconcile')
   assert.match(result.detail, /import failed/)
+
   assert.match(result.detail, /again|再点一次/)
 })
 
@@ -277,7 +298,7 @@ test('moveCheckout reports a failed fetch and leaves HEAD where it was', async (
 
 test('moveCheckout fast-forwards a behind checkout to the fetched ref', async () => {
   const dir = initCheckout()
-  const clone = mkdtempSync(join(tmpdir(), 'pu-origin-'))
+  const clone = track(mkdtempSync(join(tmpdir(), 'pu-origin-')))
   execFileSync('git', ['clone', '-q', dir, clone], { encoding: 'utf8' })
   git(clone, 'config', 'user.email', 't@example.com')
   git(clone, 'config', 'user.name', 'T')
