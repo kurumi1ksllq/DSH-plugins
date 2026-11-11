@@ -1,8 +1,8 @@
 # Deep PTC mode
 
-[中文](README.zh.md) · MIT · **1.7.3**
+[中文](README.zh.md) · MIT · **1.13.2**
 
-[1.7.3 实测汇总 / Test summary](TEST_REPORT.md)
+[1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) — 历史快照，当前版本见下方 "Current release"
 **Let plugins cooperate. Keep current official PTC tools as the fallback. Stay interruptible while work runs.**
 
 Deep PTC is a DeepSeek Harness agent preset built for a plugin ecosystem. It first looks for a suitable tool among the available external plugins, then continues with the running host’s dynamically discovered official PTC capability when no enhancement fits or a provider fails. Multiple plugins can contribute different parts of a task, each using its own schemas, discovery and result contracts. Deep PTC adds no task tools of its own.
@@ -22,7 +22,20 @@ Compatibility has two directions: follow the installed official PTC composition 
 
 An extension must publish into the `deep-ptc` scope and support the installed host. Keep official fallbacks visible in the provider's own configuration where supported. This is cooperative task-level selection, not a guarantee that every plugin or replacement executor is interchangeable. OPS is one possible provider, not a bundled dependency or a completed integration claim.
 
-The official fallback retains the 1.6.1 derivation mechanism: the plugin reads the running host’s PTC declaration and checks for changes every five seconds; only changed declarations or this plugin’s settings rebuild the preset and follows its module names and configuration. The bundled snapshot is used only if loading, parsing or derivation fails, with a warning. Reload after an official upgrade and use a new preset revision; existing sessions are not forcibly switched. DSH support starts at `>=0.2.2-rc.1` with no upper bound; future host APIs still require verification.
+The official fallback retains the 1.6.1 derivation mechanism: the plugin reads the running host’s PTC declaration and checks for changes every five seconds; only changed declarations or this plugin’s settings rebuild the preset and follows its module names and configuration. The bundled snapshot is used only if loading, parsing or derivation fails, with a warning. Reload after an official upgrade and use a new preset revision; existing sessions are not forcibly switched. DSH support is declared as `>=0.2.2-rc.1 <0.3.0-0`; future host APIs still require verification.
+
+## Current release: 1.13.2
+
+This repository carries the 1.13.2 line. The mechanism sections below were written at 1.7.3 and still describe the derivation, reachability and working-contract behaviour; the releases after it changed the governor packaging, execution environments, localisation and delegation wiring:
+
+- **1.8.0** — absorbed `dsh-stall-governor` and `dsh-git-bash-tool`; Git Bash became a first-class execution environment.
+- **1.9.0** — the 5007-line governor was split into six modules (peer / core / anchor / settings / softcut / apply) with byte-identical declaration bodies.
+- **1.10.0** — `environment: git-bash`, automatic detection of the official shell rows, event-driven refresh (5s loader signal, 30s fallback poll), atomic settings writes, and the locale groundwork.
+- **1.11.0 / 1.11.1 / 1.11.2** — bilingual settings and model copy with a `copyLocale` switch; the execution-discipline text became a single zh/en dictionary shared by both languages.
+- **1.12.0** — deterministic `allowedAgentPresets` on the spawn-side delegation row, exposing the `agent_preset` parameter to `subagent`.
+- **1.13.0 / 1.13.1** — wiring follow-ups for the `dsh-auto-delegation` → `dsh-task-dispatcher` rename; optional test prerequisites (React, YAML parser) now skip with an actionable reason instead of failing at load time.
+
+See [CHANGELOG.md](CHANGELOG.md) for the per-release detail.
 
 ## 1.7.2: lightweight, on-demand tool orchestration
 
@@ -118,13 +131,13 @@ A prompt changes the model's working tendency, not the real token limit or billi
 
 ## Install or upgrade
 
-Requires Node `>=24` and DSH `>=0.2.2-rc.1`. Windows desktop rc.5 was used for real WSL/PowerShell command checks. macOS/Zsh configuration, argv and tool mounting were checked; native macOS execution has not been verified on this Windows host.
+Requires Node `>=24` and DSH `>=0.2.2-rc.1 <0.3.0-0`. Windows desktop rc.5 was used for real WSL/PowerShell command checks. macOS/Zsh configuration, argv and tool mounting were checked; native macOS execution has not been verified on this Windows host.
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.7.3" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.13.2" })
 // Or from a local checkout or archive:
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
-// Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.7.3.tgz"
+// Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.13.2.tgz"
 ```
 
 Repository locator: `github:lishize20040802-rgb/dsh-deep-ptc-mode`. It installs content actually published there; a local upgrade does not publish to GitHub or npm.
@@ -177,4 +190,4 @@ Bugs in DeepSeek Harness itself belong upstream, at [deepseek-ai/deepseek-harnes
 
 Runtime boundaries: pause checks distinguish executable waits from strings, comments and ordinary timer callbacks. Known constants/products are checked; unresolved durations pass through. `wsl -- sleep 20` really pauses and remains refused. Static checks are not a complete language interpreter. Arbitrary run_code, synchronous subprocesses and long workflow waits cannot currently guarantee early steering; use managed jobs for long work. Official tools are never quarantined, including by stale records. Unattributed tools remain available; quarantine requires positive external attribution.
 
-Version 1.7.3 first reads the running host’s public PTC registry, then discovers installed declarations if that API is unavailable, and uses a warned snapshot only as the final fallback. Registry/declaration or plugin-setting changes automatically refresh new preset generations; changed module sources invalidate attribution caches. No pinned DSH version selects the tool inventory, and leased sessions are not forcibly switched.
+Version 1.13.2 first reads the running host’s public PTC registry, then discovers installed declarations if that API is unavailable, and uses a warned snapshot only as the final fallback. Registry/declaration or plugin-setting changes automatically refresh new preset generations; changed module sources invalidate attribution caches. No pinned DSH version selects the tool inventory, and leased sessions are not forcibly switched.

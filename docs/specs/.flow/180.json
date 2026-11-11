@@ -1,0 +1,55 @@
+{
+  "issue": 180,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-11T12:20:00+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "新增文档契约(先红)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "README 补两行 + docs 地图",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "CHANGELOG 注记计数",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "两份 update 文档重新校准",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "各包 README 与历史报告对齐",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": ".flow/29 翻终态",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "gate + PR + CI + 双轴 review",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
