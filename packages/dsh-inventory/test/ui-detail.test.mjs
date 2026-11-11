@@ -396,10 +396,16 @@ test('a control looks like a control, and a heading reads as a heading', async (
   assert.match(chipRule.body, /(^|[;\s])border(-color|-width)?\s*:/, '.inv-chip needs an outline, not only a tint: ' + chipRule.body.trim())
 
   // Icon and text buttons (back, refresh, section headers) had no hover at all.
-  assert.ok(
-    rules(css).some((rule) => /\.inv-btn:hover/.test(rule.selector) && /background/.test(rule.body)),
-    '.inv-btn needs a hover fill, otherwise it reads as a static label',
+  const flatButtonHover = rules(css).find(
+    (rule) => /[.]inv-btn[^{,]*:hover/.test(rule.selector) && /background/.test(rule.body),
   )
+  assert.ok(flatButtonHover, '.inv-btn needs a hover fill, otherwise it reads as a static label')
+  // The generic hover must not repaint chips or filled primaries, which own
+  // their fill: a shared 8% tint would turn the dark pill grey on hover.
+  // Ignore the :not() guards themselves: what matters is the rules the hover
+  // actually paints, i.e. the selector with those guards stripped.
+  const painted = flatButtonHover.selector.replace(/:not\([^)]*\)/g, '')
+  assert.doesNotMatch(painted, /[.]inv-chip|[.]inv-primary/, 'the flat-button hover leaks onto chips/primaries')
 
   // Section headers keep full-strength title text, so they do not compete with
   // the softer, outlined controls.
