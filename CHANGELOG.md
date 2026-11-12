@@ -11,6 +11,24 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.4.2 — role_search 支持中文检索(中英同义词表 + 词边界匹配)(#196)
+
+**问题**(实测):`role_search("安全")` 返回 `No role matched`。线上 133 个 ECC preset 的 id 与 description **绝大多数为英文**(实测 `安全` 命中 0 次;仅 3 行描述含中文,且无安全类),中文操作者按纪律文本「不确定角色 id 就先 `role_search`」发中文查询会直接落空。
+
+**做法**:一张中英同义词表(数据)+ **词边界匹配**(算法)。第二项是 review 逼出来的——初版用子串匹配,实测 `ci` 命中 83/133 行(其中 **81 行来自 "speciali**ci**zing"**)、`doc` 5 行里 1 行真、`build` 命中人类学家("builds culturally coherent societies")。子串匹配让表变成**错误答案**的来源,比零命中更危险。
+
+- 覆盖 18 个中文概念,每个目标词实测在真实名册中以词边界出现。
+- **映射词只匹配角色 id**,用户手打的词才匹配描述——描述里每个 `-reviewer` 都提到 "performance",只按描述匹配会把 12 个 reviewer 拉进「性能」(实测 17 → 1)。
+- 收窄泛词:代码 41→3、工程 26→4、构建 21→10、审查 27→23。
+- `部署` 补 `devops`/`sre`/`infra`:原先 3 条里没有一条是部署专家,名册里的 `devops-automator` 与 `sre-site-reliability-engineer` 全漏。
+- **英文行为锁进 fixture**:从 main 取 22 条英文 query 的真实结果做基线。词边界改造后其中 4 条变化,逐条核对**全是伪命中消失**(api 不再匹配 fastapi、go 不再匹配 django、rust 不再匹配 strategist、test 不再匹配 latest)。
+
+**测试**:77 条全绿(新增 14 条)。反向验证(`fail` 口径,基线 0):① 清空同义词表 → 3;② 映射到不存在的词 → 1;③ 展开时丢掉原始词 → 1;④ 破坏 CJK 判定 → 1;⑤ 加纯 ASCII 键 → 1;⑥ 后端映射到 frontend/react → 1;⑦ 部署砍掉 devops/sre → 1;⑧ 恢复子串匹配 → 1;⑨ 让映射词也匹配描述 → 1;⑩ 英文结果截断到 5 条 → 3(基线 fixture 生效)。
+
+> 三轮 review 的教训,逐条都变成了测试:① 只断言「表里有东西」不锁语义(初版 后端→frontend 是 0 红);② `some` 应为 `every`(死词 `backend` 因此过关);③ 英文零回归写成 `f(q) === f(q)` 是同义反复(把英文结果截断到 5 条仍全绿)。
+
+**边界**:不做分词、模糊音、繁简转换。否定前缀未特殊处理——`不安全` 仍会展开出 security(已记录,后续可加)。133 个 preset 一行未动。
+
 ### dsh-task-dispatcher 0.4.1 — 委派触发条件改成可数硬条件(#195)
 
 **问题**(实测):用户问「现在会按任务自动拆解并派发吗」,答案是**不会自动,只是建议**。证据(改动前渲染文本实测计数):软措辞「应当」1 处、「宁可」1 处、「建议」**0** 处;「必须」「强制」各 **0** 处——整段没有一条强制条款。governor 实时配置是 `mode: "shadow"`(仅观测不拦截)。原触发条件「≥3 个同类独立单元」不可数、靠自我评估,且没堵住「我先看看再说」这个逃生口——仓库自己记过这种事故(issue #186:20 个文件的任务全程单线程,首次委派迟到 24.7 分钟)。
@@ -243,7 +261,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 42 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 43 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

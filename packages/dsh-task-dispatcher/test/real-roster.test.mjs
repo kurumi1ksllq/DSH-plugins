@@ -53,11 +53,13 @@ test('a role id named in the docs really exists in the shipped roster', async ()
   assert.equal(ids.has('django-security'), false)
 })
 
-test('a CJK keyword finds nothing in the shipped roster (documented limit)', async () => {
-  // Not a bug to fix here: the shipped descriptions carry no CJK. The tool
-  // says so in its empty answer, and the spec records the boundary.
+test('a CJK keyword reaches the roster through the synonym layer (#196)', async () => {
+  // This test used to assert the OPPOSITE: that '安全' found nothing, because
+  // the shipped descriptions carry no CJK. #196 added the mapping, so the old
+  // assertion became a lie about current behaviour. It now pins the capability.
   const roles = selectRoles(await eccRoster(), BUILTIN_PRESETS, '安全')
-  assert.deepEqual(roles, [])
+  assert.ok(roles.length > 0, '安全 must reach the English security roles')
+  assert.ok(roles.some((role) => /secur/i.test(role.id + ' ' + role.description)))
 })
 
 // ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 
 | 工具 | 作用 |
 | --- | --- |
-| `role_search({query?, limit?})` | 在已注册的 preset 里按关键词找角色,返回 id + 一句话职责。无 query 返回全部;排除内置完整组合(`standard`/`ptc`/`minimal`/`cordis`/`deep-ptc`)。 |
+| `role_search({query?, limit?})` | 在已注册的 preset 里按关键词找角色,返回 id + 一句话职责。**中英文都可**:中文词先经同义词表映射成英文概念(安全→security、无障碍→a11y…)。无 query 返回全部;排除内置完整组合(`standard`/`ptc`/`minimal`/`cordis`/`deep-ptc`)。 |
 | `delegate_role({role, prompt, description?, cwd?})` | 派出子 agent。**不传 `agentPreset`** → 宿主 `composeFrom` 让子 agent 继承父组合(保住全部工具),角色的 persona 原文作为子 agent 开场消息注入。 |
 
 实现要点:
@@ -31,6 +31,17 @@
 - **provider 选择**:优先 `spawn`;缺失时取第一个不继承父上下文的 provider;都没有则报错列出可用名。
 - **深度**:显式转发宿主的深度闸。宿主的闸是拿 `request.maxDepth` 做比较,**不传等于不限**(`child-agent.js:31-40`),而读配置的 `resolveMaxDepth()` 只有官方 `subagent` 工具调用——不显式转发,这两个宿主平面工具会让子 agent 无界递归。
 - 两个工具都注册在**宿主平面**,所以主 agent、teammate、被派出的子 agent 都能用。**已知副作用**:`dsh-tools` 的 `view()` 把 global 层工具继承给所有 scope,因此一个在组合层面禁用了 `subagent` 的子 agent 仍看得见 `delegate_role`(源码推断,未在活会话实测)。
+
+## 中文检索(#196)
+
+线上 133 个角色 id 与描述**全为英文**,所以 `role_search("安全")` 原本零命中。现加一张中英同义词表(数据,不是逻辑),查询时把中文概念展开成英文再检索:
+
+- 覆盖 18 个概念:安全 / 无障碍 / 数据库 / 测试 / 文档 / 性能 / 前端 / 后端 / 重构 / 审查 / 迁移 / 部署 / 架构 / 计划 / 调试 / 构建 / 代码 / 工程。
+- 每个映射目标都**实测命中真实名册**;「部署」刻意不含 `ci`(命中 83/133,会让查询等于全部)。
+- **英文行为零变化**:纯 ASCII 词直接透传,改动前后同一批英文 query 返回逐字相同。
+- 未收录的中文词原样保留 → 如实返回无匹配。
+
+要加词只改 `lib/roles.mjs` 的 `SYNONYMS`,不改代码。
 
 ## 配套
 
@@ -48,6 +59,6 @@ teammate 经 `composeFrom` 继承父组合,因此文本对主 agent 与 teammate
 pnpm test   # 或包内 node --test test/*.test.mjs
 ```
 
-63 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
+74 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
-`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文查询零命中(已记录边界,工具的空答案会提示改用英文)。
+`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文关键词经同义词表映射后同样命中、未收录词如实返回无匹配。

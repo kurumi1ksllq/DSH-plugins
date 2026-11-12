@@ -1,0 +1,35 @@
+{
+  "issue": 196,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-12T12:06:19.747Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "同义词表 + 查询展开",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "真实名册中文检索测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "文档 / 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
