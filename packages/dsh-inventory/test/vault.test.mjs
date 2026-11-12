@@ -1,11 +1,31 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { scanSkillRoots } from '../lib/scan-skills.js'
 import { moveIntoVault, moveOutOfVault, scanVault, vaultDir, vaultRoots } from '../lib/vault.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 /**
  * The skill vault: registered-but-inactive skills live outside every scanned
@@ -16,7 +36,7 @@ import { moveIntoVault, moveOutOfVault, scanVault, vaultDir, vaultRoots } from '
 const SKILL_TEXT = (name) => `---\nname: ${name}\ndescription: ${name} fixture\n---\n# ${name}\n\nbody\n`
 
 function homeFixture() {
-  const home = mkdtempSync(join(tmpdir(), 'inv-vault-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-vault-home-')))
   const previous = process.env.DSH_HOME
   process.env.DSH_HOME = home
   return {

@@ -11,14 +11,34 @@
  * The cache is module-level state, so every case here starts from a cold cache
  * (the snapshot route with `?refresh=1` is the one path allowed to force one).
  */
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { apply, SNAPSHOT_ROUTE, SYNC_ROUTE } from '../index.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 /** A context with an empty loader/tool registry and a throwaway base URL. */
 function makeContext(routes) {
@@ -86,7 +106,7 @@ function handlerFor(routes, path) {
  */
 async function withHome(fn) {
   const saved = { DSH_HOME: process.env.DSH_HOME, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE }
-  const home = mkdtempSync(join(tmpdir(), 'inv-sync-cache-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'inv-sync-cache-')))
   process.env.DSH_HOME = home
   process.env.HOME = home
   try {

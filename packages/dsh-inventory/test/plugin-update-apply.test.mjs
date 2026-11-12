@@ -8,14 +8,34 @@
  * update result, so the panel's "last outcome" was really a test artifact — and it
  * was briefly read as a product bug.
  */
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { performUpdate, readLastOutcome } from '../lib/plugin-update.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 function git(dir, ...args) {
   return execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
@@ -26,7 +46,7 @@ function git(dir, ...args) {
  * origin is one step ahead with.
  */
 function makeWorld() {
-  const origin = mkdtempSync(join(tmpdir(), 'pu60-origin-'))
+  const origin = track(mkdtempSync(join(tmpdir(), 'pu60-origin-')))
   git(origin, 'init', '-q', '-b', 'main')
   git(origin, 'config', 'user.email', 't@example.com')
   git(origin, 'config', 'user.name', 'T')
@@ -36,7 +56,7 @@ function makeWorld() {
   git(origin, 'add', '.')
   git(origin, 'commit', '-q', '-m', 'one')
 
-  const repo = mkdtempSync(join(tmpdir(), 'pu60-repo-'))
+  const repo = track(mkdtempSync(join(tmpdir(), 'pu60-repo-')))
   git(repo, 'clone', '-q', origin, repo)
   git(repo, 'config', 'user.email', 't@example.com')
   git(repo, 'config', 'user.name', 'T')
@@ -47,7 +67,7 @@ function makeWorld() {
   git(origin, 'add', '.')
   git(origin, 'commit', '-q', '-m', 'bump')
 
-  const stateDir = mkdtempSync(join(tmpdir(), 'pu60-state-'))
+  const stateDir = track(mkdtempSync(join(tmpdir(), 'pu60-state-')))
   return { origin, repo, stateDir }
 }
 

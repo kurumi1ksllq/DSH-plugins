@@ -1,10 +1,30 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, normalize } from 'node:path'
 
 import { buildSkillDeps, extractRefs, resolveRef } from '../lib/skill-deps.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 function skill(root, name, body, refs = {}) {
   mkdirSync(join(root, name), { recursive: true })
@@ -20,7 +40,7 @@ const graphOf = (root, name) =>
   buildSkillDeps({ skills: [{ name, path: join(root, name, 'SKILL.md') }], roots: [root] })
 
 test('a router skill sees the files it points at under refs/', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-')))
   skill(root, 'office', ['Read `refs/one.md` first.', 'Then `refs/missing.md`.'].join('\n'), { 'one.md': '# one\n' })
   const graph = graphOf(root, 'office')
   const entry = graph.bySkill.office
@@ -36,7 +56,7 @@ test('a router skill sees the files it points at under refs/', () => {
 })
 
 test('relative paths inside refs/ resolve against the file, not the skill root', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-rel-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-rel-')))
   skill(root, 'deck', 'See `refs/morph/guide.md`.', {
     'morph/guide.md': 'Read `reference/rules.md` and `reference/styles`.\n',
     'morph/reference/rules.md': '# rules\n',
@@ -52,7 +72,7 @@ test('relative paths inside refs/ resolve against the file, not the skill root',
 })
 
 test('command snippets, URLs, XML paths and placeholders are not edges', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-noise-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-noise-')))
   skill(
     root,
     'noisy',
@@ -70,7 +90,7 @@ test('command snippets, URLs, XML paths and placeholders are not edges', () => {
 })
 
 test('a bare filename counts only when the file is really there', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-bare-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-bare-')))
   skill(root, 'plain', 'See `notes.md` and `gone.md`.', { 'notes.md': '# notes\n' })
   const graph = graphOf(root, 'plain')
   assert.deepEqual(graph.bySkill.plain.edges.map((edge) => edge.to), ['plain/refs/notes.md'])
@@ -84,7 +104,7 @@ test('extractRefs keeps drive-letter paths and drops XML document paths', () => 
 })
 
 test('resolveRef maps known prefixes and refuses unknown shapes', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-resolve-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-resolve-')))
   mkdirSync(join(root, 'x', 'refs'), { recursive: true })
   const base = { fileDir: join(root, 'x'), skillDir: join(root, 'x'), skillsRoot: root }
   assert.equal(resolveRef('refs/a.md', base), join(root, 'x', 'refs', 'a.md'))
@@ -94,7 +114,7 @@ test('resolveRef maps known prefixes and refuses unknown shapes', () => {
 })
 
 test('a prefix that does not exist under the skill is an external project path', () => {
-  const root = mkdtempSync(join(tmpdir(), 'inv-deps-external-'))
+  const root = track(mkdtempSync(join(tmpdir(), 'inv-deps-external-')))
   // `scripts\selftest.py` belongs to E:\AI\qwen3-asr-0.6b, not to this skill.
   skill(root, 'asr', '自检：`E:\\AI\\qwen3-asr-0.6b\\py.bat scripts\\selftest.py`')
   const graph = graphOf(root, 'asr')

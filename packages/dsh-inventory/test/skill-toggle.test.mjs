@@ -1,10 +1,30 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { setSkillEnabled } from '../lib/skill-toggle.js'
+
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
 
 /**
  * `setSkillEnabled` flips `disable-model-invocation` in one SKILL.md without
@@ -14,7 +34,7 @@ import { setSkillEnabled } from '../lib/skill-toggle.js'
  */
 
 function skillFixture(label, text) {
-  const dir = mkdtempSync(join(tmpdir(), `inv-skill-toggle-${label}-`))
+  const dir = track(mkdtempSync(join(tmpdir(), `inv-skill-toggle-${label}-`)))
   const path = join(dir, 'SKILL.md')
   writeFileSync(path, text, 'utf8')
   return { path, read: () => readFileSync(path, 'utf8') }
@@ -154,7 +174,7 @@ test('an explicit false value is rewritten to true, not duplicated', () => {
 })
 
 test('a missing skill file is refused with missing-file', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'inv-skill-toggle-missing-'))
+  const dir = track(mkdtempSync(join(tmpdir(), 'inv-skill-toggle-missing-')))
 
   const error = await failureOf(() => setSkillEnabled({ path: join(dir, 'SKILL.md'), enabled: false }))
 

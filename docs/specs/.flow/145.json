@@ -1,0 +1,40 @@
+{
+  "issue": 145,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-11T20:36:10.841Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "加 --root + 重写规则3(含错位 tag 基线校验)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "T1-T6 测试(每个自建 scratch 仓库)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "inventory 17 个测试文件补 scratch 清理",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档:注释/AGENTS/CHANGELOG",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}

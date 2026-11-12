@@ -6,9 +6,9 @@
  *   #10 successful pull writes lastPullAt
  *   #12 SECRET_KEYS coverage + env-block value scanning
  */
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -17,6 +17,26 @@ import { fetchManifestText } from '../lib/sync-remote.js'
 import { syncApply, syncStatus } from '../lib/sync-service.js'
 import { redactValue, isSecretKey, REDACTED } from '../lib/redact.js'
 
+// #145: every scratch directory this file makes is registered and removed at the
+// end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
+// OS temp dir on every full test run.
+const scratchRegistry = []
+after(() => {
+  for (const dir of scratchRegistry) {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Windows may still hold a handle; a temp leftover is harmless.
+    }
+  }
+})
+
+/** Register a directory for cleanup at the end of the run. */
+function track(dir) {
+  scratchRegistry.push(dir)
+  return dir
+}
+
 function caps(overrides = {}) {
   return { platform: 'linux', hasCommand: () => false, gpu: false, ...overrides }
 }
@@ -24,9 +44,9 @@ function caps(overrides = {}) {
 // ---- #5 -------------------------------------------------------------------
 
 test('#5 copySkill links the vaulted copy into the skill root', () => {
-  const repoRoot = mkdtempSync(join(tmpdir(), 'dsh-repo-'))
-  const vault = mkdtempSync(join(tmpdir(), 'dsh-vault-'))
-  const root = mkdtempSync(join(tmpdir(), 'dsh-root-'))
+  const repoRoot = track(mkdtempSync(join(tmpdir(), 'dsh-repo-')))
+  const vault = track(mkdtempSync(join(tmpdir(), 'dsh-vault-')))
+  const root = track(mkdtempSync(join(tmpdir(), 'dsh-root-')))
   mkdirSync(join(repoRoot, 'skills', 'my-skill'), { recursive: true })
   writeFileSync(join(repoRoot, 'skills', 'my-skill', 'SKILL.md'), '# x')
   const result = copySkill(
@@ -83,7 +103,7 @@ test('#7 a non-404 failure still reports the ref', async () => {
 // ---- #8 -------------------------------------------------------------------
 
 test('#8 a failed pnpm install rolls back profile package.json', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'dsh-profile-'))
+  const dir = track(mkdtempSync(join(tmpdir(), 'dsh-profile-')))
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'profile', dependencies: { existing: '1.0.0' } }, null, 2))
   const result = await applyItems(
     [{ kind: 'plugin', name: 'dsh-ctx-guard', source: 'npm', version: '1.0.0' }],
@@ -99,7 +119,7 @@ test('#8 a failed pnpm install rolls back profile package.json', async () => {
 // ---- #10 ------------------------------------------------------------------
 
 test('#10 a successful status pull writes lastPullAt', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'dsh-home-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'dsh-home-')))
   process.env.DSH_HOME = home
   try {
     const { readState } = await import('../lib/sync-state.js')
@@ -124,10 +144,10 @@ test('#10 a successful status pull writes lastPullAt', async () => {
 })
 
 test('#10 a failed install does not record a pull', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'dsh-home2-'))
+  const home = track(mkdtempSync(join(tmpdir(), 'dsh-home2-')))
   process.env.DSH_HOME = home
   try {
-    const profile = mkdtempSync(join(tmpdir(), 'dsh-prof-'))
+    const profile = track(mkdtempSync(join(tmpdir(), 'dsh-prof-')))
     writeFileSync(join(profile, 'package.json'), '{"name":"p","dependencies":{}}')
     const text = JSON.stringify({
       manifestVersion: 1, generatedAt: 0, repo: 'o/r', ref: 'main',
