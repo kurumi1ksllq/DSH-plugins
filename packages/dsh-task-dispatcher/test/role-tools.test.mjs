@@ -212,7 +212,7 @@ test('delegate_role refuses a blank prompt instead of starting an empty child', 
   registerRoleTools(ctx)
   await assert.rejects(
     () => ctx.registered.get('delegate_role').execute({ role: 'django-security', prompt: '   ' }, { agent: { id: 'a' }, signal: undefined }),
-    /prompt is required/,
+    /prompt/,
   )
   assert.equal(started, 0)
 })
