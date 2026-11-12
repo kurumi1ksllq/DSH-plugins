@@ -16,6 +16,85 @@
 /** Built-in compositions that are not roles: they compose a whole agent. */
 export const BUILTIN_PRESETS = ['standard', 'ptc', 'minimal', 'cordis', 'deep-ptc']
 
+
+/**
+ * Chinese concept -> English search terms.
+ *
+ * The shipped 133 ECC roles carry English ids and descriptions only (measured:
+ * '安全' appears zero times in ecc-agent-presets/cordis.patch.yml), so a Chinese
+ * operator's first query used to answer 'No role matched'. This table bridges
+ * the vocabulary without touching the role data or the matching algorithm.
+ *
+ * Every target term was verified to hit the real roster (counts in the PR). A
+ * term that matched nothing would be a silent hole, so keep entries narrow:
+ * 'ci' is deliberately absent from 部署 because it matches 83 of 133 rows and
+ * would make that query mean 'almost everything'.
+ *
+ * This is DATA: add a word here, do not add a branch below.
+ */
+export const SYNONYMS = {
+  安全: ['security', 'secure'],
+  无障碍: ['a11y', 'accessibility', 'accessible'],
+  数据库: ['database', 'sql', 'postgres'],
+  测试: ['test', 'testing', 'tdd'],
+  文档: ['doc', 'documentation', 'readme'],
+  性能: ['performance', 'perf', 'optimization'],
+  前端: ['frontend', 'react', 'vue', 'css'],
+  后端: ['backend', 'api', 'server'],
+  重构: ['refactor', 'cleanup'],
+  审查: ['review', 'reviewer'],
+  迁移: ['migration', 'migrate'],
+  部署: ['deploy', 'deployment', 'release'],
+  架构: ['architect', 'architecture'],
+  计划: ['plan', 'planner', 'planning'],
+  调试: ['debug', 'troubleshoot'],
+  构建: ['build', 'compile'],
+  代码: ['code', 'reviewer'],
+  工程: ['engineer', 'engineering'],
+}
+
+/** Chinese multi-character words may also appear inside a longer phrase. */
+const SYNONYM_KEYS = Object.keys(SYNONYMS).sort((a, b) => b.length - a.length)
+
+/**
+ * Expand one query term into the English terms it should also match.
+ *
+ * Pure ASCII passes through untouched, so English behaviour cannot drift. A
+ * Chinese term with no mapping passes through as itself: the caller then gets
+ * an honest 'no match' instead of a wrong answer.
+ * @param {string} term - one whitespace-separated query term.
+ * @returns {string[]} the term plus any mapped English terms (deduplicated).
+ */
+export function expandTerm(term) {
+  const raw = String(term ?? '').trim().toLowerCase()
+  if (raw === '') return []
+  if (!/[^\x00-\x7f]/.test(raw)) return [raw]
+  const mapped = []
+  for (const key of SYNONYM_KEYS) {
+    if (!raw.includes(key)) continue
+    for (const english of SYNONYMS[key]) {
+      if (!mapped.includes(english)) mapped.push(english)
+    }
+  }
+  return mapped.length === 0 ? [raw] : [raw, ...mapped]
+}
+
+/**
+ * Expand a whole query string into the terms the matcher should look for.
+ * @param {string} [query] - free-text query, whitespace separated.
+ * @returns {string[]} every term to try, OR-ed by the caller.
+ */
+export function expandQuery(query) {
+  const terms = String(query ?? '').trim().toLowerCase().split(/\s+/).filter((term) => term !== '')
+  const expanded = []
+  for (const term of terms) {
+    for (const candidate of expandTerm(term)) {
+      if (!expanded.includes(candidate)) expanded.push(candidate)
+    }
+  }
+  return expanded
+}
+
 /** Longest role briefing we forward, in characters. Personas reach 28k. */
 const MAX_PERSONA_CHARS = 60_000
 
@@ -40,7 +119,7 @@ function roleOf(row) {
  *
  * A row is a role unless it is one of the built-in full compositions. Matching
  * is case-insensitive and ORs the whitespace-separated query terms across id,
- * name and description, so "安全" and "WCAG planner" both behave.
+ * name and description. Chinese terms are first mapped through SYNONYMS to the
  * @param {ReadonlyArray<object>} roster - rows from `agentPresets.list()`.
  * @param {ReadonlyArray<string>} builtins - ids to exclude.
  * @param {string} [query] - free-text filter; blank means "every role".
@@ -49,10 +128,8 @@ function roleOf(row) {
  */
 export function selectRoles(roster, builtins, query, limit) {
   const excluded = new Set((builtins ?? []).map((id) => String(id).trim().toLowerCase()))
-  const terms = String(query ?? '')
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((term) => term !== '')
+  // Chinese keywords expand to the English concepts the roster actually uses.
+  const terms = expandQuery(query)
 
   const roles = []
   for (const row of roster ?? []) {
@@ -115,4 +192,3 @@ export function roleBriefing(input) {
 export function buildChildPrompt(input) {
   return [{ type: 'text', text: roleBriefing(input) }]
 }
-
