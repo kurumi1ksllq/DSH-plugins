@@ -2,7 +2,7 @@
 
 向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`),并注册两个**按角色委派**的工具。段内只有**两个标题**:
 
-1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + 分档表(单线程 / `subagent`·`subagent_fork` / 扇出:有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + 角色化委派 lane + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
+1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + **可数分档**(要改 ≥3 个文件 / 要动 ≥2 个包 / 要跑 ≥2 个独立验证 → 必须拆;有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + **反逃生口条款**(「先读一遍看看」不构成跳过拆解的理由) + 角色化委派 lane + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
 2. **声明式路由表**(routingHeading):列出可委派的子 agent preset(id → 职责),模型按子任务内容选择 `agent_preset` 参数。
 
 ## 角色化委派(#194)
