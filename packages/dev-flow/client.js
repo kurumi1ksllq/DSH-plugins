@@ -246,7 +246,10 @@ window.__ModuleLoader__.load({
 // PART 2 — styles + primitives
     // ---- inline styles (Apple grouped list, same family as dsh-inventory) ----
     const S = {
-      page: { padding: '20px 20px 48px', maxWidth: 720, margin: '0 auto' },
+      // The host's tab body is `overflow: hidden` (the dock kit owns the pane),
+      // so EVERY state this component draws has to own its scroll container —
+      // without this the empty and error states are simply clipped.
+      page: { padding: '20px 16px 48px', height: '100%', overflowY: 'auto', boxSizing: 'border-box' },
       title: { fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', margin: '2px 0 2px' },
       subtitle: { fontSize: 13, opacity: 0.6, marginBottom: 16 },
       toolbar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
@@ -337,8 +340,9 @@ window.__ModuleLoader__.load({
       },
       offFlowRow: { fontSize: 13, lineHeight: '20px' },
       // The right sidebar owns the width; a centered max-width page would waste
-      // it and a 28px title would wrap. Everything here is column-sized.
-      pageWide: { padding: '14px 14px 40px', boxSizing: 'border-box', width: '100%' },
+      // it and a 28px title would wrap. Everything here is column-sized, and the
+      // page is the scroll container (see `page` above).
+      pageWide: { padding: '14px 14px 40px', boxSizing: 'border-box', width: '100%', height: '100%', overflowY: 'auto' },
       details: { marginTop: 20 },
       summary: { fontSize: 13, fontWeight: 600, opacity: 0.6, cursor: 'pointer', padding: '8px 2px' },
     }
@@ -1046,7 +1050,9 @@ function DiffView({ t, sessionId, path, statusSha }) {
      */
     function TabTitle({ useTabInfo }) {
       const info = useTabInfo()
-      return h('span', { style: { display: 'contents' } }, info?.tab?.title ?? TAB_KIND)
+      // A Fragment, like the host's own titles: the chip is the kit's box, and a
+      // wrapper element here would add a layout box the dock kit does not expect.
+      return h(React.Fragment, null, info?.tab?.title ?? TAB_KIND)
     }
 
     /**

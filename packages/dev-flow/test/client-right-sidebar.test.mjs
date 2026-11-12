@@ -254,3 +254,37 @@ test('the board stacks vertically so eight columns fit a narrow column', () => {
 test('the non-git empty state survives the move', () => {
   assert.match(textOf(renderBody({ isGit: false })), /不是 git 项目/)
 })
+
+test('every state owns a scroll container, because the tab body clips', () => {
+  // The host draws a tab body inside a pane with `overflow: hidden` (dock kit
+  // owns the pane, the body may not scroll it). A panel root that does not
+  // scroll itself is silently clipped — the board would be cut off mid-column
+  // with no scrollbar anywhere, which looks like "the tab is empty".
+  for (const [label, snap] of [
+    ['the board', SNAP],
+    ['the not-a-git empty state', { isGit: false }],
+  ]) {
+    const roots = elements(renderBody(snap)).filter((el) => el.props?.style?.overflowY === 'auto')
+    assert.ok(roots.length > 0, label + ' must render a vertical scroll container')
+  }
+})
+
+test('the manifest declares the services the client actually injects', () => {
+  // The host resolves a bundle's browser-side dependencies from
+  // `dsh.client.inject` (see dsh-client-modules), NOT from this file's own
+  // `inject` export. A manifest that still names the left sidebar while the code
+  // asks for the right one loads nothing and reports nothing, so the two lists
+  // are compared instead of trusted.
+  const manifest = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8'))
+  const declared = manifest.dsh.client.inject
+
+  assert.ok(Array.isArray(declared) && declared.length > 0, 'the manifest must declare its client dependencies')
+  // Every host package this bundle's client code depends on must be present.
+  for (const pkg of ['@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-locale']) {
+    assert.ok(declared.includes(pkg), 'dsh.client.inject must include ' + pkg)
+  }
+  // The seats this panel no longer occupies must not keep their package mounted.
+  for (const gone of ['@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-layout']) {
+    assert.equal(declared.includes(gone), false, 'dsh.client.inject must drop ' + gone + ' after the move to the right sidebar')
+  }
+})

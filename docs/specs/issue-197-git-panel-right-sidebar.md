@@ -62,3 +62,23 @@ body 收到的是 session 作用域标准 props(`sessionId`)加框架注入的 `
 1. 客户端改挂右侧栏 tab(红→绿):新增 `test/client-right-sidebar.test.mjs`,先红后绿。
 2. 三个既有测试夹具适配(从找 `main` 改为找 `sidebar.right.pane.tab`)。
 3. 清单 / 文档 / 版本。
+
+## 变更(实现中自决,2026-11-13)
+
+1. **面板根容器必须自带滚动轴**(原 spec 未写)。宿主把 tab body 画在
+   `overflow: hidden` 的 pane 里(见 `dsh-client-ui-sidebar-right` 的
+   `P3OORG_tabBody{...overflow:hidden}`),dock kit 拥有 pane,body 不能滚动它。
+   原实现的 `S.page` / `S.pageWide` 没有 `overflowY`,在右侧栏里等于「内容被裁掉、
+   也没有滚动条」——看起来像标签页是空的。已给两个根样式加 `height:100%; overflowY:auto`,
+   并新增反向验证测试。
+2. **chip 标题用 Fragment 而不是 `<span style="display:contents">`**。宿主自己的
+   `GuideTitle` / `FilesTitle` 都返回 `React.Fragment`,因为 chip 的盒子由 dock kit 提供,
+   多包一层会引入它不预期的布局盒。已照做。
+3. **`dsh.client.inject` 原本无测试守护**。仓库里 `dsh-inventory` 有
+   `prompt-inject.test.mjs` 断言 inject 数组,`dev-flow` 没有等价守护;而宿主是从
+   manifest 而非 `client.js` 的 `inject` 导出解析浏览器依赖的,写错只静默不加载。
+   已补一条(正向断言 sidebar-right/locale 在列,反向断言 layout/sidebar 已移除),
+   实测把旧数组写回 → 1 红。
+4. **既有测试夹具的 `effect` 桩从 `() => {}` 改为 `(fn) => fn()`**。新注册全部包在
+   `ctx.effect` 里,空桩会让 `register` 根本不被调用——这不是放宽断言,是让桩与真实
+   slot 系统行为一致(真实系统会立即执行)。
