@@ -1,8 +1,8 @@
 {
   "issue": 195,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-12T08:56:25.786Z",
+  "stage": "done",
+  "updatedAt": "2026-11-12T10:51:05.884Z",
   "tickets": [
     {
       "id": 1,
@@ -30,6 +30,6 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
