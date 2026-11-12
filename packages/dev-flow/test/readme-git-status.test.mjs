@@ -36,3 +36,15 @@ test('README documents no dead package names after the merge (#110 P2-4)', () =>
   assert.equal(README.includes('dev-flow-skill'), false, 'README-git-status 不得再写 dev-flow-skill')
   assert.equal(README.includes('packages/dsh-git-status'), false, 'README-git-status 不得再写 packages/dsh-git-status')
 })
+
+test('README documents the right-sidebar mount, not the left-sidebar page (#197)', () => {
+  // The panel moved: the two-stage host contract and the seat names are what a
+  // future reader needs, and the old left-sidebar story would send them to a
+  // seat that no longer exists.
+  assert.ok(README.includes('右侧栏'), 'README must say the panel lives in the right sidebar')
+  assert.ok(README.includes('sidebar.right.pane.tab'), 'README must name the body seat')
+  assert.ok(README.includes('ctx.sidebarRightTabs.register'), 'README must name the tab-type registry')
+  // The negative is about the SEAT, not the words: a reader following the old
+  // story would register into a seat this package no longer occupies.
+  assert.equal(README.includes('sidebar.panellist'), false, 'README must not point at the left-sidebar seat any more')
+})

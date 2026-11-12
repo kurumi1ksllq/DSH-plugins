@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+
+#197 Git 面板从左侧栏移到**右侧栏**:删掉 `sidebar.panellist` 入口与占满主区的 `main` 整页,
+改为右侧栏 tab 类型(`ctx.sidebarRightTabs.register`,kind `git-status`,id `dev-flow/git-status`)
++ `sidebar.right.pane.tab` / `.title` 两个 keyed 座位(按 id 而非 kind,key 错则静默不显示)。
+guide 入口卡 order 40,排在文件/终端/浏览器之后。
+
+面板内容不变(八列任务板、需要你出手、未进流程、仓库实况、刷新),布局改为**纵向堆叠**:
+右侧栏最窄 300px,八列横向并排会全部藏进横向滚动条。`sessionId` 改用宿主的 session 作用域
+标准 props,删除 `retainedSessionId` 反查与「返回对话」按钮。
+
+`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
+新增 `test/client-right-sidebar.test.mjs`(含三条反向验证:正文 key 改 kind、左侧入口写回、
+板面改回横向滚动,各自变红)。
+
 ## 0.7.0 — 2026-11-10
 
 #157 任务板「需要你出手」收敛:`NEEDS_USER_KINDS` 只剩 `intake-confirm` 与 `merge-gate`;无 CI、CI 红到第 2 轮、review 报告不再作为用户待办(仍显示在卡片证据行)。删除三个 `need_*` 文案与 `CI_MAX_ROUNDS` 导出。

@@ -65,6 +65,7 @@ function realDictionary() {
     get: () => undefined,
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
     slots: { inject: (_n, run) => run(), register: () => ({}) },
+    sidebarRightTabs: { register: () => () => {} },
     layout: { selectPanel: () => {} },
   })
   return dicts.zh
@@ -75,13 +76,14 @@ function renderWire(wire) {
   const dict = realDictionary()
   const registered = []
   client.apply({
-    effect: () => {},
+    effect: (fn) => fn(),
     get: () => undefined,
     locale: { register: () => {}, bind: () => (k) => k },
     slots: { inject: (_n, run) => run(), register: (spec, comp) => registered.push({ spec, comp }) },
+    sidebarRightTabs: { register: () => () => {} },
     layout: { selectPanel: () => {} },
   })
-  const Panel = registered.find((r) => r.spec.name === 'main').comp
+  const Panel = registered.find((r) => r.spec.name === 'sidebar.right.pane.tab').comp
   const t = (k, ...args) => {
     const entry = dict[k]
     if (typeof entry === 'function') return args.length > 0 ? entry(...args) : entry

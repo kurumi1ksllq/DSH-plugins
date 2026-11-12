@@ -11,6 +11,18 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dev-flow 0.8.0 — Git 面板从左侧栏移到右侧栏(#197)
+
+**需求**:面板原本是左侧栏入口 + 占满主区的整页(`sidebar.panellist` + `main`),用户要求移到右侧栏。
+
+**做法**:改挂右侧栏 tab 类型,走宿主的两段式契约——`ctx.sidebarRightTabs.register` 声明类型(kind `git-status`,id `dev-flow/git-status`,priority `builtin`),再在 `sidebar.right.pane.tab` / `.title` 两个 keyed 座位注册正文与标题。**key 必须是类型的 `id` 而不是 `kind`**:用 kind 当 key 不报错、只是永远不显示,与 #161 的 patch 行静默失效同型,因此新测试把这条身份关系钉死。guide 入口卡 order 40,排在文件(10)/终端(20)/浏览器(30)之后。
+
+**布局**:右侧栏最窄 300px,八列横向并排(每列 240px)等于全部藏进横向滚动条。任务板改为纵向堆叠,一个节点一行,只有一条竖直滚动轴;页面 padding 与标题字号按栏宽收小。
+
+**删除**:`retainedSessionId`(从会话列表反查「主视图保留的是哪个会话」)——`sessionId` 现在由宿主的 session 作用域直接注入;`back` 文案与「返回对话」按钮(收起右侧栏本身就是返回)。`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
+
+**测试**:229 条全绿。新增 `test/client-right-sidebar.test.mjs`,含三条反向验证:① 正文 key 改回 `kind` → 1 红;② 左侧栏入口写回 → 1 红;③ 板面改回横向滚动 → 1 红。三个既有夹具(`client-board` / `client-render` / `e2e-board`)从找 `main` 改为找右侧栏座位,并让 `effect` 桩真正执行回调(否则新注册路径根本到不了 `register`)。
+
 ### dsh-task-dispatcher 0.4.2 — role_search 支持中文检索(中英同义词表 + 词边界匹配)(#196)
 
 **问题**(实测):`role_search("安全")` 返回 `No role matched`。线上 133 个 ECC preset 的 id 与 description **绝大多数为英文**(实测 `安全` 命中 0 次;仅 3 行描述含中文,且无安全类),中文操作者按纪律文本「不确定角色 id 就先 `role_search`」发中文查询会直接落空。
@@ -261,7 +273,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 43 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 44 个条目:39 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
