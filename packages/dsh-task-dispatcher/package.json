@@ -1,9 +1,9 @@
 {
   "name": "dsh-task-dispatcher",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "description": "Task dispatcher: injects a delegation discipline and a declarative subagent routing table as a runtime context, so the lead agent and every teammate decompose a task on arrival and route each piece to the matching subagent preset by content",
+  "description": "Task dispatcher: injects a delegation discipline and a declarative subagent routing table as a runtime context, and registers role_search/delegate_role so the lead agent and every teammate can hand a subtask to a specialist ROLE whose child inherits the full toolset",
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0"
@@ -15,6 +15,8 @@
   "exports": {
     ".": "./index.js",
     "./delegation-text": "./lib/delegation-text.mjs",
+    "./roles": "./lib/roles.mjs",
+    "./delegate": "./lib/delegate.mjs",
     "./icon": "./icon.svg",
     "./locale/en": "./locale/en.json",
     "./locale/zh": "./locale/zh.json",
@@ -28,10 +30,16 @@
     "icon.svg",
     "README.md"
   ],
+  "dependencies": {
+    "js-yaml": "4.3.2"
+  },
   "dsh": {
     "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*"
   }
 }

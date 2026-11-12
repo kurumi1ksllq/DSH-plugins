@@ -1,0 +1,40 @@
+{
+  "issue": 194,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-12T05:51:07.249Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "角色目录 + role_search",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "delegate_role",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "纪律文本 lane(zh/en 对称)",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "文档 / 版本 / 依赖",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

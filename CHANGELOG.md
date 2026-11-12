@@ -11,6 +11,27 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.4.0 — 按角色委派子 agent:role_search + delegate_role(#194)
+
+**问题**(源码 + 实测):用户希望 `ecc-agent-presets` 的 133 个角色成为**子 agent**,由主 agent 按需拆分任务。但 preset 是「一个 agent 的完整插件组合」,不是人格标签。DSH `0.2.2-rc.1` 实测:挂 `agent_preset: planner` 的子 agent 只有 **27** 个工具且 `read/write/edit/glob/grep` 全无、`subagent` 也没有;继承父组合的子 agent 是 **57** 个、样样齐。根因是 `dsh-web-app` 把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true` 交给 preset 自带,而 133 个 ECC preset 每个只声明一行 `@deepseek-ai/dsh-persona`(实测 133/133)。于是「委派给 preset X」拿到的是只有 bash 的空壳。
+
+**做法**:新增两个宿主平面工具,不碰 preset、不碰下拉、不改 DSH 运行时。
+
+- `role_search({query?, limit?})`:按关键词在已注册 preset 里找角色(id + 一句话职责),排除 5 个内置完整组合。
+- `delegate_role({role, prompt, description?, cwd?})`:**不传 `agentPreset`** → `composeFrom` 让子 agent 继承父组合(保住全部工具),角色 persona 原文作为开场消息注入。
+- persona **不复制**:运行时用 `ctx.agentPresets.readDocument(role)` 读注册表里的官方定义,本仓库零重复存储。**读回时用与写入相同的 schema**(`JSON_SCHEMA` + `!!js` 标签):用 `DEFAULT_SCHEMA` 会把单行 `2026-11-12` 解析成 Date 对象,导致存在 persona 却报「declares no persona text」。
+- provider 优先 `spawn`,缺失时取第一个不继承父上下文的。
+- **深度闸显式转发**:宿主的深度闸是拿 `request.maxDepth` 做比较,**不传等于不限**(`child-agent.js:31-40` 的 `if (maxDepth !== undefined && …)`),而读配置的 `resolveMaxDepth()` 只有官方 `subagent` 工具调用。所以这里显式取 `subagents.resolveMaxDepth()` 填进 request——否则宿主平面上的这两个工具会让子 agent 无界递归。
+- 纪律文本新增一条「角色化委派」lane(zh/en 对称),说清它与 `subagent` 的唯一区别:子 agent 收到角色简报,工具一样齐全。
+
+**为什么人格走首条消息**:`0.2.2-rc.1` 的 `SubagentStartRequest` 没有 `persona` 入参;durable descriptor 虽然带 `persona`,但那只在**冷恢复**时回灌(`manager.js:1233`),新派发不读它。随任务文本进入是版本无关、不依赖内部符号的做法。社区插件 `dsh-agent-teams` 0.1.29 走另一条路(覆盖 `deployment:persona-prefix` 槽位,需 `registerContinuableSetup`;该符号在本机 0.2.2-rc.1 运行时里搜不到,**未验证**)。
+
+**测试**:56 条全绿(新增 43 条)。反向验证逐条实测,基线 0 红:① 往 `buildDelegationRequest` 注入 `agentPreset` → **5** 条红;② 删掉 roleBriefing 的「工具齐全」承诺 → **3** 条红;③ 删掉 zh 角色 lane → **2** 条红;④ 不转发 `maxDepth` → **3** 条红;⑤ 把 persona loader 换回 `DEFAULT_SCHEMA` → **1** 条红。
+
+**真实名册测试**:`test/real-roster.test.mjs` 直接读 `packages/ecc-agent-presets/cordis.patch.yml` 的 133 行,而不是自造 roster。起因是初版用自造的**中文** description 让 `role_search('安全')` 变绿,而线上 133 行 description 全是英文、该查询实际零命中——测试绿但验收项不成立。现测的是现实:英文关键词命中、中文查询零命中(作为已记录边界,工具的空答案会提示改用英文)、文档里点名的角色 id 真实存在。
+
+**边界**:不修改 133 行 preset、不修改 UI(注册表无 hidden 字段,`list()` 全量返回,「注册但对下拉隐藏」不可行——用户已接受下拉显示);`DELEGATION_PRESET_WHITELIST` 与 `ROUTING` 不动。新增依赖 `js-yaml@4.3.2`(与 `ecc-agent-presets` 同版本)与 `peerDependencies: @deepseek-ai/dsh-tools`(宿主运行时包,照 `dsh-credential-vault` 先例)。**已知副作用**:两个工具注册在宿主平面,`dsh-tools` 的 `view()` 会把 global 层工具继承给所有 scope,因此一个组合层面禁用了 `subagent` 的子 agent 仍看得见 `delegate_role`(源码推断,未在活会话实测)。
+
 ### 仓库级工具（无版本号）— 版本门规则3 改成 diff-based + inventory 测试 scratch 清理(#145)
 
 仓库级工具与测试，不属于任何 bundle，无版本号变更。
@@ -202,7 +223,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 40 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 41 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

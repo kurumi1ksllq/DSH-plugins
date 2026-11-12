@@ -29,7 +29,11 @@ importers:
 
   packages/dsh-skill-surface: {}
 
-  packages/dsh-task-dispatcher: {}
+  packages/dsh-task-dispatcher:
+    dependencies:
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
 
   packages/dsh-websearch-failover: {}
 

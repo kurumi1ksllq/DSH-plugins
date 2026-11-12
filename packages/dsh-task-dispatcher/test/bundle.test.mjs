@@ -169,3 +169,27 @@ test('zh and en carry the same rule set, not just the same bullet count', () => 
     assert.deepEqual(missing, [], 'every rule must exist in both locales')
   })
 })
+
+// ---- #194: the role-delegation lane ----
+//
+// Bound to ONE bullet, the same way the #185-#188 assertions are: a regex over
+// the whole document would still match when the clause is deleted, because the
+// routing table below it names tools too.
+
+test('both locales tell the agent about role delegation and its tools', async () => {
+  const { renderDelegationText } = await import('../lib/delegation-text.mjs')
+  for (const [locale, needles] of [
+    ['zh', ['role_search', 'delegate_role', '专才']],
+    ['en', ['role_search', 'delegate_role', 'specialist']],
+  ]) {
+    const bullet = bulletWith(renderDelegationText(locale), 'delegate_role')
+    assert.ok(bullet, locale + ': a bullet must mention delegate_role')
+    for (const needle of needles) {
+      assert.ok(bullet.includes(needle), locale + ': the role bullet must mention ' + needle)
+    }
+    // The lane is worthless if it does not say the toolset stays complete:
+    // the whole point is that role delegation is NOT a preset mount.
+    assert.match(bullet, /工具|toolset|tools/i, locale + ': must promise the intact toolset')
+  }
+})
+
