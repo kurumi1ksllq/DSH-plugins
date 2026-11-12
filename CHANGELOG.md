@@ -11,6 +11,24 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.4.0 — 按角色委派子 agent:role_search + delegate_role(#194)
+
+**问题**(源码 + 实测):用户希望 `ecc-agent-presets` 的 133 个角色成为**子 agent**,由主 agent 按需拆分任务。但 preset 是「一个 agent 的完整插件组合」,不是人格标签。DSH `0.2.2-rc.1` 实测:挂 `agent_preset: planner` 的子 agent 只有 **27** 个工具且 `read/write/edit/glob/grep` 全无、`subagent` 也没有;继承父组合的子 agent 是 **57** 个、样样齐。根因是 `dsh-web-app` 把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true` 交给 preset 自带,而 133 个 ECC preset 每个只声明一行 `@deepseek-ai/dsh-persona`(实测 133/133)。于是「委派给 preset X」拿到的是只有 bash 的空壳。
+
+**做法**:新增两个宿主平面工具,不碰 preset、不碰下拉、不改 DSH 运行时。
+
+- `role_search({query?, limit?})`:按关键词在已注册 preset 里找角色(id + 一句话职责),排除 5 个内置完整组合。
+- `delegate_role({role, prompt, description?, cwd?})`:**不传 `agentPreset`** → `composeFrom` 让子 agent 继承父组合(保住全部工具),角色 persona 原文作为开场消息注入。
+- persona **不复制**:运行时用 `ctx.agentPresets.readDocument(role)` 读注册表里的官方定义,本仓库零重复存储;声明里的 `!!js` 标签用宽容 schema 解析(只读文本、不求值)。
+- provider 优先 `spawn`,缺失时取第一个不继承父上下文的;深度不传 `maxDepth`,交给宿主全局深度闸,孙代理可继续按角色分工。
+- 纪律文本新增一条「角色化委派」lane(zh/en 对称),说清它与 `subagent` 的唯一区别:子 agent 收到角色简报,工具一样齐全。
+
+**为什么人格走首条消息**:`0.2.2-rc.1` 的 `SubagentStartRequest` 已不含 `persona` 字段(descriptor 只留 label/provider/model),随任务文本进入是版本无关且不依赖内部符号的做法。这也正是社区插件 `dsh-agent-teams` 在 0.1.29 里做的同一件事(它用 `installContinuableMemberSetup` 覆盖 `deployment:persona-prefix` 槽位,那条路需要 `registerContinuableSetup`,本仓不走内部符号)。
+
+**测试**:45 条全绿(新增 23 条)。三条核心不变量逐条反向验证:① 往请求里注入 `agentPreset` → 5 条红;② 删掉「工具齐全」承诺 → 3 条红;③ 删掉 zh 角色 lane → 2 条红。
+
+**边界**:不修改 133 行 preset、不修改 UI(注册表无 hidden 字段,`list()` 全量返回,「注册但对下拉隐藏」不可行——用户已接受下拉显示);`DELEGATION_PRESET_WHITELIST` 与 `ROUTING` 不动。新增依赖 `js-yaml@4.3.2`(与 `ecc-agent-presets` 同版本,锁文件已同步)。
+
 ### 仓库级工具（无版本号）— 版本门规则3 改成 diff-based + inventory 测试 scratch 清理(#145)
 
 仓库级工具与测试，不属于任何 bundle，无版本号变更。
@@ -202,7 +220,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 40 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 41 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
