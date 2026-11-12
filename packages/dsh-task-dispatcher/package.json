@@ -1,9 +1,9 @@
 {
   "name": "dsh-task-dispatcher",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "type": "module",
-  "description": "Task dispatcher: injects a delegation discipline and a declarative subagent routing table as a runtime context, and registers role_search/delegate_role so the lead agent and every teammate can hand a subtask to a specialist ROLE whose child inherits the full toolset",
+  "description": "Task dispatcher: injects a delegation discipline with COUNTABLE split triggers and a declarative subagent routing table as a runtime context, and registers role_search/delegate_role so the lead agent and every teammate can hand a subtask to a specialist ROLE whose child inherits the full toolset",
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0"

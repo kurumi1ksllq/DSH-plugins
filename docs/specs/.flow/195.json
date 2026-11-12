@@ -1,0 +1,35 @@
+{
+  "issue": 195,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-12T08:56:25.786Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "zh 可数信号 + 反逃生口",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "en 对称",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "文档 / 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

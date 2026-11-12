@@ -2,7 +2,7 @@
 
 向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`),并注册两个**按角色委派**的工具。段内只有**两个标题**:
 
-1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + 分档表(单线程 / `subagent`·`subagent_fork` / 扇出:有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + 角色化委派 lane + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
+1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + **可数分档**(要改 ≥3 个文件 / 要动 ≥2 个包 / 要跑 ≥2 个独立验证 → 必须拆;有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + **反逃生口条款**(「先读一遍看看」不构成跳过拆解的理由) + 角色化委派 lane + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
 2. **声明式路由表**(routingHeading):列出可委派的子 agent preset(id → 职责),模型按子任务内容选择 `agent_preset` 参数。
 
 ## 角色化委派(#194)
@@ -48,6 +48,6 @@ teammate 经 `composeFrom` 继承父组合,因此文本对主 agent 与 teammate
 pnpm test   # 或包内 node --test test/*.test.mjs
 ```
 
-56 条测试全绿。每条新断言都做过反向验证(基线 0 红):注入 `agentPreset` → 5 条红;删掉「工具齐全」承诺 → 3 条红;删掉 zh 角色 lane → 2 条红;不转发 `maxDepth` → 3 条红;把 persona loader 换回 `DEFAULT_SCHEMA` → 1 条红。
+63 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
 `test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文查询零命中(已记录边界,工具的空答案会提示改用英文)。
