@@ -1,33 +1,33 @@
 {
   "issue": 195,
   "grade": "standard",
-  "stage": "spec",
-  "updatedAt": "2026-11-12T07:50:30.668Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-12T08:05:29.561Z",
   "tickets": [
     {
       "id": 1,
       "title": "zh 可数信号 + 反逃生口",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "en 对称",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "文档 / 版本",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "none"
+    "status": "unknown"
   },
   "review": {
-    "state": "not-started",
-    "axes": 0
+    "state": "running",
+    "axes": 2
   },
   "merge": {
     "authorized": false
