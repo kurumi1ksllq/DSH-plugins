@@ -26,11 +26,11 @@
 
 实现要点:
 
-- **persona 不复制**:运行时用 `ctx.agentPresets.readDocument(role)` 读注册表里的官方定义(deep-ptc `lib/index.mjs:126` 已有先例),本仓库零重复存储。声明里的 `!!js` 标签用宽容 schema 解析,只读文本、不求值。
+- **persona 不复制**:运行时用 `ctx.agentPresets.readDocument(role)` 读注册表里的官方定义(deep-ptc `lib/index.mjs:129` 已有先例),本仓库零重复存储。读回时用**与写入相同的 schema**(`JSON_SCHEMA` + `!!js` 标签)——用 `DEFAULT_SCHEMA` 会把单行 `2026-11-12` 解析成 Date,导致存在 persona 却报「declares no persona text」。
 - **人格走首条消息**:`0.2.2-rc.1` 的 `SubagentStartRequest` 已不含 `persona` 字段(descriptor 只留 label/provider/model),所以随任务文本进入是版本无关的做法。
 - **provider 选择**:优先 `spawn`;缺失时取第一个不继承父上下文的 provider;都没有则报错列出可用名。
-- **深度**:不传 `maxDepth`,由宿主 `subagents` 的全局深度闸决定,孙代理可继续按角色分工。
-- 两个工具都注册在**宿主平面**,所以主 agent、teammate、被派出的子 agent 都能用。
+- **深度**:显式转发宿主的深度闸。宿主的闸是拿 `request.maxDepth` 做比较,**不传等于不限**(`child-agent.js:31-40`),而读配置的 `resolveMaxDepth()` 只有官方 `subagent` 工具调用——不显式转发,这两个宿主平面工具会让子 agent 无界递归。
+- 两个工具都注册在**宿主平面**,所以主 agent、teammate、被派出的子 agent 都能用。**已知副作用**:`dsh-tools` 的 `view()` 把 global 层工具继承给所有 scope,因此一个在组合层面禁用了 `subagent` 的子 agent 仍看得见 `delegate_role`(源码推断,未在活会话实测)。
 
 ## 配套
 
@@ -48,4 +48,6 @@ teammate 经 `composeFrom` 继承父组合,因此文本对主 agent 与 teammate
 pnpm test   # 或包内 node --test test/*.test.mjs
 ```
 
-每条新断言都做过反向验证:注入 `agentPreset` → 5 条红;删掉「工具齐全」承诺 → 3 条红;删掉 zh 角色 lane → 2 条红。
+56 条测试全绿。每条新断言都做过反向验证(基线 0 红):注入 `agentPreset` → 5 条红;删掉「工具齐全」承诺 → 3 条红;删掉 zh 角色 lane → 2 条红;不转发 `maxDepth` → 3 条红;把 persona loader 换回 `DEFAULT_SCHEMA` → 1 条红。
+
+`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文查询零命中(已记录边界,工具的空答案会提示改用英文)。

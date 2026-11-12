@@ -2,20 +2,17 @@
 //
 // Two tools, both registered on the HOST plane (the bundle's patch row), so the
 // lead agent, every teammate, and every delegated child can use them -- a
-// grandchild can re-delegate by role within the host's depth cap.
+// grandchild can re-delegate by role within the deployment's depth cap.
 //
 // Why not `agent_preset`: see lib/delegate.mjs. The child inherits the parent
 // composition and receives the role's persona as its opening message.
 
 import { createRequire } from 'node:module'
 
-import { selectRoles, roleBriefing } from './roles.mjs'
+import { BUILTIN_PRESETS, selectRoles, roleBriefing } from './roles.mjs'
 import { buildDelegationRequest, pickProvider, personaFromDocument } from './delegate.mjs'
 
 const require = createRequire(import.meta.url)
-
-/** Roles whose declarations are not roles at all: they compose a whole agent. */
-const BUILTINS = ['standard', 'ptc', 'minimal', 'cordis', 'deep-ptc']
 
 /** Both tools answer with plain text; this is the shared output contract. */
 const TEXT_OUTPUT = {
@@ -24,11 +21,13 @@ const TEXT_OUTPUT = {
 }
 
 /**
- * Resolve the runtime's `defineTool`, or a minimal stand-in.
+ * Resolve the runtime's `defineTool`, or a stand-in with the same contract.
  *
  * `@deepseek-ai/dsh-tools` is provided by the running host and is not
  * installable in CI, so a top-level import would make this bundle unloadable on
- * a clean runner (precedent: dsh-credential-vault's lib/define-tool.js).
+ * a clean runner (precedent: dsh-credential-vault's lib/define-tool.js). The
+ * stand-in keeps that precedent's one load-bearing behaviour: required
+ * parameters are rejected BEFORE the tool body runs.
  * @returns {(spec: object) => object}
  */
 function resolveDefineTool() {
@@ -38,16 +37,31 @@ function resolveDefineTool() {
   } catch {
     // Not installed: tests, a bare checkout, CI.
   }
-  return (spec) => ({
-    name: spec.name,
-    description: spec.description,
-    parameters: parametersOf(spec.parameters),
-    output: spec.output,
-    execute: spec.execute,
-  })
+  return (spec) => {
+    const parameters = parametersOf(spec.parameters)
+    const required = parameters.required ?? []
+    return {
+      name: spec.name,
+      description: spec.description,
+      parameters,
+      output: spec.output,
+      async execute(args, exec) {
+        const missing = required.filter((name) => {
+          const value = args?.[name]
+          return value === undefined || value === null || (typeof value === 'string' && value.trim() === '')
+        })
+        if (missing.length > 0) {
+          const error = new Error('invalid arguments: ' + missing.map((name) => 'missing required property "' + name + '"').join('; '))
+          error.name = 'ToolArgsError'
+          throw error
+        }
+        return spec.execute(args, exec)
+      },
+    }
+  }
 }
 
-/** Turn a compact parameter spec into JSON Schema (the fallback path only). */
+/** Turn a compact parameter spec into JSON Schema (the stand-in path only). */
 function parametersOf(spec) {
   const properties = {}
   const required = []
@@ -65,16 +79,18 @@ function parametersOf(spec) {
 /**
  * Parse the YAML a preset declaration renders back.
  *
- * The registry dumps declarations with the loader's entry-list schema, which
- * preserves `!!js` expressions as a custom tag. A default-schema parse throws
- * on it, so the tag is mapped to its literal text: this code only reads a
- * persona string and never evaluates an expression.
+ * The registry dumps with the loader's entry-list schema, which is JSON_SCHEMA
+ * plus a `!!js` tag (cordis-plugin-include). Reading with DEFAULT_SCHEMA
+ * instead would resolve implicit types the writer never emitted: a single-line
+ * persona of `2026-11-12` comes back as a Date object, fails the string check,
+ * and surfaces as the misleading "declares no persona text". Same schema in,
+ * same schema out.
  * @param {string} text
  * @returns {unknown}
  */
 function loadDeclarationYaml(text) {
   const yaml = require('js-yaml')
-  const schema = yaml.DEFAULT_SCHEMA.extend([
+  const schema = yaml.JSON_SCHEMA.extend([
     new yaml.Type('tag:yaml.org,2002:js', { kind: 'scalar', construct: (data) => data }),
   ])
   return yaml.load(text, { schema })
@@ -98,18 +114,19 @@ export function registerRoleTools(ctx) {
     if (registry === undefined) {
       throw new Error('role delegation needs the agent-preset registry; this composition has none')
     }
-    return selectRoles(await registry.list(), BUILTINS)
+    return selectRoles(await registry.list(), BUILTIN_PRESETS)
   }
 
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'role_search',
     description: 'List or search the delegable subagent ROLES (specialist personas such as a security reviewer, '
       + 'a migration expert, an accessibility architect). Call this before delegate_role when you do not '
-      + 'already know the role id. Omit the query to see every role.',
+      + 'already know the role id. Omit the query to see every role. Role ids and descriptions are English; '
+      + 'search in English (security, django, accessibility, migration).',
     parameters: {
       query: {
         type: 'string',
-        description: 'Free text matched against role id, name and description. Several space-separated words are OR-ed. Omit for every role.',
+        description: 'Free text matched against role id, name and description. Several space-separated words are OR-ed. English matches the shipped roster. Omit for every role.',
       },
       limit: { type: 'number', description: 'Maximum number of roles to return.' },
     },
@@ -118,7 +135,9 @@ export function registerRoleTools(ctx) {
       const roles = await rolesNow()
       const picked = selectRoles(roles, [], args?.query, args?.limit)
       if (picked.length === 0) {
-        return 'No role matched "' + String(args?.query ?? '') + '". Call role_search without a query to see every role.'
+        return 'No role matched "' + String(args?.query ?? '') + '". Role ids and descriptions are English; '
+          + 'try an English keyword (security, django, accessibility, migration) or call role_search with no query '
+          + 'to list all ' + roles.length + ' roles.'
       }
       return picked.map((role) => '- ' + role.id + ' -- ' + (role.description || role.name)).join('\n')
     },
@@ -144,6 +163,10 @@ export function registerRoleTools(ctx) {
     async execute(args, exec) {
       const role = String(args?.role ?? '').trim()
       if (role === '') throw new Error('role is required; call role_search to find one')
+      // Belt and braces: the stand-in defineTool validates required args, but a
+      // blank-but-present prompt would otherwise start a child with an empty task.
+      const task = String(args?.prompt ?? '')
+      if (task.trim() === '') throw new Error('prompt is required: the child does not see this conversation')
 
       const parent = exec?.agent
       if (parent === undefined) throw new Error('delegate_role requires a calling agent')
@@ -165,9 +188,7 @@ export function registerRoleTools(ctx) {
       if (persona === '') {
         throw new Error('role "' + role + '" declares no persona text, so delegating to it would send an unshaped task')
       }
-      // Validate the briefing before starting a child: a blank persona is a
-      // roster bug, not something to discover after a session exists.
-      roleBriefing({ role, persona, task: args.prompt })
+      roleBriefing({ role, persona, task })
 
       const subagents = ctx.get('subagents')
       if (subagents === undefined) throw new Error('delegate_role needs the subagents service; this composition has none')
@@ -176,17 +197,23 @@ export function registerRoleTools(ctx) {
       }
 
       const { name: provider } = pickProvider(subagents, 'spawn')
-      const request = buildDelegationRequest({ role, persona, task: args.prompt, cwd: args.cwd })
+      const request = buildDelegationRequest({ role, persona, task, cwd: args.cwd })
+      // Carry the deployment's depth cap explicitly. The host gate is a
+      // comparison against `request.maxDepth`; omitting the field means NO
+      // limit, not "use the default" -- only the official subagent tool reads
+      // the configured value (dsh-tool-subagent/lib/index.js:452). Without this
+      // a role child could re-delegate forever, since these tools live on the
+      // host plane and every child sees them.
+      const maxDepth = typeof subagents.resolveMaxDepth === 'function'
+        ? subagents.resolveMaxDepth(undefined)
+        : undefined
       const activation = await subagents.startActivation({
         provider,
         label: typeof args?.description === 'string' && args.description !== '' ? args.description : 'role: ' + role,
-        request: { ...request, parent },
+        request: { ...request, parent, ...(maxDepth === undefined ? {} : { maxDepth }) },
         signal: exec.signal,
         delivery: 'parent',
       })
-      // The result arrives as an inbox notification; swallow only the
-      // rejection so a failed child cannot crash the delegating turn.
-      void activation.result?.catch?.(() => undefined)
       return 'Delegated to role "' + role + '" as subagent ' + activation.childId + '. Its result arrives as a notification.'
     },
   })))
