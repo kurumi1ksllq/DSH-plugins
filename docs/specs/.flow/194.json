@@ -1,28 +1,28 @@
 {
   "issue": 194,
   "grade": "standard",
-  "stage": "spec",
-  "updatedAt": "2026-11-12T04:16:19.814Z",
+  "stage": "dev",
+  "updatedAt": "2026-11-12T04:40:14.457Z",
   "tickets": [
     {
       "id": 1,
       "title": "角色目录 + role_search",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
       "title": "delegate_role",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 3,
       "title": "纪律文本 lane(zh/en 对称)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 4,
       "title": "文档 / 版本 / 依赖",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
