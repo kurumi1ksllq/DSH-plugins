@@ -61,4 +61,4 @@ pnpm test   # 或包内 node --test test/*.test.mjs
 
 74 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
-`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文查询零命中(已记录边界,工具的空答案会提示改用英文)。
+`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文关键词经同义词表映射后同样命中、未收录词如实返回无匹配。

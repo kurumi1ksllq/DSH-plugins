@@ -121,12 +121,12 @@ export function registerRoleTools(ctx) {
     name: 'role_search',
     description: 'List or search the delegable subagent ROLES (specialist personas such as a security reviewer, '
       + 'a migration expert, an accessibility architect). Call this before delegate_role when you do not '
-      + 'already know the role id. Omit the query to see every role. Role ids and descriptions are English; '
-      + 'search in English (security, django, accessibility, migration).',
+      + 'already know the role id. Omit the query to see every role. Chinese and English both work: '
+      + 'a Chinese concept is mapped to its English equivalent (安全→security, 无障碍→a11y).',
     parameters: {
       query: {
         type: 'string',
-        description: 'Free text matched against role id, name and description. Several space-separated words are OR-ed. English matches the shipped roster. Omit for every role.',
+        description: 'Free text matched against role id, name and description. Several space-separated words are OR-ed. Chinese and English both work. Omit for every role.',
       },
       limit: { type: 'number', description: 'Maximum number of roles to return.' },
     },
@@ -136,7 +136,7 @@ export function registerRoleTools(ctx) {
       const picked = selectRoles(roles, [], args?.query, args?.limit)
       if (picked.length === 0) {
         return 'No role matched "' + String(args?.query ?? '') + '". Role ids and descriptions are English; '
-          + 'try an English keyword (security, django, accessibility, migration) or call role_search with no query '
+          + 'try another keyword in Chinese or English, or call role_search with no query '
           + 'to list all ' + roles.length + ' roles.'
       }
       return picked.map((role) => '- ' + role.id + ' -- ' + (role.description || role.name)).join('\n')

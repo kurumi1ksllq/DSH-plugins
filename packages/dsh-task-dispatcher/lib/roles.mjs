@@ -20,8 +20,8 @@ export const BUILTIN_PRESETS = ['standard', 'ptc', 'minimal', 'cordis', 'deep-pt
 /**
  * Chinese concept -> English search terms.
  *
- * The shipped 133 ECC roles carry English ids and descriptions only (measured:
- * '安全' appears zero times in ecc-agent-presets/cordis.patch.yml), so a Chinese
+ * The shipped 133 ECC roles are overwhelmingly English (measured: "安全" appears
+ * zero times; three rows do carry Chinese, none of them security-related), so a
  * operator's first query used to answer 'No role matched'. This table bridges
  * the vocabulary without touching the role data or the matching algorithm.
  *
@@ -38,20 +38,24 @@ export const SYNONYMS = {
   数据库: ['database', 'sql', 'postgres'],
   测试: ['test', 'testing', 'tdd'],
   文档: ['doc', 'documentation', 'readme'],
-  性能: ['performance', 'perf', 'optimization'],
+  性能: ['performance-optimizer', 'optimization'],
   前端: ['frontend', 'react', 'vue', 'css'],
-  后端: ['backend', 'api', 'server'],
+  后端: ['api-platform'],
   重构: ['refactor', 'cleanup'],
-  审查: ['review', 'reviewer'],
-  迁移: ['migration', 'migrate'],
-  部署: ['deploy', 'deployment', 'release'],
-  架构: ['architect', 'architecture'],
-  计划: ['plan', 'planner', 'planning'],
-  调试: ['debug', 'troubleshoot'],
-  构建: ['build', 'compile'],
-  代码: ['code', 'reviewer'],
-  工程: ['engineer', 'engineering'],
+  审查: ['reviewer'],
+  迁移: ['migration'],
+  部署: ['deploy', 'deployment', 'release', 'devops', 'sre', 'infra'],
+  架构: ['architect'],
+  计划: ['planner', 'sprint-prioritizer', 'planning'],
+  调试: ['troubleshoot'],
+  构建: ['build-resolver', 'compil'],
+  代码: ['code-architect', 'code-explorer', 'codebase'],
+  工程: ['engineering'],
 }
+
+// Frozen: an importer must not be able to change global search behaviour.
+Object.values(SYNONYMS).forEach((terms) => Object.freeze(terms))
+Object.freeze(SYNONYMS)
 
 /** Chinese multi-character words may also appear inside a longer phrase. */
 const SYNONYM_KEYS = Object.keys(SYNONYMS).sort((a, b) => b.length - a.length)
@@ -85,14 +89,29 @@ export function expandTerm(term) {
  * @returns {string[]} every term to try, OR-ed by the caller.
  */
 export function expandQuery(query) {
+  return expandQueryDetailed(query).terms
+}
+
+/**
+ * Expand a query and report which terms came from the synonym table.
+ *
+ * The distinction decides how strictly a term matches: a mapped term names a
+ * specialty and is held to the role id, while a term the user typed may also
+ * match the description (that is how English queries have always behaved).
+ * @param {string} [query] - free-text query, whitespace separated.
+ * @returns {object} the terms plus the subset that came from the table.
+ */
+export function expandQueryDetailed(query) {
   const terms = String(query ?? '').trim().toLowerCase().split(/\s+/).filter((term) => term !== '')
-  const expanded = []
+  const out = []
+  const mapped = new Set()
   for (const term of terms) {
     for (const candidate of expandTerm(term)) {
-      if (!expanded.includes(candidate)) expanded.push(candidate)
+      if (!out.includes(candidate)) out.push(candidate)
+      if (candidate !== term) mapped.add(candidate)
     }
   }
-  return expanded
+  return { terms: out, mapped }
 }
 
 /** Longest role briefing we forward, in characters. Personas reach 28k. */
@@ -115,11 +134,39 @@ function roleOf(row) {
 }
 
 /**
+ * Does `term` occur in `haystack` starting at a word boundary?
+ *
+ * Substring matching was the first implementation and it produced WRONG answers:
+ * `ci` hit 83 of 133 rows (81 of them inside "specializing"), `doc` hit 5 for 1
+ * real match, `build` hit anthropologists ("builds culturally coherent
+ * societies"). A catalogue that confidently returns the wrong specialist is
+ * worse than one that returns nothing.
+ *
+ * Rules:
+ *   1. the term must start at a boundary (^ or a non-alphanumeric character),
+ *      so "api" no longer matches "fastapi" and "ci" no longer matches
+ *      "specializing";
+ *   2. it may END inside a word, so "compil" still finds "compiler" and
+ *      "migrat" finds "migration";
+ *   3. multi-word terms ("code-review") match as a phrase.
+ * @param {string} haystack - lower-cased id + name + description.
+ * @param {string} term - lower-cased search term.
+ * @returns {boolean}
+ */
+function matchesTerm(haystack, term) {
+  if (term === '') return false
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp('(^|[^a-z0-9])' + escaped).test(haystack)
+}
+
+/**
  * Pick the delegable roles out of a roster.
  *
  * A row is a role unless it is one of the built-in full compositions. Matching
  * is case-insensitive and ORs the whitespace-separated query terms across id,
  * name and description. Chinese terms are first mapped through SYNONYMS to the
+ * English concepts the roster uses; the original term is kept, and every term
+ * is OR-ed.
  * @param {ReadonlyArray<object>} roster - rows from `agentPresets.list()`.
  * @param {ReadonlyArray<string>} builtins - ids to exclude.
  * @param {string} [query] - free-text filter; blank means "every role".
@@ -129,7 +176,7 @@ function roleOf(row) {
 export function selectRoles(roster, builtins, query, limit) {
   const excluded = new Set((builtins ?? []).map((id) => String(id).trim().toLowerCase()))
   // Chinese keywords expand to the English concepts the roster actually uses.
-  const terms = expandQuery(query)
+  const { terms, mapped } = expandQueryDetailed(query)
 
   const roles = []
   for (const row of roster ?? []) {
@@ -137,7 +184,18 @@ export function selectRoles(roster, builtins, query, limit) {
     if (role === null || excluded.has(role.id.toLowerCase())) continue
     if (terms.length > 0) {
       const haystack = (role.id + ' ' + role.name + ' ' + role.description).toLowerCase()
-      if (!terms.some((term) => haystack.includes(term))) continue
+      const idOnly = role.id.toLowerCase()
+      // Where a term came from decides how strictly it must match.
+      //
+      // A term expanded from a Chinese concept names a specialty, so it must
+      // hit the ROLE ID: '架构' -> 'architect' must not pull in every reviewer
+      // whose blurb happens to say "architecture" (measured: 13 rows, 6 of them
+      // reviewers). A term the user typed themselves may match the description
+      // too, because that is how English queries have always worked.
+      const hit = terms.some((term) => (
+        mapped.has(term) ? matchesTerm(idOnly, term) : matchesTerm(haystack, term)
+      ))
+      if (!hit) continue
     }
     roles.push(role)
   }

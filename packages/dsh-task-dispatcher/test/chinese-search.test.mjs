@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
 
 import { selectRoles, BUILTIN_PRESETS, expandQuery, SYNONYMS } from '../lib/roles.mjs'
+import { ENGLISH_BASELINE } from './fixtures/english-baseline.mjs'
 
 // ---------------------------------------------------------------------------
 // #196: Chinese keywords must reach the English roster.
@@ -81,17 +82,26 @@ test('mixed Chinese and English terms keep OR semantics', async () => {
   assert.equal(mixed.length, union.size, 'mixed query must equal the union of its parts')
 })
 
-test('English queries are untouched by the mapping layer', async () => {
-  // Regression lock: the Chinese support must not change what English returns.
+test('English queries return exactly what main returned before the mapping', async () => {
+  // Regression lock with a RECORDED baseline, not a self-comparison. The first
+  // version asserted `f(q) === f(q)`, which cannot fail: truncating English
+  // results to five entries stayed green (measured). The fixture holds main's
+  // real answers for 22 queries.
   const roster = await eccRoster()
-  for (const query of ['security', 'django', 'a11y', 'database', 'review']) {
+  for (const [query, expected] of Object.entries(ENGLISH_BASELINE)) {
     assert.deepEqual(
       selectRoles(roster, BUILTIN_PRESETS, query).map((role) => role.id),
-      selectRoles(roster, BUILTIN_PRESETS, query).map((role) => role.id),
+      expected,
+      'English query ' + JSON.stringify(query) + ' drifted from the main baseline',
     )
   }
-  // And the expansion of a pure-ASCII query is the query itself.
-  assert.deepEqual(expandQuery('django'), ['django'])
+})
+
+test('a pure-ASCII query never enters the mapping branch', () => {
+  // The mechanism, not just the outcome: expansion must be identity for ASCII.
+  for (const query of ['security', 'django', 'a11y', 'review', 'test']) {
+    assert.deepEqual(expandQuery(query), [query])
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -99,17 +109,21 @@ test('English queries are untouched by the mapping layer', async () => {
 // broken. Both are about the mapping being USEFUL rather than merely present.
 // ---------------------------------------------------------------------------
 
-test('every mapped English term actually occurs in the shipped roster', async () => {
-  // A synonym pointing at a word the roster never uses is a silent hole: the
-  // table looks populated, the query still fails. This pins the table to data.
+test('every mapped English term occurs in the shipped roster, at a word boundary', async () => {
+  // Two review rounds hardened this:
+  //   - `some` only proved 'at least one target occurs', which let the dead
+  //     target 'backend' (0 occurrences) ship;
+  //   - plain substring matching let 'api' match 'fastapi' and 'ci' match
+  //     'specializing' (81 of 83 hits), producing confidently WRONG answers.
+  // Every target must now occur at a word boundary.
   const roster = await eccRoster()
   const haystack = roster.map((role) => (role.id + ' ' + role.description).toLowerCase()).join('\n')
-  const zhWords = ['安全', '无障碍', '数据库', '测试', '文档', '性能', '前端', '后端', '重构', '审查', '迁移', '部署', '架构', '计划', '调试', '构建']
-  for (const word of zhWords) {
+  const atBoundary = (term) => new RegExp('(^|[^a-z0-9])' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(haystack)
+  for (const word of Object.keys(SYNONYMS)) {
     const terms = expandQuery(word).filter((term) => term !== word.toLowerCase())
     assert.ok(terms.length > 0, word + ' must map to at least one English term')
-    const hit = terms.some((term) => haystack.includes(term))
-    assert.ok(hit, word + ' maps to ' + terms.join(',') + ' but none of those occur in the roster')
+    const dead = terms.filter((term) => !atBoundary(term))
+    assert.deepEqual(dead, [], word + ' has dead targets (zero word-boundary occurrences in the roster): ' + dead.join(','))
   }
 })
 
@@ -135,4 +149,46 @@ test('no synonym key is pure ASCII, so English queries cannot be rewritten', () 
   const keys = Object.keys(SYNONYMS)
   const ascii = keys.filter((key) => /^[\x00-\x7f]+$/.test(key))
   assert.deepEqual(ascii, [], 'synonym keys must be non-ASCII, got: ' + ascii.join(','))
+})
+
+// ---------------------------------------------------------------------------
+// Semantic locks: 'the table has entries' is not 'the entries are right'.
+//
+// Axis-2 review swapped 后端 -> [frontend, react] and dropped devops/sre from 部署;
+// both stayed green because the guard only checked that SOME target existed in
+// the roster. These cases name the roles each concept MUST and MUST NOT reach.
+// ---------------------------------------------------------------------------
+
+test('each concept reaches its own specialists and not a neighbouring field', async () => {
+  const roster = await eccRoster()
+  const ids = (query) => selectRoles(roster, BUILTIN_PRESETS, query).map((role) => role.id)
+  const cases = [
+    { query: '后端', must: /api-platform|backend|server|platform-engineer/, mustNot: /frontend|react-reviewer|vue-reviewer/ },
+    { query: '部署', must: /devops|sre|platform-engineer/, mustNot: /content-strategist|strategist/ },
+    { query: '无障碍', must: /a11y|accessibility/, mustNot: /account-strategist/ },
+    { query: '数据库', must: /database|sql|postgres/, mustNot: /content|marketing/ },
+    { query: '安全', must: /security|secure/, mustNot: /anthropologist|geographer/ },
+  ]
+  for (const { query, must, mustNot } of cases) {
+    const hits = ids(query)
+    assert.ok(hits.length > 0, query + ' must return something')
+    assert.ok(
+      hits.some((id) => must.test(id)),
+      query + ' must reach one of ' + must + ', got: ' + hits.slice(0, 6).join(','),
+    )
+    const wrong = hits.filter((id) => mustNot.test(id))
+    assert.deepEqual(wrong, [], query + ' must not reach neighbouring fields: ' + wrong.join(','))
+  }
+})
+
+test('a concept never reaches a role from an unrelated domain', async () => {
+  // The substring era matched 'build' against 'anthropologist' (builds culturally
+  // coherent societies) and 'rust' against 'kuaishou-strategist'.
+  const roster = await eccRoster()
+  const noise = /anthropologist|geographer|psychologist|strategist|account-|marketing|historian/
+  for (const query of ['构建', '性能', '架构', '计划', '调试']) {
+    const hits = selectRoles(roster, BUILTIN_PRESETS, query).map((role) => role.id)
+    const wrong = hits.filter((id) => noise.test(id))
+    assert.deepEqual(wrong, [], query + ' picked up unrelated domains: ' + wrong.join(','))
+  }
 })
