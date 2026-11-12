@@ -57,23 +57,39 @@ function loadClient() {
 const client = loadClient()
 
 /**
- * Apply the bundle against a recording context: slot seats, tab types, dictionaries.
- * `t` is bound to the REAL dictionary, because the tab title and the guide card
- * are thunked copy read on every use — a stub that echoes the key would let a
- * missing translation pass.
+ * The host's `translate()`, reproduced verbatim
+ * (`@deepseek-ai/dsh-client-locale/lib/client.js:1711-1716`):
+ *
+ *   const template = lookup(ns, key) ?? key
+ *   if (!params) return template
+ *   return template.replace(/\{(\w+)\}/g, ...)
+ *
+ * Two consequences this stub must reproduce, because the panel depends on them:
+ *   - a message entry is a FUNCTION, so `t(key)` hands back that function;
+ *     only the caller can invoke it — `t(key, a, b)` would call `.replace` on a
+ *     function and throw.
+ *   - `params` is a single object, never positional arguments.
+ *
+ * A lenient stub that accepted both shapes certified a render-time TypeError as
+ * green (review axis A, P1-1).
  */
+function hostTranslate(dict) {
+  return (key, params) => {
+    const template = dict[key] ?? key
+    if (!params) return template
+    return String(template).replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match))
+  }
+}
+
+/** Apply the bundle against a recording context: slot seats, tab types, dictionaries. */
 function applyRecording() {
   const slots = []
   const types = []
   /** What each `ctx.effect` callback returned: a disposer, or nothing. */
   const disposers = []
   let dicts = null
-  const resolve = (k, ...args) => {
-    const entry = dicts?.zh?.[k]
-    if (typeof entry === 'function') return args.length > 0 ? entry(...args) : entry
-    if (entry !== undefined) return entry
-    return args.length > 0 ? k + ':' + args.join(',') : String(k)
-  }
+  // Bound lazily: the dictionary only exists after `locale.register` runs.
+  const resolve = (k, params) => hostTranslate(dicts?.zh ?? {})(k, params)
   client.apply({
     effect: (fn) => {
       const disposer = fn()
@@ -101,15 +117,9 @@ function applyRecording() {
 
 const recorded = applyRecording()
 
-/** `t` mirrors the live locale bind: plain keys resolve to the copy the user sees. */
+/** `t` is the host's own translator; see `hostTranslate`. */
 function translator() {
-  const dict = recorded.dicts.zh
-  return (k, ...args) => {
-    const entry = dict[k]
-    if (typeof entry === 'function') return args.length > 0 ? entry(...args) : entry
-    if (entry !== undefined) return entry
-    return args.length > 0 ? k + ':' + args.join(',') : String(k)
-  }
+  return hostTranslate(recorded.dicts.zh)
 }
 
 function walk(node, out, depth = 0) {
@@ -236,7 +246,10 @@ test('the tab type declares an id, a kind, a chip title and a guide card', () =>
   assert.equal(type.id, 'dev-flow/git-status')
   assert.notEqual(type.id, type.kind, 'the body key must not be the kind: a kind-keyed seat never draws')
   assert.equal(type.kind, 'git-status', 'the page kind is what openTab names')
-  assert.equal(type.priority, 'builtin', 'a shipped type declares the builtin band')
+  // The band that may take a builtin kind over later — the correct one for a
+  // bundle installed from outside the product. 'builtin' would throw on a
+  // future same-kind product type instead of being outranked.
+  assert.equal(type.priority, 'extension', 'an out-of-product bundle declares the extension band')
   assert.equal(typeof type.title, 'function')
   assert.equal(type.title(), 'Git', 'the chip reads the localized label')
   assert.ok(Array.isArray(type.guide) && type.guide.length === 1, 'one guide entry box')
@@ -279,6 +292,74 @@ test('the board stacks vertically so eight columns fit a narrow column', () => {
   // The page owns the only scroll axis, and it is vertical.
   const scrollers = elements(renderBody(SNAP)).filter((el) => el.props?.style?.overflowX === 'auto' || el.props?.style?.overflowX === 'scroll')
   assert.deepEqual(scrollers, [], 'nothing in this panel scrolls horizontally')
+})
+
+test('every message key renders through the host translator without throwing', () => {
+  // The panel calls message entries in two shapes. Only ONE is supported by the
+  // host: `t(key)` returns the entry FUNCTION, and `t(key, a, b)` makes
+  // `translate()` call `.replace` on that function (TypeError, caught by the
+  // renderer's error boundary, which leaves an empty shell — the exact symptom
+  // this PR exists to remove). This snapshot drives EVERY message path: ticket
+  // progress, the stale tip, the needs-you strip, the off-flow banner and a
+  // card action line.
+  const busy = structuredClone(SNAP)
+  busy.board.columns[1].cards = [{
+    issue: 197,
+    title: '移右侧栏',
+    grade: 'standard',
+    columnCount: 8,
+    stageIndex: 2,
+    tickets: [
+      { id: 1, title: '改挂', state: 'done' },
+      { id: 2, title: '夹具', state: 'done' },
+      { id: 3, title: '文档', state: 'todo' },
+    ],
+    checks: 'red',
+    prNumber: 198,
+    branchName: 'issue-197-git-panel-right-sidebar',
+    ahead: 1,
+    stale: true,
+    flowStage: 'dev',
+    ci: { run: 1, max: 2 },
+    review: { state: 'pending-decision' },
+    action: { kind: 'merge-gate', prNumber: 198 },
+  }]
+
+  let text
+  assert.doesNotThrow(() => { text = textOf(renderBody(busy)) }, 'no message key may crash the host translator')
+  // The parameterised copy actually reached the screen with its arguments.
+  assert.match(text, /ticket 2\/3/, 'ticket progress is formatted')
+  assert.match(text, /状态文件写着 dev/, 'the stale tip is formatted')
+  assert.match(text, /#197 已建档但还没建分支/, 'the needs-you line is formatted')
+  assert.match(text, /在 main 上有未提交改动/, 'the off-flow line is formatted')
+  assert.match(text, /PR #198\(issue #197\)等你答是否合并/, 'the card action line is formatted')
+})
+
+test('a tab with no Session says so instead of showing another repository', () => {
+  // Without a Session id the host answers from the web process's launch
+  // directory. That is a DIFFERENT repository rendered as if it were yours, so
+  // silence is the failure mode to prevent.
+  const t = translator()
+  const withSession = textOf(body().comp({ t, sessionId: 's1', initialSnap: SNAP }))
+  const withoutSession = textOf(body().comp({ t, sessionId: '', initialSnap: SNAP }))
+  assert.equal(withSession.includes('没拿到这个标签页属于哪个会话'), false, 'a bound Session shows no warning')
+  assert.match(withoutSession, /没拿到这个标签页属于哪个会话/, 'an unbound tab warns that the repository may be wrong')
+})
+
+test('long branch names wrap instead of scrolling the column sideways', () => {
+  // A branch name is one unbreakable token. `overflowY: auto` makes the other
+  // axis compute to `auto` too, so a 300px column would gain a horizontal
+  // scrollbar. Two defences, both asserted: the meta line can break anywhere,
+  // and no page root scrolls sideways.
+  for (const [label, snap] of [['the board', SNAP], ['the not-a-git empty state', { isGit: false }]]) {
+    const roots = elements(renderBody(snap)).filter((el) => el.props?.style?.overflowY === 'auto')
+    assert.ok(roots.length > 0, label + ' renders a page root')
+    for (const root of roots) {
+      assert.equal(root.props.style.overflowX, 'hidden', label + ': the page root never scrolls sideways')
+    }
+  }
+  const metas = elements(renderBody(SNAP)).filter((el) => el.props?.style?.overflowWrap === 'anywhere')
+  assert.ok(metas.length > 0, 'the card meta line can break a long token')
 })
 
 test('the non-git empty state survives the move', () => {

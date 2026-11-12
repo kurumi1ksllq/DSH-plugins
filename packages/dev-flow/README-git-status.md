@@ -12,7 +12,8 @@ DeepSeek Harness 插件：当前工作区是 git 项目时，**右侧栏**多一
 2. **正文**：`sidebar.right.pane.tab` 座位，key = 上面的 `id`（**不是** `kind`）
 3. **标题**：`sidebar.right.pane.tab.title`，同一个 key
 
-> 正文用 `kind` 当 key 不会报错，只会永远不显示——与 #161 的 patch 行静默失效同型。
+> 正文用 `kind` 当 key 不会报错：宿主会退化成它自己的「这类内容还没有可用的查看方式」提示
+> （`data-sidebar-right-unavailable`），chip 则保留开页时捕获的标题。静默但错——与 #161 的 patch 行同型。
 > `test/client-right-sidebar.test.mjs` 把这条身份关系钉死。
 
 右侧栏可以同时放文件树、终端、浏览器和本面板，各自一个标签页；guide 里的入口卡排在

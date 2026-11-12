@@ -21,7 +21,14 @@ test-only changes are exempt.
 
 **删除**:`retainedSessionId`(从会话列表反查「主视图保留的是哪个会话」)——`sessionId` 现在由宿主的 session 作用域直接注入;`back` 文案与「返回对话」按钮(收起右侧栏本身就是返回)。`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
 
-**测试**:`packages/dev-flow` 232 条全绿(新增 9 条)。`test/client-right-sidebar.test.mjs` 的反向验证(实测 `fail` 口径,每条都变红后恢复):
+**修掉一个渲染期崩溃**(既有缺陷,`git blame` 指向 2026-11-03 的 `dsh-git-status` 时代,`main` 上同样可复现):
+面板有 6 处把消息参数塞进 `t(key, a, b)` 的第二实参。宿主的 `translate()` 对函数型词条会执行
+`template.replace(...)`,于是 `TypeError: template.replace is not a function` —— renderer 的错误边界兜住后,
+整个标签页退化成空壳。正是本 PR 想消灭的「看起来是空的」。同文件里正确的一段式写法(`t(key)(a, b)`)
+一直存在,已统一。**新测试桩改为逐字复刻宿主 `translate()`**,不再同时兼容两种调用形状——
+原桩把宿主不接受的形状认证成了绿。六个调用点各有反向验证(改回旧写法 → 1~4 红)。
+
+**测试**:`packages/dev-flow` 235 条全绿(新增 12 条)。`test/client-right-sidebar.test.mjs` 的反向验证(实测 `fail` 口径,每条都变红后恢复):
 
 - 正文座位 key 从类型 `id` 改回 `kind` → **17 红**(`client-board` 的座位查找连带整文件失败)
 - 左侧栏入口写回 → 1 红

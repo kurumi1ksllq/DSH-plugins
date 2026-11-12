@@ -82,3 +82,22 @@ body 收到的是 session 作用域标准 props(`sessionId`)加框架注入的 `
 4. **既有测试夹具的 `effect` 桩从 `() => {}` 改为 `(fn) => fn()`**。新注册全部包在
    `ctx.effect` 里,空桩会让 `register` 根本不被调用——这不是放宽断言,是让桩与真实
    slot 系统行为一致(真实系统会立即执行)。
+
+## 变更(双轴 review 后,2026-11-13)
+
+轴 A(实现/契约)与轴 B(测试/文档)两路独立审查,findings 我逐条实测复现后处置:
+
+**P1 采纳(渲染期崩溃,既有缺陷)**:6 处 `t(key, a, b)` 在真实宿主 locale 下抛
+`TypeError: template.replace is not a function`,renderer 错误边界兜住后整个标签页退化成空壳。
+我用宿主 `translate()` 原文写夹具复现(修复前 THREW / 修复后 OK)。这是 `main` 上也存在的缺陷
+(`git blame` → 2026-11-03 `dsh-git-status` 时代),但**本 PR 新增的测试桩把它认证成了绿**——
+桩同时兼容了宿主不接受的调用形状。已改桩为逐字复刻 `translate()`,并统一 6 个调用点为一段式。
+
+**P2 采纳**:① priority `builtin` → `extension`(本包从产品外安装;`builtin` 在未来同 kind
+产品类型出现时注册期抛错);② 标题座位注释改成实话(宿主无 retitle 路径,救不了语言切换);
+③ `key` 用 `kind` 的后果措辞改准(宿主画 `tab.unavailable`,不是空白);④ 无 `sessionId` 时
+加提示(此前静默展示宿主启动目录的另一个仓库);⑤ `cardMeta` 加 `overflowWrap` + 页面根加
+`overflowX:hidden`(分支名单 token,300px 栏会横向滚动);⑥ `S.card`/`S.cardTitle` 重名覆盖拆成
+`boardCard`/`boardCardTitle`;⑦ 删死词条 `needsUserEmpty`,头注释按 18px 改写。
+
+**未采纳**:无。两轴共 13 条发现,逐条实测复现,全部成立。
