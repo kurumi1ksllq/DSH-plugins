@@ -66,7 +66,6 @@ function realDictionary() {
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
     slots: { inject: (_n, run) => run(), register: () => ({}) },
     sidebarRightTabs: { register: () => () => {} },
-    layout: { selectPanel: () => {} },
   })
   return dicts.zh
 }
@@ -81,7 +80,6 @@ function renderWire(wire) {
     locale: { register: () => {}, bind: () => (k) => k },
     slots: { inject: (_n, run) => run(), register: (spec, comp) => registered.push({ spec, comp }) },
     sidebarRightTabs: { register: () => () => {} },
-    layout: { selectPanel: () => {} },
   })
   const Panel = registered.find((r) => r.spec.name === 'sidebar.right.pane.tab').comp
   const t = (k, ...args) => {

@@ -934,7 +934,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         null,
         h(NeedsUser, { t, items: board.needsUser ?? [] }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
-        h('div', { style: S.board }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
+        h('div', { style: S.board, 'data-board': 'columns' }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
         // T4.df 面板↔流程互相指引(键名 boardFlowHint;#154 前叫 boardSkillHint): the board shows WHERE the work is; this
         // line tells the user how to START work (the skill), closing the loop.
         h('div', { style: S.hint }, t('boardFlowHint')),

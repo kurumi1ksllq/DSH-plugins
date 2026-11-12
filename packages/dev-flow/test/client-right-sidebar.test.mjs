@@ -65,6 +65,8 @@ const client = loadClient()
 function applyRecording() {
   const slots = []
   const types = []
+  /** What each `ctx.effect` callback returned: a disposer, or nothing. */
+  const disposers = []
   let dicts = null
   const resolve = (k, ...args) => {
     const entry = dicts?.zh?.[k]
@@ -73,9 +75,13 @@ function applyRecording() {
     return args.length > 0 ? k + ':' + args.join(',') : String(k)
   }
   client.apply({
-    effect: (fn) => fn(),
+    effect: (fn) => {
+      const disposer = fn()
+      disposers.push(disposer)
+      return disposer
+    },
     get: () => undefined,
-    locale: { register: (_ns, d) => { dicts = d }, bind: () => resolve },
+    locale: { register: (_ns, d) => { dicts = d; return () => {} }, bind: () => resolve },
     slots: {
       inject: (name, run) => run(),
       register: (spec, comp) => {
@@ -89,9 +95,8 @@ function applyRecording() {
         return () => {}
       },
     },
-    layout: { selectPanel: () => {} },
   })
-  return { slots, types, dicts }
+  return { slots, types, dicts, disposers }
 }
 
 const recorded = applyRecording()
@@ -207,19 +212,36 @@ test('the panel is a right-sidebar tab type, not a left-sidebar page', () => {
   assert.deepEqual([...client.inject].sort(), ['locale', 'sidebarRightTabs', 'slots'])
 })
 
+test('every registration is owned by an effect, so unloading releases it', () => {
+  // A registration called outside `ctx.effect` still works and still draws —
+  // it just never gets released, so a reload stacks a second copy of the tab
+  // type and a second body seat. The host gives no warning for that, so the
+  // disposers are what prove ownership.
+  assert.equal(
+    recorded.disposers.length,
+    4,
+    'dictionaries, the tab type, the body seat and the title seat are each effect-owned',
+  )
+  for (const [i, disposer] of recorded.disposers.entries()) {
+    assert.equal(typeof disposer, 'function', 'effect #' + i + ' must return a disposer')
+  }
+})
+
 test('the tab type declares an id, a kind, a chip title and a guide card', () => {
   assert.equal(recorded.types.length, 1, 'exactly one tab type')
   const [type] = recorded.types
-  assert.equal(typeof type.id, 'string')
-  assert.ok(type.id.length > 0, 'the type needs an implementation id: it is the body key')
+  // README states this literal as the contract, so the literal is what is pinned.
+  // Letting id degrade to the kind would silently undo the whole lesson of #197
+  // (a body keyed by kind draws nothing) while every other assertion stays green.
+  assert.equal(type.id, 'dev-flow/git-status')
+  assert.notEqual(type.id, type.kind, 'the body key must not be the kind: a kind-keyed seat never draws')
   assert.equal(type.kind, 'git-status', 'the page kind is what openTab names')
   assert.equal(type.priority, 'builtin', 'a shipped type declares the builtin band')
   assert.equal(typeof type.title, 'function')
   assert.equal(type.title(), 'Git', 'the chip reads the localized label')
   assert.ok(Array.isArray(type.guide) && type.guide.length === 1, 'one guide entry box')
   const [entry] = type.guide
-  assert.equal(typeof entry.order, 'number')
-  assert.ok(entry.order > 30, 'sits after files (10), terminal (20) and browser (30)')
+  assert.equal(entry.order, 40, 'README states 40; sits after files (10), terminal (20) and browser (30)')
   assert.equal(entry.title(), 'Git', 'the guide card shows the same label')
   assert.equal(typeof entry.description, 'function')
 })
@@ -245,10 +267,18 @@ test('the body still renders the whole task board', () => {
 })
 
 test('the board stacks vertically so eight columns fit a narrow column', () => {
-  const containers = elements(renderBody(SNAP)).filter((el) => el.props?.style && typeof el.props.style === 'object')
-  const stack = containers.filter((el) => el.props.style.flexDirection === 'column' && el.props.style.overflowX === undefined)
-  assert.ok(stack.length > 0, 'the board container must be a vertical stack, not a horizontal scroller')
-  assert.equal(containers.some((el) => el.props.style.overflowX === 'auto'), false, 'no horizontal scrolling in a 300px column')
+  // Anchored on the board container ITSELF, not on "some container in the tree
+  // is a column": the first version of this test passed while the board had
+  // already gone back to a horizontal scroller, because any other column
+  // container satisfied it (review axis B, P1-1).
+  const boards = elements(renderBody(SNAP)).filter((el) => el.props?.['data-board'] === 'columns')
+  assert.equal(boards.length, 1, 'the board renders exactly one column stack')
+  const style = boards[0].props.style
+  assert.equal(style.flexDirection, 'column', 'the board reads top-down in a 300px column')
+  assert.equal(style.overflowX, undefined, 'the board must not scroll horizontally')
+  // The page owns the only scroll axis, and it is vertical.
+  const scrollers = elements(renderBody(SNAP)).filter((el) => el.props?.style?.overflowX === 'auto' || el.props?.style?.overflowX === 'scroll')
+  assert.deepEqual(scrollers, [], 'nothing in this panel scrolls horizontally')
 })
 
 test('the non-git empty state survives the move', () => {
@@ -278,13 +308,12 @@ test('the manifest declares the services the client actually injects', () => {
   const manifest = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8'))
   const declared = manifest.dsh.client.inject
 
-  assert.ok(Array.isArray(declared) && declared.length > 0, 'the manifest must declare its client dependencies')
-  // Every host package this bundle's client code depends on must be present.
-  for (const pkg of ['@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-locale']) {
-    assert.ok(declared.includes(pkg), 'dsh.client.inject must include ' + pkg)
-  }
-  // The seats this panel no longer occupies must not keep their package mounted.
-  for (const gone of ['@deepseek-ai/dsh-client-ui-sidebar', '@deepseek-ai/dsh-client-ui-layout']) {
-    assert.equal(declared.includes(gone), false, 'dsh.client.inject must drop ' + gone + ' after the move to the right sidebar')
-  }
+  // Set equality, not "contains": an extra package mounts a module nobody uses
+  // and a missing one breaks the load, so both directions are failures. This is
+  // the same strength as dsh-inventory's guard over its own inject list.
+  assert.deepEqual(
+    [...declared].sort(),
+    ['@deepseek-ai/dsh-client-locale', '@deepseek-ai/dsh-client-ui-sidebar-right'],
+    'dsh.client.inject must be exactly the services this client needs',
+  )
 })

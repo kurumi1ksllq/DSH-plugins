@@ -11,9 +11,14 @@ guide 入口卡 order 40,排在文件/终端/浏览器之后。
 右侧栏最窄 300px,八列横向并排会全部藏进横向滚动条。`sessionId` 改用宿主的 session 作用域
 标准 props,删除 `retainedSessionId` 反查与「返回对话」按钮。
 
-`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
-新增 `test/client-right-sidebar.test.mjs`(含三条反向验证:正文 key 改 kind、左侧入口写回、
-板面改回横向滚动,各自变红)。
+**修掉一个会被误读成「标签页是空的」的缺陷**:宿主把 tab body 画在 `overflow: hidden` 的 pane 里
+(dock kit 拥有 pane,body 不能滚动它),而原 `S.page` / `S.pageWide` 没有 `overflowY` ——
+内容被裁掉且没有滚动条。两个根样式补 `height:100%; overflowY:auto`,空态/错误态/板面都自带滚动轴。
+chip 标题也从 `<span style="display:contents">` 改为 `React.Fragment`(宿主 `GuideTitle` /
+`FilesTitle` 同款:chip 的盒子由 dock kit 提供,多包一层会引入它不预期的布局盒)。
+
+`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale,并加集合相等守护。
+新增 `test/client-right-sidebar.test.mjs`(9 条,反向验证口径见根 CHANGELOG)。
 
 ## 0.7.0 — 2026-11-10
 

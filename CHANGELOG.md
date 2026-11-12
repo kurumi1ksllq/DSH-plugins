@@ -21,7 +21,17 @@ test-only changes are exempt.
 
 **删除**:`retainedSessionId`(从会话列表反查「主视图保留的是哪个会话」)——`sessionId` 现在由宿主的 session 作用域直接注入;`back` 文案与「返回对话」按钮(收起右侧栏本身就是返回)。`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
 
-**测试**:229 条全绿。新增 `test/client-right-sidebar.test.mjs`,含三条反向验证:① 正文 key 改回 `kind` → 1 红;② 左侧栏入口写回 → 1 红;③ 板面改回横向滚动 → 1 红。三个既有夹具(`client-board` / `client-render` / `e2e-board`)从找 `main` 改为找右侧栏座位,并让 `effect` 桩真正执行回调(否则新注册路径根本到不了 `register`)。
+**测试**:`packages/dev-flow` 232 条全绿(新增 9 条)。`test/client-right-sidebar.test.mjs` 的反向验证(实测 `fail` 口径,每条都变红后恢复):
+
+- 正文座位 key 从类型 `id` 改回 `kind` → **17 红**(`client-board` 的座位查找连带整文件失败)
+- 左侧栏入口写回 → 1 红
+- 板面改回横向滚动 → 1 红(首版只断言「树里有某个 column 容器」,加一个诱饵容器即 0 红;已改为锚定 `data-board` 容器本身)
+- 类型 `id` 退化成 `kind` → 1 红;guide order 40 → 35 → 1 红(README 写死的两个字面量现在都有守护)
+- 注册移出 `ctx.effect` → 1 红(否则卸载后 tab 类型与座位泄漏)
+- `dsh.client.inject` 多挂/漏挂/写回旧数组 → 各 1 红(改为集合相等,与 `dsh-inventory` 同强度)
+- `ctx.layout` 依赖重新出现 → **7 红**(删掉四个夹具里 7 处 `layout` 死桩后;此前只有 1 个文件抓到)
+
+三个既有夹具(`client-board` / `client-render` / `e2e-board`)从找 `main` 改为找右侧栏座位,并让 `effect` 桩真正执行回调并登记 disposer(否则新注册路径根本到不了 `register`)。
 
 ### dsh-task-dispatcher 0.4.2 — role_search 支持中文检索(中英同义词表 + 词边界匹配)(#196)
 

@@ -49,7 +49,6 @@ let DICT = {}
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
     slots: { inject: (_name, run) => run(), register: () => ({}) },
     sidebarRightTabs: { register: () => () => {} },
-    layout: { selectPanel: () => {} },
   })
   DICT = dicts.zh
 }
@@ -67,7 +66,6 @@ function panel() {
     locale: { register: () => {}, bind: () => (key) => key },
     slots: { inject: (name, fn) => fn(), register: (spec, comp) => registered.push({ spec, comp }) },
     sidebarRightTabs: { register: (definition) => { types.push(definition); return () => {} } },
-    layout: { selectPanel: () => {} },
   }
   client.apply(ctx)
   const seat = registered.find((r) => r.spec.name === 'sidebar.right.pane.tab')

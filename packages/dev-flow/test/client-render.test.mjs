@@ -130,7 +130,6 @@ function renderPanel(snap) {
   let mainComponent = null
   const fakeCtx = {
     locale: { register: () => {}, bind: () => (k) => (typeof k === 'string' ? k : String(k)) },
-    layout: { selectPanel: () => {} },
     effect: (fn) => fn(),
     get: () => undefined,
     slots: {
@@ -158,7 +157,6 @@ function captureDictionary() {
   let dicts = null
   bundle.apply({
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
-    layout: { selectPanel: () => {} },
     effect: (fn) => fn(),
     get: () => undefined,
     // `slots.inject` must RUN the callback, exactly like the real slot system,
