@@ -2,7 +2,7 @@
   "issue": 203,
   "grade": "standard",
   "stage": "merge",
-  "updatedAt": "2026-11-13T12:28:14.583Z",
+  "updatedAt": "2026-11-13T12:38:31.274Z",
   "tickets": [
     {
       "id": 1,
@@ -33,6 +33,11 @@
       "id": 6,
       "title": "轴2 P1×2+P2×6 修复(引用行号/rawInput 原文/断言强度)",
       "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "轴2(原派)P1×3+P2×7 修复(name 分支 clamp/顺序断言/文档)",
+      "state": "done"
     }
   ],
   "ci": {
@@ -43,7 +48,7 @@
   "review": {
     "state": "done",
     "axes": 2,
-    "note": "轴1=独立子代理(code-reviewer,交付 P1×1+P2×5,全部采纳并修复);轴2=主智能体兜底(原派与复派两个子代理均超时未交付,按同一固定模板自行完成,不是独立视角)"
+    "note": "轴1=独立子代理(code-reviewer),交付 P1×1+P2×5,全部采纳;轴2=复派子代理(窄范围)交付 P1×2+P2×6 + 原派子代理最终交付 P1×3+P2×7,均全部采纳。主智能体在子代理未交付期间按同一模板兜底做过一轮(已在 spec「裁剪与 review 视角」与 PR 描述如实记录,不冒充独立视角)。每轮发现均做变异验证。"
   },
   "merge": {
     "authorized": false

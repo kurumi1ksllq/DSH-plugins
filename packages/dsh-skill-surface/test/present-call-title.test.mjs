@@ -75,6 +75,21 @@ test('203-3: an explicit name is presented as a load, unchanged from before', ()
   assert.equal(view.rawInput, 'alpha-skill')
 })
 
+test('203-3a: a name is model-supplied text, so it gets the same title ceiling', () => {
+  // The reason for clamping is "a title is a short header", which does not
+  // distinguish name from query. Clamping only the query left this branch able
+  // to emit a 311-character header.
+  const view = loader().presentCall({ name: 'x'.repeat(300) })
+  assert.ok(view.title.length <= 120, 'the name branch must respect the same ceiling')
+  assert.equal(view.rawInput, 'x'.repeat(300), 'the detail view still keeps the full name')
+})
+
+test('203-3b: a newline in a name cannot forge a line in the session log', () => {
+  const view = loader().presentCall({ name: 'a\nFAKE LOG LINE' })
+  assert.doesNotMatch(view.title, /\n/, 'a card title is a single line')
+  assert.equal(view.rawInput, 'a\nFAKE LOG LINE', 'the detail view keeps the original')
+})
+
 test('203-4: a name wins over a query in the card, exactly as it does in execute()', () => {
   const view = loader().presentCall({ name: 'beta-skill', query: 'alpha' })
   assert.equal(view.title, 'Load skill beta-skill', 'the card must show the branch that will actually run')

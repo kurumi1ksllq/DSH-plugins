@@ -13,7 +13,9 @@ test-only changes are exempt.
 
 ### dsh-skill-surface 0.3.1 — 卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap(#203 / #204)
 
-两条都出自 #201 / PR #202 双轴 review 的 P2 发现,当时记入 spec 未修。
+两条都出自 #201 / PR #202 的 review 发现。**注**:该轮 P2 只写在 PR #202 的 review 记录里,
+`docs/specs/issue-201-skill-loader-single-hit.md` 对 `presentCall`/标题/`WeakMap` 零提及(grep 计数 0),
+所以此处不写「记入 spec」——那不可核对。两条的独立凭证是 issue #203 与 #204 本身。
 
 1. **#203 卡片标题**:`skill_get({query})` 单命中时实际返回的是**技能正文**(#201 引入),
    但 `presentCall` 的标题无条件写 `List skills`,`rawInput` 也不带 query ——
@@ -27,7 +29,7 @@ test-only changes are exempt.
    `{name}` 路径**改动前就抛**(既有问题),`{query}` 单命中是 #201 引入的**回归**。
    改为 `if (agent !== undefined)` 守卫:记账的唯一消费者是按 agent 抑制重复 nudge,
    无 agent 时没有那个会话可记账,跳过即语义正确(伪造共享占位键会跨会话串味)。
-   可达性低(`hasOfficialLoader` 在无 agent 时返回 `true`,工具不注册到那种 scope),但改动只有一行守卫。
+   可达性低(`hasOfficialLoader` 在无 agent 时返回 `true`,工具不注册到那种 scope)。
    **轴1 review 补**:初版只修了一半 —— `lookupFor()` 仍无条件调 `workingDirectory.ensure`,
    而宿主实现第一行就读 `agent.session`(`dsh-working-directory/lib/index.js:91-93`),无 agent 时在
    到达 `bodyFor()` 之前就抛 `reading 'session'`。初版测试绿是因为 stub 把 `ensure` 写成
@@ -35,9 +37,12 @@ test-only changes are exempt.
    现按官方写法守卫 `ensure` 调用本身(`dsh-tool-skill/lib/index.js:869`),并把 stub 改成宿主真实形状。
 3. **标题长度/换行**:宿主要求 title 是短的单行 header(`dsh-tools/lib/types/presentation.d.ts:49-52`),
    复用本包既有的 `clampLine`(上限 120)并折叠换行;`rawInput` 保留 query **原文**(不 trim,detail 视图不该改写用户输入)。
+   **轴2 补**:上限与换行折叠最初只加在 query 分支,而 `name` 也是模型提供的文本——实测
+   `{name:'x'.repeat(300)}` 产出 311 字符 title、`{name:'a\nFAKE LOG LINE'}` 的 title 含换行(可伪造日志行)。
+   现统一施加到三个分支(`rawInput` 仍保留原文),并补 203-3a/203-3b 覆盖。
 
 反向验证:标题改回固定 `List skills` → 203-1 红;去掉守卫 → 204-1/204-2 红;
-query 分支去掉空白判断 → 203-2 红;让 query 压过 name → 203-3/203-4 红。四条均实测。
+query 分支去掉空白判断 → 203-2 红;让 query 压过 name → **只有 203-4** 红(`{name}` 单独传入时没有 query,不受影响)。均实测。
 
 ### dsh-skill-surface 0.3.0 — query 单命中直接返回正文(#201)
 

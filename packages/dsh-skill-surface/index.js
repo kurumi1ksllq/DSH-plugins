@@ -226,21 +226,18 @@ function loaderHandle(scope) {
     // a query will hit one skill or many; "Search skills" is true either way.
     // The whitespace test matches execute(), which treats a blank query as a list.
     presentCall(args) {
+      // A card title is a header/log line and the host asks for it to stay short
+      // (dsh-tools/lib/types/presentation.d.ts:49-52). The ceiling and the newline
+      // collapse are applied to EVERY branch, not just the query one: a name is
+      // model-supplied text too, so an unclamped name could push a 300-character
+      // header into the log, or embed a newline and forge a fake log line.
+      // rawInput stays verbatim in every branch — it is the detail view, not the
+      // header, and rewriting the user's own input there would be a lie.
+      const heading = (text) => clampLine(String(text).replace(/\s+/gu, ' '))
       const named = typeof args?.name === 'string' && args.name !== ''
-      if (named) return { card: 'generic', title: 'Load skill ' + args.name, kind: 'read', rawInput: args.name }
+      if (named) return { card: 'generic', title: heading('Load skill ' + args.name), kind: 'read', rawInput: args.name }
       const asked = typeof args?.query === 'string' && args.query.trim() !== ''
-      if (asked) {
-        // A card title is a header/log line and the host asks for it to stay short
-        // (dsh-tools/lib/types/presentation.d.ts:49-52). Reuse the ceiling this
-        // bundle already applies to its other single-line text, and collapse
-        // newlines so a multi-line query cannot break the log line. rawInput keeps
-        // the query verbatim: that is the detail view, not the header.
-        const query = args.query.trim().replace(/\s+/gu, ' ')
-        // rawInput is the detail view: verbatim, not trimmed. A trimmed copy would
-        // make the "verbatim" claim in the spec/CHANGELOG unverifiable, and the
-        // detail view is exactly where a reader wants the original bytes.
-        return { card: 'generic', title: clampLine('Search skills: ' + query), kind: 'read', rawInput: args.query }
-      }
+      if (asked) return { card: 'generic', title: heading('Search skills: ' + args.query.trim()), kind: 'read', rawInput: args.query }
       return { card: 'generic', title: 'List skills', kind: 'read', rawInput: '' }
     },
   }

@@ -43,7 +43,25 @@ function harness(rows) {
   }
   apply({ inject(_deps, callback) { callback(scope) } })
   const definition = registered.find((row) => row.name === LOADER)
-  return { definition, nudge: listeners[1] }
+  // Locate the nudge listener by BEHAVIOUR, not by registration index: the order
+  // of apply()'s ctx.inject blocks is an implementation detail, and asserting it
+  // would make this test go red for a harmless reorder (AGENTS.md: never assert
+  // internal call order).
+  const isNudge = async (fn) => {
+    try {
+      const decision = await fn({
+        agent: { session: { seq: 0, eventAt: () => undefined } },
+        messages: [{ source: { kind: 'user' }, content: [{ type: 'text', text: '改一下页面样式' }] }],
+        turn: 99,
+        step: 1,
+        signal: undefined,
+      }, () => ({ kind: 'enter', messages: [] }))
+      return (decision.messages ?? []).some((message) => message?.source?.kind === 'skill-nudge')
+    } catch {
+      return false
+    }
+  }
+  return { definition, listeners, isNudge }
 }
 
 setHostApi({
@@ -73,8 +91,14 @@ test('204-3: with an agent the load still suppresses the next nudge', async () =
   // '改一下页面样式' hits that domain.
   const h = harness([skillRow('design-system'), skillRow('alpha-skill')])
   const agent = { session: { seq: 0, eventAt: () => undefined } }
+  // Pick the nudge listener by what it produces, never by its position.
+  let nudge
+  for (const candidate of h.listeners) {
+    if (await h.isNudge(candidate)) { nudge = candidate; break }
+  }
+  assert.ok(nudge, 'a nudge listener must exist')
   // Control: before loading, the same step DOES nudge.
-  const before = await h.nudge({
+  const before = await nudge({
     agent,
     messages: [{ source: { kind: 'user' }, content: [{ type: 'text', text: '改一下页面样式' }] }],
     turn: 1,
@@ -84,7 +108,7 @@ test('204-3: with an agent the load still suppresses the next nudge', async () =
   assert.equal(before.messages.length, 1, 'the control step must nudge, or the test proves nothing')
 
   await h.definition.execute({ name: 'design-system' }, { agent, signal: undefined })
-  const decision = await h.nudge({
+  const decision = await nudge({
     agent,
     messages: [{ source: { kind: 'user' }, content: [{ type: 'text', text: '改一下页面样式' }] }],
     turn: 2,

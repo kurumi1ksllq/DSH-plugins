@@ -14,7 +14,7 @@
 
 ## 变更 1(#203):`presentCall` 的标题如实反映实际行为
 
-**现状**(实测 main `e6f2202`):
+**现状**(实测 main `e6f2202`;此处按符号名引用,行号会随改动漂移):
 
 ```
 presentCall({query:"only"}) -> {card:"generic", title:"List skills", kind:"read", rawInput:""}
@@ -42,11 +42,11 @@ presentCall({query:"only"}) -> {card:"generic", title:"List skills", kind:"read"
 又引入时序问题(卡片先于 execute 渲染,两次 snapshot 之间策略可能变化)。
 因此采纳 issue 里给的第一个建议(「统一用 Search skills」),放弃第二个。
 
-**边界**:不改 `kind`(仍 `read`);不改 `execute` 的任何行为;不引入 catalog 访问。
+**边界**:不改 `kind`(仍 `read`);不改**有 agent 时** `execute` 的行为(无 agent 分支由抛错改为返回正文,见变更 2);不引入 catalog 访问。
 
 ## 变更 2(#204):`bodyFor()` 容忍无 `agent`
 
-**现状**:`index.js:143-146`
+**现状**:`index.js` 的 `bodyFor()`
 
 ```js
 function bodyFor(skill, agent, api) {
@@ -109,14 +109,32 @@ if (agent !== undefined) injectedSkills(agent).add(skill.name)
 | 去掉 `lookupFor` 的 `agent === undefined` 守卫 | 验收 6、7、以及多命中列表路径(抛 `reading 'session'`) |
 | title 不过 `clampLine` | 203-1b |
 | query 分支 `rawInput` 回空串 | 203-1、203-1b |
-| 不折叠换行 | 203-1c |
-| 让 query 分支压过 name 分支 | 验收 4 |
+| 不折叠换行 | 203-1c、203-3b |
+| name 分支不 clamp | 203-3a、203-3b |
+| 让 query 分支压过 name 分支 | 验收 4(203-4;**只有它**——`{name}` 单独传入时没有 query,不受影响) |
 
 ## 裁剪
 
-**不裁剪任何阶段**。虽定为 trivial,但 (a) 触及公开工具的返回行为,(b) #204 是回归,
+**不裁剪任何阶段**。虽曾按 trivial 预估(后按 FLOW.md:48 更正为 standard),但 (a) 触及公开工具的返回行为,(b) #204 是回归,
 (c) 两条都是「代码看起来对、行为不对」的典型,必须有反向验证锁住。
 TDD、PR、CI、双轴 review 照做。
+
+## 裁剪与 review 视角的如实记录
+
+**不裁剪任何阶段**:TDD、PR、CI、双轴 review 全部执行。
+
+**但有一处必须如实说明**:双轴 review 的**轴2 由主智能体兜底完成,不是独立子代理**。
+
+- 事实:原派子代理(审查开始时派出)与复派子代理(窄范围)都未在时限内交付;
+  复派的一个后来交付了 P1×2+P2×6(已全部采纳),原派的最终报告在本轮末尾才到
+  (又抓出 name 分支未 clamp 等 3 条 P1/P2,亦已采纳)。
+- 依据:FLOW.md「委派失败或结果为空 → 主智能体自己兜底补做」。我在子代理未交付期间,
+  按同一固定模板自行完成了轴2 口径的检查,并把结论写进 PR 描述。
+- 风险:自审不是独立视角。为压低这个风险,兜底后仍保留了子代理的实际交付,
+  且**每一轮 review 的发现都做了变异验证**(改坏实现→确认对应测试变红→恢复),
+  而不是只凭文字判断。轴2 两轮实际抓到的都是可复现的缺陷(测试空转、引用行号错、
+  name 分支未 clamp、CHANGELOG 事实错误),不是风格意见。
+- 留证:本小节 + `.flow/203.json` 的 `review.note` + PR 描述「双轴 review 的发现与裁决」。
 
 ## 不做的事
 
