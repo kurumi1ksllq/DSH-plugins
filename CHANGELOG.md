@@ -33,6 +33,8 @@ none of the git remotes configured for this repository point to a known GitHub h
 **实测(本仓库,修复前后各跑一次)**:`issues` `null` → 2 条、`mergedPrs` `null` → 86 条、dev 列 23 → 1(真实的在做任务)、done 列 0 → 22。dev 列的绝对值取决于本地还留着多少 `issue-*` 分支,关键是修复后只剩真正在做的那张。
 
 **review 后补三处**(轴 A 报 3 条 P1,均复现属实):① `https://github.com:443/me/repo` 被解析成 `443/me/repo`——原本只坏一条深链,slug 开始指名查询目标后会变成「查一个不存在的仓库」,比不传更糟;② 门禁接受任意 remote 而 slug 只读 origin,origin 非 GitHub 时门禁放行却拿不到 slug;③ 强制 origin 会覆盖 gh 自己的选择(实测 gh 2.62.0 优先 `upstream`,fork clone 的 PR 在上游)。已抽出唯一出口 `forgeRemoteOf`(门禁与 slug 同源)、按 `upstream → origin → 任意可解析` 排序、并给 `repoArgs` 加「只放行恰好 `owner/repo`」的闸。新增 6 条测试覆盖这三条路径,逐条反向验证(定向破坏实现后各自变红)。
+**看到新数据需要两步**(轴 A 提醒,否则修复容易被误判无效):① 宿主进程重新加载 dev-flow 的新代码——旧进程里的旧 `gh.js` 不会因文件改动自动生效;② 打开面板后点一次工具栏「刷新」(走 `?refresh=1` → `force: true` 绕过 30s 缓存)。面板没有轮询,只重启前端会看到「刷新了还是老样子」。
+
 
 > 教训:`gh` 的失败是**静默**的(返回 `null` 而非抛错),面板照常渲染,只是证据层空了。这类「降级得太平滑」的失败只能对着真实仓库看结果才发现,单元测试若喂手写快照永远抓不到——所以这次的测试桩特意复现的是**外部命令的失败模式**,而不是内部函数返回值。
 
