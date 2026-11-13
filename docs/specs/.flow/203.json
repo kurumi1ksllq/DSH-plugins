@@ -1,8 +1,8 @@
 {
   "issue": 203,
   "grade": "standard",
-  "stage": "merge",
-  "updatedAt": "2026-11-13T12:38:31.274Z",
+  "stage": "done",
+  "updatedAt": "2026-11-13T22:02:32.606Z",
   "tickets": [
     {
       "id": 1,
@@ -51,7 +51,7 @@
     "note": "轴1=独立子代理(code-reviewer),交付 P1×1+P2×5,全部采纳;轴2=复派子代理(窄范围)交付 P1×2+P2×6 + 原派子代理最终交付 P1×3+P2×7,均全部采纳。主智能体在子代理未交付期间按同一模板兜底做过一轮(已在 spec「裁剪与 review 视角」与 PR 描述如实记录,不冒充独立视角)。每轮发现均做变异验证。"
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   },
-  "note": "合并处理 #203+#204;任务板只建 203.json。轴1 报 P1+5×P2 全部采纳并修复;轴2 两个子代理超时未交付,由主智能体按同口径兜底完成。CI 两轮均绿。"
+  "note": "已合并:PR #205 squash merge e93e00d(已在 main 核验),issue #203/#204 自动关闭,tag dsh-skill-surface@0.3.1 已推送并核验指向 e93e00d。合并处理 #203+#204;任务板只建 203.json。"
 }
