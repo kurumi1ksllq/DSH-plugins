@@ -23,7 +23,7 @@ $ gh pr list -R kurumi1ksllq/DSH-plugins --state open --json number
 [{"number":198}]                       # 指名仓库就正常
 ```
 
-`getSnapshot()` 的结果:`issues: null`、`mergedPrs: null`、dev 列 21 张卡(全部来自本地 `issue-*` 分支)、done 列 0 张。
+`getSnapshot()` 的结果:`issues: null`、`mergedPrs: null`、dev 列 23 张卡(全部来自本地 `issue-*` 分支)、pr 列 1 张、done 列 0 张。
 
 ## 根因
 

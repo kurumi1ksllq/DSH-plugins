@@ -2,7 +2,7 @@
   "issue": 199,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-13T02:55:45.449Z",
+  "updatedAt": "2026-11-13T02:59:00.929Z",
   "tickets": [
     {
       "id": 1,
@@ -23,7 +23,7 @@
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
     "state": "running",

@@ -8,7 +8,7 @@
 - `snapshot.js` 把 `repoSlug` 提前到 forge 查询之前计算并透传。
 - 已合并窗口 `--limit 20` → 导出常量 `MERGED_PR_LIMIT` = 200:本仓库 86 条已合并 PR,20 的窗口让 `issue-145-*`(合并于 PR #193)这类较早分支失去合并证据。
 
-实测(本仓库):`issues` 由 `null` → 2 条、`mergedPrs` 由 `null` → 86 条、dev 列由 21 张 → 1 张(真实的在做任务)、done 列 0 → 22 张。
+实测(本仓库,修复前后各跑一次):`issues` 由 `null` → 2 条、`mergedPrs` 由 `null` → 86 条、dev 列由 23 张 → 1 张(真实的在做任务)、done 列 0 → 22 张。dev 列的绝对值取决于本地还留着多少 `issue-*` 分支,关键是修复后它只剩真正在做的那张。
 
 新增 `test/gh-repo-arg.test.mjs`(5 条,假 gh 桩在缺 `--repo` 时复现真 gh 的报错)+`test/readme-git-status.test.mjs` 一条文档契约。全部经反向验证:去掉修复后新测试全红。
 
