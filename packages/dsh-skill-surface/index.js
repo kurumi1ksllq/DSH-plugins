@@ -60,7 +60,12 @@ function hasOfficialLoader(scope, agent) {
  * every workspace-scoped skill.
  */
 async function lookupFor(scope, exec) {
-  const cwd = await scope.workingDirectory.ensure(exec.agent, exec.signal)
+  // The guard belongs HERE, not only in bodyFor(). workingDirectory.ensure reads
+  // agent.session on its first line (dsh-working-directory/lib/index.js:91-93),
+  // so an unguarded call throws before the loader ever reaches the bookkeeping —
+  // #204 was only half fixed while this line stayed unconditional. The official
+  // skill tool guards the same call (dsh-tool-skill/lib/index.js:869).
+  const cwd = exec.agent === undefined ? undefined : await scope.workingDirectory.ensure(exec.agent, exec.signal)
   return { scope: exec.agent, cwd, signal: exec.signal }
 }
 
@@ -141,7 +146,13 @@ function matchedSkills(snapshot, api, query) {
  * with the name path so the two cannot diverge.
  */
 function bodyFor(skill, agent, api) {
-  injectedSkills(agent).add(skill.name)
+  // The record only suppresses a later nudge, and a nudge is keyed by the agent
+  // whose conversation it would repeat in. An assembly that runs this tool with
+  // no agent has no such conversation, so skipping the record is correct —
+  // whereas calling injectedSkills(undefined) threw "Invalid value used as weak
+  // map key" and cost the body itself (#204). The official skill tool tolerates
+  // the same shape (dsh-tool-skill/lib/index.js:869).
+  if (agent !== undefined) injectedSkills(agent).add(skill.name)
   return { text: capped(api.renderSkillContent(skill)) }
 }
 
@@ -208,9 +219,26 @@ function loaderHandle(scope) {
       }
       return bodyFor(skill, exec.agent, api)
     },
+    // The title is the only thing a session log shows, so it must name the branch
+    // execute() will actually take — including the single-hit case #201 made
+    // return a BODY rather than a listing. A pure pending-state presenter cannot
+    // see the catalog (dsh-tools schema.d.ts:227-232), so it cannot know whether
+    // a query will hit one skill or many; "Search skills" is true either way.
+    // The whitespace test matches execute(), which treats a blank query as a list.
     presentCall(args) {
+      // A card title is a header/log line and the host asks for it to stay short
+      // (dsh-tools/lib/types/presentation.d.ts:49-52). The ceiling and the newline
+      // collapse are applied to EVERY branch, not just the query one: a name is
+      // model-supplied text too, so an unclamped name could push a 300-character
+      // header into the log, or embed a newline and forge a fake log line.
+      // rawInput stays verbatim in every branch — it is the detail view, not the
+      // header, and rewriting the user's own input there would be a lie.
+      const heading = (text) => clampLine(String(text).replace(/\s+/gu, ' '))
       const named = typeof args?.name === 'string' && args.name !== ''
-      return { card: 'generic', title: named ? 'Load skill ' + args.name : 'List skills', kind: 'read', rawInput: named ? args.name : '' }
+      if (named) return { card: 'generic', title: heading('Load skill ' + args.name), kind: 'read', rawInput: args.name }
+      const asked = typeof args?.query === 'string' && args.query.trim() !== ''
+      if (asked) return { card: 'generic', title: heading('Search skills: ' + args.query.trim()), kind: 'read', rawInput: args.query }
+      return { card: 'generic', title: 'List skills', kind: 'read', rawInput: '' }
     },
   }
 }

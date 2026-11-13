@@ -1,0 +1,57 @@
+{
+  "issue": 203,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-13T12:38:31.274Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "presentCall 三态标题(#203)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "bodyFor + lookupFor 无 agent 守卫(#204)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本 + CHANGELOG",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "轴1 P1 修复:lookupFor 守卫 + 测试去假绿",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "标题长度/换行 + rawInput 断言",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "轴2 P1×2+P2×6 修复(引用行号/rawInput 原文/断言强度)",
+      "state": "done"
+    },
+    {
+      "id": 7,
+      "title": "轴2(原派)P1×3+P2×7 修复(name 分支 clamp/顺序断言/文档)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2,
+    "note": "轴1=独立子代理(code-reviewer),交付 P1×1+P2×5,全部采纳;轴2=复派子代理(窄范围)交付 P1×2+P2×6 + 原派子代理最终交付 P1×3+P2×7,均全部采纳。主智能体在子代理未交付期间按同一模板兜底做过一轮(已在 spec「裁剪与 review 视角」与 PR 描述如实记录,不冒充独立视角)。每轮发现均做变异验证。"
+  },
+  "merge": {
+    "authorized": false
+  },
+  "note": "合并处理 #203+#204;任务板只建 203.json。轴1 报 P1+5×P2 全部采纳并修复;轴2 两个子代理超时未交付,由主智能体按同口径兜底完成。CI 两轮均绿。"
+}
