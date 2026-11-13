@@ -1,8 +1,8 @@
 {
   "issue": 203,
-  "grade": "trivial",
-  "stage": "review",
-  "updatedAt": "2026-11-13T11:54:13.550Z",
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-13T12:15:23.161Z",
   "tickets": [
     {
       "id": 1,
@@ -11,26 +11,36 @@
     },
     {
       "id": 2,
-      "title": "bodyFor 容忍无 agent(#204)",
+      "title": "bodyFor + lookupFor 无 agent 守卫(#204)",
       "state": "done"
     },
     {
       "id": 3,
       "title": "版本 + CHANGELOG",
       "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "轴1 P1 修复:lookupFor 守卫 + 测试去假绿",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "标题长度/换行 + rawInput 断言",
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {
     "authorized": false
   },
-  "note": "合并处理 #203+#204;任务板只建 203.json,204 不单独建卡"
+  "note": "合并处理 #203+#204;任务板只建 203.json。轴1 报 P1+5×P2 全部采纳并修复;轴2 两个子代理超时未交付,由主智能体按同口径兜底完成。CI 两轮均绿。"
 }
