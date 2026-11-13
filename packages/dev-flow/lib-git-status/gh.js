@@ -142,9 +142,11 @@ export function repoArgs(slug) {
  * How many merged PRs a snapshot looks at.
  *
  * This was 20, which silently mislabelled older branches: with 86 merged PRs in
- * the repository, `issue-145-…`'s merge (PR #193) fell outside the window, the
- * branch had no merge evidence, and the board drew a finished task as still in
- * development while flagging its own `.flow` file as stale (issue #199).
+ * the repository, `issue-154-…` (PR #155) and `issue-158-…` (PR #159) fell outside
+ * the window, those branches had no merge evidence, and the board drew finished
+ * tasks as still in development while flagging their own `.flow` files as stale
+ * (issue #199). Measured: a window of 20 dropped exactly #155 and #159, which is
+ * exactly what the dev column was showing.
  *
  * `gh pr list` orders by CREATED-at, not merged-at (verified against this
  * repository's 86 merged PRs), so the window can still miss a long-open PR that

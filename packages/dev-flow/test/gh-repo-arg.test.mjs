@@ -100,7 +100,10 @@ test('openIssues names the repository, so a mirror-rewritten remote cannot break
   assert.equal(got?.[0]?.number, 7)
 })
 
-test('openIssues without a slug is what the stub refuses — so this suite can go red', async () => {
+// Fixture self-check, not product behaviour: it proves the stub really rejects a
+// call without --repo. If this ever passes with a broken stub, every other case
+// here is silently green for the wrong reason.
+test('fixture: the stub rejects a query with no --repo, so the cases above can fail', async () => {
   const dir = stubGh({ issues: issuePayload })
   assert.equal(await withPath(dir, () => openIssues('/tmp')), null)
 })
@@ -198,4 +201,37 @@ test('getSnapshot reads the slug from upstream, not origin, in a fork clone', as
   invalidateSnapshot()
   const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
   assert.equal(snapshot.repoSlug, 'real/repo')
+})
+// ---- the CI column, and the window's actual payoff -------------------------
+// Axis-B review found both of these uncovered: breaking the slug passthrough
+// into prChecks left the whole suite green while the CI column silently turned
+// 'unknown' in the real repository, and truncating the merged list back to 20 in
+// JS (argv still saying 200) was invisible because the test only read argv.
+
+test('getSnapshot passes the repository down to the CI lookup', async () => {
+  const repo = initRepoWithOrigin()
+  // One open PR whose head matches the local branch, and a green check for it.
+  const dir = stubGh({
+    prs: [{ number: 3, headRefName: 'issue-1-first', url: 'https://github.com/me/repo/pull/3' }],
+    checks: [{ state: 'SUCCESS' }],
+  })
+  invalidateSnapshot()
+  const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  // 'unknown' is what a missing --repo degrades to — the silent failure mode
+  // this whole fix exists to remove, now one level deeper than the PR list.
+  assert.equal(snapshot.checks[3], 'green')
+})
+
+test('a merge older than the newest 20 still lands the branch in done', async () => {
+  const repo = initRepoWithOrigin()
+  // 25 merges; the branch under test is the OLDEST, i.e. the one a window of 20
+  // would drop. gh orders by createdAt, so this is the real shape of the bug.
+  const merged = []
+  for (let i = 0; i < 24; i += 1) merged.push({ number: 100 + i, headRefName: `issue-${100 + i}-other` })
+  merged.push({ number: 999, headRefName: 'issue-1-first' })
+  const dir = stubGh({ merged })
+  invalidateSnapshot()
+  const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  const card = snapshot.board.columns.flatMap((c) => c.cards).find((c) => c.issue === 1)
+  assert.equal(card?.stage, 'done', 'a merge outside the newest 20 must still count as merge evidence')
 })

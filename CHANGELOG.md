@@ -24,11 +24,11 @@ none of the git remotes configured for this repository point to a known GitHub h
 
 `gh` 靠读工作区 remote 判断查哪个仓库,镜像改写后认不出主机便整条拒绝执行。`lib-git-status/gh.js` 的四个查询都没带 `--repo`,于是全部返回 `null`:`getSnapshot()` 实测 `issues: null`、`mergedPrs: null`、dev 列 **23 张**(全部来自本地残留的 `issue-*` 分支)、done 列 **0 张**。
 
-而 `remotesOf()` 读的是 `git config --local`(**不受** `insteadOf` 改写),slug 一直解析正确——只是没被用来指定查询目标。次要缺陷:已合并 PR 只查最近 20 条,本仓库有 86 条,窗口外的分支(如 `issue-145-*` 的合并 PR #193)拿不到合并证据,即使 gh 正常也会被判成「还在做」。
+而 `remotesOf()` 读的是 `git config --local`(**不受** `insteadOf` 改写),slug 一直解析正确——只是没被用来指定查询目标。次要缺陷:已合并 PR 只查最近 20 条,本仓库有 86 条。`gh pr list` 按 **createdAt** 倒序,所以漏掉的是「创建得早」的 PR——实测 20 的窗口恰好漏掉 `issue-154-*`(PR #155)与 `issue-158-*`(PR #159),dev 列残留的正是这两张。
 
 **做法**:新增 `repoArgs(slug)`,四个查询全部带 `--repo <owner/repo>`;`snapshot.js` 把 `repoSlug` 的计算提前到 forge 查询之前并透传给 `checksOf`;合并窗口 20 → 导出常量 `MERGED_PR_LIMIT` = 200。
 
-**测试**:新增 `test/gh-repo-arg.test.mjs` 5 条——假 `gh` 桩在缺 `--repo me/repo` 时复现真 gh 的那句报错并 `exit 4`,`--version`/`auth status` 无条件成功(宿主事实,不是仓库查询)。反向验证:未修改的实现上这 5 条全红(行为断言失败,不是导入错)。另加一条 README 文档契约,删掉 `--repo` 说明段落即红。
+**测试**:新增 `test/gh-repo-arg.test.mjs`(现 13 条)——假 `gh` 桩在缺 `--repo me/repo` 时复现真 gh 的那句报错并 `exit 4`,`--version`/`auth status` 无条件成功(宿主事实,不是仓库查询)。反向验证按「只回退修复、保留导出」做:定向破坏端口解析→1 红、`forgeRemoteOf` 忽略 upstream→2 红、去掉 slug 形状闸→1 红、`prChecks` 丢 slug→1 红、合并列表在 JS 里截断回 20→1 红、snapshot 回退 origin-only→1 红。(对 main 原样跑会 import 失败,因为新导出不存在,那不是有效的反向验证口径。)另加一条 README 文档契约,删掉 `--repo` 说明段落即红。
 
 **实测(本仓库,修复前后各跑一次)**:`issues` `null` → 2 条、`mergedPrs` `null` → 86 条、dev 列 23 → 1(真实的在做任务)、done 列 0 → 22。dev 列的绝对值取决于本地还留着多少 `issue-*` 分支,关键是修复后只剩真正在做的那张。
 

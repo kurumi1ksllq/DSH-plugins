@@ -28,7 +28,7 @@ $ gh pr list -R kurumi1ksllq/DSH-plugins --state open --json number
 ## 根因
 
 1. **gh 靠读 remote 认仓库,remote 被镜像改写**。`lib-git-status/gh.js` 的 `openIssues` / `openPullRequests` / `recentlyMergedPullRequests` / `prChecks` 都没带 `--repo`。而 `remotesOf()` 读的是 `git config --local`(不被 `insteadOf` 改写),所以 `repoSlug` 一直解析正确 —— 只是没被用于指定查询目标。
-2. **已合并 PR 只查最近 20 条**。本仓库有 86 条已合并 PR;`issue-145-*` 的合并(PR #193)落在窗口外,拿不到合并证据。
+2. **已合并 PR 只查最近 20 条**。本仓库有 86 条已合并 PR。`gh pr list` 按 **createdAt** 倒序(实测),所以漏掉的是「创建得早」的 PR:20 的窗口恰好漏掉 `issue-154-*`(PR #155)与 `issue-158-*`(PR #159)——dev 列残留的正是这两张。初稿这里写的是 `issue-145-*`(PR #193),那是错的:#193 在 20 窗口内(rank 3),由轴 B review 实测指出并更正。
 
 ## 变更点
 
@@ -46,12 +46,20 @@ $ gh pr list -R kurumi1ksllq/DSH-plugins --state open --json number
 
 假 `gh` 桩:缺 `--repo me/repo` 时输出真 gh 的那句报错并 `exit 4`,`--version` / `auth status` 无条件成功(它们是宿主事实,不是仓库查询)。
 
-五个用例:
+用例(初版 5 条,review 后增至 13 条):
 1. `openIssues` 带 slug 能拿到数据;
-2. `openIssues` 不带 slug 被桩拒绝(证明这条测试会红);
+2. **fixture 自检**:`openIssues` 不带 slug 被桩拒绝(证明桩真的会拒,否则其余用例假绿);
 3. `openPullRequests` + `prChecks` 也带 slug;
-4. `recentlyMergedPullRequests` 传的是 `MERGED_PR_LIMIT` 且 > 20(读桩记录的 argv 断言);
-5. `getSnapshot` 端到端把 slug 透传到每个查询,issue 能走到任务板。
+4. `recentlyMergedPullRequests` 传的是 `MERGED_PR_LIMIT`(读桩记录的 argv);
+5. `getSnapshot` 端到端把 slug 透传到每个查询,issue 能走到任务板;
+6. 端口被消费:`https://github.com:443/me/repo` → `me/repo`;
+7. `repoArgs` 拒收畸形 slug(`443/me/repo`、`me/repo/extra`、`me repo`);
+8. `forgeRemoteOf` 优先 `upstream`(fork clone);
+9. `forgeRemoteOf` 在 origin 非 GitHub 时回退到其它 remote,且门禁与 slug 一致;
+10. 只有非 GitHub remote 时降级为 `not-github`;
+11. `getSnapshot` 在 fork clone 里取 upstream 的 slug;
+12. `getSnapshot` 把 slug 透传到 CI 查询(破坏后 `checks[n]` 退化为 `unknown`);
+13. 只存在于「最新 20 条」窗口外的合并仍能把卡片放进 `done`。
 
 ### 4 文档与版本
 
@@ -61,10 +69,10 @@ $ gh pr list -R kurumi1ksllq/DSH-plugins --state open --json number
 
 ## 验收
 
-- [ ] 新测试在**未修改**的实现上全红(反向验证)
-- [ ] 改完后 dev-flow 全量测试通过
-- [ ] `pnpm verify` 通过
-- [ ] 真实仓库实测:`issues` 非 null、`mergedPrs` 86 条、dev 列不再出现已合并任务、done 列收录它们
+- [x] 反向验证:定向破坏实现(保留导出),每个破坏都有对应测试变红——端口解析→1 红、`forgeRemoteOf` 忽略 upstream→2 红、slug 形状闸→1 红、`prChecks` 丢 slug→1 红、合并列表在 JS 里截断回 20→1 红、snapshot 回退 origin-only→1 红。(对 main 原样跑会 import 失败,因为新导出不存在——那不算有效的反向验证口径。)
+- [x] 改完后 dev-flow 全量测试通过(234 条)
+- [x] `pnpm verify` / `check-bundle-versions` 通过(仅剩 `dev-flow@0.7.1` 待合并后打 tag)
+- [x] 真实仓库实测:`issues` 2 条、`mergedPrs` 86 条、dev 列不再出现已合并任务、done 列 22 张
 
 ## 裁剪
 
