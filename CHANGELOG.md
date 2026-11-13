@@ -27,8 +27,14 @@ test-only changes are exempt.
    `{name}` 路径**改动前就抛**(既有问题),`{query}` 单命中是 #201 引入的**回归**。
    改为 `if (agent !== undefined)` 守卫:记账的唯一消费者是按 agent 抑制重复 nudge,
    无 agent 时没有那个会话可记账,跳过即语义正确(伪造共享占位键会跨会话串味)。
-   与官方 `skill` 工具的处理一致(`dsh-tool-skill/lib/index.js:869`)。
    可达性低(`hasOfficialLoader` 在无 agent 时返回 `true`,工具不注册到那种 scope),但改动只有一行守卫。
+   **轴1 review 补**:初版只修了一半 —— `lookupFor()` 仍无条件调 `workingDirectory.ensure`,
+   而宿主实现第一行就读 `agent.session`(`dsh-working-directory/lib/index.js:91-93`),无 agent 时在
+   到达 `bodyFor()` 之前就抛 `reading 'session'`。初版测试绿是因为 stub 把 `ensure` 写成
+   `() => '/work'`,掩盖了真实形状(与 #201 那次「stub 保留 content 导致空正文漏测」同类)。
+   现按官方写法守卫 `ensure` 调用本身(`dsh-tool-skill/lib/index.js:869`),并把 stub 改成宿主真实形状。
+3. **标题长度/换行**:宿主要求 title 是短的单行 header(`dsh-tools presentation.d.ts:44-47`),
+   复用本包既有的 `clampLine`(上限 120)并折叠换行;`rawInput` 保留原文。
 
 反向验证:标题改回固定 `List skills` → 203-1 红;去掉守卫 → 204-1/204-2 红;
 query 分支去掉空白判断 → 203-2 红;让 query 压过 name → 203-3/203-4 红。四条均实测。
@@ -379,7 +385,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 47 个条目:41 条有对应 tag;缺 tag 的 5 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`、`dsh-skill-surface@0.3.0`、`dsh-skill-surface@0.3.1`（四条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 47 个条目:44 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.3.1`（合并后打）与 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。计数按 `git tag -l` 实测重算（2026-11-13），此前那句把已有 tag 的 `dev-flow@0.7.1`/`dev-flow@0.8.0`/`dsh-skill-surface@0.3.0` 一并算作缺失，是过期事实。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

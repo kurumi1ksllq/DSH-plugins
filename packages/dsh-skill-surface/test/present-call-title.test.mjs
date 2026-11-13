@@ -31,9 +31,26 @@ function loader() {
 }
 
 test('203-1: a query that is not blank is presented as a search, not as a listing', () => {
-  const title = loader().presentCall({ query: 'alpha' }).title
-  assert.notEqual(title, 'List skills', 'a query narrows the catalog; "List skills" hides that')
-  assert.match(title, /alpha/, 'the query itself belongs in the title so the log line is identifiable')
+  const view = loader().presentCall({ query: 'alpha' })
+  assert.notEqual(view.title, 'List skills', 'a query narrows the catalog; "List skills" hides that')
+  assert.match(view.title, /alpha/, 'the query itself belongs in the title so the log line is identifiable')
+  // #203 fixed TWO symptoms: the fixed title AND the empty rawInput. Asserting
+  // only the title lets the rawInput half regress silently.
+  assert.equal(view.rawInput, 'alpha', 'the query must reach the detail view too')
+})
+
+test('203-1b: a very long query cannot produce an unbounded card title', () => {
+  // The host asks for a short header/log line (dsh-tools presentation.d.ts:44-47).
+  // rawInput is the detail view and stays verbatim.
+  const long = 'x'.repeat(400)
+  const view = loader().presentCall({ query: long })
+  assert.ok(view.title.length <= 120, 'title must respect the same ceiling as other single-line text')
+  assert.equal(view.rawInput, long, 'the detail view keeps the full query')
+})
+
+test('203-1c: a newline inside a query cannot break the one-line card header', () => {
+  const view = loader().presentCall({ query: 'a\nb' })
+  assert.doesNotMatch(view.title, /\n/, 'a card title is a single line')
 })
 
 test('203-2: a blank query is still a LIST request, matching what execute() does with it', () => {

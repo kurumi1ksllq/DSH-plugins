@@ -1,6 +1,6 @@
 # issue #203 + #204 — skill-surface:卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap
 
-- 分级:**trivial**(2 个源文件改动 ≤30 行,无接口/协议变更;测试 + 版本 + CHANGELOG 随行)
+- 分级:**standard**(FLOW.md:48 的 trivial 口径是「≤1 文件 且 ≤30 行 且 无接口变更」,本改动触及 7 个文件——2 个源/测试包文件之外还有 CHANGELOG、spec、flow json——套不进 trivial,按标准档走完整流程。初稿误判为 trivial 并自行放宽了文件口径,轴1 review 指出后更正)
 - 分支:`issue-203-204-skill-surface-polish`
 - issue:https://github.com/kurumi1ksllq/DSH-plugins/issues/203 / https://github.com/kurumi1ksllq/DSH-plugins/issues/204
 - 基线:main `e6f2202`(#201 / PR #202 的合并点),包内 77 条测试全绿
@@ -28,8 +28,12 @@ presentCall({query:"only"}) -> {card:"generic", title:"List skills", kind:"read"
 | args | title | rawInput |
 |---|---|---|
 | `{name}` | `Load skill <name>` | `<name>` |
-| `{query}` 非空白 | `Search skills: <query>` | `<query>` |
+| `{query}` 非空白 | `Search skills: <query>`,**经 `clampLine` 上限 120 字符、换行折叠为空格** | `<query>` **原文**(detail 视图不截断) |
 | 无 / 空 / 空白 query | `List skills` | `''` |
+
+**长度/换行口径**:宿主契约要求 title「Keep it short — a UI shows it as a card header / log line」
+(`dsh-tools/lib/types/presentation.d.ts:44-47`),本包对同类单行文本已有 `clampLine` +
+`NUDGE_MAX_CHARS = 120` 先例,直接复用;`rawInput` 是展开视图,保留原文。
 
 **为什么选「Search skills」而不是「区分单命中 → Load skill <name>」**:
 `presentCall` 是**纯同步**的 pending 态呈现器(`dsh-tools/lib/types/schema.d.ts:227-232`,
@@ -87,8 +91,10 @@ if (agent !== undefined) injectedSkills(agent).add(skill.name)
 3. `presentCall({name:"x"})` 仍是 `Load skill x`,`rawInput` 为 `x`(行为不变)
 4. `presentCall({name:"x", query:"y"})` 为 `Load skill x`(`name` 优先,与 execute 一致)
 5. `presentCall({})` 仍是 `List skills`,且 `rawInput` 为 `''`
-6. `execute({query})` 在 `exec.agent === undefined` 时返回正文而不抛错
+6. `execute({query})` 在 `exec.agent === undefined` 时返回正文而不抛错(**含 `ensure` 守卫**,不只是记账守卫)
 7. `execute({name})` 同上(顺带修掉既有问题)
+6b. `presentCall({query})` 的 `rawInput` 等于该 query(不是空串)
+6c. 超长 query 的 title ≤ 120 字符;含换行的 query 的 title 仍是单行;两者的 `rawInput` 保留原文
 8. 有 agent 时 `injectedSkills` 记账行为不变(201-11 仍绿)
 9. 全部既有 77 条测试仍绿
 
@@ -98,7 +104,11 @@ if (agent !== undefined) injectedSkills(agent).add(skill.name)
 |---|---|
 | title 改回固定 `List skills` | 验收 1 |
 | query 分支去掉空白判断(空白也算搜索) | 验收 2 |
-| 去掉 `agent !== undefined` 守卫 | 验收 6、7(抛 TypeError) |
+| 去掉 `bodyFor` 的 `agent !== undefined` 守卫 | 验收 6、7(抛 TypeError) |
+| 去掉 `lookupFor` 的 `agent === undefined` 守卫 | 验收 6、7、以及多命中列表路径(抛 `reading 'session'`) |
+| title 不过 `clampLine` | 203-1b |
+| query 分支 `rawInput` 回空串 | 203-1、203-1b |
+| 不折叠换行 | 203-1c |
 | 让 query 分支压过 name 分支 | 验收 4 |
 
 ## 裁剪
@@ -114,6 +124,23 @@ TDD、PR、CI、双轴 review 照做。
   留作后续 issue 候选,不在此处夹带。
 - 不改 `execute` 的三态返回逻辑(#201 已定型)。
 - 不动 locale 文案:卡片标题是工具侧英文协议字段,与本包 `locale/` 的中文提示词无关。
+
+## 变更(轴1 review 后,2026-11-13)
+
+review 指出初版**只修了一半**:`lookupFor()` 仍无条件调 `workingDirectory.ensure(exec.agent, …)`,
+而宿主实现第一行就读 `agent.session`(`dsh-working-directory/lib/index.js:91-93`),
+所以无 agent 时在到达 `bodyFor()` 之前就抛 `TypeError: Cannot read properties of undefined (reading 'session')`。
+初版测试之所以绿,是因为 stub 把 `ensure` 写成 `() => '/work'`,**掩盖了真实形状** —— 与 #201 那次
+「stub 保留 content 导致空正文漏测」是同一类错误。官方 `skill` 工具守卫的正是 `ensure` 调用本身
+(`dsh-tool-skill/lib/index.js:869`),初版只抄了记账那半。
+
+据此:
+
+1. `lookupFor` 加 `exec.agent === undefined` 守卫(与官方写法一致)。
+2. `test/no-agent.test.mjs` 的 `ensure` stub 改成宿主真实形状(无 agent 时抛错),否则 204-1/204-2 是假绿。
+3. 标题补 `clampLine` 上限与换行折叠(`rawInput` 保留原文);新增 203-1b/203-1c 与 rawInput 断言。
+4. 分级由 `trivial` 更正为 `standard`(见首行理由)。
+5. CHANGELOG 的缺 tag 清单按 `git tag -l` 实测重算(原句把已有 tag 的三个版本算作缺失)。
 
 ## 版本
 

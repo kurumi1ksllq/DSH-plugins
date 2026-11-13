@@ -60,7 +60,12 @@ function hasOfficialLoader(scope, agent) {
  * every workspace-scoped skill.
  */
 async function lookupFor(scope, exec) {
-  const cwd = await scope.workingDirectory.ensure(exec.agent, exec.signal)
+  // The guard belongs HERE, not only in bodyFor(). workingDirectory.ensure reads
+  // agent.session on its first line (dsh-working-directory/lib/index.js:91-93),
+  // so an unguarded call throws before the loader ever reaches the bookkeeping —
+  // #204 was only half fixed while this line stayed unconditional. The official
+  // skill tool guards the same call (dsh-tool-skill/lib/index.js:869).
+  const cwd = exec.agent === undefined ? undefined : await scope.workingDirectory.ensure(exec.agent, exec.signal)
   return { scope: exec.agent, cwd, signal: exec.signal }
 }
 
@@ -224,7 +229,15 @@ function loaderHandle(scope) {
       const named = typeof args?.name === 'string' && args.name !== ''
       if (named) return { card: 'generic', title: 'Load skill ' + args.name, kind: 'read', rawInput: args.name }
       const asked = typeof args?.query === 'string' && args.query.trim() !== ''
-      if (asked) return { card: 'generic', title: 'Search skills: ' + args.query.trim(), kind: 'read', rawInput: args.query.trim() }
+      if (asked) {
+        // A card title is a header/log line and the host asks for it to stay short
+        // (dsh-tools/lib/types/presentation.d.ts:44-47). Reuse the ceiling this
+        // bundle already applies to its other single-line text, and collapse
+        // newlines so a multi-line query cannot break the log line. rawInput keeps
+        // the query verbatim: that is the detail view, not the header.
+        const query = args.query.trim().replace(/\s+/gu, ' ')
+        return { card: 'generic', title: clampLine('Search skills: ' + query), kind: 'read', rawInput: args.query.trim() }
+      }
       return { card: 'generic', title: 'List skills', kind: 'read', rawInput: '' }
     },
   }

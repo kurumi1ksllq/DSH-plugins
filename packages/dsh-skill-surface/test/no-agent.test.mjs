@@ -28,7 +28,16 @@ function harness(rows) {
       snapshot: () => Promise.resolve({ skills: all.map(({ name, description, provider, invocation }) => ({ name, description, provider, invocation })), complete: true }),
       get: (name) => Promise.resolve(all.find((skill) => skill.name === name)),
     },
-    workingDirectory: { ensure: () => Promise.resolve('/work') },
+    // Host-faithful: the real ensure() reads agent.session on its FIRST line
+    // (dsh-working-directory/lib/index.js:91-93). A stub returning '/work'
+    // unconditionally hid that the loader threw before reaching bodyFor(), which
+    // is exactly how the first version of this fix passed its own tests (#204).
+    workingDirectory: {
+      ensure(agent) {
+        if (agent === undefined) throw new TypeError("Cannot read properties of undefined (reading 'session')")
+        return Promise.resolve('/work')
+      },
+    },
     tools: { get: () => undefined, register(definition) { registered.push(definition); return () => {} } },
   }
   apply({ inject(_deps, callback) { callback(scope) } })
