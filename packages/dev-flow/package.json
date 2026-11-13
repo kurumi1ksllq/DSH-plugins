@@ -1,6 +1,6 @@
 {
   "name": "dev-flow",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "dev-flow bundle for DeepSeek Harness: the engineering flow (issue → branch → TDD → PR → CI → review → merge) injected as an always-on system-prompt contract, with exactly two user interactions (intent, merge) and an agent-decided path in between. Ships FLOW.md plus contract/doc linters that keep the gates intact under edits.",
   "license": "MIT",
   "type": "module",

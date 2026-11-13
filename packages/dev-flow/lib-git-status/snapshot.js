@@ -169,24 +169,29 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
   // no remote at all / remote is not GitHub. Without it the panel can only say
   // "gh failed", which is wrong for a local repo with no remote.
   const forgeHint = forgeHintFor({ remotes, gh })
+  // GitHub deep links may only point at GitHub: `git@gitlab.com:me/repo.git`
+  // has the same `owner/repo` shape, and github.com/<it> is someone else's repo.
+  //
+  // Resolved BEFORE the forge queries rather than after: every gh call names the
+  // repository explicitly (issue #199). gh's own resolution reads the workspace
+  // remotes, which `url.<mirror>.insteadOf` rewrites — gh then refuses to run and
+  // every query returned empty.
+  const repoSlug = forgeHint === 'not-github' ? null : origin ? slugFromRemoteUrl(origin.url) : null
+
   let prs = null
   let mergedPrs = null
   let issues = null
   if (forgeHint === null) {
     ;[prs, mergedPrs, issues] = await Promise.all([
-      openPullRequests(workspace.dir),
-      recentlyMergedPullRequests(workspace.dir),
-      openIssues(workspace.dir),
+      openPullRequests(workspace.dir, repoSlug),
+      recentlyMergedPullRequests(workspace.dir, repoSlug),
+      openIssues(workspace.dir, repoSlug),
     ])
   }
 
-  // GitHub deep links may only point at GitHub: `git@gitlab.com:me/repo.git`
-  // has the same `owner/repo` shape, and github.com/<it> is someone else's repo.
-  const repoSlug = forgeHint === 'not-github' ? null : origin ? slugFromRemoteUrl(origin.url) : null
-
   // CI state per open PR. One `gh` call each, so the pool stays small: the panel
   // is a task board, not a CI dashboard, and `unknown` degrades quietly.
-  const checks = await checksOf(workspace.dir, prs)
+  const checks = await checksOf(workspace.dir, prs, repoSlug)
 
   // Which issues the board will draw: everything open, plus whatever the local
   // `issue-<n>-*` branches name, so a repo without forge access still gets cards.
@@ -241,13 +246,13 @@ const CHECK_CONCURRENCY = 4
  * board, which is the honest answer when `gh` could not be asked.
  * @returns {Promise<Record<number, string>>}
  */
-async function checksOf(repoDir, prs) {
+async function checksOf(repoDir, prs, repoSlug) {
   if (!Array.isArray(prs) || prs.length === 0) return {}
   const numbers = prs.map((p) => p?.number).filter((n) => Number.isInteger(n) && n > 0)
   const out = {}
   for (let i = 0; i < numbers.length; i += CHECK_CONCURRENCY) {
     const slice = numbers.slice(i, i + CHECK_CONCURRENCY)
-    const states = await Promise.all(slice.map((n) => prChecks(repoDir, n)))
+    const states = await Promise.all(slice.map((n) => prChecks(repoDir, n, repoSlug)))
     slice.forEach((n, idx) => {
       out[n] = states[idx]
     })

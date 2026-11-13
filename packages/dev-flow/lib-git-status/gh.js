@@ -76,12 +76,46 @@ export function forgeHintFor({ remotes, gh }) {
   return null
 }
 
+/**
+ * `--repo <owner/repo>` for every gh query, or nothing when the slug is unknown.
+ *
+ * gh resolves the target repository by reading the workspace's git remotes, and
+ * it only recognises a remote whose URL points at a known GitHub host. On a
+ * machine whose git config rewrites github.com through a mirror
+ * (`url.<mirror>.insteadOf https://github.com/`), `git remote -v` reports the
+ * mirror URL, gh refuses to run at all ("none of the git remotes configured for
+ * this repository point to a known GitHub host"), and every query came back
+ * empty — the panel then drew the board from leftover local branches alone,
+ * showing months-old merged issues as still in development (issue #199).
+ *
+ * The slug is parsed from `git config --local`, which that rewriting does not
+ * touch, so naming it explicitly makes the queries independent of it.
+ * @param {string|null} slug owner/repo, or null when it could not be parsed
+ * @returns {string[]} extra argv entries, empty when the slug is unknown
+ */
+export function repoArgs(slug) {
+  if (typeof slug !== 'string' || slug.length === 0) return []
+  return ['--repo', slug]
+}
+
+/**
+ * How many merged PRs a snapshot looks at.
+ *
+ * This was 20, which silently mislabelled older branches: with 86 merged PRs in
+ * the repository, `issue-145-…`'s merge (PR #193) fell outside the window, the
+ * branch had no merge evidence, and the board drew a finished task as still in
+ * development while flagging its own `.flow` file as stale (issue #199).
+ * The window only has to cover the branches that still exist locally.
+ */
+export const MERGED_PR_LIMIT = 200
+
 /** Open PRs for the current repo. */
-export async function openPullRequests(repoDir) {
+export async function openPullRequests(repoDir, slug) {
   const out = await runCommand(
     'gh',
     ['pr', 'list', '--state', 'open', '--limit', '30',
-     '--json', 'number,title,author,headRefName,baseRefName,isDraft,url,mergeable'],
+     '--json', 'number,title,author,headRefName,baseRefName,isDraft,url,mergeable',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null // gh failed → panel shows the reason
@@ -94,11 +128,12 @@ export async function openPullRequests(repoDir) {
 }
 
 /** Recently merged PRs, to flag local branches whose PR already landed. */
-export async function recentlyMergedPullRequests(repoDir) {
+export async function recentlyMergedPullRequests(repoDir, slug) {
   const out = await runCommand(
     'gh',
-    ['pr', 'list', '--state', 'merged', '--limit', '20',
-     '--json', 'number,title,headRefName,mergedAt,url'],
+    ['pr', 'list', '--state', 'merged', '--limit', String(MERGED_PR_LIMIT),
+     '--json', 'number,title,headRefName,mergedAt,url',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null
@@ -111,11 +146,12 @@ export async function recentlyMergedPullRequests(repoDir) {
 }
 
 /** Open issues for the current repo. */
-export async function openIssues(repoDir) {
+export async function openIssues(repoDir, slug) {
   const out = await runCommand(
     'gh',
     ['issue', 'list', '--state', 'open', '--limit', '30',
-     '--json', 'number,title,author,labels,url'],
+     '--json', 'number,title,author,labels,url',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null
@@ -162,7 +198,7 @@ export function classifyChecks(checks) {
  * only true because the call opts into `keepStdoutOnFailure`.
  * @returns {Promise<'green'|'red'|'none'|'unknown'>}
  */
-export async function prChecks(repoDir, prNumber) {
+export async function prChecks(repoDir, prNumber, slug) {
   if (!Number.isInteger(prNumber) || prNumber <= 0) return 'unknown'
   if (typeof repoDir !== 'string' || repoDir.length === 0) return 'unknown'
   // `keepStdoutOnFailure` is REQUIRED here: `gh pr checks` exits 1 when it has
@@ -171,7 +207,7 @@ export async function prChecks(repoDir, prNumber) {
   // panel never asked the user whether to create a workflow.
   const out = await runCommand(
     'gh',
-    ['pr', 'checks', String(prNumber), '--json', 'state'],
+    ['pr', 'checks', String(prNumber), '--json', 'state', ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, keepStdoutOnFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return 'unknown'
