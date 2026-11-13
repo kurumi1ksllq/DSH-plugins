@@ -22,12 +22,12 @@ import {
 } from './git-info.js'
 import {
   forgeHintFor,
+  forgeRemoteOf,
   ghStatus,
   openIssues,
   openPullRequests,
   prChecks,
   recentlyMergedPullRequests,
-  slugFromRemoteUrl,
 } from './gh.js'
 import { createHash } from 'node:crypto'
 
@@ -163,7 +163,10 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     subject: s.subject,
   }))
 
-  const origin = remotes.find((r) => r.name === 'origin') ?? remotes[0] ?? null
+  // The remote that names the forge repository: upstream first, then origin,
+  // then any remote that parses as GitHub. Used for BOTH the gate and the slug
+  // so the two cannot disagree (they did — issue #199 review).
+  const forgeRemote = forgeRemoteOf(remotes)
   const gh = await ghStatus(env)
   // Named reason for a missing forge section: not installed / not logged in /
   // no remote at all / remote is not GitHub. Without it the panel can only say
@@ -176,7 +179,7 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
   // repository explicitly (issue #199). gh's own resolution reads the workspace
   // remotes, which `url.<mirror>.insteadOf` rewrites — gh then refuses to run and
   // every query returned empty.
-  const repoSlug = forgeHint === 'not-github' ? null : origin ? slugFromRemoteUrl(origin.url) : null
+  const repoSlug = forgeHint === 'not-github' ? null : forgeRemote?.slug ?? null
 
   let prs = null
   let mergedPrs = null

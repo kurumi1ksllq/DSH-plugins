@@ -28,4 +28,4 @@ lint 拆成 `lintFlowDoc` + `lintContract`,并修掉章节重复检测漏 `g` �
 
 ## 0.5.0 — 2026-11-09
 
-#144 停点交互改造:停点1/2/3 确认一律经 DSH ask_user_question 发起(详见 SKILL.md 提问通道条款)。
+#144 停点交互改造:停点1/2/3 确认一律经 DSH ask_user_question 发起(详见 SKILL.md 提问通道条款)。- **review 后补三处**(轴 A 报 3 条 P1,均复现属实):① `slugFromRemoteUrl` 把 `https://github.com:443/me/repo` 解析成 `443/me/repo`——修复前只坏一条深链,slug 开始指名查询目标后会变成「查一个不存在的仓库」,比不传更糟,已接受并消费端口、并给 `repoArgs` 加「只放行恰好 `owner/repo`」的闸;② 门禁(`forgeHintFor` 接受任意 remote)与 slug(只读 origin)用两套规则,origin 非 GitHub 时门禁放行却拿不到 slug,等于没修,已抽出唯一出口 `forgeRemoteOf`;③ 强制 origin 会覆盖 gh 自己的选择——实测 gh 2.62.0 优先选名为 `upstream` 的 remote(fork clone 的 PR 在上游),现按 `upstream → origin → 任意可解析` 排序。

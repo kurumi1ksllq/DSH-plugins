@@ -16,16 +16,50 @@ import { runCommand } from './run.js'
  * `user@host:owner/repo` shape, and returning `me/repo` for it built a
  * github.com/<me>/<repo> link — someone else's repository, opened in the
  * panel's "open on GitHub" affordance (the forge is not GitHub at all).
+ *
+ * An explicit port is consumed, never captured: without `(?::\d+)?` the https
+ * form read `https://github.com:443/me/repo` as `443/me/repo`. That used to
+ * only spoil one deep link; once the slug started naming the target of every
+ * gh query (issue #199) it would have pointed gh at a repository that does not
+ * exist, which is worse than passing no slug at all.
  * @returns {string|null}
  */
 export function slugFromRemoteUrl(url) {
   if (typeof url !== 'string' || url.length === 0) return null
   const scp = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (scp) return `${scp[1]}/${scp[2]}`
-  const ssh = /^ssh:\/\/git@github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
+  const ssh = /^ssh:\/\/git@github\.com(?::\d+)?\/([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (ssh) return `${ssh[1]}/${ssh[2]}`
-  const https = /^(?:https?:\/\/)?(?:[^/@\s]+@)?(?:www\.)?github\.com[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
+  const https = /^(?:https?:\/\/)?(?:[^/@\s]+@)?(?:www\.)?github\.com(?::\d+)?[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (https) return `${https[1]}/${https[2]}`
+  return null
+}
+
+/**
+ * The remote that names the forge repository, or null.
+ *
+ * One resolver for BOTH consumers — the forge hint and the `--repo` slug — so
+ * they cannot disagree. They did: the hint accepted a GitHub URL on ANY remote
+ * while the slug only read `origin ?? remotes[0]`, so a repo whose origin was
+ * GitLab and whose upstream was GitHub passed the gate and then queried with no
+ * `--repo` at all, leaving issue #199 unfixed for exactly that shape.
+ *
+ * The order mirrors gh's own: `upstream` wins, then `origin`, then anything
+ * that parses. gh prefers `upstream` because that is the fork-clone convention —
+ * the PRs and issues live in the upstream repository, not in the fork. Taking
+ * `origin` unconditionally would point a fork clone at its own empty fork and
+ * re-create the "finished work looks unfinished" symptom.
+ * @param {Array<{name:string,url:string}>} remotes
+ * @returns {{name:string,url:string,slug:string}|null}
+ */
+export function forgeRemoteOf(remotes) {
+  if (!Array.isArray(remotes) || remotes.length === 0) return null
+  const named = (name) => remotes.find((remote) => remote?.name === name)
+  const ordered = [named('upstream'), named('origin'), ...remotes].filter(Boolean)
+  for (const remote of ordered) {
+    const slug = slugFromRemoteUrl(remote.url)
+    if (slug !== null) return { name: remote.name, url: remote.url, slug }
+  }
   return null
 }
 
@@ -71,8 +105,9 @@ export function forgeHintFor({ remotes, gh }) {
   if (!gh?.available) return 'not-installed'
   if (!gh?.loggedIn) return 'not-logged-in'
   if (!Array.isArray(remotes) || remotes.length === 0) return 'no-remote'
-  const slug = remotes.map((r) => slugFromRemoteUrl(r.url)).find((s) => s !== null)
-  if (slug === undefined) return 'not-github'
+  // Same resolver the slug comes from: a hint of null now guarantees a usable
+  // slug, which is what lets `--repo` be relied on rather than hoped for.
+  if (forgeRemoteOf(remotes) === null) return 'not-github'
   return null
 }
 
@@ -94,7 +129,12 @@ export function forgeHintFor({ remotes, gh }) {
  * @returns {string[]} extra argv entries, empty when the slug is unknown
  */
 export function repoArgs(slug) {
-  if (typeof slug !== 'string' || slug.length === 0) return []
+  if (typeof slug !== 'string') return []
+  // Exactly `owner/repo`. A wrong --repo is worse than none: gh would query a
+  // repository that does not exist and fail, whereas no flag at least lets gh
+  // try its own resolution. Guards the port-parsing class of bug at the last
+  // point before argv.
+  if (!/^[^/\s]+\/[^/\s]+$/.test(slug)) return []
   return ['--repo', slug]
 }
 
@@ -105,7 +145,13 @@ export function repoArgs(slug) {
  * the repository, `issue-145-…`'s merge (PR #193) fell outside the window, the
  * branch had no merge evidence, and the board drew a finished task as still in
  * development while flagging its own `.flow` file as stale (issue #199).
- * The window only has to cover the branches that still exist locally.
+ *
+ * `gh pr list` orders by CREATED-at, not merged-at (verified against this
+ * repository's 86 merged PRs), so the window can still miss a long-open PR that
+ * merged yesterday. Raising the number narrows that window but does not close
+ * it: a repository with more than this many merged PRs re-creates the defect.
+ * The durable fix is a bounded per-branch lookup for branches still lacking
+ * merge evidence, which scales with the local branch list instead of history.
  */
 export const MERGED_PR_LIMIT = 200
 

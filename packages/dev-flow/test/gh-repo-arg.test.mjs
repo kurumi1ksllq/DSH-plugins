@@ -5,7 +5,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-import { openIssues, openPullRequests, prChecks, recentlyMergedPullRequests } from '../lib-git-status/gh.js'
+import {
+  MERGED_PR_LIMIT,
+  forgeHintFor,
+  forgeRemoteOf,
+  openIssues,
+  openPullRequests,
+  prChecks,
+  recentlyMergedPullRequests,
+  repoArgs,
+  slugFromRemoteUrl,
+} from '../lib-git-status/gh.js'
 import { getSnapshot, invalidateSnapshot } from '../lib-git-status/snapshot.js'
 
 const GIT = process.env.GIT_IN_PATH ?? 'git'
@@ -114,7 +124,10 @@ test('recentlyMergedPullRequests asks for more than the newest 20 merges', async
   assert.ok(mergedCall !== undefined, 'the merged query must have run')
   const limit = /--limit (\d+)/.exec(mergedCall)
   assert.ok(limit !== null, 'the merged query must bound its window explicitly')
-  assert.ok(Number(limit[1]) > 20, `a window of ${limit[1]} cannot see every merge a branch may have`)
+  // Pin the exported constant rather than the literal: asserting only `> 20`
+  // let a future edit quietly shrink the window to 25 and stay green.
+  assert.equal(Number(limit[1]), MERGED_PR_LIMIT)
+  assert.ok(MERGED_PR_LIMIT > 20, 'the old window of 20 hid merges this repository still has branches for')
 })
 
 test('getSnapshot threads the repository into every forge query', async () => {
@@ -127,4 +140,62 @@ test('getSnapshot threads the repository into every forge query', async () => {
   assert.equal(snapshot.issues?.[0]?.number, 7, 'the board needs the forge data, not just the slug')
   const card = snapshot.board.columns.flatMap((c) => c.cards).find((c) => c.issue === 7)
   assert.ok(card !== undefined, 'the issue must reach the board')
+})
+// ---- the resolver that names the repository --------------------------------
+// The first cut of #199 fixed only the single-remote case. These cover the three
+// shapes that were still broken, each found by review rather than by the suite:
+// a port in the URL, an origin that is not GitHub, and a fork clone whose PRs
+// live on `upstream`.
+
+test('slugFromRemoteUrl consumes an explicit port instead of reading it as the owner', () => {
+  // `https://github.com:443/me/repo` used to yield `443/me/repo`. That was only a
+  // bad deep link until the slug started naming the target of every gh query —
+  // then it became a query against a repository that does not exist.
+  assert.equal(slugFromRemoteUrl('https://github.com:443/me/repo.git'), 'me/repo')
+  assert.equal(slugFromRemoteUrl('ssh://git@github.com:22/me/repo.git'), 'me/repo')
+})
+
+test('repoArgs refuses a malformed slug, because a wrong --repo is worse than none', () => {
+  assert.deepEqual(repoArgs('443/me/repo'), [])
+  assert.deepEqual(repoArgs('me/repo/extra'), [])
+  assert.deepEqual(repoArgs('me repo'), [])
+  assert.deepEqual(repoArgs('me/repo'), ['--repo', 'me/repo'])
+})
+
+test('forgeRemoteOf prefers upstream over origin, as gh does for a fork clone', () => {
+  // gh selects `upstream` when it exists (verified against gh 2.62.0). Naming
+  // `origin` unconditionally would point a fork clone at its own fork, where no
+  // PR or issue matches the local `issue-*` branches — #199's symptom again.
+  const remotes = [
+    { name: 'origin', url: 'https://github.com/me/fork.git' },
+    { name: 'upstream', url: 'https://github.com/real/repo.git' },
+  ]
+  assert.equal(forgeRemoteOf(remotes)?.slug, 'real/repo')
+})
+
+test('forgeRemoteOf falls back to any GitHub remote when origin is not GitHub', () => {
+  // The gate accepted this shape (some remote is GitHub) while the slug only read
+  // origin (null) — so the queries ran with no --repo and failed exactly as before
+  // the fix. Both now come from this one resolver.
+  const remotes = [
+    { name: 'origin', url: 'https://gitlab.com/me/repo.git' },
+    { name: 'mirror', url: 'https://github.com/me/repo.git' },
+  ]
+  assert.equal(forgeRemoteOf(remotes)?.slug, 'me/repo')
+  assert.equal(forgeHintFor({ remotes, gh: { available: true, loggedIn: true } }), null)
+})
+
+test('a repo whose only remote is not GitHub still degrades to no slug', () => {
+  const remotes = [{ name: 'origin', url: 'https://gitlab.com/me/repo.git' }]
+  assert.equal(forgeRemoteOf(remotes), null)
+  assert.equal(forgeHintFor({ remotes, gh: { available: true, loggedIn: true } }), 'not-github')
+})
+
+test('getSnapshot reads the slug from upstream, not origin, in a fork clone', async () => {
+  const repo = initRepoWithOrigin()
+  execFileSync(GIT, ['remote', 'add', 'upstream', 'https://github.com/real/repo.git'], { cwd: repo })
+  const dir = stubGh({ issues: [], prs: [], merged: [], checks: [] })
+  invalidateSnapshot()
+  const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  assert.equal(snapshot.repoSlug, 'real/repo')
 })
