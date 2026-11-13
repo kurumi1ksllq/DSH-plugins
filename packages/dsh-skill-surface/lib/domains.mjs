@@ -74,8 +74,14 @@ export const DOMAINS = [
   {
     id: 'security',
     label: '安全/鉴权',
-    strong: ['鉴权', '密钥', '注入'],
-    keywords: ['安全', '认证', '授权', '权限', 'auth', 'security', 'csrf', 'xss'],
+    // Bare '注入' is a keyword, not a strong signal: in this repository the word
+    // far more often means a NON-security kind of injection ("skills: a,b 点名注入",
+    // "ctx.inject", "prompt 注入"). Measured on 49 historical delegations that
+    // contain it, only 2 were about an attack surface (issue-201). The attack
+    // PHRASES below stay strong so 'SQL 注入' still works on its own.
+    strong: ['鉴权', '密钥', 'sql 注入', '命令注入', '注入攻击', '注入漏洞', 'xss 注入'],
+    keywords: ['安全', '认证', '授权', '权限', 'auth', 'security', 'csrf', 'xss', '注入'],
+    exclude: ['ctx.inject', 'prompt 注入', 'prompt注入', '提示注入', '提示词注入', '点名注入', '依赖注入', '注入到'],
     skills: ['security-review', 'agent-security-hardening'],
   },
   {
@@ -111,6 +117,9 @@ export function matchDomains(text) {
     // request. The best sentence decides.
     let best = { hits: 0, strong: 0 }
     for (const sentence of sentences) {
+      // A phrase in `exclude` means this sentence's words are about something
+      // else: drop the whole sentence instead of trying to un-score one word.
+      if ((domain.exclude ?? []).some((phrase) => sentence.includes(phrase.toLowerCase()))) continue
       const strong = (domain.strong ?? []).filter((word) => occurs(word.toLowerCase(), sentence)).length
       const weak = domain.keywords.filter((word) => occurs(word.toLowerCase(), sentence)).length
       const hits = strong + weak

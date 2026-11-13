@@ -1,0 +1,32 @@
+{
+  "issue": 201,
+  "grade": "trivial",
+  "stage": "done",
+  "updatedAt": "2026-11-13T08:52:36.554Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "query 单命中返正文",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "userText 注释修正",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "注入 词义降级 + 排除",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  }
+}

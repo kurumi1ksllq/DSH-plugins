@@ -11,6 +11,32 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-skill-surface 0.3.0 — query 单命中直接返回正文(#201)
+
+**需求**:三轴对抗审查确认的三个现存缺陷(不是新功能)。
+
+**做法**:
+1. `skill_get({query})` 过滤**恰好命中一个**技能时,直接返回该技能正文,不再回只含一行的索引。
+   走与 `name` 完全相同的路径(`isModelInvocable` 校验、`injectedSkills` 记账、`capped()` 大小上限),
+   两条路径共用 `bodyFor()`,避免行为漂移。命中 0 条 / ≥2 条 / 无 `query` 仍然是索引。
+   依据:实测 3 个会话调 `skill_get({query})` 拿到索引后就停手,正文从未进入上下文。
+2. 修正 `userText` 的失真注释:原文称子会话任务是 `form:"relay"` 中转消息,
+   实测 407 个会话里子会话首步任务消息是 `source.kind="user"`、无 `form`;relay 仍保留为兼容分支。
+3. `lib/domains.mjs` 的 `注入` 从 security 的 `strong` 降为 `keywords`,并新增 `exclude` 短语表
+   (`ctx.inject` / `提示注入` / `点名注入` 等)。依据:49 个含"注入"的历史委派里只有 2 个是安全语义;
+   `efcad7d8` 因"点名注入"被误判为安全域。`SQL 注入`/`命令注入` 等攻击短语保留为强信号。
+
+**反向验证**:7 个变异体全部实测变红(去掉单命中分支 / 改成 ≥1 全返正文 / 把 注入 加回 strong /
+删掉 exclude 检查 / exclude 吞掉攻击短语 / 正文路径跳过大小上限 / 单命中忽略 modelInvocable)。
+其中 M3、M4 第一轮**没变红**——两个机制互相掩盖,已补 201-8b、201-9b 两条隔离测试后才生效。
+
+**测试**:包内 60 → 72 条(新增 12 条)。
+
+**不做**:"委派时自动推断并注入技能正文"。三轴审查结论:目标人群为空
+(256 个委派里 251 个是只读任务,98 次 domain 命中里 90 次落在只读审查员)、
+对照基线 26.5% 中 16/19 来自已移除的 `dev-flow` 技能(剔除后 2/49 vs 8/256,差距消失)。
+
+
 ### dev-flow 0.8.0 — Git 面板从左侧栏移到右侧栏(#197)
 
 **需求**:面板原本是左侧栏入口 + 占满主区的整页(`sidebar.panellist` + `main`),用户要求移到右侧栏。
@@ -318,7 +344,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 45 个条目:41 条有对应 tag;缺 tag 的 3 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`（两条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 46 个条目:41 条有对应 tag;缺 tag 的 4 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`、`dsh-skill-surface@0.3.0`（三条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
