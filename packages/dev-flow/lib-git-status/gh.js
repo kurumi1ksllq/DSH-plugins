@@ -16,16 +16,50 @@ import { runCommand } from './run.js'
  * `user@host:owner/repo` shape, and returning `me/repo` for it built a
  * github.com/<me>/<repo> link — someone else's repository, opened in the
  * panel's "open on GitHub" affordance (the forge is not GitHub at all).
+ *
+ * An explicit port is consumed, never captured: without `(?::\d+)?` the https
+ * form read `https://github.com:443/me/repo` as `443/me/repo`. That used to
+ * only spoil one deep link; once the slug started naming the target of every
+ * gh query (issue #199) it would have pointed gh at a repository that does not
+ * exist, which is worse than passing no slug at all.
  * @returns {string|null}
  */
 export function slugFromRemoteUrl(url) {
   if (typeof url !== 'string' || url.length === 0) return null
   const scp = /^git@github\.com:([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (scp) return `${scp[1]}/${scp[2]}`
-  const ssh = /^ssh:\/\/git@github\.com\/([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
+  const ssh = /^ssh:\/\/git@github\.com(?::\d+)?\/([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (ssh) return `${ssh[1]}/${ssh[2]}`
-  const https = /^(?:https?:\/\/)?(?:[^/@\s]+@)?(?:www\.)?github\.com[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
+  const https = /^(?:https?:\/\/)?(?:[^/@\s]+@)?(?:www\.)?github\.com(?::\d+)?[/:]([^/]+)\/(.+?)(?:\.git)?\/?$/i.exec(url)
   if (https) return `${https[1]}/${https[2]}`
+  return null
+}
+
+/**
+ * The remote that names the forge repository, or null.
+ *
+ * One resolver for BOTH consumers — the forge hint and the `--repo` slug — so
+ * they cannot disagree. They did: the hint accepted a GitHub URL on ANY remote
+ * while the slug only read `origin ?? remotes[0]`, so a repo whose origin was
+ * GitLab and whose upstream was GitHub passed the gate and then queried with no
+ * `--repo` at all, leaving issue #199 unfixed for exactly that shape.
+ *
+ * The order mirrors gh's own: `upstream` wins, then `origin`, then anything
+ * that parses. gh prefers `upstream` because that is the fork-clone convention —
+ * the PRs and issues live in the upstream repository, not in the fork. Taking
+ * `origin` unconditionally would point a fork clone at its own empty fork and
+ * re-create the "finished work looks unfinished" symptom.
+ * @param {Array<{name:string,url:string}>} remotes
+ * @returns {{name:string,url:string,slug:string}|null}
+ */
+export function forgeRemoteOf(remotes) {
+  if (!Array.isArray(remotes) || remotes.length === 0) return null
+  const named = (name) => remotes.find((remote) => remote?.name === name)
+  const ordered = [named('upstream'), named('origin'), ...remotes].filter(Boolean)
+  for (const remote of ordered) {
+    const slug = slugFromRemoteUrl(remote.url)
+    if (slug !== null) return { name: remote.name, url: remote.url, slug }
+  }
   return null
 }
 
@@ -71,17 +105,65 @@ export function forgeHintFor({ remotes, gh }) {
   if (!gh?.available) return 'not-installed'
   if (!gh?.loggedIn) return 'not-logged-in'
   if (!Array.isArray(remotes) || remotes.length === 0) return 'no-remote'
-  const slug = remotes.map((r) => slugFromRemoteUrl(r.url)).find((s) => s !== null)
-  if (slug === undefined) return 'not-github'
+  // Same resolver the slug comes from: a hint of null now guarantees a usable
+  // slug, which is what lets `--repo` be relied on rather than hoped for.
+  if (forgeRemoteOf(remotes) === null) return 'not-github'
   return null
 }
 
+/**
+ * `--repo <owner/repo>` for every gh query, or nothing when the slug is unknown.
+ *
+ * gh resolves the target repository by reading the workspace's git remotes, and
+ * it only recognises a remote whose URL points at a known GitHub host. On a
+ * machine whose git config rewrites github.com through a mirror
+ * (`url.<mirror>.insteadOf https://github.com/`), `git remote -v` reports the
+ * mirror URL, gh refuses to run at all ("none of the git remotes configured for
+ * this repository point to a known GitHub host"), and every query came back
+ * empty — the panel then drew the board from leftover local branches alone,
+ * showing months-old merged issues as still in development (issue #199).
+ *
+ * The slug is parsed from `git config --local`, which that rewriting does not
+ * touch, so naming it explicitly makes the queries independent of it.
+ * @param {string|null} slug owner/repo, or null when it could not be parsed
+ * @returns {string[]} extra argv entries, empty when the slug is unknown
+ */
+export function repoArgs(slug) {
+  if (typeof slug !== 'string') return []
+  // Exactly `owner/repo`. A wrong --repo is worse than none: gh would query a
+  // repository that does not exist and fail, whereas no flag at least lets gh
+  // try its own resolution. Guards the port-parsing class of bug at the last
+  // point before argv.
+  if (!/^[^/\s]+\/[^/\s]+$/.test(slug)) return []
+  return ['--repo', slug]
+}
+
+/**
+ * How many merged PRs a snapshot looks at.
+ *
+ * This was 20, which silently mislabelled older branches: with 86 merged PRs in
+ * the repository, `issue-154-…` (PR #155) and `issue-158-…` (PR #159) fell outside
+ * the window, those branches had no merge evidence, and the board drew finished
+ * tasks as still in development while flagging their own `.flow` files as stale
+ * (issue #199). Measured: a window of 20 dropped exactly #155 and #159, which is
+ * exactly what the dev column was showing.
+ *
+ * `gh pr list` orders by CREATED-at, not merged-at (verified against this
+ * repository's 86 merged PRs), so the window can still miss a long-open PR that
+ * merged yesterday. Raising the number narrows that window but does not close
+ * it: a repository with more than this many merged PRs re-creates the defect.
+ * The durable fix is a bounded per-branch lookup for branches still lacking
+ * merge evidence, which scales with the local branch list instead of history.
+ */
+export const MERGED_PR_LIMIT = 200
+
 /** Open PRs for the current repo. */
-export async function openPullRequests(repoDir) {
+export async function openPullRequests(repoDir, slug) {
   const out = await runCommand(
     'gh',
     ['pr', 'list', '--state', 'open', '--limit', '30',
-     '--json', 'number,title,author,headRefName,baseRefName,isDraft,url,mergeable'],
+     '--json', 'number,title,author,headRefName,baseRefName,isDraft,url,mergeable',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null // gh failed → panel shows the reason
@@ -94,11 +176,12 @@ export async function openPullRequests(repoDir) {
 }
 
 /** Recently merged PRs, to flag local branches whose PR already landed. */
-export async function recentlyMergedPullRequests(repoDir) {
+export async function recentlyMergedPullRequests(repoDir, slug) {
   const out = await runCommand(
     'gh',
-    ['pr', 'list', '--state', 'merged', '--limit', '20',
-     '--json', 'number,title,headRefName,mergedAt,url'],
+    ['pr', 'list', '--state', 'merged', '--limit', String(MERGED_PR_LIMIT),
+     '--json', 'number,title,headRefName,mergedAt,url',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null
@@ -111,11 +194,12 @@ export async function recentlyMergedPullRequests(repoDir) {
 }
 
 /** Open issues for the current repo. */
-export async function openIssues(repoDir) {
+export async function openIssues(repoDir, slug) {
   const out = await runCommand(
     'gh',
     ['issue', 'list', '--state', 'open', '--limit', '30',
-     '--json', 'number,title,author,labels,url'],
+     '--json', 'number,title,author,labels,url',
+     ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return null
@@ -162,7 +246,7 @@ export function classifyChecks(checks) {
  * only true because the call opts into `keepStdoutOnFailure`.
  * @returns {Promise<'green'|'red'|'none'|'unknown'>}
  */
-export async function prChecks(repoDir, prNumber) {
+export async function prChecks(repoDir, prNumber, slug) {
   if (!Number.isInteger(prNumber) || prNumber <= 0) return 'unknown'
   if (typeof repoDir !== 'string' || repoDir.length === 0) return 'unknown'
   // `keepStdoutOnFailure` is REQUIRED here: `gh pr checks` exits 1 when it has
@@ -171,7 +255,7 @@ export async function prChecks(repoDir, prNumber) {
   // panel never asked the user whether to create a workflow.
   const out = await runCommand(
     'gh',
-    ['pr', 'checks', String(prNumber), '--json', 'state'],
+    ['pr', 'checks', String(prNumber), '--json', 'state', ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, keepStdoutOnFailure: true, timeoutMs: 15_000 },
   )
   if (typeof out !== 'string') return 'unknown'

@@ -11,6 +11,34 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dev-flow 0.7.1 — Git 面板查不到 GitHub 数据(gh 缺 `--repo`)+ 已合并窗口过小(#199)
+
+**问题**(实测):右侧栏任务板把早已合并的 issue 显示成「开发中」,并给卡片标「状态过期」。本机 `~/.gitconfig` 有 `url.https://ghfast.top/https://github.com/.insteadOf https://github.com/`,于是:
+
+```
+$ git remote -v
+origin  https://ghfast.top/https://github.com/kurumi1ksllq/DSH-plugins.git
+$ gh pr list --state open
+none of the git remotes configured for this repository point to a known GitHub host.
+```
+
+`gh` 靠读工作区 remote 判断查哪个仓库,镜像改写后认不出主机便整条拒绝执行。`lib-git-status/gh.js` 的四个查询都没带 `--repo`,于是全部返回 `null`:`getSnapshot()` 实测 `issues: null`、`mergedPrs: null`、dev 列 **23 张**(全部来自本地残留的 `issue-*` 分支)、done 列 **0 张**。
+
+而 `remotesOf()` 读的是 `git config --local`(**不受** `insteadOf` 改写),slug 一直解析正确——只是没被用来指定查询目标。次要缺陷:已合并 PR 只查最近 20 条,本仓库有 86 条。`gh pr list` 按 **createdAt** 倒序,所以漏掉的是「创建得早」的 PR——实测 20 的窗口恰好漏掉 `issue-154-*`(PR #155)与 `issue-158-*`(PR #159),dev 列残留的正是这两张。
+
+**做法**:新增 `repoArgs(slug)`,四个查询全部带 `--repo <owner/repo>`;`snapshot.js` 把 `repoSlug` 的计算提前到 forge 查询之前并透传给 `checksOf`;合并窗口 20 → 导出常量 `MERGED_PR_LIMIT` = 200。
+
+**测试**:新增 `test/gh-repo-arg.test.mjs`(现 13 条)——假 `gh` 桩在缺 `--repo me/repo` 时复现真 gh 的那句报错并 `exit 4`,`--version`/`auth status` 无条件成功(宿主事实,不是仓库查询)。反向验证按「只回退修复、保留导出」做:定向破坏端口解析→1 红、`forgeRemoteOf` 忽略 upstream→2 红、去掉 slug 形状闸→1 红、`prChecks` 丢 slug→1 红、合并列表在 JS 里截断回 20→1 红、snapshot 回退 origin-only→1 红。(对 main 原样跑会 import 失败,因为新导出不存在,那不是有效的反向验证口径。)另加一条 README 文档契约,删掉 `--repo` 说明段落即红。
+
+**实测(本仓库,修复前后各跑一次)**:`issues` `null` → 2 条、`mergedPrs` `null` → 86 条、dev 列 23 → 1(真实的在做任务)、done 列 0 → 22。dev 列的绝对值取决于本地还留着多少 `issue-*` 分支,关键是修复后只剩真正在做的那张。
+
+**review 后补三处**(轴 A 报 3 条 P1,均复现属实):① `https://github.com:443/me/repo` 被解析成 `443/me/repo`——原本只坏一条深链,slug 开始指名查询目标后会变成「查一个不存在的仓库」,比不传更糟;② 门禁接受任意 remote 而 slug 只读 origin,origin 非 GitHub 时门禁放行却拿不到 slug;③ 强制 origin 会覆盖 gh 自己的选择(实测 gh 2.62.0 优先 `upstream`,fork clone 的 PR 在上游)。已抽出唯一出口 `forgeRemoteOf`(门禁与 slug 同源)、按 `upstream → origin → 任意可解析` 排序、并给 `repoArgs` 加「只放行恰好 `owner/repo`」的闸。新增 6 条测试覆盖这三条路径,逐条反向验证(定向破坏实现后各自变红)。
+**看到新数据需要两步**(轴 A 提醒,否则修复容易被误判无效):① 宿主进程重新加载 dev-flow 的新代码——旧进程里的旧 `gh.js` 不会因文件改动自动生效;② 打开面板后点一次工具栏「刷新」(走 `?refresh=1` → `force: true` 绕过 30s 缓存)。面板没有轮询,只重启前端会看到「刷新了还是老样子」。
+
+
+> 教训:`gh` 的失败是**静默**的(返回 `null` 而非抛错),面板照常渲染,只是证据层空了。这类「降级得太平滑」的失败只能对着真实仓库看结果才发现,单元测试若喂手写快照永远抓不到——所以这次的测试桩特意复现的是**外部命令的失败模式**,而不是内部函数返回值。
+
+
 ### dsh-task-dispatcher 0.4.2 — role_search 支持中文检索(中英同义词表 + 词边界匹配)(#196)
 
 **问题**(实测):`role_search("安全")` 返回 `No role matched`。线上 133 个 ECC preset 的 id 与 description **绝大多数为英文**(实测 `安全` 命中 0 次;仅 3 行描述含中文,且无安全类),中文操作者按纪律文本「不确定角色 id 就先 `role_search`」发中文查询会直接落空。
@@ -261,7 +289,7 @@ test-only changes are exempt.
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 43 个条目:38 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 44 个条目:41 条有对应 tag;缺 tag 的 3 条为 `dev-flow@0.7.1`（本条,tag 在合并后打）、 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

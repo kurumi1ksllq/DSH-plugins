@@ -36,3 +36,11 @@ test('README documents no dead package names after the merge (#110 P2-4)', () =>
   assert.equal(README.includes('dev-flow-skill'), false, 'README-git-status 不得再写 dev-flow-skill')
   assert.equal(README.includes('packages/dsh-git-status'), false, 'README-git-status 不得再写 packages/dsh-git-status')
 })
+test('README documents that every gh query names the repository (#199)', () => {
+  // 反向验证:删掉 --repo 说明 → 本测试红。这条文档对应一次真实事故:
+  // 镜像改写的机器上 gh 认不出 remote,所有查询静默失败,面板把已合并的
+  // issue 显示成开发中。
+  assert.ok(README.includes('--repo'), 'must name the explicit --repo flag')
+  assert.ok(README.includes('insteadOf'), 'must explain the mirror rewriting that breaks gh')
+  assert.ok(README.includes('MERGED_PR_LIMIT'), 'must state the merged-PR window')
+})

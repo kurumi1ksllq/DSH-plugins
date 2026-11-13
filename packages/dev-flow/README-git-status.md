@@ -73,9 +73,24 @@ Git 和 GitHub 知道分支、提交、PR、CI，但不知道 TDD 内部走到�
 | 分支 ↔ issue 映射 | 分支名 `^issue-(\d+)-` |
 | 改动文件 / 行数 | `git status --porcelain=v2` + `git diff --shortstat` |
 | 未推送提交 | `git rev-list --count @{u}..HEAD` |
-| PR 状态 | `gh pr list` |
+| PR 状态 | `gh pr list`（合并窗口 `MERGED_PR_LIMIT`=200；`gh` 按 **createdAt** 倒序，窗口过小会让**较早创建**的分支失去合并证据） |
 | CI 三态 | `gh pr checks <n> --json state`（每 PR 一次；退出码 1/8 仍保留 stdout，因为「无 CI」和「检查进行中」都靠 body 判定） |
 | TDD / CI 轮次 / review / merge 口令 | `docs/specs/.flow/<issue>.json` |
+
+### 查询会显式指名仓库
+
+每个 `gh` 调用都带 `--repo <owner/repo>`，仓库名来自 `git config --local` 的 remote URL，按 **`upstream` → `origin` → 任一可解析的 remote** 的顺序取（与 `gh` 自身的选择一致：fork clone 的 PR/issue 在上游仓库，而不是自己的 fork）。
+原因是 `gh` 默认靠读工作区的 remote 判断查哪个仓库，而 `url.<镜像>.insteadOf` 会把
+`https://github.com/` 改写成镜像地址（如 `https://ghfast.top/https://github.com/`），
+此时 `gh` 认不出主机，**所有查询直接失败**：
+
+```
+$ gh pr list --state open
+none of the git remotes configured for this repository point to a known GitHub host.
+```
+
+这种失败不会报错，只会让面板退化成「只用本地分支画卡」，把早已合并的 issue 显示成开发中（#199）。
+`git config --local` 读到的 URL 不受该改写影响，所以显式指名仓库后查询恢复正常。
 
 ### gh 不可用时
 
