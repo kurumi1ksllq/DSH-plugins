@@ -1,0 +1,36 @@
+{
+  "issue": 203,
+  "grade": "trivial",
+  "stage": "dev",
+  "updatedAt": "2026-11-13T11:40:46.485Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "presentCall 三态标题(#203)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "bodyFor 容忍无 agent(#204)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本 + CHANGELOG",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  },
+  "note": "合并处理 #203+#204;任务板只建 203.json,204 不单独建卡"
+}

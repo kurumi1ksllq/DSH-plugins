@@ -11,6 +11,28 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-skill-surface 0.3.1 — 卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap(#203 / #204)
+
+两条都出自 #201 / PR #202 双轴 review 的 P2 发现,当时记入 spec 未修。
+
+1. **#203 卡片标题**:`skill_get({query})` 单命中时实际返回的是**技能正文**(#201 引入),
+   但 `presentCall` 的标题无条件写 `List skills`,`rawInput` 也不带 query ——
+   会话记录里显示"列技能"、模型收到的却是正文,排查时被误导。改为与 `execute` 分支对齐的三态:
+   `{name}` → `Load skill <name>`;非空白 `query` → `Search skills: <query>`;无/空白 query → `List skills`。
+   **不采纳**「区分单命中 → `Load skill <name>`」:presentCall 是纯同步 pending 态呈现器
+   (`dsh-tools/lib/types/schema.d.ts:227-232`),拿不到 catalog,`execute` 的单命中判定要异步 snapshot
+   才能得出,那既破坏纯函数契约又引入时序问题。
+2. **#204 WeakMap 抛错**:`bodyFor()` 无条件 `injectedSkills(agent).add(...)`,而 `injectedSkills`
+   以 agent 为 `WeakMap` 键,无 agent 时抛 `Invalid value used as weak map key`。
+   `{name}` 路径**改动前就抛**(既有问题),`{query}` 单命中是 #201 引入的**回归**。
+   改为 `if (agent !== undefined)` 守卫:记账的唯一消费者是按 agent 抑制重复 nudge,
+   无 agent 时没有那个会话可记账,跳过即语义正确(伪造共享占位键会跨会话串味)。
+   与官方 `skill` 工具的处理一致(`dsh-tool-skill/lib/index.js:869`)。
+   可达性低(`hasOfficialLoader` 在无 agent 时返回 `true`,工具不注册到那种 scope),但改动只有一行守卫。
+
+反向验证:标题改回固定 `List skills` → 203-1 红;去掉守卫 → 204-1/204-2 红;
+query 分支去掉空白判断 → 203-2 红;让 query 压过 name → 203-3/203-4 红。四条均实测。
+
 ### dsh-skill-surface 0.3.0 — query 单命中直接返回正文(#201)
 
 **需求**:三轴对抗审查确认的三个现存缺陷(不是新功能)。
@@ -357,7 +379,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 46 个条目:41 条有对应 tag;缺 tag 的 4 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`、`dsh-skill-surface@0.3.0`（三条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 47 个条目:41 条有对应 tag;缺 tag 的 5 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`、`dsh-skill-surface@0.3.0`、`dsh-skill-surface@0.3.1`（四条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

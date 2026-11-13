@@ -141,7 +141,13 @@ function matchedSkills(snapshot, api, query) {
  * with the name path so the two cannot diverge.
  */
 function bodyFor(skill, agent, api) {
-  injectedSkills(agent).add(skill.name)
+  // The record only suppresses a later nudge, and a nudge is keyed by the agent
+  // whose conversation it would repeat in. An assembly that runs this tool with
+  // no agent has no such conversation, so skipping the record is correct —
+  // whereas calling injectedSkills(undefined) threw "Invalid value used as weak
+  // map key" and cost the body itself (#204). The official skill tool tolerates
+  // the same shape (dsh-tool-skill/lib/index.js:869).
+  if (agent !== undefined) injectedSkills(agent).add(skill.name)
   return { text: capped(api.renderSkillContent(skill)) }
 }
 
@@ -208,9 +214,18 @@ function loaderHandle(scope) {
       }
       return bodyFor(skill, exec.agent, api)
     },
+    // The title is the only thing a session log shows, so it must name the branch
+    // execute() will actually take — including the single-hit case #201 made
+    // return a BODY rather than a listing. A pure pending-state presenter cannot
+    // see the catalog (dsh-tools schema.d.ts:227-232), so it cannot know whether
+    // a query will hit one skill or many; "Search skills" is true either way.
+    // The whitespace test matches execute(), which treats a blank query as a list.
     presentCall(args) {
       const named = typeof args?.name === 'string' && args.name !== ''
-      return { card: 'generic', title: named ? 'Load skill ' + args.name : 'List skills', kind: 'read', rawInput: named ? args.name : '' }
+      if (named) return { card: 'generic', title: 'Load skill ' + args.name, kind: 'read', rawInput: args.name }
+      const asked = typeof args?.query === 'string' && args.query.trim() !== ''
+      if (asked) return { card: 'generic', title: 'Search skills: ' + args.query.trim(), kind: 'read', rawInput: args.query.trim() }
+      return { card: 'generic', title: 'List skills', kind: 'read', rawInput: '' }
     },
   }
 }
