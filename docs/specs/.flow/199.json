@@ -1,0 +1,36 @@
+{
+  "issue": 199,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-13T04:20:19.846Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "gh 查询显式带 --repo(红)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "snapshot 透传 slug + 合并窗口 200(绿)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "文档 / CHANGELOG / 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  },
+  "note": "board-flip #199(2026-11-13):合并证据 PR #200 squash merge b643224,已核验该提交在 main 上;CI 绿(1m23s)、双轴 review 共 5 条 P1 全部修复并补测试;tag dev-flow@0.7.1 在合并后于 main 上补打"
+}
