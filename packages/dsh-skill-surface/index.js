@@ -146,11 +146,19 @@ function bodyFor(skill, agent, api) {
 }
 
 function listing(scope, lookup, api, args, agent) {
-  return scope.skills.snapshot(lookup).then((snapshot) => {
+  return scope.skills.snapshot(lookup).then(async (snapshot) => {
     const matched = matchedSkills(snapshot, api, args?.query)
     if (matched.length === 0) return { text: NO_MATCH }
-    // A single hit IS the answer: return the body, not a one-row index.
-    if (matched.length === 1) return bodyFor(matched[0], agent, api)
+    const asked = typeof args?.query === 'string' && args.query.trim() !== ''
+    // A single hit IS the answer: return the body, not a one-row index — but a
+    // snapshot row is a SkillSummary and carries NO content (dsh-skill
+    // toSummary drops it). The body only exists behind skills.get(), so re-fetch
+    // it exactly like the name path instead of rendering the summary.
+    if (asked && matched.length === 1) {
+      const full = await scope.skills.get(matched[0].name, lookup)
+      if (full === undefined || !api.isModelInvocable(full)) return { text: NO_MATCH }
+      return bodyFor(full, agent, api)
+    }
     const rows = matched.slice(0, INDEX_MAX_ROWS).map((skill) => indexLine(skill, INDEX_MAX_DESCRIPTION))
     // Nothing may be invisible: whatever exceeds the described rows is still named.
     const rest = matched.slice(INDEX_MAX_ROWS).map((skill) => skill.name)
