@@ -130,19 +130,19 @@ function renderPanel(snap) {
   let mainComponent = null
   const fakeCtx = {
     locale: { register: () => {}, bind: () => (k) => (typeof k === 'string' ? k : String(k)) },
-    layout: { selectPanel: () => {} },
     effect: (fn) => fn(),
     get: () => undefined,
     slots: {
       inject: (_name, run) => run(),
       register: (opts, Component) => {
-        if (opts?.name === 'main') mainComponent = Component
+        if (opts?.name === 'sidebar.right.pane.tab') mainComponent = Component
         return {}
       },
     },
+    sidebarRightTabs: { register: () => () => {} },
   }
   bundle.apply(fakeCtx)
-  assert.ok(mainComponent, 'main panel registered')
+  assert.ok(mainComponent, 'the panel registers as a right-sidebar tab body')
   // `t` must answer both plain keys and the parameterised messages
   // (`lastCommit(when, subject)`), which the component calls as functions.
   const t = (k) => (typeof DICT[k] === 'function' ? (...a) => DICT[k](...a) : k in DICT ? DICT[k] : String(k))
@@ -157,12 +157,12 @@ function captureDictionary() {
   let dicts = null
   bundle.apply({
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
-    layout: { selectPanel: () => {} },
     effect: (fn) => fn(),
     get: () => undefined,
     // `slots.inject` must RUN the callback, exactly like the real slot system,
     // otherwise `register` is never reached and nothing is captured.
     slots: { inject: (_name, run) => run(), register: () => ({}) },
+    sidebarRightTabs: { register: () => () => {} },
   })
   DICT = dicts.zh
   DICT_KEYS = new Set(Object.keys(dicts.zh))
@@ -174,7 +174,7 @@ captureDictionary()
 
 test('client bundle exports the expected shape', () => {
   assert.equal(bundle.name, 'dev-flow')
-  assert.deepEqual([...bundle.inject], ['slots', 'locale', 'layout'])
+  assert.deepEqual([...bundle.inject], ['slots', 'locale', 'sidebarRightTabs'])
 })
 
 test('both locales carry every new key', () => {
@@ -182,6 +182,7 @@ test('both locales carry every new key', () => {
   const fakeCtx = {
     locale: { register: (_ns, dict) => dicts.push(dict), bind: () => (k) => k },
     slots: { inject: () => {}, register: () => {} },
+    sidebarRightTabs: { register: () => () => {} },
     effect: (fn) => fn(),
   }
   bundle.apply(fakeCtx)

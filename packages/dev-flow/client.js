@@ -2,14 +2,27 @@
 /**
  * dev-flow — browser half.
  *
- * Adds a left-sidebar entry (id `git-status`) with a full-height main panel.
- * Reads `GET /git-status/snapshot` from the host half and renders four grouped
- * views: current repo state, branches, open PRs, open issues. When the gh CLI
- * is unavailable the PR/issue cards are replaced by a one-line hint. When the
- * workspace is not a git project the panel shows an empty state.
+ * Adds one RIGHT-sidebar tab type (kind `git-status`) whose body is the dev-flow
+ * task board. Reads `GET /git-status/snapshot` from the host half and renders
+ * the board plus four grouped evidence views: current repo state, branches,
+ * open PRs, open issues. When the gh CLI is unavailable the PR/issue cards are
+ * replaced by a one-line hint. When the workspace is not a git project the
+ * panel shows an empty state.
  *
- * Visual language matches dsh-inventory: Apple grouped lists — one large
- * title, grouped inset cards, 44px rows separated by hairlines. Read-only:
+ * Why the right sidebar (#197): the panel used to be a left-sidebar entry plus a
+ * full-page main panel. The right sidebar is a docking surface — files, terminal
+ * and browser already live there as tabs — so the board belongs beside the work
+ * it describes instead of replacing the conversation. The host contract is
+ * two-stage: register the tab TYPE on `ctx.sidebarRightTabs`, then register the
+ * keyed body seat under that type's `id`. Keying the body by the KIND instead
+ * of the id throws nothing: the host falls back to its own "this kind has no
+ * viewer" notice (`data-sidebar-right-unavailable`) and the chip keeps the title
+ * captured at open time. Silent, but wrong — so `test/client-right-sidebar.test.mjs`
+ * pins the identity.
+ *
+ * Visual language matches dsh-inventory's grouped lists — inset cards, 44px
+ * rows separated by hairlines — scaled down for a sidebar column (18px title,
+ * 14px page padding) instead of a full-width page. Read-only:
  * nothing here issues anything but GET, and rows never mutate repo state.
  */
 
@@ -20,13 +33,20 @@ window.__ModuleLoader__.load({
     const h = React.createElement
 
     const NS = 'git-status'
+    /** The page kind: what `ctx.sidebarRight.openTab('git-status')` names. */
+    const TAB_KIND = 'git-status'
+    /** This implementation's identity in the tab system, and the key its seats register under. */
+    const TAB_ID = 'dev-flow/git-status'
+    /** Guide order: after files (10), terminal (20) and browser (30). */
+    const GUIDE_ORDER = 40
     const ROUTE = '/git-status/snapshot'
     const DIFF_ROUTE = '/git-status/diff'
 
     const zh = {
       tab: 'Git',
       panel: 'Git',
-      back: '返回对话',
+      guideDescription: '任务板:每个 issue 走到哪一步、哪些在等你出手',
+      unattributed: '没拿到这个标签页属于哪个会话,下面的仓库可能是宿主进程的启动目录,不一定是你的工作区。',
       title: 'Git 概览',
       subtitle: '当前工作区的分支、改动、PR 与 issue(只读,不改动仓库)。',
       refresh: '刷新',
@@ -87,7 +107,6 @@ window.__ModuleLoader__.load({
       // task board
       boardTitle: '任务板',
       needsUserTitle: '需要你出手',
-      needsUserEmpty: '没有等你决策的事',
       offFlowTitle: '未进流程',
       'offFlow_dirty-main': (branch) => `在 ${branch} 上有未提交改动 —— dev-flow 禁止直接改主干`,
       'offFlow_unnamed-branch': (branch) => `分支 ${branch} 不叫 issue-<n>-<描述>,任务板无法判断它属于哪个任务`,
@@ -129,7 +148,8 @@ window.__ModuleLoader__.load({
     const en = {
       tab: 'Git',
       panel: 'Git',
-      back: 'Back',
+      guideDescription: 'The task board: where each issue stands, and what needs you',
+      unattributed: 'This tab has no Session, so the repository below may be the host process launch directory rather than your workspace.',
       title: 'Git overview',
       subtitle: 'Branches, changes, PRs and issues of the current workspace (read-only).',
       refresh: 'Refresh',
@@ -189,7 +209,6 @@ window.__ModuleLoader__.load({
       lastCommit: (when, subject) => `${when} · ${subject}`,
       boardTitle: 'Task board',
       needsUserTitle: 'Needs you',
-      needsUserEmpty: 'Nothing waiting on you',
       offFlowTitle: 'Off flow',
       'offFlow_dirty-main': (branch) => `Uncommitted changes on ${branch} — dev-flow forbids committing to the trunk`,
       'offFlow_unnamed-branch': (branch) => `Branch ${branch} is not named issue-<n>-<desc>, so the board cannot place it`,
@@ -230,8 +249,11 @@ window.__ModuleLoader__.load({
 // PART 2 — styles + primitives
     // ---- inline styles (Apple grouped list, same family as dsh-inventory) ----
     const S = {
-      page: { padding: '20px 20px 48px', maxWidth: 720, margin: '0 auto' },
-      title: { fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: '4px 0 2px' },
+      // The host's tab body is `overflow: hidden` (the dock kit owns the pane),
+      // so EVERY state this component draws has to own its scroll container —
+      // without this the empty and error states are simply clipped.
+      page: { padding: '20px 16px 48px', height: '100%', overflowY: 'auto', overflowX: 'hidden', boxSizing: 'border-box' },
+      title: { fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', margin: '2px 0 2px' },
       subtitle: { fontSize: 13, opacity: 0.6, marginBottom: 16 },
       toolbar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 12 },
       ghostBtn: {
@@ -285,26 +307,34 @@ window.__ModuleLoader__.load({
       diffDel: { color: 'var(--dsw-alias-state-error-primary, #d1495b)' },
       diffMeta: { opacity: 0.55 },
       // ---- task board (dev-flow) ----
-      board: { display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, alignItems: 'flex-start' },
+      // A right-sidebar column is 300px at its narrowest. Eight 240px columns
+      // side by side would live behind a horizontal scrollbar nobody finds, so
+      // the board reads top-down: one stage per row, a single vertical scroll.
+      board: { display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 8 },
       column: {
-        flex: '0 0 240px', minWidth: 240, borderRadius: 14,
+        borderRadius: 14,
         background: 'var(--dsw-alias-bg-layer-2, rgba(128,128,128,0.08))', padding: '10px 12px',
       },
       columnHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
       columnTitle: { fontSize: 13, fontWeight: 600, opacity: 0.75, letterSpacing: '0.02em' },
       columnCount: { fontSize: 12, opacity: 0.5 },
       columnEmpty: { fontSize: 12, opacity: 0.45, padding: '10px 2px', lineHeight: 1.5 },
-      card: {
+      // Board-card geometry. Named apart from the generic `card` above: as
+      // duplicate keys in one object literal, the later pair silently won and
+      // RepoFacts' `Card` picked up task-card padding and border.
+      boardCard: {
         background: 'var(--dsw-alias-bg-layer-1, rgba(128,128,128,0.12))', borderRadius: 10,
         padding: '10px 12px', marginBottom: 8, border: '1px solid var(--dsw-alias-border-l2, rgba(128,128,128,0.16))',
       },
       cardStale: { borderColor: 'rgba(255,159,10,0.55)' },
       cardHead: { display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' },
-      cardTitle: { fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+      boardCardTitle: { fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
       dots: { display: 'flex', gap: 3, margin: '6px 0' },
       dot: { width: 7, height: 7, borderRadius: 999, background: 'rgba(128,128,128,0.28)' },
       dotDone: { width: 7, height: 7, borderRadius: 999, background: 'var(--dsw-alias-button-info-fill, #588cff)' },
-      cardMeta: { fontSize: 11, opacity: 0.6, lineHeight: '16px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+      // Branch names are single unbreakable tokens, and a 300px column would
+      // scroll horizontally rather than wrap them.
+      cardMeta: { fontSize: 11, opacity: 0.6, lineHeight: '16px', overflowWrap: 'anywhere', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
       cardAct: { fontSize: 12, marginTop: 6, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,159,10,0.16)' },
       needsBox: {
         borderRadius: 14, padding: '10px 14px', marginBottom: 14,
@@ -317,7 +347,10 @@ window.__ModuleLoader__.load({
         background: 'rgba(209,73,91,0.12)', border: '1px solid rgba(209,73,91,0.4)',
       },
       offFlowRow: { fontSize: 13, lineHeight: '20px' },
-      pageWide: { padding: '20px 20px 48px', maxWidth: 1400, margin: '0 auto' },
+      // The right sidebar owns the width; a centered max-width page would waste
+      // it and a 28px title would wrap. Everything here is column-sized, and the
+      // page is the scroll container (see `page` above).
+      pageWide: { padding: '14px 14px 40px', boxSizing: 'border-box', width: '100%', height: '100%', overflowY: 'auto', overflowX: 'hidden' },
       details: { marginTop: 20 },
       summary: { fontSize: 13, fontWeight: 600, opacity: 0.6, cursor: 'pointer', padding: '8px 2px' },
     }
@@ -792,28 +825,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         ),
       )
     }
-// PART 4 — panel, sidebar icon, apply
-    /**
-     * The Session the shell currently shows in the Conversation: the row the
-     * main view retains (the same fact the window title reads). Absent while
-     * the user is browsing panels instead of a conversation.
-     */
-    function retainedSessionId(ctx) {
-      try {
-        const state = ctx.get('sessions')?.list?.getSnapshot?.()
-        const rows = state?.byId ?? {}
-        for (const row of Object.values(rows)) {
-          if (typeof row?.retainedBy?.mainView === 'number' && row.retainedBy.mainView > 0) {
-            return typeof row.id === 'string' ? row.id : ''
-          }
-        }
-      } catch {
-        /* no Session list on this client */
-      }
-      return ''
-    }
-
-
+// PART 4 — panel, tab type, apply
     // PART 4 — task board (dev-flow)
     /**
      * The board is a projection of the snapshot onto dev-flow's stages, computed
@@ -857,7 +869,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
       const reviewState = card.review?.state
       if (reviewState === 'running' || reviewState === 'pending-decision') meta.push(t(`review_${reviewState}`))
       const doneTickets = card.tickets.filter((x) => x.state === 'done').length
-      if (card.tickets.length > 0) meta.push(t('ticketsDone', doneTickets, card.tickets.length))
+      if (card.tickets.length > 0) meta.push(t('ticketsDone')(doneTickets, card.tickets.length))
 
       const badges = []
       if (card.grade) badges.push(h(Badge, { key: 'g', text: t(`grade_${card.grade}`), tone: 'accent' }))
@@ -868,15 +880,15 @@ function DiffView({ t, sessionId, path, statusSha }) {
       // Fourth row: only when THIS issue needs the user. The top strip lists
       // everything pending; the card says what this one is waiting for.
       const action = card.action
-        ? h('div', { style: S.cardAct }, `⚠ ${t('cardAction')}:${t(`need_${card.action.kind}`, card.issue, card.action.prNumber)}`)
+        ? h('div', { style: S.cardAct }, `⚠ ${t('cardAction')}:${t(`need_${card.action.kind}`)(card.issue, card.action.prNumber)}`)
         : null
       return h(
         'div',
-        { style: { ...S.card, ...(card.stale ? S.cardStale : {}) }, 'data-card': String(card.issue) },
-        h('div', { style: S.cardHead }, h('div', { style: S.cardTitle, title: card.stale ? t('staleTip', card.flowStage) : titleText }, titleText), ...badges),
+        { style: { ...S.boardCard, ...(card.stale ? S.cardStale : {}) }, 'data-card': String(card.issue) },
+        h('div', { style: S.cardHead }, h('div', { style: S.boardCardTitle, title: card.stale ? t('staleTip')(card.flowStage) : titleText }, titleText), ...badges),
         h(ProgressDots, { card }),
         meta.length > 0 ? h('div', { style: S.cardMeta }, meta.join(' · ')) : null,
-        card.stale ? h('div', { style: S.cardMeta }, t('staleTip', card.flowStage)) : null,
+        card.stale ? h('div', { style: S.cardMeta }, t('staleTip')(card.flowStage)) : null,
         card.url ? h('a', { href: card.url, target: '_blank', rel: 'noreferrer', style: S.link }, t('openOnGithub')) : null,
         action,
       )
@@ -905,7 +917,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         'div', { style: S.needsBox },
         h('div', { style: S.needsHead }, t('needsUserTitle')),
         items.map((item, i) =>
-          h('div', { key: `n${i}`, style: S.needsRow }, `• ${t(`need_${item.kind}`, item.issue, item.prNumber)}`),
+          h('div', { key: `n${i}`, style: S.needsRow }, `• ${t(`need_${item.kind}`)(item.issue, item.prNumber)}`),
         ),
       )
     }
@@ -918,7 +930,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         h('div', { style: S.needsHead }, t('offFlowTitle')),
         entries.map((e, i) =>
           h('div', { key: `o${i}`, style: S.offFlowRow },
-            `• ${t(`offFlow_${e.reason}`, e.branch, e.issue)} · ${t('offFlowFiles', e.files)}`),
+            `• ${t(`offFlow_${e.reason}`)(e.branch, e.issue)} · ${t('offFlowFiles')(e.files)}`),
         ),
       )
     }
@@ -930,7 +942,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
         null,
         h(NeedsUser, { t, items: board.needsUser ?? [] }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
-        h('div', { style: S.board }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
+        h('div', { style: S.board, 'data-board': 'columns' }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
         // T4.df 面板↔流程互相指引(键名 boardFlowHint;#154 前叫 boardSkillHint): the board shows WHERE the work is; this
         // line tells the user how to START work (the skill), closing the loop.
         h('div', { style: S.hint }, t('boardFlowHint')),
@@ -953,6 +965,11 @@ function DiffView({ t, sessionId, path, statusSha }) {
       )
     }
 
+    /**
+     * The tab body. `sessionId` arrives as a standard session-scope prop, so the
+     * snapshot describes the Session whose right sidebar is drawing — no lookup
+     * of "which Session is on screen" is needed (#197).
+     */
     function GitPanel({ t, sessionId: boundSessionId, initialSnap }) {
       const [snap, setSnap] = React.useState(initialSnap ?? null)
       const [error, setError] = React.useState(null)
@@ -976,6 +993,12 @@ function DiffView({ t, sessionId, path, statusSha }) {
           setLoading(false)
         }
       }, [sessionId])
+
+      // The session-scoped seat guarantees a Session id; an empty one means this
+      // panel was mounted outside that scope. The host would then answer from the
+      // web process's launch directory — a DIFFERENT repository, presented as if
+      // it were yours — so the panel says which case it is instead.
+      const unattributed = sessionId.length === 0
 
       React.useEffect(() => {
         // A host-supplied first snapshot (tests, and a future server-rendered
@@ -1011,6 +1034,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
       return h(
         'div',
         { style: S.pageWide },
+        unattributed ? h('div', { style: S.warnBanner }, t('unattributed')) : null,
         h('div', { style: S.title }, t('boardTitle')),
         h('div', { style: S.subtitle }, subtitleOf(snap)),
         h('div', { style: S.toolbar },
@@ -1021,7 +1045,8 @@ function DiffView({ t, sessionId, path, statusSha }) {
       )
     }
 
-    function SidebarIcon(props) {
+    /** The guide card's glyph: the same branch mark the left-sidebar entry used. */
+    function TabIcon(props) {
       const size = typeof props.size === 'number' && props.size > 0 ? props.size : 18
       return h(
         'svg',
@@ -1033,51 +1058,76 @@ function DiffView({ t, sessionId, path, statusSha }) {
       )
     }
 
+    /**
+     * The tab's chip text.
+     *
+     * Honest scope: the host freezes a tab's title when it opens and has no
+     * re-title path, so this CANNOT fix the chip after a language switch — it
+     * re-renders the frozen value. It exists as the seat a live title would use
+     * if the host ever provides one; the guide card and future opens read the
+     * thunked `gitStatusDefinition().title`, which is what actually localizes.
+     */
+    function TabTitle({ useTabInfo }) {
+      const info = useTabInfo()
+      // A Fragment, like the host's own titles: the chip is the kit's box, and a
+      // wrapper element here would add a layout box the dock kit does not expect.
+      return h(React.Fragment, null, info?.tab?.title ?? TAB_KIND)
+    }
+
+    /**
+     * The tab type: stage one of the host's two-stage registration. Static only —
+     * no per-tab state — so the host can rank it against other types and offer it
+     * on the guide page.
+     */
+    function gitStatusDefinition(t) {
+      return {
+        id: TAB_ID,
+        kind: TAB_KIND,
+        // This bundle installs from outside the product, which is the
+        // `extension` band by definition — and that band is also the only one
+        // that may take a `builtin` kind over later. Declaring `builtin` would
+        // make a future product type of the same kind throw at registration
+        // instead of outranking this one.
+        priority: 'extension',
+        title: () => t('tab'),
+        guide: [{
+          id: 'board',
+          order: GUIDE_ORDER,
+          title: () => t('panel'),
+          description: () => t('guideDescription'),
+          icon: TabIcon,
+        }],
+      }
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dev-flow: dictionaries')
       const t = ctx.locale.bind(NS)
 
-      // Sidebar entry and main panel share the same id/key (same contract as
-      // the dsh-inventory sidebar panel).
-      ctx.slots.inject('sidebar.panellist', () =>
-        ctx.slots.register(
-          {
-            name: 'sidebar.panellist',
-            id: 'git-status',
-            order: 21,
-            label: () => t('panel'),
-            locale: NS,
-          },
-          SidebarIcon,
-        ),
-      )
-      ctx.slots.inject('main', () =>
-        ctx.slots.register(
-          {
-            name: 'main',
-            key: 'git-status',
-            locale: NS,
-            // `sessionId` decides which workspace the host reports: that
-            // Session's header cwd is the repo, never the directory the web
-            // process was launched from. The keyed main scope never carries one,
-            // so fall back to the Session the Conversation is currently showing.
-            inject: (props) => ({
-              t,
-              back: () => ctx.layout.selectPanel(null),
-              sessionId:
-                typeof props?.sessionId === 'string' && props.sessionId.length > 0
-                  ? props.sessionId
-                  : retainedSessionId(ctx),
-            }),
-          },
-          GitPanel,
-        ),
-      )
+      // Stage one: the type. Stage two: the body under the type's own `id`
+      // (NOT the kind — a keyed seat dispatched by kind would draw nothing).
+      ctx.effect(() => ctx.sidebarRightTabs.register(gitStatusDefinition(t)), 'dev-flow: git-status tab type')
+
+      ctx.effect(() =>
+        ctx.slots.inject('sidebar.right.pane.tab', () =>
+          ctx.slots.register(
+            { name: 'sidebar.right.pane.tab', key: TAB_ID, locale: NS },
+            GitPanel,
+          ),
+        ), 'dev-flow: git-status tab body')
+
+      ctx.effect(() =>
+        ctx.slots.inject('sidebar.right.pane.tab.title', () =>
+          ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TAB_ID }, TabTitle),
+        ), 'dev-flow: git-status tab title')
     }
 
     return {
       name: 'dev-flow',
-      inject: ['slots', 'locale', 'layout'],
+      // `sidebarRightTabs` is the tab-type registry; `sidebar.right.pane.tab` is
+      // declared by the right-sidebar package, so no layout/sidebar service is
+      // needed any more (the main panel and the left-sidebar entry are gone).
+      inject: ['slots', 'locale', 'sidebarRightTabs'],
       apply,
     }
   },

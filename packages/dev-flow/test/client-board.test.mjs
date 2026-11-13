@@ -48,22 +48,30 @@ let DICT = {}
     get: () => undefined,
     locale: { register: (_ns, d) => { dicts = d }, bind: () => (k) => k },
     slots: { inject: (_name, run) => run(), register: () => ({}) },
-    layout: { selectPanel: () => {} },
+    sidebarRightTabs: { register: () => () => {} },
   })
   DICT = dicts.zh
 }
 
-/** Find the panel component the client registers into the `main` slot. */
+/**
+ * Find the panel component the client registers into the right sidebar's keyed
+ * body seat (#197). The body is keyed by the tab type's id, so a seat keyed by
+ * the kind — which the host silently never draws — fails here instead.
+ */
 function panel() {
   const registered = []
+  const types = []
   const ctx = {
-    effect: () => {},
+    effect: (fn) => fn(),
     locale: { register: () => {}, bind: () => (key) => key },
     slots: { inject: (name, fn) => fn(), register: (spec, comp) => registered.push({ spec, comp }) },
-    layout: { selectPanel: () => {} },
+    sidebarRightTabs: { register: (definition) => { types.push(definition); return () => {} } },
   }
   client.apply(ctx)
-  return registered.find((r) => r.spec.name === 'main').comp
+  const seat = registered.find((r) => r.spec.name === 'sidebar.right.pane.tab')
+  assert.ok(seat, 'the panel registers as a right-sidebar tab body')
+  assert.equal(seat.spec.key, types[0].id, 'the body seat is keyed by the tab type id')
+  return seat.comp
 }
 
 /**

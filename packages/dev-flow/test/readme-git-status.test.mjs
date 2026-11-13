@@ -44,3 +44,15 @@ test('README documents that every gh query names the repository (#199)', () => {
   assert.ok(README.includes('insteadOf'), 'must explain the mirror rewriting that breaks gh')
   assert.ok(README.includes('MERGED_PR_LIMIT'), 'must state the merged-PR window')
 })
+
+test('README documents the right-sidebar mount, not the left-sidebar page (#197)', () => {
+  // The panel moved: the two-stage host contract and the seat names are what a
+  // future reader needs, and the old left-sidebar story would send them to a
+  // seat that no longer exists.
+  assert.ok(README.includes('右侧栏'), 'README must say the panel lives in the right sidebar')
+  assert.ok(README.includes('sidebar.right.pane.tab'), 'README must name the body seat')
+  assert.ok(README.includes('ctx.sidebarRightTabs.register'), 'README must name the tab-type registry')
+  // The negative is about the SEAT, not the words: a reader following the old
+  // story would register into a seat this package no longer occupies.
+  assert.equal(README.includes('sidebar.panellist'), false, 'README must not point at the left-sidebar seat any more')
+})

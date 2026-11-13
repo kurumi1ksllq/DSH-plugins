@@ -1,12 +1,31 @@
 # dev-flow 任务板面板(原 dsh-git-status,已并入 dev-flow 包)
 
-DeepSeek Harness 插件：当前工作区是 git 项目时，侧栏多一个 **Git** 面板，把它变成一个 **dev-flow 任务板**——一屏看清有哪些 issue 没处理、每个任务到了哪一步、哪些在等你出手。
+DeepSeek Harness 插件：当前工作区是 git 项目时，**右侧栏**多一个 **Git** 标签页，把它变成一个 **dev-flow 任务板**——一屏看清有哪些 issue 没处理、每个任务到了哪一步、哪些在等你出手。
 
 **只读。** 插件对仓库只执行 `git` / `gh` 的只读子命令，不写任何仓库文件；唯一的写入口是 `dev-flow` 流程 自己维护的状态文件（见下）。
 
+## 挂在右侧栏(#197)
+
+面板是右侧栏的一个 **tab 类型**，不是左侧栏入口，也不占主区整页。宿主的两段式契约：
+
+1. **类型**：`ctx.sidebarRightTabs.register({ id: 'dev-flow/git-status', kind: 'git-status', priority: 'builtin', title, guide })`
+2. **正文**：`sidebar.right.pane.tab` 座位，key = 上面的 `id`（**不是** `kind`）
+3. **标题**：`sidebar.right.pane.tab.title`，同一个 key
+
+> 正文用 `kind` 当 key 不会报错：宿主会退化成它自己的「这类内容还没有可用的查看方式」提示
+> （`data-sidebar-right-unavailable`），chip 则保留开页时捕获的标题。静默但错——与 #161 的 patch 行同型。
+> `test/client-right-sidebar.test.mjs` 把这条身份关系钉死。
+
+右侧栏可以同时放文件树、终端、浏览器和本面板，各自一个标签页；guide 里的入口卡排在
+文件（10）、终端（20）、浏览器（30）之后（order 40），所以用户从右侧栏「添加」能找到它。
+
+`sessionId` 由宿主的 session 作用域直接注入，面板拿它去查快照；不再需要从会话列表反查
+「当前主视图保留的是哪个会话」，也没有「返回对话」按钮——收起右侧栏本身就是返回。
+
 ## 任务板布局
 
-一张卡 = 一个 issue；一列 = `dev-flow` 的一个节点。列顺序就是流程顺序：
+一张卡 = 一个 issue；一列 = `dev-flow` 的一个节点。列顺序就是流程顺序（**纵向堆叠**：右侧栏最窄 300px，
+八列横向并排会全部藏进横向滚动条，所以一个节点一行，只有一条竖直滚动轴）：
 
 | # | 列 | 含义 |
 | --- | --- | --- |

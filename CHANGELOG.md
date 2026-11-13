@@ -11,6 +11,35 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dev-flow 0.8.0 — Git 面板从左侧栏移到右侧栏(#197)
+
+**需求**:面板原本是左侧栏入口 + 占满主区的整页(`sidebar.panellist` + `main`),用户要求移到右侧栏。
+
+**做法**:改挂右侧栏 tab 类型,走宿主的两段式契约——`ctx.sidebarRightTabs.register` 声明类型(kind `git-status`,id `dev-flow/git-status`,priority `builtin`),再在 `sidebar.right.pane.tab` / `.title` 两个 keyed 座位注册正文与标题。**key 必须是类型的 `id` 而不是 `kind`**:用 kind 当 key 不报错、只是永远不显示,与 #161 的 patch 行静默失效同型,因此新测试把这条身份关系钉死。guide 入口卡 order 40,排在文件(10)/终端(20)/浏览器(30)之后。
+
+**布局**:右侧栏最窄 300px,八列横向并排(每列 240px)等于全部藏进横向滚动条。任务板改为纵向堆叠,一个节点一行,只有一条竖直滚动轴;页面 padding 与标题字号按栏宽收小。
+
+**删除**:`retainedSessionId`(从会话列表反查「主视图保留的是哪个会话」)——`sessionId` 现在由宿主的 session 作用域直接注入;`back` 文案与「返回对话」按钮(收起右侧栏本身就是返回)。`dsh.client.inject` 从 layout/sidebar/locale 收敛为 sidebar-right/locale。
+
+**修掉一个渲染期崩溃**(既有缺陷,`git blame` 指向 2026-11-03 的 `dsh-git-status` 时代,`main` 上同样可复现):
+面板有 6 处把消息参数塞进 `t(key, a, b)` 的第二实参。宿主的 `translate()` 对函数型词条会执行
+`template.replace(...)`,于是 `TypeError: template.replace is not a function` —— renderer 的错误边界兜住后,
+整个标签页退化成空壳。正是本 PR 想消灭的「看起来是空的」。同文件里正确的一段式写法(`t(key)(a, b)`)
+一直存在,已统一。**新测试桩改为逐字复刻宿主 `translate()`**,不再同时兼容两种调用形状——
+原桩把宿主不接受的形状认证成了绿。六个调用点各有反向验证(改回旧写法 → 1~4 红)。
+
+**测试**:`packages/dev-flow` 235 条全绿(新增 12 条)。`test/client-right-sidebar.test.mjs` 的反向验证(实测 `fail` 口径,每条都变红后恢复):
+
+- 正文座位 key 从类型 `id` 改回 `kind` → **17 红**(`client-board` 的座位查找连带整文件失败)
+- 左侧栏入口写回 → 1 红
+- 板面改回横向滚动 → 1 红(首版只断言「树里有某个 column 容器」,加一个诱饵容器即 0 红;已改为锚定 `data-board` 容器本身)
+- 类型 `id` 退化成 `kind` → 1 红;guide order 40 → 35 → 1 红(README 写死的两个字面量现在都有守护)
+- 注册移出 `ctx.effect` → 1 红(否则卸载后 tab 类型与座位泄漏)
+- `dsh.client.inject` 多挂/漏挂/写回旧数组 → 各 1 红(改为集合相等,与 `dsh-inventory` 同强度)
+- `ctx.layout` 依赖重新出现 → **7 红**(删掉四个夹具里 7 处 `layout` 死桩后;此前只有 1 个文件抓到)
+
+三个既有夹具(`client-board` / `client-render` / `e2e-board`)从找 `main` 改为找右侧栏座位,并让 `effect` 桩真正执行回调并登记 disposer(否则新注册路径根本到不了 `register`)。
+
 ### dev-flow 0.7.1 — Git 面板查不到 GitHub 数据(gh 缺 `--repo`)+ 已合并窗口过小(#199)
 
 **问题**(实测):右侧栏任务板把早已合并的 issue 显示成「开发中」,并给卡片标「状态过期」。本机 `~/.gitconfig` 有 `url.https://ghfast.top/https://github.com/.insteadOf https://github.com/`,于是:
@@ -289,7 +318,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 44 个条目:41 条有对应 tag;缺 tag 的 3 条为 `dev-flow@0.7.1`（本条,tag 在合并后打）、 `dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
+> 本段现有 45 个条目:41 条有对应 tag;缺 tag 的 3 条为 `dev-flow@0.7.1`、`dev-flow@0.8.0`（两条 tag 都在合并后打）、`dsh-skill-surface@0.1.0`（早于 tag 纪律）与本条「仓库级工具（无版本号）」——后者不属于任何 bundle，本就不该有 tag。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

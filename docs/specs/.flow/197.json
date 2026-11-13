@@ -1,0 +1,32 @@
+{
+  "issue": 197,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-12T20:40:31.620Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "客户端改挂右侧栏 tab",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "既有测试夹具适配",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "清单 / 文档 / 版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  }
+}
