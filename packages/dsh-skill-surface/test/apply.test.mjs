@@ -107,10 +107,16 @@ test('A2: the loader lists skills, and a query narrows the listing', async () =>
   assert.match(listed.text, /dev-flow/)
   assert.match(listed.text, /security-review/)
 
-  const filtered = await call(h, { query: 'security' })
-  assert.match(filtered.text, /可用技能 1 个/u)
-  assert.match(filtered.text, /security-review/)
-  assert.doesNotMatch(filtered.text, /dev-flow/)
+  // #201 changed this contract on purpose: a query that narrows to ONE skill
+  // now returns that skill's body, not a one-row index. A multi-hit query still
+  // lists. Both halves are asserted so neither can regress silently.
+  const single = await call(h, { query: 'security' })
+  assert.match(single.text, /<skill_content name="security-review">/)
+  assert.doesNotMatch(single.text, /可用技能/u)
+
+  const many = await call(h, { query: 'e' })
+  assert.match(many.text, /可用技能 2 个/u)
+  assert.doesNotMatch(many.text, /<skill_content/)
 })
 
 test('A2: nothing is invisible — rows beyond the described cap are still named', async () => {

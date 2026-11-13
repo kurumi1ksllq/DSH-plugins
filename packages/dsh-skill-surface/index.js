@@ -122,13 +122,42 @@ function handoffListener(scope) {
   }
 }
 
-function listing(scope, lookup, api, args) {
-  return scope.skills.snapshot(lookup).then((snapshot) => {
-    const matched = snapshot.skills
-      .filter((skill) => api.isModelInvocable(skill))
-      .filter((skill) => queryMatches(skill, args?.query))
-    if (matched.length === 0) {
-      return { text: '没有匹配的技能。换个说法再列一次,或直接按任务本身做。' }
+const NO_MATCH = '没有匹配的技能。换个说法再列一次,或直接按任务本身做。'
+
+/** Skills a listing query matches, model-invocable only, in snapshot order. */
+function matchedSkills(snapshot, api, query) {
+  return snapshot.skills
+    .filter((skill) => api.isModelInvocable(skill))
+    .filter((skill) => queryMatches(skill, query))
+}
+
+/**
+ * One skill's body, exactly as the `name` path returns it.
+ *
+ * A query that narrows to a single skill is an attempt to load that skill: the
+ * model has already named what it wants, so answering with a one-row index makes
+ * it spend another step to ask again — and observed sessions simply stopped
+ * there instead (issue-201). The cap and the injected-skills record are shared
+ * with the name path so the two cannot diverge.
+ */
+function bodyFor(skill, agent, api) {
+  injectedSkills(agent).add(skill.name)
+  return { text: capped(api.renderSkillContent(skill)) }
+}
+
+function listing(scope, lookup, api, args, agent) {
+  return scope.skills.snapshot(lookup).then(async (snapshot) => {
+    const matched = matchedSkills(snapshot, api, args?.query)
+    if (matched.length === 0) return { text: NO_MATCH }
+    const asked = typeof args?.query === 'string' && args.query.trim() !== ''
+    // A single hit IS the answer: return the body, not a one-row index — but a
+    // snapshot row is a SkillSummary and carries NO content (dsh-skill
+    // toSummary drops it). The body only exists behind skills.get(), so re-fetch
+    // it exactly like the name path instead of rendering the summary.
+    if (asked && matched.length === 1) {
+      const full = await scope.skills.get(matched[0].name, lookup)
+      if (full === undefined || !api.isModelInvocable(full)) return { text: NO_MATCH }
+      return bodyFor(full, agent, api)
     }
     const rows = matched.slice(0, INDEX_MAX_ROWS).map((skill) => indexLine(skill, INDEX_MAX_DESCRIPTION))
     // Nothing may be invisible: whatever exceeds the described rows is still named.
@@ -168,7 +197,7 @@ function loaderHandle(scope) {
       const lookup = await lookupFor(scope, exec)
       const api = await hostApi()
       if (typeof args?.name !== 'string' || args.name === '') {
-        return listing(scope, lookup, api, args)
+        return listing(scope, lookup, api, args, exec.agent)
       }
       const skill = await scope.skills.get(args.name, lookup)
       if (skill === undefined) {
@@ -177,8 +206,7 @@ function loaderHandle(scope) {
       if (!api.isModelInvocable(skill)) {
         throw new Error('skill "' + args.name + '" is not available for model invocation')
       }
-      injectedSkills(exec.agent).add(args.name)
-      return { text: capped(api.renderSkillContent(skill)) }
+      return bodyFor(skill, exec.agent, api)
     },
     presentCall(args) {
       const named = typeof args?.name === 'string' && args.name !== ''
@@ -203,8 +231,10 @@ function userText(messages) {
   const parts = []
   for (const message of messages ?? []) {
     const source = message?.source
-    // A delegated child gets its task as a relayed agent message, not user
-    // text, and those agents are the ones that most need the nudge.
+    // The task itself counts, and it is a plain user message even for a
+    // delegated child: the host submits the child's prompt with
+    // source.kind === 'user' and no form (verified on 407 logged sessions, issue-201).
+    // 'relay' stays accepted because a mid-conversation handoff does carry it.
     if (source?.kind !== 'user' && source?.form !== 'relay') continue
     for (const block of message.content ?? []) {
       if (block?.type !== 'text' || typeof block.text !== 'string') continue

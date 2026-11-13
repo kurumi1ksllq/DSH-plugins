@@ -11,6 +11,9 @@
 1. **只补发现**：以新 row id + 独立 `providerName`（`skill-surface-filesystem`）把**官方** filesystem provider 挂进 global 层。读取时 global 层与视野链合并、近层同名胜出，所以已有 provider 的 preset 行为不变。
 2. **只给没有 loader 的 agent 补加载**：`skill_get` 工具（不带参数 = 列目录，带名字 = 取正文），配一段 `systemPrompt.context` 提示。
    这两样**硬判** `ctx.tools.get('skill', agent) === undefined`——该 agent 已经有官方 `skill` 时，提示与 `skill_get` 都不出现。
+   `query` 过滤**恰好命中一个**技能时直接返回该技能的正文（与按 `name` 取正文同一条路径、同一个大小上限），
+   而不是回一个只含一行的索引——否则模型拿到索引后往往就此停手，正文永远进不了上下文（#201）。
+   命中 0 条 / ≥2 条仍然返回索引。
 3. **领域点名（0.2.0）**：每轮开工时看用户这句话（含委派转来的 relay 消息），命中领域就注入一行，点名 1–3 个**当前目录真实存在**的技能。
    这条**对所有 agent 生效**，包括本来就有 `skill` 的——因为真问题不是看不到，而是不去查。同领域至少一个强信号或两个弱信号才触发，每轮最多一次，本会话已加载过该领域技能则不发。
    - **0.2.1**：认出 PTC 的加载事件（`tool/ptc-dispatch`，deep-ptc 里 `skill` 调用只出现在这里），并抑制提示回声——转述那句提示不会再触发自己。

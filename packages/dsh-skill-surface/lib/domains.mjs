@@ -74,8 +74,26 @@ export const DOMAINS = [
   {
     id: 'security',
     label: '安全/鉴权',
-    strong: ['鉴权', '密钥', '注入'],
-    keywords: ['安全', '认证', '授权', '权限', 'auth', 'security', 'csrf', 'xss'],
+    // Bare '注入' is a keyword, not a strong signal: in this repository the word
+    // far more often means a NON-security kind of injection ("skills: a,b 点名注入",
+    // "ctx.inject", "prompt 注入"). Measured on 49 historical delegations that
+    // contain it, only 2 were about an attack surface (issue-201). The attack
+    // PHRASES below stay strong so they still work on their own — with AND
+    // without the space, because Chinese writes 'SQL注入' more often than 'SQL 注入'.
+    strong: ['鉴权', '密钥', 'sql 注入', 'sql注入', '命令注入', '注入攻击', '注入漏洞', 'xss 注入', 'xss注入'],
+    keywords: ['安全', '认证', '授权', '权限', 'auth', 'security', 'csrf', 'xss', '注入'],
+    // Each entry mutes only the words it disambiguates; the rest of the sentence
+    // keeps counting, so a genuine attack next to ctx.inject is still caught.
+    exclude: [
+      { phrase: 'ctx.inject', mutes: ['注入'] },
+      { phrase: 'prompt 注入', mutes: ['注入'] },
+      { phrase: 'prompt注入', mutes: ['注入'] },
+      { phrase: '提示注入', mutes: ['注入'] },
+      { phrase: '提示词注入', mutes: ['注入'] },
+      { phrase: '点名注入', mutes: ['注入'] },
+      { phrase: '依赖注入', mutes: ['注入'] },
+      { phrase: '注入到', mutes: ['注入'] },
+    ],
     skills: ['security-review', 'agent-security-hardening'],
   },
   {
@@ -86,6 +104,28 @@ export const DOMAINS = [
     skills: ['deployment-patterns', 'docker-patterns'],
   },
 ]
+
+/**
+ * Words this sentence is NOT really about.
+ *
+ * `exclude` names phrases whose presence makes one ambiguous keyword mean
+ * something else: 'skills: a,b 点名注入' is a delegation hint, not an attack.
+ * Only the word that the phrase disambiguates is discounted — everything else in
+ * the sentence still counts, so '修复提示注入漏洞,顺便加固鉴权' keeps 鉴权.
+ * @param domain - one DOMAINS entry.
+ * @param sentence - a lowercased sentence.
+ * @returns the keywords to ignore for this sentence.
+ */
+function mutedWords(domain, sentence) {
+  const muted = new Set()
+  for (const entry of domain.exclude ?? []) {
+    const phrase = typeof entry === 'string' ? entry : entry.phrase
+    if (!occurs(phrase.toLowerCase(), sentence)) continue
+    const mutes = typeof entry === 'string' ? [] : entry.mutes ?? []
+    for (const word of mutes) muted.add(word.toLowerCase())
+  }
+  return muted
+}
 
 const ASCII = /^[a-z0-9.]+$/
 
@@ -111,8 +151,13 @@ export function matchDomains(text) {
     // request. The best sentence decides.
     let best = { hits: 0, strong: 0 }
     for (const sentence of sentences) {
-      const strong = (domain.strong ?? []).filter((word) => occurs(word.toLowerCase(), sentence)).length
-      const weak = domain.keywords.filter((word) => occurs(word.toLowerCase(), sentence)).length
+      // Ambiguity is resolved WORD by WORD, never by dropping the sentence: a
+      // sentence can legitimately mention ctx.inject AND a real attack surface,
+      // and discarding it silently lost every security signal in that sentence
+      // (review of #202). Only the ambiguous word itself is discounted.
+      const muted = mutedWords(domain, sentence)
+      const strong = (domain.strong ?? []).filter((word) => !muted.has(word.toLowerCase()) && occurs(word.toLowerCase(), sentence)).length
+      const weak = domain.keywords.filter((word) => !muted.has(word.toLowerCase()) && occurs(word.toLowerCase(), sentence)).length
       const hits = strong + weak
       if (strong > best.strong || (strong === best.strong && hits > best.hits)) best = { hits, strong }
     }
