@@ -19,11 +19,12 @@ function skillRow(name, { content = 'body-of-' + name } = {}) {
 function harness(rows) {
   const all = rows ?? [skillRow('alpha-skill'), skillRow('beta-skill')]
   const registered = []
+  const listeners = []
   const scope = {
     effect(factory) { return factory() },
     logger: { warn() {} },
     systemPrompt: { section: () => () => {}, context: () => () => {} },
-    on: () => () => {},
+    on(event, fn) { if (event === 'agent/pre-step') listeners.push(fn); return () => {} },
     skills: {
       snapshot: () => Promise.resolve({ skills: all.map(({ name, description, provider, invocation }) => ({ name, description, provider, invocation })), complete: true }),
       get: (name) => Promise.resolve(all.find((skill) => skill.name === name)),
@@ -41,7 +42,8 @@ function harness(rows) {
     tools: { get: () => undefined, register(definition) { registered.push(definition); return () => {} } },
   }
   apply({ inject(_deps, callback) { callback(scope) } })
-  return registered.find((definition) => definition.name === LOADER)
+  const definition = registered.find((row) => row.name === LOADER)
+  return { definition, nudge: listeners[1] }
 }
 
 setHostApi({
@@ -53,25 +55,46 @@ setHostApi({
 test('204-1: a single-hit query with NO agent returns the body instead of throwing', async () => {
   // The regression #201 introduced: this path used to return a listing, then
   // started throwing once it began rendering the body.
-  const result = await harness().execute({ query: 'alpha' }, { agent: undefined, signal: undefined })
+  const result = await harness().definition.execute({ query: 'alpha' }, { agent: undefined, signal: undefined })
   assert.match(result.text, /body-of-alpha-skill/)
 })
 
 test('204-2: a named load with NO agent returns the body instead of throwing', async () => {
   // Pre-existing breakage, untouched by #201, fixed here because it is the same line.
-  const result = await harness().execute({ name: 'beta-skill' }, { agent: undefined, signal: undefined })
+  const result = await harness().definition.execute({ name: 'beta-skill' }, { agent: undefined, signal: undefined })
   assert.match(result.text, /body-of-beta-skill/)
 })
 
-test('204-3: with an agent the load is still RECORDED, so the nudge stays silent', async () => {
-  // The guard must not swallow the bookkeeping on the path that has an agent.
+test('204-3: with an agent the load still suppresses the next nudge', async () => {
+  // Public behaviour, not the internal record. The skill must be one the nudge
+  // would REALLY suggest for this text — a catalog name outside every domain
+  // shortlist makes the assertion vacuous (it stays green even with recording
+  // removed, verified by mutation). 'design-system' is in the ui shortlist and
+  // '改一下页面样式' hits that domain.
+  const h = harness([skillRow('design-system'), skillRow('alpha-skill')])
   const agent = { session: { seq: 0, eventAt: () => undefined } }
-  await harness().execute({ name: 'alpha-skill' }, { agent, signal: undefined })
-  const { injectedSkills } = await import('../lib/handoff.mjs')
-  assert.equal(injectedSkills(agent).has('alpha-skill'), true)
+  // Control: before loading, the same step DOES nudge.
+  const before = await h.nudge({
+    agent,
+    messages: [{ source: { kind: 'user' }, content: [{ type: 'text', text: '改一下页面样式' }] }],
+    turn: 1,
+    step: 1,
+    signal: undefined,
+  }, () => ({ kind: 'enter', messages: [] }))
+  assert.equal(before.messages.length, 1, 'the control step must nudge, or the test proves nothing')
+
+  await h.definition.execute({ name: 'design-system' }, { agent, signal: undefined })
+  const decision = await h.nudge({
+    agent,
+    messages: [{ source: { kind: 'user' }, content: [{ type: 'text', text: '改一下页面样式' }] }],
+    turn: 2,
+    step: 1,
+    signal: undefined,
+  }, () => ({ kind: 'enter', messages: [] }))
+  assert.equal(decision.messages.length, 0, 'a loaded skill must not be nudged again')
 })
 
 test('204-4: a multi-hit query with no agent still lists, unchanged', async () => {
-  const result = await harness().execute({ query: 'skill' }, { agent: undefined, signal: undefined })
+  const result = await harness().definition.execute({ query: 'skill' }, { agent: undefined, signal: undefined })
   assert.match(result.text, /可用技能 2 个/u)
 })

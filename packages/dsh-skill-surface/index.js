@@ -231,12 +231,15 @@ function loaderHandle(scope) {
       const asked = typeof args?.query === 'string' && args.query.trim() !== ''
       if (asked) {
         // A card title is a header/log line and the host asks for it to stay short
-        // (dsh-tools/lib/types/presentation.d.ts:44-47). Reuse the ceiling this
+        // (dsh-tools/lib/types/presentation.d.ts:49-52). Reuse the ceiling this
         // bundle already applies to its other single-line text, and collapse
         // newlines so a multi-line query cannot break the log line. rawInput keeps
         // the query verbatim: that is the detail view, not the header.
         const query = args.query.trim().replace(/\s+/gu, ' ')
-        return { card: 'generic', title: clampLine('Search skills: ' + query), kind: 'read', rawInput: args.query.trim() }
+        // rawInput is the detail view: verbatim, not trimmed. A trimmed copy would
+        // make the "verbatim" claim in the spec/CHANGELOG unverifiable, and the
+        // detail view is exactly where a reader wants the original bytes.
+        return { card: 'generic', title: clampLine('Search skills: ' + query), kind: 'read', rawInput: args.query }
       }
       return { card: 'generic', title: 'List skills', kind: 'read', rawInput: '' }
     },

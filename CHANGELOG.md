@@ -33,8 +33,8 @@ test-only changes are exempt.
    到达 `bodyFor()` 之前就抛 `reading 'session'`。初版测试绿是因为 stub 把 `ensure` 写成
    `() => '/work'`,掩盖了真实形状(与 #201 那次「stub 保留 content 导致空正文漏测」同类)。
    现按官方写法守卫 `ensure` 调用本身(`dsh-tool-skill/lib/index.js:869`),并把 stub 改成宿主真实形状。
-3. **标题长度/换行**:宿主要求 title 是短的单行 header(`dsh-tools presentation.d.ts:44-47`),
-   复用本包既有的 `clampLine`(上限 120)并折叠换行;`rawInput` 保留原文。
+3. **标题长度/换行**:宿主要求 title 是短的单行 header(`dsh-tools/lib/types/presentation.d.ts:49-52`),
+   复用本包既有的 `clampLine`(上限 120)并折叠换行;`rawInput` 保留 query **原文**(不 trim,detail 视图不该改写用户输入)。
 
 反向验证:标题改回固定 `List skills` → 203-1 红;去掉守卫 → 204-1/204-2 红;
 query 分支去掉空白判断 → 203-2 红;让 query 压过 name → 203-3/203-4 红。四条均实测。

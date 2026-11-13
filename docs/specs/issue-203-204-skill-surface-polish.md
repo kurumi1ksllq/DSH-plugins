@@ -1,6 +1,6 @@
 # issue #203 + #204 — skill-surface:卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap
 
-- 分级:**standard**(FLOW.md:48 的 trivial 口径是「≤1 文件 且 ≤30 行 且 无接口变更」,本改动触及 7 个文件——2 个源/测试包文件之外还有 CHANGELOG、spec、flow json——套不进 trivial,按标准档走完整流程。初稿误判为 trivial 并自行放宽了文件口径,轴1 review 指出后更正)
+- 分级:**standard**(FLOW.md:48 的 trivial 口径是「≤1 文件 且 ≤30 行 且 无接口变更」,本改动实测 7 个文件——包内 4 个(`index.js`、`package.json`、2 个新测试)+ `CHANGELOG.md` + 本 spec + `.flow/203.json`——套不进 trivial,按标准档走完整流程。初稿误判为 trivial 并自行放宽了文件口径,轴1 review 指出后更正)
 - 分支:`issue-203-204-skill-surface-polish`
 - issue:https://github.com/kurumi1ksllq/DSH-plugins/issues/203 / https://github.com/kurumi1ksllq/DSH-plugins/issues/204
 - 基线:main `e6f2202`(#201 / PR #202 的合并点),包内 77 条测试全绿
@@ -32,8 +32,8 @@ presentCall({query:"only"}) -> {card:"generic", title:"List skills", kind:"read"
 | 无 / 空 / 空白 query | `List skills` | `''` |
 
 **长度/换行口径**:宿主契约要求 title「Keep it short — a UI shows it as a card header / log line」
-(`dsh-tools/lib/types/presentation.d.ts:44-47`),本包对同类单行文本已有 `clampLine` +
-`NUDGE_MAX_CHARS = 120` 先例,直接复用;`rawInput` 是展开视图,保留原文。
+(`dsh-tools/lib/types/presentation.d.ts:49-52`),本包对同类单行文本已有 `clampLine` +
+`NUDGE_MAX_CHARS = 120` 先例,直接复用;`rawInput` 是展开视图,保留 query **原文**(含首尾空白,不 trim)。
 
 **为什么选「Search skills」而不是「区分单命中 → Load skill <name>」**:
 `presentCall` 是**纯同步**的 pending 态呈现器(`dsh-tools/lib/types/schema.d.ts:227-232`,
@@ -93,10 +93,11 @@ if (agent !== undefined) injectedSkills(agent).add(skill.name)
 5. `presentCall({})` 仍是 `List skills`,且 `rawInput` 为 `''`
 6. `execute({query})` 在 `exec.agent === undefined` 时返回正文而不抛错(**含 `ensure` 守卫**,不只是记账守卫)
 7. `execute({name})` 同上(顺带修掉既有问题)
-6b. `presentCall({query})` 的 `rawInput` 等于该 query(不是空串)
-6c. 超长 query 的 title ≤ 120 字符;含换行的 query 的 title 仍是单行;两者的 `rawInput` 保留原文
-8. 有 agent 时 `injectedSkills` 记账行为不变(201-11 仍绿)
-9. 全部既有 77 条测试仍绿
+8. `presentCall({query})` 的 `rawInput` 等于该 query 原文(**含首尾空白**,不 trim)
+9. 超长 query 的 title ≤ 120 字符;含换行的 query 的 title 仍是单行
+10. 四个分支的 `card`/`kind` 恒为 `generic`/`read`
+11. 有 agent 时 `injectedSkills` 记账行为不变(201-11 仍绿)
+12. 全部既有 77 条测试仍绿
 
 ## 反向验证(每条必须实测变红)
 

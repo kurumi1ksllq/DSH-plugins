@@ -32,15 +32,23 @@ function loader() {
 
 test('203-1: a query that is not blank is presented as a search, not as a listing', () => {
   const view = loader().presentCall({ query: 'alpha' })
-  assert.notEqual(view.title, 'List skills', 'a query narrows the catalog; "List skills" hides that')
-  assert.match(view.title, /alpha/, 'the query itself belongs in the title so the log line is identifiable')
+  // Pin the exact string: the format IS this ticket's deliverable, so a loose
+  // "contains alpha" would let 'Find alpha' or 'Skills: alpha' pass unnoticed.
+  assert.equal(view.title, 'Search skills: alpha', 'the card must say what it does, in a stable shape')
   // #203 fixed TWO symptoms: the fixed title AND the empty rawInput. Asserting
   // only the title lets the rawInput half regress silently.
   assert.equal(view.rawInput, 'alpha', 'the query must reach the detail view too')
 })
 
+test('203-1a: rawInput keeps the query VERBATIM, including surrounding whitespace', () => {
+  // The spec/CHANGELOG claim "rawInput 保留原文". The title is display text and
+  // may be tidied; the detail view must not be, or the claim is unverifiable.
+  assert.equal(loader().presentCall({ query: '  a  ' }).rawInput, '  a  ')
+  assert.equal(loader().presentCall({ query: '  a  ' }).title, 'Search skills: a', 'the title is still tidied')
+})
+
 test('203-1b: a very long query cannot produce an unbounded card title', () => {
-  // The host asks for a short header/log line (dsh-tools presentation.d.ts:44-47).
+  // The host asks for a short header/log line (dsh-tools/lib/types/presentation.d.ts:49-52).
   // rawInput is the detail view and stays verbatim.
   const long = 'x'.repeat(400)
   const view = loader().presentCall({ query: long })
@@ -76,4 +84,13 @@ test('203-5: a call with no arguments is the plain listing', () => {
   const view = loader().presentCall({})
   assert.equal(view.title, 'List skills')
   assert.equal(view.rawInput, '')
+})
+
+test('203-6: every branch keeps the render intent the spec promises not to change', () => {
+  // The spec's §边界 says card and kind stay as they were. Without this, changing
+  // kind to 'write' or card to 'terminal' passes every other test in the file.
+  for (const args of [{}, { query: 'alpha' }, { query: '   ' }, { name: 'alpha-skill' }]) {
+    const view = loader().presentCall(args)
+    assert.deepEqual({ card: view.card, kind: view.kind }, { card: 'generic', kind: 'read' }, JSON.stringify(args))
+  }
 })

@@ -2,7 +2,7 @@
   "issue": 203,
   "grade": "standard",
   "stage": "merge",
-  "updatedAt": "2026-11-13T12:15:23.161Z",
+  "updatedAt": "2026-11-13T12:28:14.583Z",
   "tickets": [
     {
       "id": 1,
@@ -28,6 +28,11 @@
       "id": 5,
       "title": "标题长度/换行 + rawInput 断言",
       "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "轴2 P1×2+P2×6 修复(引用行号/rawInput 原文/断言强度)",
+      "state": "done"
     }
   ],
   "ci": {
@@ -37,7 +42,8 @@
   },
   "review": {
     "state": "done",
-    "axes": 2
+    "axes": 2,
+    "note": "轴1=独立子代理(code-reviewer,交付 P1×1+P2×5,全部采纳并修复);轴2=主智能体兜底(原派与复派两个子代理均超时未交付,按同一固定模板自行完成,不是独立视角)"
   },
   "merge": {
     "authorized": false
