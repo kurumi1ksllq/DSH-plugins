@@ -42,7 +42,10 @@ test('delegation text renders both locales with required sections', async () => 
   for (const locale of ['zh', 'en']) {
     const text = renderDelegationText(locale)
     assert.ok(text.length > 200, `${locale} text is substantive`)
-    assert.match(text, /preset/i, 'routing table names presets')
+    // Shape, not vocabulary: the table must still render as "- `id` → text" lines.
+    // Matching only the word 'role_search' would stay green if the whole table
+    // vanished, because the discipline bullets name that tool too.
+    assert.match(text, /^- `[a-z0-9-]+` → .+$/m, 'the role table renders id -> duty lines')
     assert.ok(text.includes('- '), 'routing table is a list')
   }
   // zh and en are same-structure (contract style of governor-copy)
@@ -51,7 +54,7 @@ test('delegation text renders both locales with required sections', async () => 
   assert.equal(
     zh.split('\n').filter((l) => /^- /.test(l)).length,
     en.split('\n').filter((l) => /^- /.test(l)).length,
-    'zh/en routing-table bullet counts match',
+    'zh/en role-table bullet counts match',
   )
 })
 

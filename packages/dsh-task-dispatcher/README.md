@@ -3,17 +3,22 @@
 向会话所有成员(主 agent 与每个 teammate)注入**一个** runtime-context 段(`dsh:auto-delegation-discipline`),并注册两个**按角色委派**的工具。段内只有**两个标题**:
 
 1. **委派纪律**(heading):开工三问(绑到 `todo_write`,无该工具时写进首条回复) + **可数分档**(要改 ≥3 个文件 / 要动 ≥2 个包 / 要跑 ≥2 个独立验证 → 必须拆;有 `workflow` 用它、没有则用 N 个 `subagent` 并行 / 组队 / 对抗验证) + **反逃生口条款**(「先读一遍看看」不构成跳过拆解的理由) + 角色化委派 lane + 停手线 + 去重与投递语义 + 等待与轮询上限,含队友向下委派的显式授权。
-2. **声明式路由表**(routingHeading):列出可委派的子 agent preset(id → 职责),模型按子任务内容选择 `agent_preset` 参数。
+2. **角色表**(routingHeading):列出 8 个示例角色(id → 职责),并说明「用 `role_search` 找 id、用 `delegate_role` 派出;这里是举例,不是白名单」。**不再出现 `agent_preset`**(见下「#207」)。
 
-## 角色化委派(#194)
+## 角色化委派(#194 / #207)
 
-路由表那条路有个实测缺陷:preset 是**一个 agent 的完整插件组合**,不是人格标签。在 DSH `0.2.2-rc.1` 上实测——
+**#207 起 `agent_preset` 这条通路已被移除**,`role_search` + `delegate_role` 是唯一能换角色的通路。
+原因:preset 是**一个 agent 的完整插件组合**,不是人格标签。在 DSH `0.2.2-rc.1` 上实测——
 
 | | 继承型子 agent | `agent_preset: planner` |
 | --- | --- | --- |
-| 工具总数 | **57** | **27** |
+| 工具总数 | **56** | **28** |
 | `read/write/edit/glob/grep` | 5/5 | **0/5** |
 | `subagent` / `subagent_fork` | 有 | **无** |
+
+> 数字口径:上表是 **2026-11-14 本机实测**(`node -v` 24.15.0,DSH 0.2.2-rc.1,每个子 agent 自报工具清单)。
+> #194 记录的是 **2026-11-12 的 57 / 27**;两次测量之间宿主组合多/少了一个工具,
+> 结论方向不变(挂 preset 即丢全部文件工具)。引用时请连日期一起引。
 
 `dsh-web-app` 在宿主平面把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true`,改由每个 preset 自带;而 `ecc-agent-presets` 的 133 个 preset 每个只声明一行 `@deepseek-ai/dsh-persona`(实测 133/133)。于是「委派给 preset X」拿到的是一个只有 bash 的空壳,干不了活,也不能再往下派。
 
@@ -45,7 +50,8 @@
 
 ## 配套
 
-- 路由表里的 preset id 必须真实存在于 profile,并与 `dsh-deep-ptc-mode/lib/model.mjs` 的 `DELEGATION_PRESET_WHITELIST`(derive 期打点,`preset.json` 保持官方原样)双向镜像——契约测试双向守护,改动需两处同步。
+- 角色表里的示例 id 必须真实存在于 `ecc-agent-presets` 名册(`test/role-routing.test.mjs` 读该 bundle 校验);示例刻意少于全量,并给出「不带 query 列出全部」的入口,避免被当成白名单。
+- `dsh-deep-ptc-mode` 不再给 `tool-subagent` 打 `allowedAgentPresets`,因此 `subagent` 的 schema 里**没有** `agent_preset` 参数(参数只在 `presets.choices` 有值时才被 spread 进去)——坏路不可达,而不只是「不推荐」。
 - 注入走 `systemPrompt.context`(与 deep-ptc governor 同一通道);恒定文本利于 KV cache。
 - locale 固定 zh(操作者工作语言);`lib/delegation-text.mjs` 的 en 字典为预留。
 
@@ -59,6 +65,6 @@ teammate 经 `composeFrom` 继承父组合,因此文本对主 agent 与 teammate
 pnpm test   # 或包内 node --test test/*.test.mjs
 ```
 
-74 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
+81 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
-`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文关键词经同义词表映射后同样命中、未收录词如实返回无匹配。
+`test/role-routing.test.mjs`(#207)守护注入文本本身:不得出现 `agent_preset`、必须点名 `role_search` 与 `delegate_role`、示例 id 必须都在真实名册里、示例数必须少于全量。`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文关键词经同义词表映射后同样命中、未收录词如实返回无匹配。

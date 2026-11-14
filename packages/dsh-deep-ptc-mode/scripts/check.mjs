@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { DELEGATION_PRESET_WHITELIST, deriveDeepPtc, personaFrom, PRESET_META, SHELL_ROWS, SHELL_TOOLS, walkRows } from '../lib/model.mjs';
+import { deriveDeepPtc, personaFrom, PRESET_META, SHELL_ROWS, SHELL_TOOLS, walkRows } from '../lib/model.mjs';
 import { OFFICIAL_PACKAGE, OFFICIAL_PRESET_ID, parseOfficialPreset } from '../lib/upstream.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -111,17 +111,6 @@ export function assertDerivation(upstream, preset, { environment = 'wsl', wslDis
       const { config: officialConfig, ...officialRest } = row;
       const { config: derivedConfig, ...derivedRest } = candidate;
       assert.deepEqual(derivedRest, officialRest, `official group ${row.id} keeps its declaration`);
-      continue;
-    }
-    if (row.id === 'tool-subagent' && row.name === '@deepseek-ai/dsh-tool-subagent') {
-      // Deep PTC owns the delegation routing whitelist (spec issue-151): the
-      // official spawn-side row must come out with exactly the declared ids.
-      assert.equal(row.config?.provider, 'spawn', 'delegation whitelist rides the spawn-side row');
-      assert.deepEqual(candidate.config?.allowedAgentPresets, [...DELEGATION_PRESET_WHITELIST],
-        'tool-subagent carries exactly the declared allowedAgentPresets');
-      const { allowedAgentPresets: _applied, ...officialRest } = row.config ?? {};
-      const { allowedAgentPresets: _derived, ...derivedRest } = candidate.config ?? {};
-      assert.deepEqual(derivedRest, officialRest, 'tool-subagent keeps its official config otherwise');
       continue;
     }
     assert.deepEqual(candidate, row, `official row ${row.id} is inherited unchanged`);

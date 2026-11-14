@@ -43,7 +43,7 @@ test('apply registers the delegation context through systemPrompt.inject', () =>
   assert.equal(row.order, 21000)
   const text = row.text()
   assert.ok(text.includes('## 自动委派编排'), 'segment text renders the discipline section')
-  assert.ok(text.includes('`planner`'), 'segment text renders the routing table')
+  assert.ok(text.includes('`python-reviewer`'), 'segment text renders the role table')
 })
 
 test('apply registers the role tools through tools.inject', () => {

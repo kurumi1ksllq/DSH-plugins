@@ -1,8 +1,8 @@
 # 深度 PTC 模式
 
-[English](README.md) · MIT · 当前版本：**1.14.2**
+[English](README.md) · MIT · 当前版本：**1.15.0**
 
-[1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) —— 历史快照，当前版本见下方「当前版本 1.14.2」
+[1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) —— 历史快照，当前版本见下方「当前版本 1.15.0」
 **让插件协作，让当前官方 PTC 工具兜底，让任务始终可沟通。**
 
 深度 PTC 是面向插件生态的 DeepSeek Harness Agent 模式（preset）：优先在当前可用的外部插件中寻找同功能工具，没有合适能力或插件工具故障时，再用当前官方 PTC 的工具继续完成任务。多个插件可以分工完成同一个任务，各自保留原有参数、发现方式和结果契约；深度 PTC 本身不提供新的任务工具。
@@ -24,16 +24,17 @@
 
 官方兜底沿用 1.6.1 的动态派生机制：自动读取实际运行宿主的官方 PTC 声明；每 5 秒检测声明变化，仅在声明或本插件配置变化时重建预设，工具模块和配置跟随该声明；仅在声明无法读取、解析或派生时使用随包快照并记录日志。官方升级后需重载并创建使用新版预设的会话，既有会话不被强制切换。DSH 支持范围声明为 `>=0.2.2-rc.1 <0.3.0-0`；更高版本仍需验证宿主接口。
 
-## 当前版本 1.14.2
+## 当前版本 1.15.0
 
-本仓库当前是 1.14.2 线。下面的机制章节写于 1.7.3，派生、可达性与工作契约的描述仍然有效；1.7.3 之后的版本改的是 governor 的打包方式、执行环境、本地化与委派接线：
+本仓库当前是 1.15.0 线。下面的机制章节写于 1.7.3，派生、可达性与工作契约的描述仍然有效；1.7.3 之后的版本改的是 governor 的打包方式、执行环境、本地化与委派接线：
 
 - **1.8.0** —— 吸收 `dsh-stall-governor` 与 `dsh-git-bash-tool`，Git Bash 成为一等执行环境。
 - **1.9.0** —— 5007 行的 governor 按声明块等价拆成六个模块（peer / core / anchor / settings / softcut / apply），声明体逐字未改。
 - **1.10.0** —— `environment: git-bash`、按官方 shell 行自动识别、事件驱动刷新（5 秒 loader 信号，30 秒兜底轮询）、设置原子写，以及 locale 基建。
 - **1.11.0 / 1.11.1 / 1.11.2** —— 设置与模型文案双语化，新增 `copyLocale` 开关；执行纪律文案改成 zh/en 共用的单源字典。
-- **1.12.0** —— spawn 侧委派行确定性附加 `allowedAgentPresets`，向 `subagent` 暴露 `agent_preset` 参数。
+- **1.12.0** —— spawn 侧委派行确定性附加 `allowedAgentPresets`，向 `subagent` 暴露 `agent_preset` 参数（1.15.0 已撤）。
 - **1.13.0 / 1.13.1** —— 跟随 `dsh-auto-delegation` → `dsh-task-dispatcher` 更名的接线收尾；可选测试前置（React、YAML 解析器）缺失时按可操作理由跳过，而不是加载期崩溃。
+- **1.15.0** —— 撤掉 1.12.0 的 `allowedAgentPresets` 打点：`agent_preset` 派出的子 agent 无文件工具、无人格，现让这条坏路不可达，换角色只走 `dsh-task-dispatcher` 的 `delegate_role`（#207）。
 
 逐版细节见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -136,10 +137,10 @@ WSL 命令使用 Linux/POSIX 语法；文件工具和 `workdir` 仍用 Windows �
 本地目录或构建产物可通过插件管理器安装：
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.14.2" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.15.0" })
 // 也可从本地目录或安装包安装：
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
-// 或 target: "C:\\path\\to\\dsh-deep-ptc-mode-1.14.2.tgz"
+// 或 target: "C:\\path\\to\\dsh-deep-ptc-mode-1.15.0.tgz"
 ```
 
 GitHub 地址：`github:lishize20040802-rgb/dsh-deep-ptc-mode`。该地址安装远端实际内容；本地升级不会自动发布到 GitHub/npm。
@@ -205,4 +206,4 @@ npm pack
 
 实际边界：暂停检测识别命令位置和真实等待，字符串、注释、普通定时器回调不当作暂停；可解析常量和乘积，未知时长放行。`wsl -- sleep 20` 会真实暂停，仍拒绝。静态检测不是完整语言解释器。任意 `run_code` 程序、同步子进程或长 workflow 内部的等待，目前不能保证被插话提前结束；这类长工作应使用宿主受管理的后台任务。官方工具无论失败多少次都不隔离，旧错误记录也不应阻断它们；来源不明的工具保持可用，只对来源明确的外部工具执行隔离。
 
-1.14.2 优先读取正在运行宿主公开的官方 PTC 注册表；接口不可用时自动寻找实际安装的声明文件，只有这些都不可用才使用带告警的快照。注册表、声明内容或本插件配置变化会自动更新新预设；来源缓存也会随模块文件变化失效，不按预先固定的 DSH 版本选择工具清单。旧会话持有的执行环境和任务不会被强切换。
+1.15.0 优先读取正在运行宿主公开的官方 PTC 注册表；接口不可用时自动寻找实际安装的声明文件，只有这些都不可用才使用带告警的快照。注册表、声明内容或本插件配置变化会自动更新新预设；来源缓存也会随模块文件变化失效，不按预先固定的 DSH 版本选择工具清单。旧会话持有的执行环境和任务不会被强切换。
