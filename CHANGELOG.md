@@ -29,6 +29,29 @@ test-only changes are exempt.
 - 新增 `test/synonyms-live.test.mjs` 五条契约:每个键至少命中 1 个角色 / 每个键不得命中超过名册 1/3 /
   文本点名的领域词必须真有角色 / 示例必须覆盖 实现+评审+规划 三类 / 根 README 不得出现 `agent_preset`。
 - 测试名册改为**运行时名册**(ECC 133 + profile 5);此前只读 bundle,导致合法 id `planner` 被判为不存在。
+
+### dsh-task-dispatcher 0.7.0 — 提示词由插件自带:质量红线/检索纪律/效率细则从全局 AGENTS.md 搬进注入段(#211)
+
+**问题(用户指出)**:「所有提示词注入都应包含在插件内,而不是全局 agents.md,否则插件装到别的设备就完全失效。」
+
+核实后确实如此,而且比措辞错误更严重:`~/.dsh/AGENTS.md` 的「工作方式:速度与质量优先」整段与
+本包注入的段落是**同一份内容的两份拷贝**(三问、分档、硬触发、反逃生口均重复),而**检索纪律、
+质量红线、效率细则三项只存在于全局文件**——换台机器装上插件,这三项一条都不会有。
+
+两份拷贝已经漂移:全局那份还写着「按任务内容选 `agent_preset`」「`/plan`」「`refactor-clean`」,
+而插件那份已按 #207 全部改对。
+
+**改法**:把缺失条款补进 `renderDelegationText` 的 zh/en 同构字典——
+
+- **质量红线**:子任务自包含(目标/输入/验收)、汇总核对冲突重复遗漏、无法验证标「未验证」、委派失败兜底补做。
+- **检索纪律**:零命中 ≠ 不存在(符号链接不下钻)、出处双源交叉、易失证据先落盘。
+- **效率细则**:先读后写、独立调用并发发出、长输出按需展开。
+
+新增 `test/owned-clauses.test.mjs` 三条契约:每条应自带条款必须出现在注入文本(删即红)、
+en 渲染同样齐全、注入文本**不得引用** `AGENTS.md` 或 `~/.dsh` 这类机器本地路径。
+
+新增 `docs/prompt-injection-inventory.md`:新设备安装后应得到的注入清单,含可复制的自检命令;
+并列出全局文件里哪些段现在可以删(需用户确认,不在本 PR 自动做)。
 ### dsh-task-dispatcher 0.5.0 — 删掉 agent_preset 这条空壳通路,注入文本只教 delegate_role(#207)
 
 **问题(两条路实测对比)**:注入文本里的 ROUTING 表教模型「按子任务内容选择 `agent_preset`」,
@@ -541,7 +564,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 56 个条目:53 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.6.0`(#210,待合并后打 tag)与 `dsh-skill-surface@0.1.0`(早于 tag 纪律)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。53+2+1=56。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
+> > > 本段现有 57 个条目:54 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.7.0`、`dsh-skill-surface@0.1.0`(本批次待合并后打 tag)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。54+2+1=57。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
