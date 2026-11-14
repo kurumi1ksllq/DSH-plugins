@@ -77,6 +77,13 @@ grade: standard
 - 反向验证:把白名单打点加回 `model.mjs` → `delegation-whitelist` 红;把 `agent_preset` 写回注入文本 →
   `role-routing` 两条红;把示例 id 换成名册外的 `planner` → `role-routing` 红(实测过,见开发过程)。
 
+## 生效边界(实测)
+
+改动只对**新根会话**生效:子 agent 经 `composeFrom` 绑定父组合的精确 revision,已存在的会话仍持有旧 schema。
+实测证据:本 issue 的会话在改动前后,`tool_describe('subagent')` 的 schema **仍**含 `agent_preset`
+(enum 仍是那 5 个 id),注入文本也仍是旧 ROUTING 表 —— 与该机制一致,不是改动没落地。
+验证方式:开一个新会话,再 `tool_describe('subagent')`,应看不到 `agent_preset`。
+
 ## 变更
 
 无(实现中未发现需调整目标/边界的情形)。
