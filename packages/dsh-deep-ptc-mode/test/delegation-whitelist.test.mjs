@@ -7,7 +7,6 @@ import snapshot from '../lib/preset.json' with { type: 'json' }
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PKG = resolve(HERE, '..')
-const REPO = resolve(PKG, '..', '..')
 
 function delegationRows(snapshot) {
   const group = snapshot.plugins.find((row) => row.id === 'delegation')
