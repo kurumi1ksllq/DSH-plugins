@@ -12,6 +12,23 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.6.0 — role_search 的两个中文同义词是死的,示例角色清一色 reviewer(#210)
+
+**问题(实测)**:#207 把 `role_search` + `delegate_role` 提为**唯一**换角色通路,于是它点名的每个概念都必须真能命中。
+实测 18 个 SYNONYM 键,`迁移` 与 `工程` **零命中**:根因是 `migration`/`engineering` 只出现在 description,
+而 #196 的设计是映射词只匹配 role id(防 `架构`→architect 把 13 个 reviewer 全拉进来)。
+注入文本还点名「迁移」这个领域,等于教模型去查一个必然空手的概念。
+
+**同时**:8 个示例角色里 6 个是 reviewer/architect、0 个实现类角色 —— 与「主动并积极地创建子 agent 干活」的诉求相反,
+读起来像「派人来评审」而不是「派人来做」。根 `README.md` 也仍在教「按任务内容选 `agent_preset`」,与包内 README 矛盾。
+
+**改法**:
+
+- `迁移` → `data-engineer` + `database`;`工程` → `platform-engineer` + `api-platform`(全部实测命中,且不过宽)。
+- 示例角色重排为 3 实现(frontend-developer / api-platform-engineer / tdd-guide)+ 3 评审 + 2 规划。
+- 新增 `test/synonyms-live.test.mjs` 五条契约:每个键至少命中 1 个角色 / 每个键不得命中超过名册 1/3 /
+  文本点名的领域词必须真有角色 / 示例必须覆盖 实现+评审+规划 三类 / 根 README 不得出现 `agent_preset`。
+- 测试名册改为**运行时名册**(ECC 133 + profile 5);此前只读 bundle,导致合法 id `planner` 被判为不存在。
 ### dsh-task-dispatcher 0.5.0 — 删掉 agent_preset 这条空壳通路,注入文本只教 delegate_role(#207)
 
 **问题(两条路实测对比)**:注入文本里的 ROUTING 表教模型「按子任务内容选择 `agent_preset`」,
@@ -524,7 +541,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 55 个条目:51 条有对应 tag;缺 tag 的 3 条为 `dsh-task-dispatcher@0.5.0`、`dsh-deep-ptc-mode@1.15.0`(#207,待合并后打 tag)与 `dsh-skill-surface@0.1.0`(早于 tag 纪律)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。51+3+1=55。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
+> > > 本段现有 56 个条目:53 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.6.0`(#210,待合并后打 tag)与 `dsh-skill-surface@0.1.0`(早于 tag 纪律)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。53+2+1=56。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

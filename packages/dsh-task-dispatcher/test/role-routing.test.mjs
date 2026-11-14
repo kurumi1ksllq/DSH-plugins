@@ -73,8 +73,20 @@ test('the text names role examples that exist in the shipped roster', async () =
     examples.length >= 3 && examples.length <= 12,
     'the role table must stay a short example set, got ' + examples.length,
   )
+  // The examples now mix bundle roles with profile-resident ones (code-reviewer,
+  // gan-planner lives in the bundle but code-reviewer does not), so the roster
+  // under test is the same 138-row set role_search sees -- see
+  // synonyms-live.test.mjs, which owns the full-roster contract.
+  const profileIds = new Set(
+    [...(await readFile(join(HERE, '..', '..', '..', '..', '.dsh', 'profiles', 'web', 'cordis.patch.yml'), 'utf8')
+      .catch(() => ''))
+      .matchAll(/- id: preset-([a-z0-9-]+)/g)].map((m) => m[1]),
+  )
   for (const id of examples) {
-    assert.ok(ids.has(id), id + ' is advertised in the injected text but is not in the shipped roster')
+    assert.ok(
+      ids.has(id) || profileIds.has(id),
+      id + ' is advertised in the injected text but is in neither the shipped roster nor the profile',
+    )
   }
   // zh and en must advertise the same roles: one table, two renderings.
   assert.deepEqual(roleExampleIds(renderDelegationText('en')), examples)
