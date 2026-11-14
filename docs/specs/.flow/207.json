@@ -1,0 +1,35 @@
+{
+  "issue": 207,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-14T10:50:33.607+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "dispatcher: 注入文本换成角色表,不再出现 agent_preset",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "deep-ptc: 移除 allowedAgentPresets,subagent 不再暴露 agent_preset",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "验收证据(机制层测试 + 活体探针结果)落盘 + 文档/版本",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -80,9 +80,9 @@ testOrSkip('tolerates official rows the plugin wraps disappearing', () => {
   const upstream = structuredClone(current());
   upstream.plugins = upstream.plugins.filter(row => !['tool-jobs', 'tool-ask-user'].includes(row.id));
   const { preset, report } = derive(upstream);
-  // The delegation whitelist still rides the spawn-side tool-subagent row,
-  // which this fixture keeps; only the two removed wrap targets are skipped.
-  assert.deepEqual(report.wrapped, ['tool-subagent (allowedAgentPresets)']);
+  // Only the two removed wrap targets are skipped; the spawn-side delegation
+  // row is inherited untouched since #207 removed the whitelist wrap.
+  assert.deepEqual(report.wrapped, []);
   assert.equal(report.skipped.length, 2);
   assertDerivation(upstream, preset);
 });

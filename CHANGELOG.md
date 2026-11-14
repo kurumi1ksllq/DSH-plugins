@@ -12,6 +12,33 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.5.0 — 删掉 agent_preset 这条空壳通路,注入文本只教 delegate_role(#207)
+
+**问题(两条路实测对比)**:注入文本里的 ROUTING 表教模型「按子任务内容选择 `agent_preset`」,
+而本仓库 #194 的 README/spec 早已写明 preset 是**完整插件组合**、不是人格标签。本会话各真派一个子 agent:
+
+| 通道 | 工具数 | read/write/edit/grep/glob | 角色人格 |
+|---|---|---|---|
+| `subagent({})`(继承) | 56 | 有 | 无 |
+| `subagent({agent_preset:'code-reviewer'})` | 28 | **全无** | **无** |
+| `delegate_role({role:'code-reviewer'})` | 齐全 | 有 | **有** |
+
+即:插件自己推荐的那条路派出去的是空壳,另一条路才是好的。模型按文本走坏路 → 用户看到「委派功能没生效」。
+
+**改法**:ROUTING 表换成 ROLE 表,8 个示例 id 全部取自 `ecc-agent-presets` 真实名册;文案明确「用 `role_search` 找 id、用 `delegate_role` 派出」,
+并写明「不要指望用 `subagent` 换角色」。新增 `test/role-routing.test.mjs` 四条契约:注入文本不得出现 `agent_preset`、必须点名两个工具、
+示例 id 必须在真实名册里、示例必须少于全量(说明它不是白名单)且给出枚举全部角色的方法。
+
+### dsh-deep-ptc-mode 1.15.0 — 移除 `allowedAgentPresets`,让坏路不可达(#207)
+
+**问题**:白名单唯一作用就是让 `dsh-tool-subagent` 把 `agent_preset` 参数 spread 进 schema(`presets.choices` 有值才出现)。
+参数还在 = 空壳路还在,只是「不推荐」,挡不住模型选它。
+
+**改法**:删 `DELEGATION_PRESET_WHITELIST` 常量与 derive 期的打点,spawn 侧 `tool-subagent` 行原样继承官方声明;
+`scripts/check.mjs` 同步删掉「必须带白名单」的断言,改为「该行与官方逐字相同」。
+`test/delegation-whitelist.test.mjs` 反向锁定:model.mjs 不得再出现 `allowedAgentPresets` / 白名单常量、derive 输出行必须与快照逐字相等、
+`report.wrapped` 不得再声称做过白名单打点。`upstream`/`execution` 两条测试的 `wrapped` 期望同步收窄。
+
 ### dsh-deep-ptc-mode 1.14.0 — 让 agent 看得见 skill,把「该不该加载」交回 agent(#206)
 
 首版发布。当版行为:**误把「宿主装了该包」当作「loader 真的可调」**(静态源码扫描),
@@ -497,7 +524,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 53 个条目:49 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.14.2`、`dsh-skill-surface@0.4.2`、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。49+3+1=53。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。:47 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+1+1=49。计数按 `git tag -l` 实测重算（2026-11-14），此前那句点名 `dsh-skill-surface@0.3.1` 缺 tag 已过期（#203 合并时即已打 tag），分项也只改了总数没重算，故一并更正。待下一次统一归档至 History 段。
+> > > 本段现有 55 个条目:51 条有对应 tag;缺 tag 的 3 条为 `dsh-task-dispatcher@0.5.0`、`dsh-deep-ptc-mode@1.15.0`(#207,待合并后打 tag)与 `dsh-skill-surface@0.1.0`(早于 tag 纪律)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。51+3+1=55。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

@@ -70,7 +70,7 @@ test('official composition changes are inherited instead of tripping a drift gat
   assert.equal(JSON.stringify(preset.plugins).includes('dsh-tool-subagent-control/list-agents'), false);
   assert.ok(preset.plugins.some(row => row.name === '@deepseek-ai/dsh-tool-executor-ptc'), 'new official executor inherited');
   assert.deepEqual(report.replacedShellRows.sort(), ['tool-bash (@deepseek-ai/dsh-tool-bash)', 'tool-pwsh (@deepseek-ai/dsh-tool-pwsh)']);
-  assert.deepEqual(report.wrapped.sort(), ['tool-ask-user (@deepseek-ai/dsh-tool-ask-user)', 'tool-jobs (@deepseek-ai/dsh-tool-jobs)', 'tool-subagent (allowedAgentPresets)']);
+  assert.deepEqual(report.wrapped.sort(), ['tool-ask-user (@deepseek-ai/dsh-tool-ask-user)', 'tool-jobs (@deepseek-ai/dsh-tool-jobs)']);
 
   const changed = structuredClone(upstream);
   changed.plugins.find(row => row.id === 'tool-web').config.fetch = false;

@@ -116,24 +116,6 @@ const WRAP_TARGETS = [
   },
 ];
 
-/**
- * Subagent presets the delegation tool may route to by content, exposed as the
- * `agent_preset` argument of the `subagent` tool (spec issue-151). The ids must
- * exist in the live profile and mirror the routing table in
- * dsh-task-dispatcher/lib/delegation-text.mjs — update both together.
- */
-export const DELEGATION_PRESET_WHITELIST = [
-  'planner',
-  'architect',
-  'code-reviewer',
-  'security-reviewer',
-  'build-error-resolver',
-];
-// Assembled so the static host-deps scanner does not mistake the row-name hint
-// for a runtime import: the string is only matched against plugin row
-// declarations, never imported.
-const DELEGATION_TOOL_NAME = ['@deepseek-ai', 'dsh-tool-subagent'].join('/');
-const DELEGATION_ROW = { ids: ['tool-subagent'], names: [DELEGATION_TOOL_NAME] };
 
 /** Identity and display text Deep PTC publishes, independent of the official preset. */
 export const PRESET_META = {
@@ -322,22 +304,6 @@ export function deriveDeepPtc(upstream, options = {}, platform = process.platfor
     name: 'dsh-deep-ptc-mode/guard', config: { foregroundSeconds },
   });
   anchorSiblings.splice(anchorIndex, 0, ...rows);
-
-  // Delegation routing: the official spawn-side delegation tool gains the
-  // content-routing whitelist (fork joins the parent composition by design and
-  // must not name a preset). Applied deterministically, reported like the
-  // wrapped tools.
-  const delegationRow = findRow(plugins, DELEGATION_ROW)
-    ?? findRow(plugins, { ids: [], names: [DELEGATION_TOOL_NAME] });
-  if (delegationRow?.config?.provider === 'spawn') {
-    delegationRow.config = {
-      ...delegationRow.config,
-      allowedAgentPresets: [...DELEGATION_PRESET_WHITELIST],
-    };
-    report.wrapped.push('tool-subagent (allowedAgentPresets)');
-  } else {
-    report.skipped.push('tool-subagent (no spawn-side delegation tool)');
-  }
 
   // Wrapped tools: the wrapper loads the module the official row names, with the official options
   // plus the Deep PTC wait behaviour.
