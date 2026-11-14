@@ -38,23 +38,43 @@ test('the policy tells the agent to search skills before loading them', () => {
   assert.match(compatibilityPolicy, /summaries are not skill instructions|discovery summaries/i);
 });
 
-test('the policy section only names a loader that is really registered', () => {
-  // Naming an absent tool is the #206 failure itself. A directory that knows no
-  // skill loader must leave the base policy untouched.
+test('the discovery line appears only when the loader is really callable', () => {
+  // namesOf() is a static source scan: measured on 2026-11-14 it returned ['skill']
+  // with getLoader() === undefined, so a directory-only check would name a tool that
+  // is not mounted. The gate must read the live registry.
+  const harness = (definitions) => {
+    const sections = [];
+    const ctx = {
+      tools: { guard() {}, get() {}, definitions() { return definitions; } },
+      systemPrompt: { section: row => sections.push(row), context() {} },
+      on() {}, effect() {}, logger: { warn() {} },
+    };
+    installToolCompatibility(ctx, {
+      directory: { namesOf: () => new Set(['skill']) },
+      skillProvider: '@deepseek-ai/dsh-tool-skill',
+    });
+    // The section text is a live provider (this layer now computes it per assembly).
+    return () => sections[0].text({ scope: {} });
+  };
+
+  // Nothing mounted: the directory still claims 'skill', but it is not callable.
+  assert.equal(harness([])(), compatibilityPolicy);
+
+  // The real loader is live: the line appears and names it.
+  assert.match(harness([{ name: 'skill' }])(), /tools\.skill\b/);
+
+  // A different live tool does not satisfy the gate.
+  assert.equal(harness([{ name: 'read' }])(), compatibilityPolicy);
+});
+
+test('the discovery line stays silent when no scope is being assembled', () => {
+  // Without a scope there is no registry to probe, so claiming a loader would be a guess.
   const sections = [];
   const ctx = {
-    tools: { guard() {}, get() {}, definitions() { return []; } },
+    tools: { guard() {}, get() {}, definitions() { return [{ name: 'skill' }]; } },
     systemPrompt: { section: row => sections.push(row), context() {} },
     on() {}, effect() {}, logger: { warn() {} },
   };
-  installToolCompatibility(ctx, { directory: { namesOf: () => new Set() }, skillProvider: '@deepseek-ai/dsh-tool-skill' });
-  // The section text is a live provider (the house style for this layer), so read it.
-  const textOf = row => typeof row.text === 'function' ? row.text({}) : row.text;
-  assert.equal(sections.length, 1);
-  assert.equal(textOf(sections[0]), compatibilityPolicy);
-
-  sections.length = 0;
   installToolCompatibility(ctx, { directory: { namesOf: () => new Set(['skill']) }, skillProvider: '@deepseek-ai/dsh-tool-skill' });
-  assert.match(textOf(sections[0]), /tools\.skill\b/);
-  assert.ok(textOf(sections[0]).length > compatibilityPolicy.length);
+  assert.equal(sections[0].text({}), compatibilityPolicy);
 });

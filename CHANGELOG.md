@@ -14,7 +14,24 @@ test-only changes are exempt.
 
 ### dsh-deep-ptc-mode 1.14.0 — 让 agent 看得见 skill,把「该不该加载」交回 agent(#206)
 
+首版发布。当版行为:**误把「宿主装了该包」当作「loader 真的可调」**(静态源码扫描),
+即 1.14.1 修正的那个缺陷。保留此条是为了让 tag `dsh-deep-ptc-mode@1.14.0` 有对应记录;
+细节见下一条。
+
+### dsh-deep-ptc-mode 1.14.1 — 让 agent 看得见 skill,把「该不该加载」交回 agent(#206)
+
 > 本包改动:新增 `skillDiscoveryLine(loader)` 与策略接线。
+
+**双轴 review 轴2 的 P1 修正(1.14.1)**:初版写「只有 loader 真的注册了才注入」,**这句是假的**。
+当时判的是 `directory.namesOf()`,而它是**静态源码扫描**——实测
+`toolDirectory(() => undefined, {base}).namesOf('@deepseek-ai/dsh-tool-skill')` 在
+`getLoader()` 返回 `undefined`(什么都没挂)时照样返回 `['skill']`。
+即:官方 skill 行被禁用、真实加载器是 `skill_get` 的组合里,提示仍会写 `tools.skill`。
+改为**每轮读运行时注册表**(`ctx.tools.definitions`),loader 不在则整行不出现;
+`skill_get` 那一支因 `skillProvider` 只可能来自官方行而不可达,一并去掉。
+测试也换了:初版喂 stub `namesOf`,断言的是 stub 输出而非注册状态(测试名 `really registered` 不自证);
+现在喂真实 registry,反向验证(退回静态扫描)实测变红 1 条。
+顺带修掉一个我自己的 bug:`failOpen` 返回的是**包装函数**,初版直接当值用,探针永远读不到真实数据。
 
 实测(2026-11-14,418 个会话)推翻了 #201 的一个隐含假设:**「agent 不爱加载 skill」是错的**。
 在本会话(deep-ptc 组合)实测 `await tools.skill({name:'security-review'})` 成功返回 12,610 字正文,
@@ -37,10 +54,23 @@ test-only changes are exempt.
 反向验证(每条实测变红):去掉 loader 存在性判断 / 把发现行改成注入正文 / 不校验 catalog /
 去掉候选上限 / 去掉非字符串守卫 —— 均按预期变红。
 
-**未验证**:本机 Node 18.19.1(仓库要求 ≥22),deep-ptc 有 5 个测试因 `import ... with { type: 'json' }`
-语法不支持而失败,该 5 个失败在 main 基线上同样存在,与本改动无关。生效需用户手动重启 DSH。
+**未验证**:本机唯一的 node 是 `/usr/bin/node` v18.19.1(仓库 `engines` 要求 ≥22)。
+用 `node --test test/*.test.mjs test-governor/*.test.mjs test/gitbash.test.mjs test/test-t4ptc.mjs`
+在 `packages/dsh-deep-ptc-mode` 下实测 **# fail 6**(失败文件:delegation-whitelist / execution /
+reachability / test-t4ptc / tool-compatibility / upstream,均为含 `import ... with { type: 'json' }`
+的模块),根 `test/*.test.mjs` 另有 `scripts-test-globs.test.mjs` 因缺 `fs.globSync` 失败。
+这些失败在 main 基线上同样存在(已用 `git stash` 对照),与本改动无关。
+**审查者曾报告 PATH 上有 node v24.15.0 且 192/192 全绿,本机复现不了**:`which node` 与
+`/usr/bin/node` 都是 18.19.1,未安装 nvm 或其他版本。该结论**未验证**。
+
+生效需用户手动重启 DSH。
 
 ### dsh-skill-surface 0.4.0 — 中文意图兜底映射(#206)
+
+首版发布。当版 `frontend` 意图为平铺列表(未做栈区分),即 0.4.1 修掉的那个缺陷。
+保留此条是为了让 tag `dsh-skill-surface@0.4.0` 有对应记录;细节见下一条。
+
+### dsh-skill-surface 0.4.1 — 中文意图兜底映射(#206)
 
 `skill_get` 的 query 走词法匹配,而技能描述是英文、用户提问是中文:实测 272 条 catalog 上,
 跑测试 / 单元测试 / 样式 / 鉴权 / 数据库迁移 / 部署 / 代码安全审查 **全部 0 命中**。
@@ -441,7 +471,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 49 个条目:44 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.3.1`（合并后打）与 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。计数按 `git tag -l` 实测重算（2026-11-13），此前那句把已有 tag 的 `dev-flow@0.7.1`/`dev-flow@0.8.0`/`dsh-skill-surface@0.3.0` 一并算作缺失，是过期事实。待下一次统一归档至 History 段。
+> > 本段现有 51 个条目:47 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.14.1`、`dsh-skill-surface@0.4.1`、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+3+1=51。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。:47 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+1+1=49。计数按 `git tag -l` 实测重算（2026-11-14），此前那句点名 `dsh-skill-surface@0.3.1` 缺 tag 已过期（#203 合并时即已打 tag），分项也只改了总数没重算，故一并更正。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

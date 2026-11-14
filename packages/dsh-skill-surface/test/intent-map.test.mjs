@@ -79,3 +79,17 @@ test('an unspecified frontend request leads with the generic family', () => {
   const got = intentCandidates('写个前端组件', all);
   assert.equal(got[0], 'frontend-patterns');
 });
+
+test('every matched intent gets at least one candidate before any gets a second', () => {
+  // Capping by table order silently dropped 部署 from a request that named it:
+  // measured [tdd-workflow, test-coverage, python-testing, react-testing, security-review]
+  // for '跑测试 鉴权 部署' — deployment-patterns never appeared. Round-robin fixes that.
+  const all = catalog('tdd-workflow', 'test-coverage', 'python-testing', 'react-testing',
+    'security-review', 'agent-security-hardening',
+    'deployment-patterns', 'docker-patterns');
+  const got = intentCandidates('跑测试 鉴权 部署', all);
+  assert.ok(got.includes('tdd-workflow'), 'testing intent must be represented');
+  assert.ok(got.includes('security-review'), 'security intent must be represented');
+  assert.ok(got.includes('deployment-patterns'), 'ops intent must be represented');
+  assert.ok(got.length <= 5, `cap must hold, got ${got.length}`);
+});

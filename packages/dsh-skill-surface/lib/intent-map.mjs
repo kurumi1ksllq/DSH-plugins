@@ -63,17 +63,28 @@ export function intentCandidates(text, available) {
   if (typeof text !== 'string' || text.trim() === '') return []
   const have = available instanceof Set ? available : new Set(available ?? [])
   const lowered = text.toLowerCase()
-  const out = []
+  // One round per intent, not one intent to exhaustion: capping by table order let
+  // 'testing' take every slot and silently dropped 部署 from a request that named it
+  // (measured: [tdd, test-coverage, python-testing, react-testing, security-review]).
+  const families = []
   for (const intent of INTENTS) {
     if (!intent.words.some(word => occurs(word, lowered))) continue
     // A stack-aware intent picks one family, so a Vue task never opens with React.
-    const skills = intent.stacks === undefined ? intent.skills
-      : intent.stacks[family(lowered)] ?? intent.stacks.generic
-    for (const name of skills) {
+    families.push(intent.stacks === undefined ? intent.skills
+      : intent.stacks[family(lowered)] ?? intent.stacks.generic)
+  }
+  const out = []
+  for (let round = 0; out.length < MAX_CANDIDATES; round += 1) {
+    let added = false
+    for (const skills of families) {
+      const name = skills[round]
+      if (name === undefined) continue
+      added = true
       if (!have.has(name) || out.includes(name)) continue
       out.push(name)
       if (out.length >= MAX_CANDIDATES) return out
     }
+    if (!added) break
   }
   return out
 }

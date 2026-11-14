@@ -21,7 +21,10 @@ export function officialToolSource(definition) { return officialDefinitions.get(
  * @returns one short line for the tool-cooperation policy.
  */
 export function skillDiscoveryLine(loader) {
-  const name = typeof loader === 'string' && loader !== '' ? loader : 'skill';
+  // No silent fallback to 'skill': naming a loader the caller did not verify is the
+  // exact failure this line exists to prevent. An empty name yields an empty line.
+  const name = typeof loader === 'string' ? loader : '';
+  if (name === '') return '';
   return '- Skills: `tools.' + name + '` loads one skill body by exact name. At the start of a task, ask yourself whether it is specialist work (security, testing, UI, database, deployment, framework, review). If it is, call `deep_ptc_tools(action=skills)` to find the exact name, then load it before acting. Skip it for trivial edits. Never paste a body to decide this.';
 }
 export const compatibilityPolicy = `## Efficient tool cooperation
@@ -251,15 +254,32 @@ export function installToolCompatibility(ctx, { enabled = true, preferences = []
   const state = createCompatibilityState(ctx.tools, preferences, storage, directory);
   const guard = failOpen(ctx, 'tool quarantine check', exec => state.guard(exec));
   const dispatched = failOpen(ctx, 'tool call tracking', exec => state.dispatched(exec));
-  // The discovery line is only true when the loader is really registered: naming a
-  // tool the agent cannot call is the exact failure #206 measured (the catalog
-  // advertised skill_get while the session had skill). Unknown ownership stays
-  // fail-open like the rest of this layer, so a scrape miss does not hide a real tool.
-  const loaderName = skillProvider === undefined ? undefined
-    : [...(directory?.namesOf?.(skillProvider) ?? [])].find(name => name === 'skill' || name === 'skill_get');
-  const policyText = failOpen(ctx, 'skill discovery line',
-    () => compatibilityPolicy + (loaderName === undefined ? '' : '\n' + skillDiscoveryLine(loaderName)),
-    compatibilityPolicy);
+  // The discovery line is only true when the loader is really CALLABLE for this
+  // agent. directory.namesOf() is a static source scan: measured on 2026-11-14 it
+  // returned ['skill'] even with getLoader() === undefined, i.e. with nothing
+  // mounted at all. Naming a tool the agent cannot call is the exact failure #206
+  // measured, so the check runs against the live registry on every assembly and
+  // degrades to the bare policy when the loader is absent.
+  const skillNames = new Set(['skill', 'skill_get']);
+  // failOpen returns a WRAPPER, so each probe below must be invoked, not read.
+  const probe = (label, fn, fallback) => failOpen(ctx, label, fn, fallback)();
+  const liveLoader = context => {
+    if (skillProvider === undefined || context?.scope === undefined) return undefined;
+    const definitions = probe('skill loader probe',
+      () => ctx.tools.definitions(context.scope, context.toolSet), []);
+    const live = definitions.find(definition => skillNames.has(definition?.name));
+    if (live !== undefined) return live.name;
+    // An unscrapable provider still names the loader in its own source; accept a
+    // name that is BOTH declared there and live in the registry, never the name alone.
+    const declared = probe('skill loader names',
+      () => directory?.namesOf?.(skillProvider) ?? new Set(), new Set());
+    for (const name of skillNames) if (declared.has(name) && definitions.some(d => d?.name === name)) return name;
+    return undefined;
+  };
+  const policyText = context => {
+    const loader = probe('skill discovery line', () => liveLoader(context), undefined);
+    return compatibilityPolicy + (loader === undefined ? '' : '\n' + skillDiscoveryLine(loader));
+  };
   ctx.systemPrompt.section({ name: 'deep-ptc:tool-compatibility', order: 10194, text: policyText });
   ctx.systemPrompt.context({ name: 'deep-ptc:tool-recovery', order: 122, text: failOpen(ctx, 'tool recovery context', context => state.text(context), '') });
   ctx.tools.guard(guard);
