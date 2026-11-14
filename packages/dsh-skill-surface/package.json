@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-surface",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Fallback skill discovery for agents whose preset mounts no skill provider: an official filesystem provider in the global layer, a skill_get loader and a hint that stay silent whenever the official skill tool already exists",

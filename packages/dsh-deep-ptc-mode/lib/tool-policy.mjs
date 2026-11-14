@@ -5,6 +5,25 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 export function markOfficialTool(definition, provider = 'official PTC') { officialDefinitions.set(definition, provider); return definition; }
 export function isOfficialTool(definition) { return officialDefinitions.has(definition); }
 export function officialToolSource(definition) { return officialDefinitions.get(definition); }
+/**
+ * One line naming the skill loader this agent can actually call.
+ *
+ * Measured on 2026-11-14 (418 logged sessions, deep-ptc composition): the
+ * loader was callable and returned full bodies, but the generated SDK section
+ * listed only tool_search/tool_describe, and tool_search('skill') returned
+ * nothing. The agent could not see the tool it was told to use. A name is not
+ * enough either — the agent must decide per task whether a specialist skill
+ * applies, because no keyword table or lexical index can map Chinese requests
+ * onto English skill descriptions (measured: 0 hits for 跑测试 / 鉴权 / 数据库迁移).
+ *
+ * The line is a SELF-CHECK, not a reading list: it must never grow into a body.
+ * @param loader - the tool name to name, e.g. 'skill' or 'skill_get'.
+ * @returns one short line for the tool-cooperation policy.
+ */
+export function skillDiscoveryLine(loader) {
+  const name = typeof loader === 'string' && loader !== '' ? loader : 'skill';
+  return '- Skills: `tools.' + name + '` loads one skill body by exact name. At the start of a task, ask yourself whether it is specialist work (security, testing, UI, database, deployment, framework, review). If it is, call `deep_ptc_tools(action=skills)` to find the exact name, then load it before acting. Skip it for trivial edits. Never paste a body to decide this.';
+}
 export const compatibilityPolicy = `## Efficient tool cooperation
 - Search available external capabilities by function using deep_ptc_tools. Load only matching definitions; then use their actual schemas. If none fit, use an admitted official PTC tool. Provider discovery/loaders remain authoritative for provider-specific SDKs.
 - When an external capability fails, read the error: correct wrong input, and retry a temporary failure at most twice. A capability that is unavailable or keeps failing is quarantined for this conversation. Unless the user asks you to investigate it, do not retry, probe, diagnose or repair a quarantined capability; promptly use a working equivalent or the official fallback and focus on finishing the task. Only the user's Reload all tool states button resets quarantine.
@@ -227,12 +246,21 @@ export function failOpen(ctx, label, fn, fallback) {
   };
 }
 
-export function installToolCompatibility(ctx, { enabled = true, preferences = [], storage, directory } = {}) {
+export function installToolCompatibility(ctx, { enabled = true, preferences = [], storage, directory, skillProvider } = {}) {
   if (!enabled) return;
   const state = createCompatibilityState(ctx.tools, preferences, storage, directory);
   const guard = failOpen(ctx, 'tool quarantine check', exec => state.guard(exec));
   const dispatched = failOpen(ctx, 'tool call tracking', exec => state.dispatched(exec));
-  ctx.systemPrompt.section({ name: 'deep-ptc:tool-compatibility', order: 10194, text: compatibilityPolicy });
+  // The discovery line is only true when the loader is really registered: naming a
+  // tool the agent cannot call is the exact failure #206 measured (the catalog
+  // advertised skill_get while the session had skill). Unknown ownership stays
+  // fail-open like the rest of this layer, so a scrape miss does not hide a real tool.
+  const loaderName = skillProvider === undefined ? undefined
+    : [...(directory?.namesOf?.(skillProvider) ?? [])].find(name => name === 'skill' || name === 'skill_get');
+  const policyText = failOpen(ctx, 'skill discovery line',
+    () => compatibilityPolicy + (loaderName === undefined ? '' : '\n' + skillDiscoveryLine(loaderName)),
+    compatibilityPolicy);
+  ctx.systemPrompt.section({ name: 'deep-ptc:tool-compatibility', order: 10194, text: policyText });
   ctx.systemPrompt.context({ name: 'deep-ptc:tool-recovery', order: 122, text: failOpen(ctx, 'tool recovery context', context => state.text(context), '') });
   ctx.tools.guard(guard);
   ctx.on('tools/execute', (exec, next) => {
