@@ -28,17 +28,6 @@ const ROLE_EXAMPLES = [
   { id: 'cloud-security-architect', zh: '云安全与凭证/注入风险', en: 'cloud security, credential and injection risk' },
 ]
 
-/**
- * Role ids the text advertises.
- *
- * Kept as an export because the examples are a contract with the shipped
- * roster, not decoration: a test reads the bundle and compares.
- * @returns {string[]}
- */
-export function routingPresets() {
-  return ROLE_EXAMPLES.map((row) => row.id)
-}
-
 function roleLines(locale) {
   return ROLE_EXAMPLES.map((row) => {
     const text = locale === 'zh' ? row.zh : row.en
