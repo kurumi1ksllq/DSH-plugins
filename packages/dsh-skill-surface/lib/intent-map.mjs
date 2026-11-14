@@ -21,7 +21,14 @@ export const INTENTS = [
   { id: 'testing', words: ['测试', '单测', '用例', '覆盖率', '回归', 'tdd', 'test'], skills: ['tdd-workflow', 'test-coverage', 'python-testing', 'react-testing'] },
   { id: 'security', words: ['鉴权', '认证', '授权', '安全', '密钥', '漏洞', '注入', 'xss', 'csrf', 'security', 'auth'], skills: ['security-review', 'agent-security-hardening'] },
   { id: 'ui', words: ['样式', '美化', '配色', '圆角', '间距', '字体', '界面', '布局', '设计稿', 'css', 'ui', 'ux'], skills: ['make-interfaces-feel-better', 'design-system', 'frontend-design-direction', 'accessibility'] },
-  { id: 'frontend', words: ['react', 'vue', 'nuxt', 'vite', 'next', 'jsx', 'tsx', '组件', '前端'], skills: ['react-patterns', 'vue-patterns', 'frontend-patterns', 'react-performance'] },
+  // Families are mutually exclusive: suggesting react-patterns for a Vue task is
+  // exactly the noise that gets a hint ignored (domains.mjs learned this first).
+  { id: 'frontend', words: ['react', 'vue', 'nuxt', 'vite', 'next', 'jsx', 'tsx', '组件', '前端'],
+    stacks: {
+      react: ['react-patterns', 'react-performance', 'frontend-patterns'],
+      vue: ['vue-patterns', 'frontend-patterns'],
+      generic: ['frontend-patterns'],
+    } },
   { id: 'database', words: ['数据库', '迁移', '索引', '事务', 'sql', 'postgres', 'mysql', 'schema'], skills: ['database-migrations', 'postgres-patterns', 'mysql-patterns'] },
   { id: 'api', words: ['接口', '端点', 'api', 'rest', 'graphql'], skills: ['api-design', 'backend-patterns'] },
   { id: 'ops', words: ['部署', '镜像', '容器', '流水线', 'docker', 'k8s', 'kubernetes', 'ci', 'deploy'], skills: ['deployment-patterns', 'docker-patterns'] },
@@ -30,6 +37,13 @@ export const INTENTS = [
 
 /** Most names one fallback answer may carry. */
 export const MAX_CANDIDATES = 5
+
+/** Which frontend family a request names; defaults to the generic one. */
+function family(lowered) {
+  if (occurs('react', lowered) || occurs('jsx', lowered) || occurs('tsx', lowered) || occurs('next', lowered)) return 'react'
+  if (occurs('vue', lowered) || occurs('nuxt', lowered)) return 'vue'
+  return 'generic'
+}
 
 /** Whether one word occurs; ASCII words respect word edges like ./domains.mjs. */
 function occurs(word, text) {
@@ -52,7 +66,10 @@ export function intentCandidates(text, available) {
   const out = []
   for (const intent of INTENTS) {
     if (!intent.words.some(word => occurs(word, lowered))) continue
-    for (const name of intent.skills) {
+    // A stack-aware intent picks one family, so a Vue task never opens with React.
+    const skills = intent.stacks === undefined ? intent.skills
+      : intent.stacks[family(lowered)] ?? intent.stacks.generic
+    for (const name of skills) {
       if (!have.has(name) || out.includes(name)) continue
       out.push(name)
       if (out.length >= MAX_CANDIDATES) return out

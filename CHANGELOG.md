@@ -55,6 +55,12 @@ test-only changes are exempt.
 第一版的上限与空文本测试**抓不住问题**(去掉上限仍 6/6 绿),已改为让 catalog 覆盖全部表内技能、
 并断言候选数恰好等于上限。
 
+**自查发现的缺陷(提交前修掉)**:第一版 `frontend` 意图把 4 个技能写成一个平铺列表,
+于是「用 vue 写个组件」会**先推 `react-patterns`** —— 与 `domains.mjs` 早已用 `stacks` 解决的
+问题同型(给 Vue 任务推 React 技能正是让人忽略提示的噪声)。改为栈感知:
+react/jsx/tsx/next → react 族,vue/nuxt → vue 族,其余 → generic。新增 3 条测试,
+反向验证(去掉栈区分)实测变红 2 条。
+
 
 ### dsh-skill-surface 0.3.1 — 卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap(#203 / #204)
 

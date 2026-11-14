@@ -1,8 +1,8 @@
 {
   "issue": 206,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-14T09:15:11.376+00:00",
+  "stage": "review",
+  "updatedAt": "2026-11-14T09:21:29.927+00:00",
   "tickets": [
     {
       "id": 1,
@@ -31,7 +31,7 @@
     "status": "none"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {

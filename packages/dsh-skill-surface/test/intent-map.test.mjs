@@ -57,3 +57,25 @@ test('candidates are capped so the hint stays a hint', () => {
   const got = intentCandidates('测试 样式 鉴权 部署 迁移 接口 react', all);
   assert.equal(got.length, 5, `expected the cap, got ${got.length}`);
 });
+
+test('a Vue request does not lead with React skills', () => {
+  // domains.mjs already learned this: suggesting react-patterns for a Vue task is
+  // exactly the noise that gets a hint ignored. The fallback must not regress it.
+  const all = catalog('react-patterns', 'vue-patterns', 'frontend-patterns', 'react-performance');
+  const got = intentCandidates('用 vue 写个组件', all);
+  assert.equal(got[0], 'vue-patterns', `expected vue first, got ${got.join(',')}`);
+  assert.ok(!got.includes('react-patterns'), 'React skills must not appear for a Vue request');
+});
+
+test('a React request does not lead with Vue skills', () => {
+  const all = catalog('react-patterns', 'vue-patterns', 'frontend-patterns', 'react-performance');
+  const got = intentCandidates('用 react 写个组件', all);
+  assert.ok(got.includes('react-patterns'));
+  assert.ok(!got.includes('vue-patterns'), 'Vue skills must not appear for a React request');
+});
+
+test('an unspecified frontend request leads with the generic family', () => {
+  const all = catalog('react-patterns', 'vue-patterns', 'frontend-patterns');
+  const got = intentCandidates('写个前端组件', all);
+  assert.equal(got[0], 'frontend-patterns');
+});
