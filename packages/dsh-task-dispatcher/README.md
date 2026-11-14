@@ -12,9 +12,13 @@
 
 | | 继承型子 agent | `agent_preset: planner` |
 | --- | --- | --- |
-| 工具总数 | **57** | **27** |
+| 工具总数 | **56** | **28** |
 | `read/write/edit/glob/grep` | 5/5 | **0/5** |
 | `subagent` / `subagent_fork` | 有 | **无** |
+
+> 数字口径:上表是 **2026-11-14 本机实测**(`node -v` 24.15.0,DSH 0.2.2-rc.1,每个子 agent 自报工具清单)。
+> #194 记录的是 **2026-11-12 的 57 / 27**;两次测量之间宿主组合多/少了一个工具,
+> 结论方向不变(挂 preset 即丢全部文件工具)。引用时请连日期一起引。
 
 `dsh-web-app` 在宿主平面把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true`,改由每个 preset 自带;而 `ecc-agent-presets` 的 133 个 preset 每个只声明一行 `@deepseek-ai/dsh-persona`(实测 133/133)。于是「委派给 preset X」拿到的是一个只有 bash 的空壳,干不了活,也不能再往下派。
 

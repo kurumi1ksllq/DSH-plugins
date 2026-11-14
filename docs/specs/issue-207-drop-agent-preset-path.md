@@ -75,7 +75,9 @@ grade: standard
 
 ## 四件套
 
-- `pnpm test`:**104 / 104 通过**,exit 0(全仓 `node --test`,含两个改动包)。
+- `pnpm test`:exit 0。**全仓 1518 条,0 红**(根 `node --test test/*.test.mjs` 104 条;8 个包各 227/199/249/108/81/29/4/517,合计 1414)。
+  复现:`pnpm test > /tmp/t.log 2>&1; echo $?` 然后 `grep -E "ℹ (tests|fail)" /tmp/t.log`。
+  (旧写法只写「104/104」,那是**根套件**的数,不是全仓 —— 轴2 P7 指出后已更正。)
 - `pnpm verify`:bundles ok 8 checked;两条 `untagged version` 是**待打 tag 的提示**,非失败。
 - `node packages/dsh-deep-ptc-mode/scripts/check.mjs`:exit 0(派生与官方快照一致,`peerPackages: 3`)。
 ## 双轴 review 裁决

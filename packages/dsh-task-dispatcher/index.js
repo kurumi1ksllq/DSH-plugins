@@ -5,7 +5,7 @@
 // through systemPrompt.section/context, never through event payloads). The
 // segment text carries two headings:
 //   1. delegation discipline (lanes: startup questions, lanes, stop line, dedupe,
-//      waiting/polling) + the declarative routing table (lib/delegation-text.mjs)
+//      waiting/polling) + the role table (lib/delegation-text.mjs)
 // The segment appears for the lead agent and every teammate alike, because
 // teammates join the parent's composition via composeFrom.
 //
@@ -13,7 +13,8 @@
 // ROLE: role_search finds one, delegate_role starts a child that INHERITS this
 // agent's full composition and receives the role's persona as its opening
 // message. Naming an agent preset instead would replace the child's whole
-// composition -- measured 27 tools vs 57, with no file tools at all.
+// composition, leaving no file tools at all (see the measurement note in
+// README.md; #207 removed that path rather than merely discouraging it).
 //
 // Locale note: fixed to zh (the operator's working language in this
 // deployment); the en dictionary in lib/delegation-text.mjs is reserved until
