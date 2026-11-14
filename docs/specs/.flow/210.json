@@ -1,0 +1,45 @@
+{
+  "issue": 210,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-14T12:19:40.130+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "同义词表:18 个键全部命中真实角色(测试守护)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "注入文本:去掉零命中领域词 + 示例加入实现类角色",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "根 README 与包内 README 口径一致",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "测试名册 = 运行时名册(133 + profile 5)",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "CHANGELOG 注脚按打 tag 后实况更新 + 版本/文档",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

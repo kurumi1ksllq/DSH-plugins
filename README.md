@@ -20,7 +20,7 @@
 | [`packages/dsh-inventory`](packages/dsh-inventory) | `dsh-inventory` | 安装清单 + 工作区 MCP/skill 开关 + 工具归属反查（含 `inventory-gate` 第二行）；**插件页上每个本仓库插件的详情页头部有「更新」按钮**（免重启生效） |
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-deep-ptc-mode`](packages/dsh-deep-ptc-mode) | `dsh-deep-ptc-mode` | 深度 PTC 会话模式（preset 插件）：执行环境选择（含 Git Bash 替换）、失速治理双引擎（结论锚点/软切拦截） |
-| [`packages/dsh-task-dispatcher`](packages/dsh-task-dispatcher) | `dsh-task-dispatcher` | 委派纪律 + 子 agent 路由表注入（主 agent 与 teammate 同效），让模型按任务内容选 `agent_preset` |
+| [`packages/dsh-task-dispatcher`](packages/dsh-task-dispatcher) | `dsh-task-dispatcher` | 委派纪律 + 角色表注入（主 agent 与 teammate 同效），用 `role_search` 找角色、`delegate_role` 派出带专才人格且工具齐全的子 agent |
 | [`packages/ecc-agent-presets`](packages/ecc-agent-presets) | `ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle（默认不进 UI 名册，启用即整体回归） |
 | [`packages/dsh-skill-surface`](packages/dsh-skill-surface) | `dsh-skill-surface` | 只把官方 skill 发现器(provider)补挂到宿主平面;加载器由本包自带且仅对没有官方 skill 的 agent 可见,并支持委派时 `skills: a,b` 点名注入 |
 

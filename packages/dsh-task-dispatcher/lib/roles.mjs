@@ -44,14 +44,14 @@ export const SYNONYMS = {
   后端: ['api-platform'],
   重构: ['refactor', 'cleanup'],
   审查: ['reviewer'],
-  迁移: ['migration'],
+  迁移: ['data-engineer', 'database'],
   部署: ['deploy', 'deployment', 'release', 'devops', 'sre', 'infra'],
   架构: ['architect'],
   计划: ['planner', 'sprint-prioritizer', 'planning'],
   调试: ['troubleshoot'],
   构建: ['build-resolver', 'compil'],
   代码: ['code-architect', 'code-explorer', 'codebase'],
-  工程: ['engineering'],
+  工程: ['platform-engineer', 'api-platform'],
 }
 
 // Frozen: an importer must not be able to change global search behaviour.
