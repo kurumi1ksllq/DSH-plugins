@@ -82,11 +82,19 @@ test('the text says how to reach the whole roster instead of listing five preset
     examples.length < ids.size,
     'the table is examples, not a whitelist: ' + examples.length + ' of ' + ids.size,
   )
+  // Scoped to the bullet that carries the instruction, not the whole document:
+  // a document-wide regex stays green after the clause is gone, because a
+  // sibling bullet often contains the same words (the lesson behind
+  // bundle.test.mjs's bulletWith helper).
   for (const [locale, discovery] of [
     ['zh', /无 query|不带 query|不传 query|列出全部/],
     ['en', /no query|without a query|omit the query|every role/i],
   ]) {
-    assert.match(renderDelegationText(locale), discovery,
-      locale + ': the text must say how to enumerate the rest of the roster')
+    const bullet = renderDelegationText(locale)
+      .split('\n')
+      .find((line) => line.startsWith('- `role_search`'))
+    assert.ok(bullet, locale + ': the enumeration rule must be its own role_search bullet')
+    assert.match(bullet, discovery,
+      locale + ': that bullet must say how to enumerate the rest of the roster')
   }
 })
