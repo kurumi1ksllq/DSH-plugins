@@ -67,7 +67,12 @@ test('role delegation is routed through role_search and delegate_role only', () 
 test('the text names role examples that exist in the shipped roster', async () => {
   const ids = await shippedRoleIds()
   const examples = roleExampleIds(renderDelegationText('zh'))
-  assert.ok(examples.length >= 3, 'the text must show enough examples to make the choice concrete')
+  // A lower bound alone is vacuous: listing all 133 roles would also pass.
+  // Pin the band so the table stays a short set of examples.
+  assert.ok(
+    examples.length >= 3 && examples.length <= 12,
+    'the role table must stay a short example set, got ' + examples.length,
+  )
   for (const id of examples) {
     assert.ok(ids.has(id), id + ' is advertised in the injected text but is not in the shipped roster')
   }

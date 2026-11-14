@@ -32,14 +32,18 @@ test('tool-subagent row exists as the spawn-side delegation target', () => {
 // the whitelist goes away entirely and the row is inherited unchanged.
 // ---------------------------------------------------------------------------
 
-test('no agent_preset surface survives: the shell-child path is unreachable', async () => {
-  const model = await readFile(join(PKG, 'lib/model.mjs'), 'utf8')
-  assert.doesNotMatch(model, /allowedAgentPresets/, 'derive must not stamp allowedAgentPresets any more')
-  assert.doesNotMatch(model, /DELEGATION_PRESET_WHITELIST/, 'the whitelist constant must be gone, not just unused')
-
-  // The injected text is asserted where it is rendered (dsh-task-dispatcher
-  // test/role-routing.test.mjs): scanning this file's source would match its
-  // own explanatory comments and prove nothing about what the model sees.
+test('the whitelist is gone from the module public surface', async () => {
+  // A public export, so its removal is observable behaviour, not an internal
+  // detail: the old name must not come back as an export someone could wire
+  // up again. Deliberately NOT a source-text scan -- a scan would also match
+  // this file's own explanatory comments, and the repo rule is to assert
+  // public behaviour and output, not source spelling.
+  const model = await import('../lib/model.mjs')
+  assert.equal(
+    Object.hasOwn(model, 'DELEGATION_PRESET_WHITELIST'),
+    false,
+    'the whitelist constant must not be exported again',
+  )
 })
 
 test('derive leaves the spawn-side row exactly as the official declaration has it', async () => {
@@ -57,6 +61,22 @@ test('derive leaves the spawn-side row exactly as the official declaration has i
     false,
     'derivation must not report a whitelist wrap it no longer performs',
   )
+})
+
+test('no row anywhere in the derived preset carries allowedAgentPresets', async () => {
+  // The source scan above only proves this package stopped stamping the key.
+  // The key is what makes dsh-tool-subagent spread `agent_preset` into its
+  // schema, so a stray copy elsewhere in the composition (a preset row, a
+  // future patch) would silently bring the shell path back while every other
+  // assertion stayed green. Walk the whole derived tree, including groups.
+  const { deriveDeepPtc, walkRows } = await import('../lib/model.mjs')
+  const upstream = JSON.parse(JSON.stringify(snapshot))
+  const { preset } = deriveDeepPtc(upstream, { environment: 'wsl', wslDistribution: '' }, 'win32')
+  const carriers = []
+  walkRows(preset.plugins, (row) => {
+    if (row?.config !== undefined && Object.hasOwn(row.config, 'allowedAgentPresets')) carriers.push(row.id ?? row.name)
+  })
+  assert.deepEqual(carriers, [], 'no derived row may carry allowedAgentPresets: ' + carriers.join(', '))
 })
 
 test('package manifest keeps its dsh engine declaration', async () => {

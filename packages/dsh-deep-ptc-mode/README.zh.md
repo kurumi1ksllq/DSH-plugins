@@ -32,9 +32,9 @@
 - **1.9.0** —— 5007 行的 governor 按声明块等价拆成六个模块（peer / core / anchor / settings / softcut / apply），声明体逐字未改。
 - **1.10.0** —— `environment: git-bash`、按官方 shell 行自动识别、事件驱动刷新（5 秒 loader 信号，30 秒兜底轮询）、设置原子写，以及 locale 基建。
 - **1.11.0 / 1.11.1 / 1.11.2** —— 设置与模型文案双语化，新增 `copyLocale` 开关；执行纪律文案改成 zh/en 共用的单源字典。
-- **1.15.0** —— 撤掉 1.12.0 的 `allowedAgentPresets` 打点：`agent_preset` 派出的子 agent 无文件工具、无人格，现让这条坏路不可达，换角色只走 `dsh-task-dispatcher` 的 `delegate_role`（#207）。
 - **1.12.0** —— spawn 侧委派行确定性附加 `allowedAgentPresets`，向 `subagent` 暴露 `agent_preset` 参数（1.15.0 已撤）。
 - **1.13.0 / 1.13.1** —— 跟随 `dsh-auto-delegation` → `dsh-task-dispatcher` 更名的接线收尾；可选测试前置（React、YAML 解析器）缺失时按可操作理由跳过，而不是加载期崩溃。
+- **1.15.0** —— 撤掉 1.12.0 的 `allowedAgentPresets` 打点：`agent_preset` 派出的子 agent 无文件工具、无人格，现让这条坏路不可达，换角色只走 `dsh-task-dispatcher` 的 `delegate_role`（#207）。
 
 逐版细节见 [CHANGELOG.md](CHANGELOG.md)。
 

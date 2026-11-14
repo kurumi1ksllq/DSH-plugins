@@ -32,9 +32,9 @@ This repository carries the 1.15.0 line. The mechanism sections below were writt
 - **1.9.0** — the 5007-line governor was split into six modules (peer / core / anchor / settings / softcut / apply) with byte-identical declaration bodies.
 - **1.10.0** — `environment: git-bash`, automatic detection of the official shell rows, event-driven refresh (5s loader signal, 30s fallback poll), atomic settings writes, and the locale groundwork.
 - **1.11.0 / 1.11.1 / 1.11.2** — bilingual settings and model copy with a `copyLocale` switch; the execution-discipline text became a single zh/en dictionary shared by both languages.
-- **1.15.0** — removes the `allowedAgentPresets` stamping added in 1.12.0: the `agent_preset` argument produced a child with no file tools and no persona, so the shell path is now unreachable and role delegation goes through `dsh-task-dispatcher`'s `delegate_role` only (#207).
 - **1.12.0** — deterministic `allowedAgentPresets` on the spawn-side delegation row, exposing the `agent_preset` parameter to `subagent` (reverted in 1.15.0).
 - **1.13.0 / 1.13.1** — wiring follow-ups for the `dsh-auto-delegation` → `dsh-task-dispatcher` rename; optional test prerequisites (React, YAML parser) now skip with an actionable reason instead of failing at load time.
+- **1.15.0** — removes the `allowedAgentPresets` stamping added in 1.12.0: the `agent_preset` argument produced a child with no file tools and no persona, so the shell path is now unreachable and role delegation goes through `dsh-task-dispatcher`'s `delegate_role` only (#207).
 
 See [CHANGELOG.md](CHANGELOG.md) for the per-release detail.
 
