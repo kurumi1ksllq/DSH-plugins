@@ -31,7 +31,7 @@ async function install(ctx, config) {
     wire: { viewSchema: schema, view: state => state, summary: false } });
   ctx.effect(() => () => projection.dispose());
   const directory = toolDirectory(() => ctx.get('loader'), { modules: config.officialModules, base: ctx.baseUrl });
-  const state = installToolCompatibility(ctx, { preferences: config.preferences, directory, storage: {
+  const state = installToolCompatibility(ctx, { preferences: config.preferences, directory, skillProvider: config.skillProvider, storage: {
     read: session => projection.stateOf(session),
     write: (session, value) => appendPluginRecord(session, STATE_EVENT, value),
   } });

@@ -9,7 +9,58 @@ into `pnpm verify`): **changing a bundle's code requires bumping its version**.
 A bundle whose shipped files changed after its last release tag fails the gate;
 test-only changes are exempt.
 
+
 ## Unreleased
+
+### dsh-deep-ptc-mode 1.14.0 — 让 agent 看得见 skill,把「该不该加载」交回 agent(#206)
+
+> 本包改动:新增 `skillDiscoveryLine(loader)` 与策略接线。
+
+实测(2026-11-14,418 个会话)推翻了 #201 的一个隐含假设:**「agent 不爱加载 skill」是错的**。
+在本会话(deep-ptc 组合)实测 `await tools.skill({name:'security-review'})` 成功返回 12,610 字正文,
+但生成式 SDK 段只列了 `tool_search`/`tool_describe`;`tool_search({query:'skill'})` 返回空;
+目录里还挂着本会话并不存在的 `skill_get`。**工具是活的,发现链是断的。**
+
+同时实测:目录越长加载率越低(≤20 条 7%,>200 条 2%);跨语言检索不可用
+(中文 query 走 `deep_ptc_tools(action=skills)`,跑测试/鉴权/数据库迁移等 7 个常见请求**全部 0 命中**;
+自研 BM25 同样失败,「部署到生产环境」甚至命中 `openclaw-persona-forge`)。
+
+因此本轮**不实现任何自动挑选算法**,只做两件事:
+
+1. **dsh-deep-ptc-mode 1.14.0**:新增 `skillDiscoveryLine(loader)`,在工具协作策略里点名 agent
+   **实际可调**的加载器,并要求它**自问**当前任务是否属于专项工作。**只有 loader 真的注册了才注入**
+   ——点名一个调不到的工具正是 #206 测到的故障。该行是一条判断指令,不是技能正文(测试锁死 <400 字且无 markdown 标题)。
+2. **dsh-skill-surface 0.4.0**:新增 `lib/intent-map.mjs` 中文意图兜底表。仅在 `skill_get` 的
+   query **零词法命中**时提供候选,**每个候选必须存在于当前 catalog**,陈旧行不会点名未安装的技能。
+   它是兜底,不是搜索引擎;判断权仍在 agent。
+
+反向验证(每条实测变红):去掉 loader 存在性判断 / 把发现行改成注入正文 / 不校验 catalog /
+去掉候选上限 / 去掉非字符串守卫 —— 均按预期变红。
+
+**未验证**:本机 Node 18.19.1(仓库要求 ≥22),deep-ptc 有 5 个测试因 `import ... with { type: 'json' }`
+语法不支持而失败,该 5 个失败在 main 基线上同样存在,与本改动无关。生效需用户手动重启 DSH。
+
+### dsh-skill-surface 0.4.0 — 中文意图兜底映射(#206)
+
+`skill_get` 的 query 走词法匹配,而技能描述是英文、用户提问是中文:实测 272 条 catalog 上,
+跑测试 / 单元测试 / 样式 / 鉴权 / 数据库迁移 / 部署 / 代码安全审查 **全部 0 命中**。
+新增 `lib/intent-map.mjs`(8 个意图、约 70 个中文词 → 技能名),**仅在零词法命中时**提供候选。
+
+- **每个候选必须存在于当前 catalog**:陈旧行不会点名未安装的技能(测试:表里写 `python-testing`,
+  catalog 没有 → 不返回)。
+- **候选上限 5**:这是提示,不是阅读清单。
+- **它是兜底,不是搜索引擎,也不自动注入正文**:判断权仍在 agent——这是与 #201「不做自动注入」一致的结论。
+
+反向验证:不校验 catalog / 去掉上限 / 去掉非字符串守卫 —— 均实测变红。
+第一版的上限与空文本测试**抓不住问题**(去掉上限仍 6/6 绿),已改为让 catalog 覆盖全部表内技能、
+并断言候选数恰好等于上限。
+
+**自查发现的缺陷(提交前修掉)**:第一版 `frontend` 意图把 4 个技能写成一个平铺列表,
+于是「用 vue 写个组件」会**先推 `react-patterns`** —— 与 `domains.mjs` 早已用 `stacks` 解决的
+问题同型(给 Vue 任务推 React 技能正是让人忽略提示的噪声)。改为栈感知:
+react/jsx/tsx/next → react 族,vue/nuxt → vue 族,其余 → generic。新增 3 条测试,
+反向验证(去掉栈区分)实测变红 2 条。
+
 
 ### dsh-skill-surface 0.3.1 — 卡片标题如实反映行为 + 无 agent 时不再抛 WeakMap(#203 / #204)
 
@@ -390,7 +441,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> 本段现有 47 个条目:44 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.3.1`（合并后打）与 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。计数按 `git tag -l` 实测重算（2026-11-13），此前那句把已有 tag 的 `dev-flow@0.7.1`/`dev-flow@0.8.0`/`dsh-skill-surface@0.3.0` 一并算作缺失，是过期事实。待下一次统一归档至 History 段。
+> 本段现有 49 个条目:44 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.3.1`（合并后打）与 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。计数按 `git tag -l` 实测重算（2026-11-13），此前那句把已有 tag 的 `dev-flow@0.7.1`/`dev-flow@0.8.0`/`dsh-skill-surface@0.3.0` 一并算作缺失，是过期事实。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

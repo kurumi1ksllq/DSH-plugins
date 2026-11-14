@@ -1,0 +1,40 @@
+{
+  "issue": 206,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-14T09:21:29.927+00:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "deep-ptc: skill 工具在检索索引中可达",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "deep-ptc: 每轮判断提示(不含正文)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "skill-surface: 中文意图兜底映射",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "两包测试 + 四件套",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

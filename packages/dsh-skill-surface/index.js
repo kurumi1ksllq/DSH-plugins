@@ -22,6 +22,7 @@ import { looksLikeNudge, matchDomains, nudgeLine, shortlist } from './lib/domain
 import { hostApi } from './lib/host-api.mjs'
 import { LOADER, hintText, indexLine } from './lib/catalog-hint.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
+import { intentCandidates } from './lib/intent-map.mjs'
 
 export const name = 'dsh-skill-surface'
 
@@ -159,7 +160,17 @@ function bodyFor(skill, agent, api) {
 function listing(scope, lookup, api, args, agent) {
   return scope.skills.snapshot(lookup).then(async (snapshot) => {
     const matched = matchedSkills(snapshot, api, args?.query)
-    if (matched.length === 0) return { text: NO_MATCH }
+    if (matched.length === 0) {
+      // Lexical matching cannot cross from a Chinese request to an English skill
+      // description: measured zero hits for 跑测试/鉴权/数据库迁移 on the live
+      // 272-entry catalog (issue-206). The curated table is a fallback, not a
+      // search engine — every name it offers must exist in THIS snapshot, so a
+      // stale row can never name a skill the install does not ship.
+      const available = new Set(snapshot.skills.filter((skill) => api.isModelInvocable(skill)).map((skill) => skill.name))
+      const guesses = intentCandidates(args?.query, available)
+      if (guesses.length === 0) return { text: NO_MATCH }
+      return { text: ['没有直接匹配的技能。以下可能相关(按名字精确取):', '', ...guesses.map((name) => '- ' + name)].join('\n') }
+    }
     const asked = typeof args?.query === 'string' && args.query.trim() !== ''
     // A single hit IS the answer: return the body, not a one-row index — but a
     // snapshot row is a SkillSummary and carries NO content (dsh-skill
