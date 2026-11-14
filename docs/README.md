@@ -11,6 +11,7 @@
 | [CHANGELOG.md](../CHANGELOG.md) | 每个 bundle 的版本条目与发布纪律 | 改包、升版本、查某版改了什么 |
 | [update-scheme.md](update-scheme.md) | 插件可靠更新方案:运行时机制、L1/L2 事务器、回退 | 要更新已装插件 / 排查「改完没生效」 |
 | [update-checkout.md](update-checkout.md) | 权威 checkout 统一方案的执行记录 | 排查 profile 到底加载了哪份代码 |
+| [prompt-injection-inventory.md](prompt-injection-inventory.md) | 新设备安装后应得到的提示词注入清单;哪些由插件自带、哪些不该依赖全局 AGENTS.md | 换机器部署 / 核对插件是否自带提示词 / 判断某条规则该写在哪里 |
 | [specs/.flow/](specs/.flow/) | 任务板状态文件(运行时状态,随分支走;不代表功能仍然存在) | 看 TDD / CI / review 的内部进度 |
 | [packages/dev-flow/FLOW.md](../packages/dev-flow/FLOW.md) | 流程规程全文(TDD、双轴 review、状态文件、merge 闸) | 进入 dev-flow 后按需读 |
 

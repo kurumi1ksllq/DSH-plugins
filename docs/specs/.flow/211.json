@@ -1,0 +1,35 @@
+{
+  "issue": 211,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-14T12:36:20.014+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "dispatcher 注入段补齐:质量红线 + 检索纪律 + 效率细则",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "契约测试:这些条款必须由插件注入(删掉即红)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "新设备安装清单 + 全局文件瘦身建议(需用户确认)",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
