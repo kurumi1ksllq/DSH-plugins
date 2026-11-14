@@ -2,11 +2,12 @@
 // subagent ROLES.
 //
 // Why this exists (#194): a preset is a whole agent composition, not a persona
-// label. Naming one in a delegation replaces the child's entire tool set —
-// measured on DSH 0.2.2-rc.1, an `agent_preset: planner` child had 27 tools and
-// none of read/write/edit/glob/grep, while an inherited child had 57. The 133
-// ECC presets are persona-only shells, so "delegate to preset X" produced a
-// tool-less agent that could not do the work.
+// label. Naming one in a delegation replaces the child's entire tool set. The
+// 133 ECC presets are persona-only shells, so "delegate to preset X" produced a
+// tool-less agent that could not do the work. Measured twice, same direction:
+// 2026-11-12 @ #194 gave 27 vs 57 tools; 2026-11-14 @ #207 gave 28 vs 56 (the
+// host composition gained a tool in between). Neither measurement is current
+// behaviour — #207 removed the preset path, so only the direction is stable.
 //
 // This module keeps the role *identity* (id/name/description) and the role
 // *text* (the persona the registry holds) but never asks the host to compose a
