@@ -22,7 +22,6 @@ import { renderDelegationText } from '../lib/delegation-text.mjs'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = join(HERE, '..', '..', '..')
 const ECC_PATCH = join(REPO, 'packages', 'ecc-agent-presets', 'cordis.patch.yml')
-const PROFILE_PATCH = join(REPO, '..', '.dsh', 'profiles', 'web', 'cordis.patch.yml')
 
 /**
  * The roster role_search sees at runtime: the ECC bundle PLUS the profile-resident
@@ -31,30 +30,17 @@ const PROFILE_PATCH = join(REPO, '..', '.dsh', 'profiles', 'web', 'cordis.patch.
  * @returns {Promise<Array<{id: string, name: string, description: string}>>}
  */
 async function liveRoster() {
+  // Deliberately repo-local. The shipped ecc-agent-presets bundle is what a new
+  // machine installs, so every keyword and every advertised example must resolve
+  // against it alone. An earlier version also read the deployment profile
+  // (~/.dsh/...): that passed locally and failed on CI, which is the same
+  // 'works only on my machine' trap as a rule living in a global AGENTS.md.
   const doc = yaml.load(await readFile(ECC_PATCH, 'utf8'))
-  const rows = doc[0].insert.map((row) => ({
+  return doc[0].insert.map((row) => ({
     id: row.config.id,
     name: row.config.name,
     description: row.config.description ?? '',
   }))
-  // The profile patch is outside the repository; skip it rather than fail a
-  // clean checkout that has no deployment attached. Its preset rows live inside
-  // `insert` blocks, not at the top level -- reading only the top level silently
-  // produced a 133-row roster and made a legitimate id look absent.
-  try {
-    const profile = yaml.load(await readFile(PROFILE_PATCH, 'utf8'))
-    for (const block of Array.isArray(profile) ? profile : []) {
-      for (const row of Array.isArray(block?.insert) ? block.insert : []) {
-        if (row?.name !== '@deepseek-ai/dsh-agent-preset') continue
-        const config = row.config
-        if (config?.id === undefined) continue
-        rows.push({ id: config.id, name: config.name ?? config.id, description: config.description ?? '' })
-      }
-    }
-  } catch {
-    // No profile on this machine: the bundle alone is the roster.
-  }
-  return rows
 }
 
 test('every advertised Chinese keyword finds at least one role', async () => {

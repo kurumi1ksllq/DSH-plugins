@@ -32,7 +32,7 @@ const ROLE_EXAMPLES = [
   { id: 'api-platform-engineer', zh: '后端 API 契约与网关', en: 'backend API contracts and gateways' },
   { id: 'tdd-guide', zh: '按测试驱动的方式写实现', en: 'writing implementation test-first' },
   // review: an independent second look
-  { id: 'code-reviewer', zh: '通用代码审查', en: 'general code review' },
+  { id: 'typescript-reviewer', zh: 'TypeScript 类型与工程审查', en: 'TypeScript typing and engineering review' },
   { id: 'cloud-security-architect', zh: '云安全与凭证/注入风险', en: 'cloud security, credential and injection risk' },
   { id: 'database-reviewer', zh: '数据库 schema 与查询审查', en: 'database schema and query review' },
   // plan: shape the work before it starts
