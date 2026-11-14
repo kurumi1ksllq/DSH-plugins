@@ -2,6 +2,7 @@ import z from '@deepseek-ai/schemastery';
 import { failOpen, installToolCompatibility, officialToolSource } from './tool-policy.mjs';
 import { importHost } from './host.mjs';
 import { toolDirectory } from './official-names.mjs';
+import { intentFallback } from './skill-intent.mjs';
 import { DIRECTORY_TOOL, RESET_COMMAND, STATE_EVENT, STATE_KEY, blankState, parseState, foldToolState, searchCatalog, toolSchema } from './tool-catalog.mjs';
 
 export const name = 'deep-ptc-tool-compatibility';
@@ -13,6 +14,8 @@ const REQUIRED = ['tools', 'systemPrompt', 'commands', 'sessionProjections'];
 export const Config = z.object({ enabled: z.boolean().default(true), preferences: z.any().default([]),
   compact: z.boolean().default(true), officialModules: z.any().default([]), sdkProvider: z.string().default('@deepseek-ai/dsh-tool-executor-ptc'),
   skillProvider: z.string().default('@deepseek-ai/dsh-tool-skill') });
+
+const SKILL_NOTE = 'Load the exact selected name through the official skill tool, then follow its instructions. Reuse instructions already in context.';
 
 export function apply(ctx, config) {
   if (!config.enabled) return;
@@ -59,8 +62,19 @@ async function install(ctx, config) {
       const workingDirectory = ctx.get('workingDirectory');
       const lookup = { scope: exec.agent, signal: exec.signal, cwd: workingDirectory ? await workingDirectory.ensure(exec.agent, exec.signal) : undefined };
       const entries = (await skills.list(lookup)).filter(isModelInvocable).map(row => ({ name: row.name, description: row.description ?? '' }));
-      return { available: true, ...searchCatalog(entries, args.query, args.offset, args.limit), loadWith: loader.name,
-        note: 'Load the exact selected name through the official skill tool, then follow its instructions. Reuse instructions already in context.' };
+      const found = searchCatalog(entries, args.query, args.offset, args.limit);
+      if (found.total > 0) return { available: true, ...found, loadWith: loader.name, note: SKILL_NOTE };
+      // Zero lexical hits is the COMMON case for a Chinese request: skill
+      // descriptions are English, and measured on the live 272-entry catalog
+      // 跑测试/鉴权/数据库迁移 all returned 0. The curated intent table in
+      // dsh-skill-surface is the only thing that crosses that gap, so consult it
+      // here — this is the path deep-ptc sessions actually use. Optional by
+      // design: without that package the lexical answer stands.
+      const guesses = await intentFallback(args.query, entries, ctx.baseUrl);
+      if (guesses.length === 0) return { available: true, ...found, loadWith: loader.name, note: SKILL_NOTE };
+      return { available: true, total: guesses.length,
+        results: guesses.map(name => ({ name, description: (entries.find(row => row.name === name)?.description ?? '').slice(0, 240) })),
+        nextOffset: null, loadWith: loader.name, viaIntent: true, note: SKILL_NOTE };
     },
   });
   // Only reduce the installed official renderer's untouched generated SDK section.

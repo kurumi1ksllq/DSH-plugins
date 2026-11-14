@@ -93,3 +93,22 @@ test('every matched intent gets at least one candidate before any gets a second'
   assert.ok(got.includes('deployment-patterns'), 'ops intent must be represented');
   assert.ok(got.length <= 5, `cap must hold, got ${got.length}`);
 });
+
+test('a non-security 注入 does not reach the security skills', () => {
+  // domains.mjs learned this first: 'ctx.inject' and '点名注入' are NOT attacks.
+  const all = catalog('security-review', 'agent-security-hardening');
+  assert.deepEqual(intentCandidates('ctx.inject 的注入顺序', all), []);
+  assert.deepEqual(intentCandidates('skills: a,b 点名注入', all), []);
+});
+
+test('a real attack phrase still reaches the security skills', () => {
+  const all = catalog('security-review', 'agent-security-hardening');
+  assert.ok(intentCandidates('修复 SQL 注入漏洞', all).includes('security-review'));
+  assert.ok(intentCandidates('加固鉴权', all).includes('security-review'));
+});
+
+test('the exclusion is per word, not per sentence', () => {
+  // A sentence can legitimately mention ctx.inject AND a real attack surface.
+  const all = catalog('security-review', 'agent-security-hardening');
+  assert.ok(intentCandidates('ctx.inject 之外还要加固鉴权', all).includes('security-review'));
+});

@@ -25,7 +25,7 @@ export function skillDiscoveryLine(loader) {
   // exact failure this line exists to prevent. An empty name yields an empty line.
   const name = typeof loader === 'string' ? loader : '';
   if (name === '') return '';
-  return '- Skills: `tools.' + name + '` loads one skill body by exact name. At the start of a task, ask yourself whether it is specialist work (security, testing, UI, database, deployment, framework, review). If it is, call `deep_ptc_tools(action=skills)` to find the exact name, then load it before acting. Skip it for trivial edits. Never paste a body to decide this.';
+  return '- Skills: ask yourself if this is specialist work (security, testing, UI, database, deploy, review); if so, find it via `deep_ptc_tools(action=skills)` and load with `tools.' + name + '`. Skip trivial.';
 }
 export const compatibilityPolicy = `## Efficient tool cooperation
 - Search available external capabilities by function using deep_ptc_tools. Load only matching definitions; then use their actual schemas. If none fit, use an admitted official PTC tool. Provider discovery/loaders remain authoritative for provider-specific SDKs.

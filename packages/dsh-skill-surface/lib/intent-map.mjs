@@ -19,7 +19,23 @@
 /** Intents worth mapping. Order inside a row is preference order. */
 export const INTENTS = [
   { id: 'testing', words: ['测试', '单测', '用例', '覆盖率', '回归', 'tdd', 'test'], skills: ['tdd-workflow', 'test-coverage', 'python-testing', 'react-testing'] },
-  { id: 'security', words: ['鉴权', '认证', '授权', '安全', '密钥', '漏洞', '注入', 'xss', 'csrf', 'security', 'auth'], skills: ['security-review', 'agent-security-hardening'] },
+  // Bare 注入 is ambiguous in this repository — it far more often means a
+  // NON-security injection ("skills: a,b 点名注入", "ctx.inject", "prompt 注入").
+  // Measured on 49 historical delegations, only 2 were about an attack surface
+  // (issue-201). domains.mjs resolved this with a per-word exclude list; the
+  // fallback table must not regress it (axis-1 review P1-4).
+  { id: 'security', words: ['鉴权', '认证', '授权', '安全', '密钥', '漏洞', '注入', 'xss', 'csrf', 'security', 'auth'],
+    exclude: [
+      { phrase: 'ctx.inject', mutes: ['注入'] },
+      { phrase: 'prompt 注入', mutes: ['注入'] },
+      { phrase: 'prompt注入', mutes: ['注入'] },
+      { phrase: '提示注入', mutes: ['注入'] },
+      { phrase: '提示词注入', mutes: ['注入'] },
+      { phrase: '点名注入', mutes: ['注入'] },
+      { phrase: '依赖注入', mutes: ['注入'] },
+      { phrase: '注入到', mutes: ['注入'] },
+    ],
+    skills: ['security-review', 'agent-security-hardening'] },
   { id: 'ui', words: ['样式', '美化', '配色', '圆角', '间距', '字体', '界面', '布局', '设计稿', 'css', 'ui', 'ux'], skills: ['make-interfaces-feel-better', 'design-system', 'frontend-design-direction', 'accessibility'] },
   // Families are mutually exclusive: suggesting react-patterns for a Vue task is
   // exactly the noise that gets a hint ignored (domains.mjs learned this first).
@@ -37,6 +53,24 @@ export const INTENTS = [
 
 /** Most names one fallback answer may carry. */
 export const MAX_CANDIDATES = 5
+
+/**
+ * Words this text is NOT really about.
+ *
+ * Same rule as ./domains.mjs: a phrase mutes only the word it disambiguates, so
+ * '修复提示注入漏洞,顺便加固鉴权' keeps 鉴权.
+ * @param intent - one INTENTS entry.
+ * @param lowered - the lowercased request.
+ * @returns the words to ignore for this request.
+ */
+function mutedWords(intent, lowered) {
+  const muted = new Set()
+  for (const entry of intent.exclude ?? []) {
+    if (!occurs(entry.phrase.toLowerCase(), lowered)) continue
+    for (const word of entry.mutes ?? []) muted.add(word)
+  }
+  return muted
+}
 
 /** Which frontend family a request names; defaults to the generic one. */
 function family(lowered) {
@@ -68,7 +102,8 @@ export function intentCandidates(text, available) {
   // (measured: [tdd, test-coverage, python-testing, react-testing, security-review]).
   const families = []
   for (const intent of INTENTS) {
-    if (!intent.words.some(word => occurs(word, lowered))) continue
+    const muted = mutedWords(intent, lowered)
+    if (!intent.words.some(word => !muted.has(word) && occurs(word, lowered))) continue
     // A stack-aware intent picks one family, so a Vue task never opens with React.
     families.push(intent.stacks === undefined ? intent.skills
       : intent.stacks[family(lowered)] ?? intent.stacks.generic)

@@ -18,6 +18,23 @@ test-only changes are exempt.
 即 1.14.1 修正的那个缺陷。保留此条是为了让 tag `dsh-deep-ptc-mode@1.14.0` 有对应记录;
 细节见下一条。
 
+### dsh-deep-ptc-mode 1.14.2 — 中文兜底接到 deep-ptc 实际走的通道(轴1 P1-2 修正)
+
+**轴1 的 P1-2 是致命的**:中文意图兜底只加在 `skill_get` 的 `listing()` 里,
+而 deep-ptc 组合下 `skill_get` 被 `when: !hasOfficialLoader` 隐藏 —— 本 issue 的
+全部证据都发生在这个组合里,**兜底表一次也不会执行**。实测
+`deep_ptc_tools({action:'skills', query:'跑测试'})` → `{total:0}`。
+
+修法:`skills` 动作在**零词法命中**时,动态加载 `dsh-skill-surface/intent-map` 并给出候选。
+- **可选依赖**:包不在就跳过,词法结果照旧(与这一层的 fail-open 姿态一致)。
+- **必须从 profile 解析**:裸 specifier 会失败(deep-ptc 不依赖 skill-surface,
+  ESM 从本模块位置解析),改用 `createRequire(ctx.baseUrl)`。
+- **候选必须存在于本次 catalog**:复用 `entries` 校验,陈旧行点不出未安装的技能。
+- 为此给 `dsh-skill-surface` 加了 `./intent-map` 子路径导出。
+
+同时修 P2-5:发现行从 353 字符压到 **194**(spec 承诺「几十字量级」,原测试阈值 400 太松),
+并新增断言**最终 section 文本**而不只是 helper 返回值。
+
 ### dsh-deep-ptc-mode 1.14.1 — 让 agent 看得见 skill,把「该不该加载」交回 agent(#206)
 
 > 本包改动:新增 `skillDiscoveryLine(loader)` 与策略接线。
@@ -69,6 +86,15 @@ reachability / test-t4ptc / tool-compatibility / upstream,均为含 `import ... 
 
 首版发布。当版 `frontend` 意图为平铺列表(未做栈区分),即 0.4.1 修掉的那个缺陷。
 保留此条是为了让 tag `dsh-skill-surface@0.4.0` 有对应记录;细节见下一条。
+
+### dsh-skill-surface 0.4.2 — 注入歧义消解 + 子路径导出(轴1 P1-4)
+
+**P1-4 成立**:兜底表把裸 `注入` 当强词,而 `domains.mjs` 早已用 `exclude` 消歧。
+实测同一 query 两表相反:`ctx.inject 的注入顺序` → intent-map 给 security 技能,
+domains 给空。已把 domains 的 per-word 排除表搬过来(只静音 `注入` 这个词,
+同句其他信号照常计分),并补 3 条测试锁死两个方向。
+
+新增 `./intent-map` 子路径导出,供 deep-ptc 可选加载(见 1.14.2)。
 
 ### dsh-skill-surface 0.4.1 — 中文意图兜底映射(#206)
 
@@ -471,7 +497,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > 本段现有 51 个条目:47 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.14.1`、`dsh-skill-surface@0.4.1`、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+3+1=51。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。:47 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+1+1=49。计数按 `git tag -l` 实测重算（2026-11-14），此前那句点名 `dsh-skill-surface@0.3.1` 缺 tag 已过期（#203 合并时即已打 tag），分项也只改了总数没重算，故一并更正。待下一次统一归档至 History 段。
+> > > 本段现有 53 个条目:49 条有对应 tag;缺 tag 的 3 条为 `dsh-deep-ptc-mode@1.14.2`、`dsh-skill-surface@0.4.2`、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。49+3+1=53。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。:47 条有对应 tag;缺 tag 的 1 条为 `dsh-skill-surface@0.1.0`（早于 tag 纪律）。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。47+1+1=49。计数按 `git tag -l` 实测重算（2026-11-14），此前那句点名 `dsh-skill-surface@0.3.1` 缺 tag 已过期（#203 合并时即已打 tag），分项也只改了总数没重算，故一并更正。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

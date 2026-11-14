@@ -22,9 +22,25 @@ test('the discovery line names the loader the agent can actually call', () => {
 
 test('the discovery line never carries a skill body', () => {
   const line = skillDiscoveryLine('skill');
-  // A body is thousands of characters; a hint is a line.
-  assert.ok(line.length < 400, `discovery line must stay short, got ${line.length}`);
+  // A body is thousands of characters; a hint is one short line. The spec claims
+  // "a few dozen characters", so the ceiling is 200 — not a loose 400 (axis-1 P2-5).
+  assert.ok(line.length < 200, `discovery line must stay under 200, got ${line.length}`);
   assert.doesNotMatch(line, /^#\s/m, 'a markdown heading means a body leaked in');
+});
+
+test('the assembled section stays a hint, not a body', () => {
+  // The cost claim is about the FINAL section text, not just the helper's return.
+  const sections = [];
+  const ctx = {
+    tools: { guard() {}, get() {}, definitions() { return [{ name: 'skill' }]; } },
+    systemPrompt: { section: row => sections.push(row), context() {} },
+    on() {}, effect() {}, logger: { warn() {} },
+  };
+  installToolCompatibility(ctx, { directory: { namesOf: () => new Set(['skill']) }, skillProvider: '@deepseek-ai/dsh-tool-skill' });
+  const text = sections[0].text({ scope: {} });
+  const added = text.length - compatibilityPolicy.length;
+  assert.ok(added > 0, 'the line must actually be added');
+  assert.ok(added < 220, `added text must stay a hint, got ${added}`);
 });
 
 test('the discovery line follows the loader name it is given', () => {
