@@ -1,0 +1,35 @@
+{
+  "issue": 214,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-14T14:04:49.126+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "两条规则搬进插件注入段(zh/en)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "契约测试钉住(删即红)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "版本/CHANGELOG/spec",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

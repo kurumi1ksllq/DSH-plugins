@@ -12,6 +12,19 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.8.0 — 补回两条被误删的规则:禁止 `--no-verify` / dev-server 端口与 PID(#214)
+
+**问题(自查发现)**:#211 把提示词搬进插件后,我按「只删重复」瘦身了 `~/.dsh/AGENTS.md`,
+结果把两条**只存在于全局、任何插件都没覆盖**的规则一起删掉了:
+
+- 禁止 `git push --no-verify`,禁止跳过任何 git hook
+- 启动 dev-server 前先确认端口未被占用;长驻进程须后台化并落盘 PID
+
+逐条 grep 实测:dispatcher 注入文本、仓库 AGENTS.md、deep-ptc 纪律段三者都没有这两条。
+这正是 #211 要消灭的缺陷类型(规则只活在全局 → 换台机器就没了),只是这次是自己制造的。
+
+**改法**:两条搬进注入段(zh/en 同构),并加进 `test/owned-clauses.test.mjs` 契约(删即红)。
+全局文件保持精简,只留本机路径/约定/宿主运维。
 ### dsh-task-dispatcher 0.6.0 — role_search 的两个中文同义词是死的,示例角色清一色 reviewer(#210)
 
 **问题(实测)**:#207 把 `role_search` + `delegate_role` 提为**唯一**换角色通路,于是它点名的每个概念都必须真能命中。
@@ -564,7 +577,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 57 个条目:54 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.7.0`、`dsh-skill-surface@0.1.0`(本批次待合并后打 tag)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。54+2+1=57。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
+> > > 本段现有 58 个条目:55 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.8.0`、`dsh-skill-surface@0.1.0`(本批次待合并后打 tag)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。55+2+1=58。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

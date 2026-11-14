@@ -37,6 +37,10 @@ const OWNED_CLAUSES = [
   ['效率:独立调用并发发出', '并发'],
   // --- destructive-operation gate (already present, kept pinned) ---
   ['安全:破坏性操作先确认', 'rm -rf'],
+  // These two lived only in a global AGENTS.md before #214; a machine that
+  // installs the bundle without that file would lose them.
+  ['安全:禁止 --no-verify / 跳过 hook', 'no-verify'],
+  ['安全:dev-server 端口与 PID 落盘', 'dev-server'],
 ]
 
 test('the plugin carries every clause it depends on', () => {
@@ -61,6 +65,8 @@ test('the English rendering carries the same clauses', () => {
     ['unverified', /unverified/i],
     ['fallback', /fall back|fallback/i],
     ['read before write', /read .*before .*writ/i],
+    ['no --no-verify', /no-verify/i],
+    ['dev-server port', /dev-server/i],
   ]
   const missing = englishClauses.filter(([, pattern]) => !pattern.test(text)).map(([name]) => name)
   assert.deepEqual(missing, [], 'the en rendering is missing: ' + missing.join('; '))
