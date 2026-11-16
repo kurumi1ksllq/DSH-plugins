@@ -41,6 +41,9 @@ const OWNED_CLAUSES = [
   // installs the bundle without that file would lose them.
   ['安全:禁止 --no-verify / 跳过 hook', 'no-verify'],
   ['安全:dev-server 端口与 PID 落盘', 'dev-server'],
+  // --- tool probing (issue-216: a child probed globalThis.tools, got undefined,
+  // and reported 'no skill tool in this session') ---
+  ['探测:用品内 tools 绑定,不用 globalThis', 'globalThis'],
 ]
 
 test('the plugin carries every clause it depends on', () => {
@@ -67,6 +70,7 @@ test('the English rendering carries the same clauses', () => {
     ['read before write', /read .*before .*writ/i],
     ['no --no-verify', /no-verify/i],
     ['dev-server port', /dev-server/i],
+    ['probe via in-scope tools, not globalThis', /globalThis\.tools/i],
   ]
   const missing = englishClauses.filter(([, pattern]) => !pattern.test(text)).map(([name]) => name)
   assert.deepEqual(missing, [], 'the en rendering is missing: ' + missing.join('; '))

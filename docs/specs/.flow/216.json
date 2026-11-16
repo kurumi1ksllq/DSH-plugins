@@ -1,0 +1,35 @@
+{
+  "issue": 216,
+  "grade": "trivial",
+  "stage": "pr",
+  "updatedAt": "2026-11-16T10:47:53.244Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "zh/en 注入文案加工具探测条款",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "契约测试钉住条款",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "升版本 0.9.0",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

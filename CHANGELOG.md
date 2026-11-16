@@ -12,6 +12,17 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.9.0 — 工具探测假阴性:子 agent 用 globalThis.tools 判「无 skill 工具」(#216)
+
+**问题(实测)**:session-e46310c1 派出的 delegate_role 审查子 agent 在 run_code 里用 `globalThis.tools` 探测工具,
+得到 `typeof send_message === 'undefined'`,据此在审查报告里断言「本会话无 skill 工具可加载 react-patterns」,
+全程没有尝试加载任何 skill。但 PTC 运行时的工具注册表是 run_code 的**作用域内绑定 `tools`**,不挂 globalThis——
+同款运行时实测 `typeof tools.skill === 'function'` 而 `globalThis.tools === undefined`。假阴性,结论整个错误。
+
+**改法**:dsh-task-dispatcher 注入段(zh/en 同构)新增「工具探测」纪律:探测用作用域内 `tools` 对象,
+`globalThis.tools` 恒为 undefined,不得作为「工具不存在」的证据;结论必须来自对作用域内 `tools` 的一次实测。
+契约测试钉住条款(删即红)。
+
 ### dsh-task-dispatcher 0.8.0 — 补回两条被误删的规则:禁止 `--no-verify` / dev-server 端口与 PID(#214)
 
 **问题(自查发现)**:#211 把提示词搬进插件后,我按「只删重复」瘦身了 `~/.dsh/AGENTS.md`,
@@ -577,7 +588,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 58 个条目:55 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.8.0`、`dsh-skill-surface@0.1.0`(本批次待合并后打 tag)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。55+2+1=58。计数按 `git tag -l` 实测重算（2026-11-14）。待下一次统一归档至 History 段。
+> > > 本段现有 59 个条目:55 条有对应 tag;缺 tag 的 3 条为 `dsh-task-dispatcher@0.8.0`、`dsh-task-dispatcher@0.9.0`(#216,本条)、`dsh-skill-surface@0.1.0`(本批次待合并后打 tag)。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle，本就不该有 tag。55+3+1=59。计数按 `git tag -l` 实测重算（2026-11-16）。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
