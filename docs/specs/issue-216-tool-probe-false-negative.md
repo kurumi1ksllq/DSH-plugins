@@ -1,6 +1,6 @@
 # issue-216: 子 agent 工具探测假阴性(globalThis.tools)
 
-- **分级**: trivial(单包 2 文件 + 1 测试文件,无接口变更;测试文件免升版,包本身升 patch)
+- **分级**: standard(实测 diff ≥4 个既有文件、+83/-2,超出 FLOW「≤1 文件且 ≤30 行」的 trivial 门槛,#217 轴2 发现初判 trivial 未留证,改判)
 - **issue**: https://github.com/kurumi1ksllq/DSH-plugins/issues/216
 - **分支**: issue-216-tool-probe-false-negative
 
@@ -26,4 +26,5 @@ session-e46310c1 的审查子 agent 04c76b79 在 seq=91/96 用 `globalThis.tools
 3. pnpm test / pnpm verify 全绿(多会话共用 checkout,按需走 verify-clean)
 
 ## 变更点
-(实现中如调整,记录在此)
+- CHANGELOG.md 与 docs/specs/.flow/216.json 两处虽不在变更清单内,分别由版本纪律(check-bundle-versions)与 dev-flow「每节点写状态文件」强制,属流程必有产物,非遗漏。
+- 双轴 review 裁决落地:契约测试钉紧(zh 加「作用域内」断言、en 加 /in-scope/i);CHANGELOG 计数注记按 git tag 实测改为 56 有 tag/缺 2 条;分级改判 standard(留证见首行)。
