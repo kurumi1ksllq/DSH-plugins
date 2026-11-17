@@ -12,6 +12,19 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.13.0 — 技能目录收窄:模型可见 catalog 269 → 16(#221)
+
+**问题(实测)**:`~/.agents/skills` 的 269 个技能被全量挂进每个会话的 catalog,抽查 418 个
+注入过 catalog 的会话,**只有 31 个(7.4%)加载过 skill**;session-b2d5841c 八轮 162 次工具
+调用 0 次 `skill`,用户明说「在必要时刻加载skill」后仍为 0。上游 `docs/subsystems/skills.md`
+确认没有自动加载,正文只能由模型主动调,瓶颈在 catalog 规模而非提醒力度。
+
+**改法**:新增 `lib/skill-selection.js`(`planSelection`/`applySelection`,复用
+`skill-toggle.js` 的外科式 frontmatter 编辑)与 `bin/skill-catalog.mjs`
+(`--root/--keep/--keep-file/--restore/--dry-run/--json`,退出码 0/1/2)。把无关技能标成
+`disable-model-invocation: true`:模型看不见,用户仍可用 `/名字` 调,内容不删不移动,
+`--restore` 一键还原。根脚本 `pnpm skill:catalog`。
+
 ### dsh-skill-surface 0.4.3 — nudge 自报家门 + 委派注入提示(#218)
 
 **问题(实测)**:session-3e82a079 全转录里 skill-nudge 正常触发 3 次,但 skill 工具调用 0 次。
@@ -611,7 +624,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 61 个条目:57 条有对应 tag;缺 tag 的 3 条为 `dsh-skill-surface@0.4.3`(#218,本条,合并后打 tag)、`dsh-task-dispatcher@0.9.1`(#218,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。57+3+1=61。计数按 `git tag -l` 对 Unreleased 全部 61 个 `### ` 标题逐条实测重算(2026-11-17,#218 轴2 修正:旧注记把 #217 合并时已打 tag 的 `dsh-task-dispatcher@0.9.0` 误列为缺 tag,且 58+4+1=63 与总数 61 不自洽)。待下一次统一归档至 History 段。
+> > > 本段现有 62 个条目:59 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.13.0`(#221,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。59+2+1=62。计数按 `git tag -l` 对 Unreleased 全部 62 个 `### ` 标题逐条实测重算(2026-11-18,#221 新增条目后重算;旧注记的 61/57/3 随 #218 合并打 tag 已过期)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
