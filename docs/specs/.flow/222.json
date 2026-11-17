@@ -1,19 +1,19 @@
 {
   "issue": 222,
   "grade": "trivial",
-  "stage": "dev",
-  "updatedAt": "2026-11-18T06:22:21.135+08:00",
+  "stage": "pr",
+  "updatedAt": "2026-11-18T06:32:43.036+08:00",
   "tickets": [
     {
       "id": 1,
       "title": "删除仓库内两处 rules-library 引用",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "none"
+    "status": "unknown"
   },
   "review": {
     "state": "not-started",
