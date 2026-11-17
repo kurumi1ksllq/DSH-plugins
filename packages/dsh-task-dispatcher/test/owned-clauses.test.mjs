@@ -45,6 +45,11 @@ const OWNED_CLAUSES = [
   // and reported 'no skill tool in this session') ---
   ['探测:不用 globalThis(精确到 .tools)', 'globalThis.tools'],
   ['探测:必须用作用域内 tools 实测', '作用域内'],
+  // --- skill surface (issue-218: a lead misread skill-nudge lines as persona
+  // leakage and wrote "don't call skill" into every delegation prompt) ---
+  ['技能:加载技能不是探索宿主', '加载技能不是探索宿主'],
+  ['技能:委派禁写连坐令', '连坐'],
+  ['技能:nudge 到达须裁决', 'skill-nudge'],
 ]
 
 test('the plugin carries every clause it depends on', () => {
@@ -73,6 +78,9 @@ test('the English rendering carries the same clauses', () => {
     ['dev-server port', /dev-server/i],
     ['probe via in-scope tools, not globalThis', /globalThis\.tools/i],
     ['in-scope positive instruction present', /in-scope/i],
+    ['loading a skill is not host exploration', /not host exploration/i],
+    ['no blanket skill ban in delegation prompts', /blanket/i],
+    ['skill-nudge reminder demands a ruling', /skill-nudge/i],
   ]
   const missing = englishClauses.filter(([, pattern]) => !pattern.test(text)).map(([name]) => name)
   assert.deepEqual(missing, [], 'the en rendering is missing: ' + missing.join('; '))

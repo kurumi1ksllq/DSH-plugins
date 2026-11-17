@@ -12,6 +12,27 @@ export const NUDGE_PREFIX = '本轮涉及'
 /** Suffix closing every nudge line. */
 export const NUDGE_SUFFIX = ',再动手。'
 
+/**
+ * Machine provenance prefix, prepended to every rendered nudge line (issue-218).
+ *
+ * Session 3e82a079 misread the bare one-liner as "a leaked persona instruction"
+ * and discarded all three of its nudges. Provenance now travels in the text
+ * itself: the line names its issuer, so attributing it costs no memory of any
+ * convention. The echo guard below still keys on NUDGE_PREFIX + NUDGE_SUFFIX,
+ * not on this prefix, so quoted or clamped lines keep behaving as before.
+ */
+export const NUDGE_PROVENANCE = '[宿主提醒·skill-surface] '
+
+/**
+ * Delegation handoff appended after the suffix (issue-218).
+ *
+ * The same session wrote "don't call skill" into every delegation prompt, which
+ * cut the whole agent tree off from skills. The hint names the handoff
+ * parameter without repeating the names the line already carries, and works
+ * under both loaders (skill / skill_get).
+ */
+export const NUDGE_DELEGATION_HINT = ';委派时可用 skills: 同名点名注入。'
+
 /** Whether a text already carries a rendered nudge line. */
 export function looksLikeNudge(text) {
   return typeof text === 'string' && text.includes(NUDGE_PREFIX) && text.includes(NUDGE_SUFFIX)
@@ -194,5 +215,11 @@ export function shortlist(match, text) {
  */
 export function nudgeLine(domain, names, loader) {
   if (names.length === 0) return ''
-  return NUDGE_PREFIX + domain.label + ':用 ' + loader + ' 先看 ' + names.slice(0, MAX_NAMES).join('、') + NUDGE_SUFFIX
+  return (
+    NUDGE_PROVENANCE
+    + NUDGE_PREFIX + domain.label
+    + ':用 ' + loader + ' 先看 ' + names.slice(0, MAX_NAMES).join('、')
+    + NUDGE_SUFFIX
+    + NUDGE_DELEGATION_HINT
+  )
 }

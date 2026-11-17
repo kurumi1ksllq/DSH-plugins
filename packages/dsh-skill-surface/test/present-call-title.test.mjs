@@ -52,7 +52,7 @@ test('203-1b: a very long query cannot produce an unbounded card title', () => {
   // rawInput is the detail view and stays verbatim.
   const long = 'x'.repeat(400)
   const view = loader().presentCall({ query: long })
-  assert.ok(view.title.length <= 120, 'title must respect the same ceiling as other single-line text')
+  assert.ok(view.title.length <= 160, 'title must respect the same ceiling as other single-line text')
   assert.equal(view.rawInput, long, 'the detail view keeps the full query')
 })
 
@@ -80,7 +80,7 @@ test('203-3a: a name is model-supplied text, so it gets the same title ceiling',
   // distinguish name from query. Clamping only the query left this branch able
   // to emit a 311-character header.
   const view = loader().presentCall({ name: 'x'.repeat(300) })
-  assert.ok(view.title.length <= 120, 'the name branch must respect the same ceiling')
+  assert.ok(view.title.length <= 160, 'the name branch must respect the same ceiling')
   assert.equal(view.rawInput, 'x'.repeat(300), 'the detail view still keeps the full name')
 })
 

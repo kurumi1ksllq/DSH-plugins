@@ -49,8 +49,8 @@ test('E1: the reported request gets a nudge naming the on-point skill', async ()
   assert.equal(decision.messages.length, 1)
   const text = decision.messages[0].content[0].text
   assert.match(text, /make-interfaces-feel-better/)
-  assert.match(text, /^本轮涉及/)
-  assert.ok(text.length <= 120, 'the nudge stays one short line')
+  assert.match(text, /^\[宿主提醒·skill-surface\] 本轮涉及/)
+  assert.ok(text.length <= 160, 'the nudge stays one short line')
 })
 
 test('E2: ordinary task messages do not trigger a domain', async () => {
@@ -152,7 +152,7 @@ test('E10: one nudge names at most three skills', async () => {
   const text = decision.messages[0].content[0].text
   const named = (text.match(/[a-z]+(-[a-z]+)+/g) ?? []).filter((token) => !token.startsWith('skill'))
   assert.ok(named.length <= 3, 'named ' + named.length + ': ' + text)
-  assert.ok(text.length <= 120, 'length ' + text.length)
+  assert.ok(text.length <= 160, 'length ' + text.length)
 })
 
 test('E11: common Chinese UI phrasings trigger, not just the reported one', async () => {
@@ -233,4 +233,15 @@ test('F2c: an ordinary request mentioning the phrase is not swallowed', async ()
   stubHost()
   const decision = await run(harness(), agent(), '本轮涉及过的页面样式,再动手改一下配色')
   assert.equal(decision.messages.length, 1, "only a full nudge line is an echo")
+})
+
+test('issue-218: the nudge names its issuer and teaches the delegation handoff', async () => {
+  stubHost()
+  const h = harness()
+  const decision = await run(h, agent(), '改一下页面样式和配色')
+  const text = decision.messages[0].content[0].text
+  assert.match(text, /^\[宿主提醒·skill-surface\]/, 'the line names its issuer; provenance must not depend on memory')
+  assert.match(text, /skills: 同名点名注入/, 'the line carries the delegation hint')
+  assert.ok(text.length <= 160, 'length ' + text.length)
+  assert.ok(text.includes(',再动手。'), 'the echo-guard suffix survives unclamped (F2 contract)')
 })
