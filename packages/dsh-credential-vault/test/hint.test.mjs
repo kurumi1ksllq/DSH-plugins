@@ -18,10 +18,10 @@ function tempDir() {
 }
 
 function fakeContext() {
-  const registered = { tools: [], sections: [], routes: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [] }
   return {
     registered,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },
@@ -118,4 +118,12 @@ test('the registered section re-evaluates, so new credentials appear', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ---- issue #220:规则 3 必须点名 shell 工具与 run_code 边界 ----
+
+test('rule 3 names the shell tool and the run_code boundary (#220)', () => {
+  const text = buildHintText([entry('github token')])
+  assert.match(text, /tools\.bash/)
+  assert.match(text, /process\.env/)
 })

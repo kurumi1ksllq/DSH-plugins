@@ -17,10 +17,10 @@ function tempDir() {
 }
 
 function fakeContext() {
-  const registered = { tools: [], sections: [], routes: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [] }
   return {
     registered,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: (route) => registered.routes.push(route) },

@@ -23,7 +23,11 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
     返回候选与命中规则，同样不含值；多条命中时明确返回 `ambiguous`，**绝不猜**；
   - `action:"get", name:"…"` — 返回掩码元数据，密钥不解封；
   - `action:"use", name:"…"` — **推荐路径**。只返回环境变量名（如 `DSH_CRED_GITHUB_TOKEN`）
-    与票据过期时间，**不返回密钥**；值由 `dsh-shell-env` 注入到每次 shell 调用里；
+    与票据过期时间，**不返回密钥**；值由 `dsh-shell-env` 注入到每次**模型 shell 工具调用**
+    （bash/pwsh，如 `await tools.bash({ command: "…" })`）里。run_code/PTC 程序自身的
+    `process.env` 及其子进程**按设计没有**该变量——在 shell 工具命令里引用它，不要用
+    `process.env` 验证；shell 工具调用里仍找不到变量说明注入通道未接通，如实告知用户，
+    不要自行退回 `reveal`（#220）；
   - `action:"reveal", name:"…"` — 返回明文，**逃生门**：仅当用户明确要求看到值时才用，
     且每一次 reveal 都写入审计日志（`audit.log`，JSON lines，面板可见）。
   - `get`/`use`/`reveal` 的 `name` 都走同一套命中解析，因此模型写 `gh` 也能取到
@@ -34,6 +38,9 @@ DeepSeek Harness 凭据保险库插件：把服务器登录密码、GitHub token
   凭据只能通过 `action:"use"` 拿到的 `DSH_CRED_*` 变量使用；禁止把值拼进
   URL / remote / 命令行参数 / 文件 / 消息；禁止 `echo` / `printenv` 打印变量；
   `reveal` 仅在用户明确要求时使用。
+  另有一条**三行短指针**走 `systemPrompt.context`（`dsh-credential-vault:pointer`，order 20900）：
+  deep-ptc 会话把完整段装进 ~90KB 系统提示后容易被忽略（#220 实证），而 context 通道落在
+  运行时上下文快照里、模型确实遵循——两者并存，完整段仍负责索引与全量规则。
 - **导出 / 导入（0.5.0）**：整库凭据打包成**口令加密的 `.dsvault` 信封**
   （scrypt N=2¹⁷ + AES-256-GCM，header 进 AAD），用于跨设备同步。导入按**稳定 id**
   去重（同名不同内容的凭据报告冲突、绝不覆盖），导入端用本机 master.key 重新加密。

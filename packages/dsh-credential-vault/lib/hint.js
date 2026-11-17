@@ -12,6 +12,23 @@
 
 export const HINT_SECTION_NAME = 'dsh-credential-vault:hint'
 
+// A three-line pointer registered through `systemPrompt.context`, not the
+// section above. Deep-ptc sessions assemble the full section into a ~90 KB
+// system prompt where it demonstrably gets ignored (issue #220: the model
+// probed, read source and fell back to reveal despite the section being
+// present); the context channel lands in the runtime-context snapshot the
+// model does follow (it obeys the discipline blocks riding the same channel).
+export const HINT_POINTER_NAME = 'dsh-credential-vault:pointer'
+
+// Between the exec-discipline block (20000) and dsh-task-dispatcher (21000).
+export const HINT_POINTER_ORDER = 20900
+
+export const HINT_POINTER_TEXT = [
+  'Credentials (passwords, tokens, API keys) live in the encrypted vault exposed as the `credential` tool.',
+  'Before asking the user for any secret, check the vault (action:"list" or action:"search"); use a credential via action:"use" and reference the returned DSH_CRED_* variable inside a shell tool call (await tools.bash({ command: "..." })) — never via process.env.',
+  'action:"reveal" returns plaintext and is audited: use it only when the user explicitly asks to see the value.',
+].join('\n')
+
 /** How many entries the index lists before truncating. Bounds the prompt cost. */
 export const HINT_INDEX_LIMIT = 50
 
@@ -117,7 +134,7 @@ export function buildHintText(entries) {
     'Rules — follow them exactly:',
     '1. BEFORE asking the user for any password, token, API key or connection secret, check this vault: call `credential` with action:"list" or action:"search". If something matches, use it instead of asking. Never ask the user "what is it called" or "where is it stored" while the vault has a matching entry.',
     '2. A name you were given may not be the stored spelling. action:"search" matches by name, alias and service, and action:"get"/"use"/"reveal" accept any close spelling too. If a lookup reports several matches, repeat it with one of the exact names it lists — never guess.',
-    '3. To USE a secret, call action:"use" with its name. The result contains no value, only an environment variable name — the exact name is the envVar field of that result, so never derive it yourself: ASCII names map to DSH_CRED_<SLUG>, and names that fold (non-ASCII or digit-leading) get a stable hash suffix so distinct credentials stay distinct. That variable is injected into every shell command you run until the grant expires; when it has expired, re-run action:"use" with the same name to get a fresh one.',
+    '3. To USE a secret, call action:"use" with its name. The result contains no value, only an environment variable name — the exact name is the envVar field of that result, so never derive it yourself: ASCII names map to DSH_CRED_<SLUG>, and names that fold (non-ASCII or digit-leading) get a stable hash suffix so distinct credentials stay distinct. That variable is injected into every model shell tool call (bash/pwsh — for example `await tools.bash({ command: "..." })`) until the grant expires; it never appears in a run_code/PTC program\'s process.env or its child processes, so check it inside a shell tool command, never via process.env. When it has expired, re-run action:"use" with the same name to get a fresh one.',
     '4. Never echo, print, or run `env`/`printenv` for a DSH_CRED_* variable, and never write its value into a file, URL, git remote, command-line argument, or message. The value must stay in the variable.',
     '5. action:"reveal" returns the plaintext itself and is written to the audit log the user reads in the panel. Use it ONLY when the user explicitly asks to see the value, and then say that the read was audited. If `use` reports that this deployment has no environment-variable injection, stop and tell the user — do not fall back to reveal on your own.',
     '6. Only the user adds or edits credentials, service ids and aliases in the panel. You read them; you never write them.',
