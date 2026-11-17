@@ -259,9 +259,10 @@ const nudgedTurn = new WeakMap()
 let nudgeWarned = false
 
 /** Hard ceiling for one nudge line, enforced in code rather than by convention.
- *  160 (issue-218): provenance + the delegation hint push the worst ui-domain
- *  line to 142 chars; 120 truncated NUDGE_SUFFIX, which broke the echo guard. */
-const NUDGE_MAX_CHARS = 160
+ *  160 (issue-218): provenance + the delegation hint push the worst line to 140
+ *  chars (`skill` loader) and 144 (`skill_get`); 120 truncated NUDGE_SUFFIX in
+ *  the skill_get branch, which broke the echo guard. */
+export const NUDGE_MAX_CHARS = 160
 
 function clampLine(line) {
   return line.length <= NUDGE_MAX_CHARS ? line : line.slice(0, NUDGE_MAX_CHARS - 1) + '…'

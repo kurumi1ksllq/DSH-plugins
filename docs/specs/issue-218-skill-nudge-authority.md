@@ -1,6 +1,6 @@
 # issue-218: skill-nudge 被误判为 persona 泄漏而忽略 + 委派「不要调用 skill」连坐
 
-- **分级**: standard(两包、8 个文件、含行为文案接口变更,超 trivial 门槛)
+- **分级**: standard(两包、11 个文件,含行为文案接口变更,超 trivial 门槛;实况以 diff --name-only = 11 为准)
 - **issue**: https://github.com/kurumi1ksllq/DSH-plugins/issues/218
 - **分支**: issue-218-skill-nudge-authority
 
@@ -12,7 +12,8 @@
 | --- | --- |
 | packages/dsh-skill-surface/lib/domains.mjs | nudgeLine 加 NUDGE_PROVENANCE 前缀 + NUDGE_DELEGATION_HINT 后缀(两个导出常量) |
 | packages/dsh-skill-surface/index.js | NUDGE_MAX_CHARS 120→160,注释同步 |
-| packages/dsh-skill-surface/test/domain-trigger.test.mjs | 新增前缀/提示/上限测试;E1/E10 断言按新渲染更新 |
+| packages/dsh-skill-surface/test/domain-trigger.test.mjs | 新增前缀/提示/上限测试;E1/E10 断言按新渲染更新并改绑 NUDGE_MAX_CHARS |
+| packages/dsh-skill-surface/test/present-call-title.test.mjs | 203-1b/203-3a 断言随共享上限同步,后改绑 NUDGE_MAX_CHARS 导出常量(#219 review 连带,初版清单漏列) |
 | packages/dsh-task-dispatcher/lib/delegation-text.mjs | zh/en lanes 各加一条「加载技能≠探索宿主」 |
 | packages/dsh-task-dispatcher/test/owned-clauses.test.mjs | OWNED_CLAUSES(zh)与 en 清单各加条目 |
 | packages/dsh-skill-surface/package.json | 0.4.2 → 0.4.3 |
@@ -21,7 +22,7 @@
 
 ## 设计决策(spec 级,自决留证)
 1. **前缀 `[宿主提醒·skill-surface] `**:自报来源插件,机器风格;模型无需记忆任何约定即可归因(根因是「只能猜来源」)。回声守卫 looksLikeNudge 仍匹配 NUDGE_PREFIX+NUDGE_SUFFIX,前缀不参与守卫。
-2. **上限 160 的依据**:UI 域 worst-case(3 个长名,行内不点名重复)= 142 字;旧上限 120 会截断 NUDGE_SUFFIX → 回声守卫失效(F2 类场景反而被破坏)。160 留余量,仍是一行短句。
+2. **上限 160 的依据**:全域 × 双 loader 实测 worst-case = `skill` 140 字 / `skill_get` 144 字(#218 轴2 复测,两台独立实测一致);旧上限 120 在 skill_get 分支截断 NUDGE_SUFFIX → 回声守卫失效(F2 类场景反而被破坏);skill 分支 140 不截断。160 留余量,仍是一行短句。
 3. **委派提示措辞「skills: 同名点名注入」**:不重复技能名(重复超长),引用行内已有名字;两种 loader(skill / skill_get)下都成立。
 4. **dispatcher 条款**:正着说「加载允许且鼓励」,反着禁「连坐禁令」;点名 skill-nudge,把两侧信号接起来。
 5. **明确不做**(留证):自动加载正文(与「噪声教会模型忽略提醒」哲学冲突,issue-201 已做单命中直返)、提高 nudge 频率、宿主强制闸门。
@@ -38,4 +39,6 @@
 4. pnpm test / pnpm verify 全绿;两包升版正确
 
 ## 变更点
-(实现中追加)
+1. **#219 双轴 review 裁决(去重 5 项,全部采纳)**:P1 CHANGELOG 注记——0.9.0 已在 #217 合并时打 tag,旧注记(含本 PR 初版)误列缺 tag 且算术不自洽,实测重算 57+3+1=61;P2 worst-case 数字——初版写 140/142,全域×双 loader 实测为 skill 140 / skill_get 144,截断只在 skill_get 分支,三处(CHANGELOG/index.js 注释/spec)统一修正;P3 测试魔法数——NUDGE_MAX_CHARS 导出为公共常量,present-call-title 与 domain-trigger 断言改绑(恢复改坏即红);P4 spec 数字——分级行/变更清单对齐实况(11 文件,present-call-title 为共享上限连带、初版漏列);P5 index.js 注释排版——随 P2 重写后首行自成语义。
+2. **.flow/218.json 不在变更清单**:dev-flow「每节点写状态文件」的流程必有产物,非遗漏(#216 spec 同款先例)。
+3. 留观指标(合并后):会话「nudge 触发→显式裁决/加载」率;本会话修复期间已收到 1 条 security 域 nudge,按新纪律显式裁决为「引用噪声,不加载」——机制首个活样本。

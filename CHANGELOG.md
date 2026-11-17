@@ -611,7 +611,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 61 个条目:58 条有对应 tag;缺 tag 的 4 条为 `dsh-task-dispatcher@0.9.0`(#216)、`dsh-skill-surface@0.4.3`(#218,本条,合并后打 tag)、`dsh-task-dispatcher@0.9.1`(#218,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。58+4+1=61。计数按 `git tag -l` 对 Unreleased 全部 61 个 `### ` 标题逐条比对实测重算(2026-11-17,#218;2026-11-16 #217 轴2 曾修旧注记把已打 tag 的 0.8.0 误列为缺 tag)。待下一次统一归档至 History 段。
+> > > 本段现有 61 个条目:57 条有对应 tag;缺 tag 的 3 条为 `dsh-skill-surface@0.4.3`(#218,本条,合并后打 tag)、`dsh-task-dispatcher@0.9.1`(#218,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。57+3+1=61。计数按 `git tag -l` 对 Unreleased 全部 61 个 `### ` 标题逐条实测重算(2026-11-17,#218 轴2 修正:旧注记把 #217 合并时已打 tag 的 `dsh-task-dispatcher@0.9.0` 误列为缺 tag,且 58+4+1=63 与总数 61 不自洽)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

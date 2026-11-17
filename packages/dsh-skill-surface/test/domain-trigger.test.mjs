@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { apply } from '../index.js'
+import { apply, NUDGE_MAX_CHARS } from '../index.js'
 import { setHostApi } from '../lib/host-api.mjs'
 import { matchDomains, nudgeLine } from '../lib/domains.mjs'
 
@@ -50,7 +50,7 @@ test('E1: the reported request gets a nudge naming the on-point skill', async ()
   const text = decision.messages[0].content[0].text
   assert.match(text, /make-interfaces-feel-better/)
   assert.match(text, /^\[宿主提醒·skill-surface\] 本轮涉及/)
-  assert.ok(text.length <= 160, 'the nudge stays one short line')
+  assert.ok(text.length <= NUDGE_MAX_CHARS, 'the nudge stays one short line')
 })
 
 test('E2: ordinary task messages do not trigger a domain', async () => {
@@ -152,7 +152,7 @@ test('E10: one nudge names at most three skills', async () => {
   const text = decision.messages[0].content[0].text
   const named = (text.match(/[a-z]+(-[a-z]+)+/g) ?? []).filter((token) => !token.startsWith('skill'))
   assert.ok(named.length <= 3, 'named ' + named.length + ': ' + text)
-  assert.ok(text.length <= 160, 'length ' + text.length)
+  assert.ok(text.length <= NUDGE_MAX_CHARS, 'length ' + text.length)
 })
 
 test('E11: common Chinese UI phrasings trigger, not just the reported one', async () => {
@@ -242,6 +242,6 @@ test('issue-218: the nudge names its issuer and teaches the delegation handoff',
   const text = decision.messages[0].content[0].text
   assert.match(text, /^\[宿主提醒·skill-surface\]/, 'the line names its issuer; provenance must not depend on memory')
   assert.match(text, /skills: 同名点名注入/, 'the line carries the delegation hint')
-  assert.ok(text.length <= 160, 'length ' + text.length)
+  assert.ok(text.length <= NUDGE_MAX_CHARS, 'length ' + text.length)
   assert.ok(text.includes(',再动手。'), 'the echo-guard suffix survives unclamped (F2 contract)')
 })
