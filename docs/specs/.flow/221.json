@@ -1,0 +1,40 @@
+{
+  "issue": 221,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-17T21:15:35.261Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "选择器 lib + 单测（TDD）",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "skill-catalog CLI + 契约测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "本机落地 268→16 并核对",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "pnpm test / verify + PR",
+      "state": "doing"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "pending"
+  },
+  "review": {
+    "state": "pending",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}
