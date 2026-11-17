@@ -48,7 +48,6 @@ grade: standard
 
 - 不改 133 行 preset、不改 DSH 运行时。
 - **不删**全局 `~/.dsh/AGENTS.md` 的内容(那是用户文件);清单里给出建议,由用户决定。
-- 规则库 bootstrap(`~/.agents/rules-library/`)是部署本地约定,**不**搬进插件。
 - 测试与示例不得依赖仓库外文件(CI 无 `~/.dsh`;依赖即「只在我机器上能用」)。
 
 ## 验收

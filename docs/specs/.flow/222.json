@@ -1,0 +1,25 @@
+{
+  "issue": 222,
+  "grade": "trivial",
+  "stage": "merge",
+  "updatedAt": "2026-11-18T06:44:57.261+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "删除仓库内两处 rules-library 引用",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": true
+  }
+}
