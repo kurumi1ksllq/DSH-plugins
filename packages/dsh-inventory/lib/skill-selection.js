@@ -72,13 +72,14 @@ export function planSelection({ skills, keep }) {
  * @param {{skills: object[], keep: string[], dryRun?: boolean,
  *   setEnabled?: (input: {path: string, enabled: boolean}) => unknown}} input
  *   the scanned skills, the names to keep model-visible, and whether to only report.
- * @returns {{marked: string[], unmarked: string[], unknown: string[], dryRun: boolean,
+ * @returns {{keep: string[], marked: string[], unmarked: string[], unknown: string[], dryRun: boolean,
  *   failed: Array<{name: string, message: string}>}}
- *   what changed (or would change), what failed, and whether this was a dry run.
+ *   the kept names that exist, what changed (or would change), what failed, and whether this was a dry run.
  */
 export function applySelection({ skills, keep, dryRun = false, setEnabled = setSkillEnabled }) {
   const plan = planSelection({ skills, keep })
   const report = {
+    keep: plan.keep,
     marked: [],
     unmarked: [],
     unknown: plan.unknown,

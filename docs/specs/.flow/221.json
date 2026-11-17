@@ -1,8 +1,8 @@
 {
   "issue": 221,
   "grade": "standard",
-  "stage": "ci",
-  "updatedAt": "2026-11-17T21:18:46.633Z",
+  "stage": "review",
+  "updatedAt": "2026-11-17T21:26:31.891Z",
   "tickets": [
     {
       "id": 1,
@@ -21,17 +21,22 @@
     },
     {
       "id": 4,
-      "title": "仓库级测试 / verify / PR",
-      "state": "todo"
+      "title": "仓库级测试 / verify / PR #222",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "双轴 review 裁决与修复",
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 1,
+    "run": 2,
     "max": 2,
-    "status": "red"
+    "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "pending-decision",
     "axes": 2
   },
   "merge": {

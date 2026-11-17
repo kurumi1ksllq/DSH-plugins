@@ -90,3 +90,35 @@ test('a missing root and a missing selection both fail with exit 1', () => {
   assert.equal(runCli(['--root', missing, '--keep', 'alpha']).status, 1)
   assert.equal(runCli(['--keep', 'alpha', '--restore']).status, 1)
 })
+
+test('an empty keep list refuses to run instead of hiding every skill', () => {
+  const root = rootWith(['alpha', 'beta'])
+  const empty = join(root, 'empty.txt')
+  writeFileSync(empty, '# only comments\n\n', 'utf8')
+  const run = runCli(['--root', root, '--keep-file', empty, '--json'])
+
+  assert.equal(run.status, 1)
+  assert.match(run.stderr, /keep list is empty/)
+  assert.equal(visible(root, 'alpha'), true)
+  assert.equal(visible(root, 'beta'), true)
+})
+
+test('a bare -- forwarded by the package manager is ignored', () => {
+  const root = rootWith(['alpha', 'beta'])
+  const run = runCli(['--', '--root', root, '--keep', 'alpha', '--json'])
+
+  assert.equal(run.status, 0)
+  assert.deepEqual(JSON.parse(run.stdout).marked, ['beta'])
+})
+
+test('visibleAfter reports the live catalog size, not the number of files scanned', () => {
+  const root = rootWith(['alpha', 'beta', 'gamma'])
+  runCli(['--root', root, '--keep', 'alpha'])           // beta + gamma hidden
+  const again = runCli(['--root', root, '--keep', 'alpha', '--dry-run', '--json'])
+
+  const summary = JSON.parse(again.stdout)
+  assert.equal(summary.scanned, 3)
+  assert.equal(summary.visibleBefore, 1)
+  assert.equal(summary.visibleAfter, 1)
+  assert.equal(summary.keep, 1)
+})

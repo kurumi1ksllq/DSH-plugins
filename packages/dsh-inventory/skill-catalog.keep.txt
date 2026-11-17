@@ -1,0 +1,19 @@
+# 默认保留在模型可见 catalog 里的技能（issue #221）。
+# 用法：node packages/dsh-inventory/bin/skill-catalog.mjs --keep-file packages/dsh-inventory/skill-catalog.keep.txt
+# 一行一个名字；# 之后是注释，逗号也可分隔。与 ~/.agents/skills 的实际内容对应，改名会以 exit 2 暴露。
+tdd-workflow
+typescript-patterns
+python-testing
+python-patterns
+cpp-coding-standards
+cpp-testing
+git-workflow
+github-ops
+conventional-commit-review
+change-impact
+error-handling
+codebase-onboarding
+terminal-ops
+architecture-decision-records
+module-regression
+living-docs-governance

@@ -7,7 +7,8 @@
  * measured sessions load almost none of them. This tool keeps the named set
  * model-visible and marks the rest `disable-model-invocation: true` — still
  * loadable by the user as `/name`, invisible to the model. Nothing is deleted or
- * moved, and `--restore` puts every skill back in the catalog.
+ * moved, and `--restore` puts every skill in this root back in the catalog —
+ * including one another tool marked, so restore is a whole-root action.
  *
  * usage: skill-catalog [--root <dir>] (--keep a,b,c | --keep-file <path> | --restore)
  *                      [--dry-run] [--json]
@@ -56,6 +57,8 @@ function parseArgs(argv) {
     else if (arg === '--keep-file') options.keep = readNameFile(value())
     else if (arg.startsWith('--keep-file=')) options.keep = readNameFile(arg.slice('--keep-file='.length))
     else if (arg === '--restore') options.restore = true
+    // pnpm forwards a bare `--` verbatim; it separates npm args from the script's own.
+    else if (arg === '--') continue
     else if (arg === '--dry-run') options.dryRun = true
     else if (arg === '--json') options.json = true
     else if (arg === '--help' || arg === '-h') throw new Error('help')
@@ -63,6 +66,8 @@ function parseArgs(argv) {
   }
   if (options.restore && options.keep !== null) throw new Error('--restore and --keep are mutually exclusive')
   if (!options.restore && options.keep === null) throw new Error('one of --keep, --keep-file or --restore is required')
+  // An empty list would hide EVERY skill and still exit 0 — the opposite of a selection.
+  if (!options.restore && options.keep.length === 0) throw new Error('keep list is empty; refusing to hide every skill')
   return options
 }
 
@@ -99,15 +104,18 @@ function main(argv) {
     return 1
   }
 
-  const { skills } = scanSkillRoots([{ dir: options.root, source: 'user-agents', rank: 500 }])
+  const { skills, diagnostics } = scanSkillRoots([{ dir: options.root, source: 'user-agents', rank: 500 }])
   const keep = options.restore ? skills.map((skill) => skill.name) : options.keep
   const report = applySelection({ skills, keep, dryRun: options.dryRun })
+  const visibleBefore = skills.filter((skill) => skill.modelInvocable !== false).length
 
   const summary = {
     root: options.root,
     scanned: skills.length,
-    keep: keep.length,
-    visibleAfter: skills.length - report.marked.length + report.unmarked.length,
+    skipped: diagnostics.length,
+    keep: report.keep.length,
+    visibleBefore,
+    visibleAfter: visibleBefore - report.marked.length + report.unmarked.length,
     marked: report.marked,
     unmarked: report.unmarked,
     unknown: report.unknown,
@@ -119,8 +127,8 @@ function main(argv) {
   } else {
     const verb = report.dryRun ? 'would change' : 'changed'
     console.log(`root:      ${summary.root}`)
-    console.log(`scanned:   ${summary.scanned}`)
-    console.log(`model-visible after: ${summary.visibleAfter}`)
+    console.log(`scanned:   ${summary.scanned}${summary.skipped > 0 ? ` (${summary.skipped} skipped: invalid or shadowed)` : ''}`)
+    console.log(`model-visible: ${summary.visibleBefore} -> ${summary.visibleAfter}`)
     console.log(`${verb}:   ${report.marked.length} hidden, ${report.unmarked.length} restored`)
     if (report.unknown.length > 0) console.log(`unknown keep names: ${report.unknown.join(', ')}`)
     for (const failure of report.failed) console.log(`failed: ${failure.name}: ${failure.message}`)

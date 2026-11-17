@@ -26,12 +26,20 @@
 - `packages/dsh-inventory/lib/skill-selection.js`：纯计划 `planSelection` + 落盘 `applySelection`（复用 `skill-toggle.js` 的 `setSkillEnabled`，编辑只动 frontmatter 一行；dry-run、逐文件失败收集、幂等）。
 - `packages/dsh-inventory/bin/skill-catalog.mjs`：`--root / --keep / --keep-file / --restore / --dry-run / --json`；退出码 0 成功、1 用法或 root 缺失、2 有未命中名字或写失败。
 - 根脚本 `pnpm skill:catalog` 指向该 bin；`dsh-inventory` 0.12.5 → 0.13.0，`files` 增加 `bin`。
+- 仓库内保留清单 `packages/dsh-inventory/skill-catalog.keep.txt`（可执行、可评审），用法 `--keep-file`；技能改名会以 exit 2 暴露。
+- CLI 吞掉包管理器透传的裸 `--`（`pnpm skill:catalog -- --dry-run` 可用）；空名单一律 exit 1，拒绝「把全部技能藏掉还返回成功」。
 
 ## 验证
 
-- 单测：`packages/dsh-inventory/test/skill-selection.test.mjs`（7）、`test/skill-catalog-cli.test.mjs`（5）。
-- 真机：`pnpm skill:catalog -- --dry-run` 先看计划，再落地，随后核对"被标记数 + 保留数 = 269"且保留目录的 SKILL.md 字节未变。
-- 生效面：provider 每次会话重新扫盘，新会话即见收窄后的 catalog；不需要重启宿主。回滚：`pnpm skill:catalog -- --restore`。
+- 单测 13 个：`packages/dsh-inventory/test/skill-selection.test.mjs`（8，含无 frontmatter 的坏文件不中断其余）、`test/skill-catalog-cli.test.mjs`（5）。
+- 真机：`pnpm skill:catalog -- --dry-run` 先看计划，再落地。实测口径：root 下 269 个目录、其中 `ui-design` 无 SKILL.md，扫描到 268 个唯一技能名（`cmd-*` 包装层与本体同名，按 rank 去重）→ 保留 16、标记 252；保留的 16 个 SKILL.md sha256 前后一致。生效后的会话 catalog 为 18 条 = 16 个保留 + 2 个运行时注册（`browser-skill`、`official-plugins`）。
+- 生效面：provider 每次会话重新扫盘，新会话即见收窄后的 catalog；不需要重启宿主（本会话当场收到了替换 catalog）。回滚：`pnpm skill:catalog -- --restore`。
+- 回滚边界（已知）：`--restore` 会重新启用该 root 下**所有**带该标记的技能，包括不是本工具标记的（例如以后为 office-* 占位桩手工加的标记）。本机落地时该 root 下原有标记为 0，所以此刻等价于"恢复到收窄前"。
+
+## review 裁决（双轴，独立视角）
+
+- **已改**：`visibleAfter` 用「扫描总数」算出 268（应为 16）→ 改为按「运行前可见数」推算，并补「先收窄再重跑」用例；空 keep 名单曾会把全部技能标掉且 exit 0 → 改 exit 1；`pnpm skill:catalog -- --dry-run` 因裸 `--` 报 unknown argument → parseArgs 容忍；写失败收集零覆盖 → 补注入抛错用例；`assert.match(beforeBeta)` 恒真 → 改为读 apply 之后；scan 跳过的 2 个（`ui-design` 无 SKILL.md、`issue-review` 被 `cmd-issue-review` 同名遮蔽）曾静默消失 → 输出 `skipped`。
+- **不改（留档）**：`--restore` 是「整根恢复」而非「还原到运行前」（已在 spec 与 CLI 头部写明）；252 次写入非原子（`skill-toggle` 既有行为，幂等重跑可修复）；CRLF/BOM 端到端仅由既有 `skill-toggle` 测试覆盖；人读输出未断言（JSON 契约已覆盖）。`provider 每次会话重扫、不需重启` 已由本会话收到替换 catalog 实测，非推测。
 
 ## 变更点记录
 
