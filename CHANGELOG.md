@@ -12,6 +12,29 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-skill-surface 0.4.3 — nudge 自报家门 + 委派注入提示(#218)
+
+**问题(实测)**:session-3e82a079 全转录里 skill-nudge 正常触发 3 次,但 skill 工具调用 0 次。
+lead 把 nudge 一行裸文本标注为 "leaked instruction / stray instruction" 丢弃(L306/L554/L647),
+又在 16 次 delegate_role 提示词里写死「不要调用 skill/web_search」(L172/L501/L612/L751/L1226)——
+机制正常,行为层整条链路被掐断。根因之一:nudge 不带来源,模型只能猜。
+
+**改法**:渲染行前加机器前缀 `[宿主提醒·skill-surface] `(来源写进文本,归因不再依赖记忆);
+行尾追加「;委派时可用 skills: 同名点名注入。」把委派通路的用法一并教掉。
+`NUDGE_MAX_CHARS` 120→160:实测 UI 域 worst-case 行 140 字,旧上限会把 NUDGE_SUFFIX 截断,
+反而破坏回声守卫(looksLikeNudge 依赖前后缀完整)。echo guard 本身不变。
+
+### dsh-task-dispatcher 0.9.1 — 委派纪律:加载技能 ≠ 探索宿主(#218)
+
+**问题(实测)**:同会话里首次委派的子代理跑去研究宿主实现而空手而归后,lead 自创
+「不要调用 skill/web_search」连坐令并复制了 16 次,整棵代理树的技能通路被禁写死。
+委派纪律里没有区分「按名加载技能(一次调用,无副作用)」与「顺着工具实现翻宿主源码(禁止)」。
+
+**改法**:zh/en 注入段各加一条 lane:`skill` 是按名取指南文本的一次调用,允许且鼓励;
+禁的是翻宿主实现;委派提示词禁写连坐令;收到 `skill-nudge` 宿主提醒先按名加载或写明不加载的理由。
+契约测试钉住条款(删即红)。
+
+
 ### dsh-task-dispatcher 0.9.0 — 工具探测假阴性:子 agent 用 globalThis.tools 判「无 skill 工具」(#216)
 
 **问题(实测)**:session-e46310c1 派出的 delegate_role 审查子 agent 在 run_code 里用 `globalThis.tools` 探测工具,
@@ -588,7 +611,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 59 个条目:56 条有对应 tag;缺 tag 的 2 条为 `dsh-task-dispatcher@0.9.0`(#216,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具（无版本号）」——它不属于任何 bundle,本就不该有 tag。56+2+1=59。计数按 `git tag -l` 对 Unreleased 全部 59 个 `### ` 标题逐条比对实测重算(2026-11-16,#217 轴2 发现旧注记把已打 tag 的 0.8.0 误列为缺 tag)。待下一次统一归档至 History 段。
+> > > 本段现有 61 个条目:57 条有对应 tag;缺 tag 的 3 条为 `dsh-skill-surface@0.4.3`(#218,本条,合并后打 tag)、`dsh-task-dispatcher@0.9.1`(#218,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。57+3+1=61。计数按 `git tag -l` 对 Unreleased 全部 61 个 `### ` 标题逐条实测重算(2026-11-17,#218 轴2 修正:旧注记把 #217 合并时已打 tag 的 `dsh-task-dispatcher@0.9.0` 误列为缺 tag,且 58+4+1=63 与总数 61 不自洽)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

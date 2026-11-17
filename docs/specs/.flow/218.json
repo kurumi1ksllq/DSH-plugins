@@ -1,0 +1,35 @@
+{
+  "issue": 218,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-17T14:24:50+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "skill-surface:nudge 前缀+委派提示+上限160",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "dispatcher:委派纪律「加载技能≠探索宿主」lane",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "升版+CHANGELOG+四件套",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}
