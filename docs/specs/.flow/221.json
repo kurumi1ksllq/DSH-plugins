@@ -1,0 +1,45 @@
+{
+  "issue": 221,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-17T21:30:06.263Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "选择器 lib + 单测（TDD）",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "skill-catalog CLI + 契约测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "本机落地 268→16 并核对",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "仓库级测试 / verify / PR #222",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "双轴 review 裁决与修复",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}

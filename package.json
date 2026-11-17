@@ -16,6 +16,7 @@
     "gate": "pnpm verify && pnpm test",
     "check:profile": "node scripts/check-profile.mjs",
     "check:versions": "node scripts/check-bundle-versions.mjs",
+    "skill:catalog": "node packages/dsh-inventory/bin/skill-catalog.mjs",
     "test:docs": "node --test test/*.test.mjs",
     "vault:export": "node packages/dsh-credential-vault/bin/vault-sync.mjs export",
     "vault:import": "node packages/dsh-credential-vault/bin/vault-sync.mjs import"
