@@ -1,0 +1,40 @@
+{
+  "issue": 220,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-18T00:21:12+00:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "use 返回说明写准:bash 工具注入 + run_code 设计边界 + 失灵如实上报",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "get 返回说明点明 reveal 是审计过的逃生门",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "context 通道注册短指针(deep-ptc 实证有效通道)",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "hint 规则3、README、CHANGELOG 对齐 + 版本 0.6.2",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

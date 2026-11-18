@@ -22,12 +22,12 @@ function tempDir() {
 
 /** A fake ctx whose shellEnv records contributors so tests can call resolve(). */
 function fakeContext({ withShellEnv = true, strictKeys = false } = {}) {
-  const registered = { tools: [], sections: [], routes: [], contributors: [], disposed: 0 }
+  const registered = { tools: [], sections: [], contexts: [], routes: [], contributors: [], disposed: 0 }
   const listeners = new Map()
   const ctx = {
     registered,
     listeners,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     on(event, handler) { listeners.set(event, handler); return () => listeners.delete(event) },
     tools: { register: (tool) => registered.tools.push(tool) },
@@ -326,10 +326,10 @@ test('one corrupt entry does not break the prompt index or the other credentials
  * undefined` probe passed on a plain fake object and crashed in production.
  */
 function strictServiceContext() {
-  const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [], contributors: [] }
   const services = {
     registered,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },
@@ -376,9 +376,9 @@ test('apply never probes an undeclared service (real cordis throws on that)', as
 test('without a shellEnv service the plugin still loads and `use` explains why it cannot', async () => {
   const dir = tempDir()
   try {
-    const registered = { tools: [], sections: [], routes: [] }
+    const registered = { tools: [], sections: [], contexts: [], routes: [] }
     const services = {
-      systemPrompt: { section: (section) => registered.sections.push(section) },
+      systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
       effect(fn) { fn() },
       tools: { register: (tool) => registered.tools.push(tool) },
       webServer: { register: () => {} },
@@ -419,4 +419,24 @@ test('declarationsFor refuses to let two credentials share one variable name', (
   assert.ok(Object.hasOwn(variables, 'DSH_CRED_OPENAI_KEY'))
   assert.equal(collisions.length, 1)
   assert.deepEqual(collisions[0].names.sort(), ['github token', 'github_token'])
+})
+
+// ---- issue #220:use 的 note 必须把模型引向 shell 工具,并写明 run_code 边界 ----
+
+test('the use note points at shell tool calls, not process.env (#220)', async () => {
+  const dir = tempDir()
+  try {
+    const ctx = fakeContext()
+    apply(ctx, { vaultDir: dir })
+    createVaultStore(dir).set('github token', { kind: 'token', secret: 'ghp_supersecret' })
+    const tool = ctx.registered.tools[0]
+    const result = await tool.execute({ action: 'use', name: 'github token' }, { agent: { session: { header: { id: 's1' } } } })
+    assert.match(result.note, /tools\.bash/)
+    assert.match(result.note, /process\.env/)
+    assert.match(result.note, /grant below is still valid/)
+    assert.match(result.note, /tell the user/)
+    assert.match(result.note, /Never echo/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

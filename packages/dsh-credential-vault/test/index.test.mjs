@@ -11,12 +11,15 @@ import { createVaultStore } from '../lib/vault-store.js'
 import { readAudit } from '../lib/audit.js'
 
 function fakeContext() {
-  const registered = { tools: [], sections: [], routes: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [] }
   return {
     registered,
     systemPrompt: {
       section(section) {
         registered.sections.push(section)
+      },
+      context(contribution) {
+        registered.contexts.push(contribution)
       },
     },
     effect(fn) {
@@ -128,6 +131,42 @@ test('unknown name throws and audits missing; bad action and bad name rejected',
     const outcomes = readAudit(dir).map((record) => record.outcome)
     assert.ok(outcomes.includes('rejected'))
     assert.ok(outcomes.includes('missing'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---- issue #220:指引精准化 + context 通道短指针 ----
+
+test('apply registers the compact context-channel pointer (#220)', async () => {
+  const dir = tempDir()
+  try {
+    const ctx = fakeContext()
+    apply(ctx, { vaultDir: dir })
+    const pointer = ctx.registered.contexts.find((item) => item.name === 'dsh-credential-vault:pointer')
+    assert.ok(pointer, 'the context-channel pointer must be registered')
+    assert.equal(pointer.name, 'dsh-credential-vault:pointer')
+    assert.equal(pointer.order, 20900)
+    assert.match(pointer.text, /`credential` tool/)
+    assert.match(pointer.text, /tools\.bash/)
+    assert.match(pointer.text, /process\.env/)
+    assert.match(pointer.text, /reveal/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('get states that reveal is the audited escape hatch, not a default (#220)', async () => {
+  const dir = tempDir()
+  try {
+    createVaultStore(dir).set('github token', { kind: 'token', secret: 'ghp_supersecret' })
+    const ctx = fakeContext()
+    apply(ctx, { vaultDir: dir })
+    const tool = ctx.registered.tools[0]
+    const result = await tool.execute({ action: 'get', name: 'github token' })
+    assert.match(result.note, /reveal/)
+    assert.match(result.note, /audit/i)
+    assert.match(result.note, /explicitly/i)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

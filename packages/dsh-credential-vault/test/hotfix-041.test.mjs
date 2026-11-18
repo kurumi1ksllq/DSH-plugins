@@ -354,7 +354,7 @@ test('#52 GET /entry on an unsafe name returns structured 409, not 500', async (
 // ---- review round: unsafe reads must leave a rejected audit record -----------
 
 function auditFakeContext() {
-  const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [], contributors: [] }
   const shellEnv = {
     register(contributor) {
       registered.contributors.push(contributor)
@@ -363,7 +363,7 @@ function auditFakeContext() {
   }
   return {
     registered,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },

@@ -20,7 +20,7 @@ function tempDir() {
 }
 
 function fakeContext() {
-  const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [], contributors: [] }
   const shellEnv = {
     register(contributor) {
       registered.contributors.push(contributor)
@@ -29,7 +29,7 @@ function fakeContext() {
   }
   return {
     registered,
-    systemPrompt: { section: (section) => registered.sections.push(section) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (tool) => registered.tools.push(tool) },
     webServer: { register: () => {} },

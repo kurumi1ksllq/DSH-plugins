@@ -12,6 +12,23 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-credential-vault 0.6.2 — deep-ptc 使用指引修正:use/get 说明精准化 + context 通道短指针(#220)
+
+**问题(实测取证)**:issue #220 报告 deep-ptc 会话「hint 段缺席 + DSH_CRED_* 注入失效 → AI 试错后多次走
+reveal 逃生门」。取证(session-2fb16c46/860e5dd2/b9ef7417 的 session.v4.jsonl.zstd + 2026-11-18 本机实测)
+推翻两条机制断言:hint 段其实已装进系统提示(92,580 字符,3% 处,被大提示淹没);零明文注入通道经
+`await tools.bash` 实测可用(injected-nonempty),run_code 进程环境按设计本来就没有该变量。真实缺口是
+**指引不精确**:use 的 note 只说「injected into each shell call」,模型在 run_code 的 process.env 里
+测错表面,误判通道失效退回 reveal(audit.log 十二次记录)。
+
+**改法**:`use` 的 note 写准三件事(变量经模型 shell 工具调用注入;run_code/PTC 进程环境按设计没有、
+勿用 process.env 验证;shell 工具里仍找不到 = 通道未接通,停下告知用户而不是退回 reveal);`get` 的
+note 点明 reveal 是审计过的逃生门;新增 `dsh-credential-vault:pointer` context 注册(order 20900,
+三行静态文案,落在模型确实遵循的运行时上下文快照里,完整 section 与索引不动);hint 规则 3 与 README
+「提示词约定」同步措辞。测试假 ctx 补 `context()`,新增 4 个红绿测试(231/231 全绿,node24 套件口径,与 CI 一致)。
+
+**边界**:不改 env-injection 注入机制与 hint section 结构;不动宿主与 deep-ptc-mode。
+
 ### dsh-inventory 0.13.0 — 技能目录收窄:模型可见 catalog 269 → 16(#221)
 
 **问题(实测)**:`~/.agents/skills` 的 269 个技能被全量挂进每个会话的 catalog,抽查 418 个
@@ -624,7 +641,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 62 个条目:59 条有对应 tag;缺 tag 的 2 条为 `dsh-inventory@0.13.0`(#221,本条,合并后打 tag)、`dsh-skill-surface@0.1.0`。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。59+2+1=62。计数按 `git tag -l` 对 Unreleased 全部 62 个 `### ` 标题逐条实测重算(2026-11-18,#221 新增条目后重算;旧注记的 61/57/3 随 #218 合并打 tag 已过期)。待下一次统一归档至 History 段。
+> > > 本段现有 63 个条目:60 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220,本条,合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+2+1=63。计数按 `git tag -l` 对 Unreleased 全部 63 个 `### ` 标题逐条实测重算(2026-11-18,#220 新增条目后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

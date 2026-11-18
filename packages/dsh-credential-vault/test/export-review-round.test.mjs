@@ -67,11 +67,11 @@ function seal(key, value) {
 }
 
 function fakeContext() {
-  const registered = { tools: [], sections: [], routes: [], contributors: [] }
+  const registered = { tools: [], sections: [], contexts: [], routes: [], contributors: [] }
   const shellEnv = { register(c) { registered.contributors.push(c); return () => {} } }
   return {
     registered,
-    systemPrompt: { section: (s) => registered.sections.push(s) },
+    systemPrompt: { section: (section) => registered.sections.push(section), context: (c) => registered.contexts.push(c) },
     effect(fn) { fn() },
     tools: { register: (t) => registered.tools.push(t) },
     webServer: { register: (r) => registered.routes.push(r) },
