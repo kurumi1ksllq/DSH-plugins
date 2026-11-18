@@ -51,6 +51,7 @@ export const CONTRACT_REQUIRED = [
   ['FLOW.md', '必须指认规程全文的位置'],
   ['禁测私有函数', '必须保留「只测公开行为」这条'],
   ['破坏性操作', '必须保留危险操作先说明再执行的约束'],
+  ['凭据保险库', '环境前置不满足必须先查凭据保险库(issue-224)'],
 ]
 
 /** The contract rides every turn, so it gets a budget in characters, not lines. */

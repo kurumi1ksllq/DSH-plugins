@@ -47,3 +47,5 @@ github-rope-token + GH_TOKEN 注入开出);0.6.2 的 use/get note 精准化也�
    启动时加载的是 #220 之前的旧模块,并非注册机制失效。PR 措辞据此调整(指针随源码变更
    即时生效,无需重启)。
 2. FLOW.md 条款的生效路径不变:模型按 dev-flow 流程读 FLOW.md 时看到 vault-first 条款。
+4. **常驻契约同批修复(goal round 8 取证)**:dev-flow 的每轮常驻契约(lib/contract.mjs)硬规则段同样写着「环境前置(gh 认证)不满足时写明用户要执行的那一条命令」——本会话 lead 照办的直接触发源就是它,影响面比 FLOW.md 更大(每轮注入 vs 进流程才读)。一并改为 vault-first,lintContract 新增「凭据保险库」marker 锁死(删即红)。
+3. **三通道统一(实现期补强)**:验收标准里还核对了同一套指引的另外两个载体——system prompt section 规则 1 与 `credential` 工具描述。二者原先只写「向用户要密钥先查库」,未点名交互式 CLI 登录;一并补齐,使指针/section/工具描述三通道口径一致,防止模型在任一通道上漏掉 CLI 场景。契约测试 6 条覆盖。

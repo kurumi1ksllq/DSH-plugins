@@ -127,7 +127,7 @@ export function apply(ctx, config = {}) {
       return ctx.tools.register(defineTool({
       name: TOOL_NAME,
       description:
-        'Read credentials from the encrypted vault. Prefer `action:"use"`, which returns only an environment ' +
+        'Read credentials from the encrypted vault. Before asking the user for any secret — or running an interactive login (`gh auth login`, `docker login`, `ssh-add`) — call this tool first with action:"list" or action:"search". Prefer `action:"use"`, which returns only an environment ' +
         'variable name so the secret never enters this conversation. `action:"list"` shows what exists, ' +
         '`action:"search"` finds one by any spelling (name, alias, service), `action:"get"` returns masked ' +
         'metadata, and `action:"reveal"` returns plaintext (every reveal is audited — use it only when the ' +

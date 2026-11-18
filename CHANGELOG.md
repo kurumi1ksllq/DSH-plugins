@@ -18,10 +18,12 @@ test-only changes are exempt.
 而整条纪律链(常驻契约/FLOW.md/委派纪律)零提及凭据保险库——lead 在库里有 github token 的情况下
 仍照条款向用户要 `gh auth login`。行为层 bug:纪律把 agent 指向用户而不是库。
 
-**改法**:前置自检的 gh 条款改为 vault-first——未认证先 `credential` `action:"search"`/
-`action:"use"`,以 `GH_TOKEN=$DSH_CRED_*` 在 shell 工具调用里使用(并写明注入只达 shell 调用、
-不在 run_code 的 process.env,与 0.6.2 的 note 口径一致);库里没有可用凭据才把交互式登录交给用户。
-契约测试锁死条款(删即红)。
+**改法**:两条注入通道同批统一——①FLOW.md 前置自检的 gh 条款改为 vault-first;②**每轮常驻契约**
+(lib/contract.mjs 硬规则段)的环境前置条款同样改为「先查凭据保险库」(0.8.0 起契约随每轮注入,
+本会话实证它正是 lead 在库里有 token 时仍向用户要 gh auth login 的直接触发源)。均写明
+`GH_TOKEN=$DSH_CRED_*` 经 shell 工具调用使用(注入只达 shell 调用,不在 run_code 的 process.env,
+与 0.6.2 的 note 口径一致);库里没有可用凭据才把交互式登录交给用户。契约测试锁死条款
+(FLOW.md 测试 + lintContract 新 marker「凭据保险库」,删即红);契约渲染 1134/1600 字符预算内。
 
 ### dsh-credential-vault 0.6.3 — 指针 required:true + 交互式 CLI 登录先查库(issue-224)
 

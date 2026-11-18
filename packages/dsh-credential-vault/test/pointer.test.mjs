@@ -35,6 +35,15 @@ test('the pointer context registers as required, so subagents see it too', () =>
   assert.match(block[0], /required:\s*true/, 'required: true keeps the pointer alive under includeRuntimeContext:false (minimal-style subagent compositions)');
 });
 
+test('the credential tool description also points at the vault before interactive logins (issue-224)', () => {
+  const desc = INDEX_SOURCE.match(/description:\n\s*'Read credentials[\s\S]*?' +/);
+  assert.ok(desc, 'the credential tool description is present');
+  for (const cli of ['gh auth login', 'docker login', 'ssh-add']) {
+    assert.ok(desc[0].includes(cli), 'tool description must name ' + cli);
+  }
+  assert.match(desc[0], /action:"list" or action:"search"/);
+})
+
 test('the pointer keeps its context-channel identity', () => {
   assert.equal(HINT_POINTER_NAME, 'dsh-credential-vault:pointer');
   assert.equal(HINT_POINTER_ORDER, 20900);
