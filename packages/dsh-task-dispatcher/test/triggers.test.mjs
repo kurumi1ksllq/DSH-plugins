@@ -121,3 +121,32 @@ test('fan-out carries the destructive-operation constraint', () => {
   assert.match(en, /destructive|irreversible/i, 'en: the section must restate the destructive-operation rule')
   assert.match(en, /confirm|approval/i, 'en: and that it still needs confirmation')
 })
+
+// ---------------------------------------------------------------------------
+// #225: the team lane must name the tools that actually exist on the host.
+//
+// 'spawn_teammate' was removed from the host in v0.2.1-rc.2 (agent-team
+// upgrade guide): teammates are started with the standard 'subagent' tool and
+// the shared board is 'team_task_*'. The host also documents that a task
+// update never wakes a member -- acting on a task requires an explicit
+// 'send_message'. A stale tool name is worse than none: the model follows it
+// and the call fails.
+// ---------------------------------------------------------------------------
+
+test('the team lane names host tools that exist, not removed ones', () => {
+  for (const locale of ['zh', 'en']) {
+    const text = renderDelegationText(locale)
+    assert.ok(!text.includes('spawn_teammate'), locale + ': must not advertise the removed spawn_teammate tool')
+    const lane = requireBullet(text, locale === 'zh' ? '组队' : 'form a team', locale)
+    assert.match(lane, /team_task/, locale + ': the shared board must be named as team_task_*')
+    assert.match(lane, /subagent/, locale + ': teammates are started with the standard subagent tool')
+  }
+})
+
+test('task updates must not be trusted to wake a teammate', () => {
+  for (const locale of ['zh', 'en']) {
+    const text = renderDelegationText(locale)
+    const wake = requireBullet(text, locale === 'zh' ? /唤醒|通知成员|需要成员/ : /wake|wakes a member|needs a member/i, locale)
+    assert.match(wake, /send_message/, locale + ': acting on a task requires an explicit send_message')
+  }
+})

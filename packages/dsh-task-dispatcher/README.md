@@ -55,7 +55,7 @@
 - 注入走 `systemPrompt.context`(与 deep-ptc governor 同一通道);恒定文本利于 KV cache。
 - locale 固定 zh(操作者工作语言);`lib/delegation-text.mjs` 的 en 字典为预留。
 
-> 运行时工具描述(`spawn_teammate` / `wait_agent` / `subagent`)不在本仓库,改不到的部分记在 `docs/specs/issue-187-upstream-request.md`。
+> 运行时工具描述(`subagent` / `team_task_*` / `wait_agent` 等)不在本仓库;`spawn_teammate` 已在宿主 0.2.1-rc.2 移除,历史记录见 `docs/specs/issue-187-upstream-request.md`。
 
 teammate 经 `composeFrom` 继承父组合,因此文本对主 agent 与 teammate 同时生效;深度上限由 DSH `dsh-subagent` 的深度闸与 `maxDepth` 设置执行,注入文本只引用机制、不固定具体数值。
 
