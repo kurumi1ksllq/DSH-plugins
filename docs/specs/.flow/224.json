@@ -1,8 +1,8 @@
 {
   "issue": 224,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-18T11:17:49.090Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-18T11:23:41.110Z",
   "tickets": [
     {
       "id": 1,
@@ -15,5 +15,10 @@
       "state": "done"
     }
   ],
-  "pr": 226
+  "pr": 226,
+  "ci": {
+    "status": "green",
+    "run": 0,
+    "max": 2
+  }
 }
