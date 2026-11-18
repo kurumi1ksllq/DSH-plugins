@@ -1,0 +1,14 @@
+{
+  "issue": 225,
+  "grade": "trivial",
+  "stage": "ci",
+  "updatedAt": "2026-11-18T15:47:48.469Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "delegation-text 对齐宿主 Team 工具面 + 测试守护",
+      "state": "done"
+    }
+  ],
+  "pr": 227
+}

@@ -12,6 +12,18 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.9.3 — 注入文本对齐宿主 Team 工具面(issue-225)
+
+**问题**:zh/en 分档 bullet 仍写「组队(`spawn_teammate` + 任务板)」,而 `spawn_teammate`
+已在宿主 0.2.1-rc.2 移除(官方 upgrade guide:agent-team-subagents)——指引指向不存在的工具。
+宿主现行机制:teammate 用标准 `subagent` 工具创建,共享任务板是 `team_task_create/list/get/update`
+(CAS + revision);且宿主 README 明确「任务更新不会唤醒成员、不会结束 `wait_agent`、不投递消息」。
+
+**改法**:①zh/en 组队条款改为 `subagent` 派成员 + `team_task_*` 任务板;②补「任务更新不唤醒成员,
+需要谁行动必须 `send_message` 点名」;③README 的 spawn_teammate 注记改为现状描述。
+**测试**:triggers.test.mjs 增 2 条守护(文本禁现 `spawn_teammate`、必须点名 `team_task` 与
+send_message 唤醒条款),均做反向验证(改坏实现分别变红);包内 91 条全绿。
+
 ### dev-flow 0.8.1 — 前置自检 vault-first:gh 未认证先查凭据保险库(issue-224)
 
 **问题(本会话实证)**:FLOW.md 前置自检写明「gh 未认证 → 输出命令让用户自己在终端执行」,
