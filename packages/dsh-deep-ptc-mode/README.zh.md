@@ -1,8 +1,8 @@
 # 深度 PTC 模式
 
-[English](README.md) · MIT · 当前版本：**1.15.0**
+[English](README.md) · MIT · 当前版本：**1.16.0**
 
-[1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) —— 历史快照，当前版本见下方「当前版本 1.15.0」
+[1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) —— 历史快照，当前版本见下方「当前版本 1.16.0」
 **让插件协作，让当前官方 PTC 工具兜底，让任务始终可沟通。**
 
 深度 PTC 是面向插件生态的 DeepSeek Harness Agent 模式（preset）：优先在当前可用的外部插件中寻找同功能工具，没有合适能力或插件工具故障时，再用当前官方 PTC 的工具继续完成任务。多个插件可以分工完成同一个任务，各自保留原有参数、发现方式和结果契约；深度 PTC 本身不提供新的任务工具。
@@ -137,7 +137,7 @@ WSL 命令使用 Linux/POSIX 语法；文件工具和 `workdir` 仍用 Windows �
 本地目录或构建产物可通过插件管理器安装：
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.15.0" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.16.0" })
 // 也可从本地目录或安装包安装：
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
 // 或 target: "C:\\path\\to\\dsh-deep-ptc-mode-1.15.0.tgz"

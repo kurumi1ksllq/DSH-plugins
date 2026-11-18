@@ -1,6 +1,6 @@
 # Deep PTC mode
 
-[中文](README.zh.md) · MIT · **1.15.0**
+[中文](README.zh.md) · MIT · **1.16.0**
 
 [1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) — 历史快照，当前版本见下方 "Current release"
 **Let plugins cooperate. Keep current official PTC tools as the fallback. Stay interruptible while work runs.**
@@ -135,7 +135,7 @@ A prompt changes the model's working tendency, not the real token limit or billi
 Requires Node `>=24` and DSH `>=0.2.2-rc.1 <0.3.0-0`. Windows desktop rc.5 was used for real WSL/PowerShell command checks. macOS/Zsh configuration, argv and tool mounting were checked; native macOS execution has not been verified on this Windows host.
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.15.0" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.16.0" })
 // Or from a local checkout or archive:
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
 // Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.15.0.tgz"

@@ -12,6 +12,31 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.16.0 — deep_ptc_tools 搜索三层合并 + 声明式工具归属(issue-223)
+
+**问题(独立对抗验证 + 主上下文源码复核)**:① `deep_ptc_tools` 的 `search` 按 external→official→unattributed
+逐层短路,一层命中即 return——官方 subagent 系命中后,unattributed 层的 `role_search`/`delegate_role` 被遮蔽
+(实测 `search('delegate role subagent dispatch')` 只回官方 3 条,自然语言委派查询看不见角色工具);②工具归属靠
+源码刮取且只读包入口文件,task-dispatcher 注册在 lib 经辅助函数间接调用 → role 工具 unattributed →
+observe() 永不隔离,依赖损坏窗口期(如 js-yaml 悬空)反复盲调无保护。
+
+**改法**:① search 合并为**单一排序结果**,逐条带 `layer`/`provider` 标注,任一层命中不再遮蔽其它层
+(隔离排除语义不变,unattributed fail-open 契约保留);② `official-names` 新增声明式归属:读取 bundle
+package.json 的 `dsh.toolNames`,刮取保留为不声明 bundle 的回退。配套声明见 task-dispatcher 0.9.2 与
+skill-surface 0.4.4。**顺序约束**:归属与搜索合并必须同批——只修归属会把 role 工具变 external 从 SDK 隐藏,
+而官方层短路依旧,反而制造「既看不见又搜不到」的真死锁。测试 34→37 条(合并语义/声明归属/声明工具可隔离)。
+
+### dsh-task-dispatcher 0.9.2 — package.json 声明 model-facing 工具名(issue-223)
+
+`dsh.toolNames = ["role_search", "delegate_role"]`:deep-ptc 的声明式归属直接读取,不再依赖源码刮取
+(注册在 lib/role-tools.mjs 经 registerRoleTools 间接调用,入口文件零注册字面量,刮取恒空)。无代码变更。
+
+### dsh-skill-surface 0.4.4 — package.json 声明 skill_get(issue-223)
+
+`dsh.toolNames = ["skill_get"]`:fallback loader 以展开语法注册(`register({ ...LOADER_BASE, ... })`),
+源码刮取认不出;声明后归属与隔离保护生效。deep-ptc 组合下该 loader 因 `when: !hasOfficialLoader` 不注册,
+运行时无影响;声明只补齐归属通道。无代码变更。
+
 ### dsh-credential-vault 0.6.2 — deep-ptc 使用指引修正:use/get 说明精准化 + context 通道短指针(#220)
 
 **问题(实测取证)**:issue #220 报告 deep-ptc 会话「hint 段缺席 + DSH_CRED_* 注入失效 → AI 试错后多次走
@@ -641,7 +666,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 63 个条目:60 条有对应 tag;缺 tag 的 2 条为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220,本条,合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+2+1=63。计数按 `git tag -l` 对 Unreleased 全部 63 个 `### ` 标题逐条实测重算(2026-11-18,#220 新增条目后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 66 个条目:60 条有对应 tag;缺 tag 的 5 条为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、以及 #223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+5+1=66。计数按 `git tag -l` 对 Unreleased 全部 66 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
