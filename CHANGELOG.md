@@ -12,6 +12,12 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### ecc-agent-presets 0.1.1 — preset 名册收缩哨兵反转(issue-226)
+
+**问题**:主 profile 此前挂 5 个白名单委派 preset(architect/planner/code-reviewer/security-reviewer/build-error-resolver)+ 133 个 ECC preset,组合树 preset patch 行共 142(另含 dsh-deep-ptc-mode 运行时注册的深度PTC,不在 patch 行内);用户要求只留四个内置(standard/ptc/minimal/cordis)与 dsh-deep-ptc-mode 运行时注册的深度PTC模式。
+
+**改法**:①部署哨兵反转——主 profile 不得再挂白名单 5 行;②README 白名单段落改退役说明;③部署侧删 profile 补丁白名单块(-1049 行)并从 bundles 移除 ecc-agent-presets(依赖保留,可随时重启用);复验组合树 preset 行 = 4。
+
 ### dsh-task-dispatcher 0.9.3 — 注入文本对齐宿主 Team 工具面(issue-225)
 
 **问题**:zh/en 分档 bullet 仍写「组队(`spawn_teammate` + 任务板)」,而 `spawn_teammate`
@@ -701,7 +707,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 69 个条目:60 条有对应 tag;缺 tag 的 8 条(#224 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+8+1=69。计数按 `git tag -l` 对 Unreleased 全部 68 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 70 个条目:60 条有对应 tag;缺 tag 的 8 条(#224 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)、#228 的 `ecc-agent-presets@0.1.1`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+9+1=70。计数按 `git tag -l` 对 Unreleased 全部 68 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
