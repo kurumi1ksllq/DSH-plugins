@@ -64,7 +64,10 @@ export function apply(ctx, config = {}) {
   // Short pointer on the context channel: it reaches the runtime-context
   // snapshot, which deep-ptc sessions demonstrably follow, while the full
   // section above is assembled into the (large) system prompt (#220).
-  ctx.systemPrompt.context({ name: HINT_POINTER_NAME, order: HINT_POINTER_ORDER, text: HINT_POINTER_TEXT })
+  // required: the pointer is the one vault text deep-ptc sessions demonstrably
+  // follow (#220); compositions that suppress optional runtime context (minimal-
+  // style subagent spawns) still need it — subagents use credentials too (#224).
+  ctx.systemPrompt.context({ name: HINT_POINTER_NAME, order: HINT_POINTER_ORDER, text: HINT_POINTER_TEXT, required: true })
 
   // Zero-plaintext path: `use` records a grant and `shellEnv` injects the value
   // into each shell call, so the secret never enters the conversation.

@@ -54,6 +54,22 @@ describe('lintFlowDoc contract', () => {
   })
 })
 
+describe('前置自检 routes credentials through the vault first (issue-224)', () => {
+  const start = FLOW.indexOf('## 前置自检');
+  const section = start > -1 ? FLOW.slice(start, FLOW.indexOf('\n## ', start + 1)) : '';
+  it('tells the agent to search the credential vault before asking the user', () => {
+    assert.ok(section.length > 0, '前置自检 section exists');
+    assert.ok(section.includes('credential'), '前置自检 must name the credential tool');
+    assert.match(section, /action:"search"/);
+    assert.match(section, /action:"use"/);
+    assert.match(section, /GH_TOKEN/, 'must show how the token reaches gh without entering the conversation');
+  });
+  it('keeps the interactive login as the fallback only', () => {
+    assert.match(section, /gh auth login/, 'the fallback command is still documented');
+    assert.match(section, /库里没有可用凭据/, 'vault-first ordering is explicit');
+  });
+});
+
 describe('lintContract', () => {
   const text = renderFlowContract({ docPath: '/pkg/FLOW.md' })
 

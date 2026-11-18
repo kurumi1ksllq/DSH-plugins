@@ -12,6 +12,27 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dev-flow 0.8.1 — 前置自检 vault-first:gh 未认证先查凭据保险库(issue-224)
+
+**问题(本会话实证)**:FLOW.md 前置自检写明「gh 未认证 → 输出命令让用户自己在终端执行」,
+而整条纪律链(常驻契约/FLOW.md/委派纪律)零提及凭据保险库——lead 在库里有 github token 的情况下
+仍照条款向用户要 `gh auth login`。行为层 bug:纪律把 agent 指向用户而不是库。
+
+**改法**:前置自检的 gh 条款改为 vault-first——未认证先 `credential` `action:"search"`/
+`action:"use"`,以 `GH_TOKEN=$DSH_CRED_*` 在 shell 工具调用里使用(并写明注入只达 shell 调用、
+不在 run_code 的 process.env,与 0.6.2 的 note 口径一致);库里没有可用凭据才把交互式登录交给用户。
+契约测试锁死条款(删即红)。
+
+### dsh-credential-vault 0.6.3 — 指针 required:true + 交互式 CLI 登录先查库(issue-224)
+
+**问题(goal 取证)**:#220 的三行指针是 deep-ptc 会话里唯一可达的保险库指引,但它(a)是 optional
+context——minimal 系组合(includeRuntimeContext:false)下子代理完全看不到;(b)未点名交互式 CLI
+登录这个高频翻车场景(gh/docker/ssh),指引用词只覆盖「向用户要密钥」。
+
+**改法**:指针注册加 `required: true`(子代理也看得到);文案逐个点名 `gh auth login`/`docker login`/
+`ssh-add`——先查库,库里没有才把登录命令交给用户;补 `GH_TOKEN=$DSH_CRED_*` 实例。4 条契约测试
+锁死(文案退回/注册丢 required 各自红)。无机制改动。
+
 ### dsh-deep-ptc-mode 1.16.0 — deep_ptc_tools 搜索三层合并 + 声明式工具归属(issue-223)
 
 **问题(独立对抗验证 + 主上下文源码复核)**:① `deep_ptc_tools` 的 `search` 按 external→official→unattributed
@@ -666,7 +687,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 66 个条目:60 条有对应 tag;缺 tag 的 5 条为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、以及 #223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+5+1=66。计数按 `git tag -l` 对 Unreleased 全部 66 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 68 个条目:60 条有对应 tag;缺 tag 的 7 条(#224 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、以及 #223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+7+1=68。计数按 `git tag -l` 对 Unreleased 全部 68 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

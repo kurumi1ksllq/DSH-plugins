@@ -25,7 +25,7 @@ export const HINT_POINTER_ORDER = 20900
 
 export const HINT_POINTER_TEXT = [
   'Credentials (passwords, tokens, API keys) live in the encrypted vault exposed as the `credential` tool.',
-  'Before asking the user for any secret, check the vault (action:"list" or action:"search"); use a credential via action:"use" and reference the returned DSH_CRED_* variable inside a shell tool call (await tools.bash({ command: "... $DSH_CRED_…" })) — never via process.env.',
+  'Before asking the user for any secret — or running an interactive login such as `gh auth login`, `docker login` or `ssh-add` — check the vault first: action:"list" or action:"search" (names, aliases and loose spellings match); use a match via action:"use" and reference the returned DSH_CRED_* variable inside a shell tool call (await tools.bash({ command: "... GH_TOKEN=$DSH_CRED_…" })) — never via process.env. Only when the vault has no match, hand the interactive login command to the user.',
   'action:"reveal" returns plaintext and is audited: use it only when the user explicitly asks to see the value.',
 ].join('\n')
 
