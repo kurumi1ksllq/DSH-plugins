@@ -1,8 +1,8 @@
 {
   "issue": 223,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-18T08:30:30.294Z",
+  "stage": "pr",
+  "updatedAt": "2026-11-18T09:18:21.526Z",
   "tickets": [
     {
       "id": 1,
@@ -12,7 +12,7 @@
     {
       "id": 2,
       "title": "声明式归属(official-names readManifest)+ bundle 声明 + 版本",
-      "state": "red"
+      "state": "done"
     }
   ]
 }
