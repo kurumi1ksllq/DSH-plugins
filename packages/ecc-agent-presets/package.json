@@ -1,6 +1,6 @@
 {
   "name": "ecc-agent-presets",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "ECC engineering agent presets collected from the main profile patch so the Web UI roster stays short; loading the bundle re-registers all 133 rows in the agent-preset-registry, unloading removes them from every UI surface without touching the five whitelisted delegation presets",

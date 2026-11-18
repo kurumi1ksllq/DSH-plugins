@@ -50,11 +50,13 @@ test('the main profile patch still carries the whitelisted rows and none of the 
       `${id} still mounted in the main profile patch — deployment step pending (spec issue-151 §验收 D)`,
     )
   }
+  // issue-226: the whitelist is retired — the profile keeps only the four
+  // built-in presets; the deep-ptc preset is runtime-registered by its plugin.
   for (const kept of WHITELIST) {
     assert.equal(
       new RegExp(`^    - id: preset-${kept}$`, 'm').test(profilePatch),
-      true,
-      `whitelisted preset-${kept} must stay mounted in the main profile`,
+      false,
+      `whitelisted preset-${kept} must be unmounted from the main profile (spec issue-226)`,
     )
   }
 })

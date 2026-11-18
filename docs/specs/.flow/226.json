@@ -1,0 +1,35 @@
+{
+  "issue": 226,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-18T17:40:13.652Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "dispatcher 同义词表去死键 + 测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "ecc bundle 哨兵测试反转 + README + 升版",
+      "state": "green"
+    },
+    {
+      "id": 3,
+      "title": "部署:profile 补丁去 5 行 + 关 bundle",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
