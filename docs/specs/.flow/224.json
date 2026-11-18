@@ -1,8 +1,8 @@
 {
   "issue": 224,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-18T11:01:19.687Z",
+  "stage": "pr",
+  "updatedAt": "2026-11-18T11:17:49.090Z",
   "tickets": [
     {
       "id": 1,
@@ -14,5 +14,6 @@
       "title": "dev-flow FLOW.md 前置自检 vault-first + 契约测试",
       "state": "done"
     }
-  ]
+  ],
+  "pr": 226
 }
