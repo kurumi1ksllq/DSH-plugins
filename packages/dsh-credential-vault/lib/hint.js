@@ -25,7 +25,7 @@ export const HINT_POINTER_ORDER = 20900
 
 export const HINT_POINTER_TEXT = [
   'Credentials (passwords, tokens, API keys) live in the encrypted vault exposed as the `credential` tool.',
-  'Before asking the user for any secret, check the vault (action:"list" or action:"search"); use a credential via action:"use" and reference the returned DSH_CRED_* variable inside a shell tool call (await tools.bash({ command: "... $DSH_CRED_…" })) — never via process.env.',
+  'Before asking the user for any secret — or running an interactive login such as `gh auth login`, `docker login` or `ssh-add` — check the vault first: action:"list" or action:"search" (names, aliases and loose spellings match); use a match via action:"use" and reference the returned DSH_CRED_* variable inside a shell tool call (await tools.bash({ command: "... GH_TOKEN=$DSH_CRED_…" })) — never via process.env. Only when the vault has no match, hand the interactive login command to the user.',
   'action:"reveal" returns plaintext and is audited: use it only when the user explicitly asks to see the value.',
 ].join('\n')
 
@@ -132,7 +132,7 @@ export function buildHintText(entries) {
     index,
     '',
     'Rules — follow them exactly:',
-    '1. BEFORE asking the user for any password, token, API key or connection secret, check this vault: call `credential` with action:"list" or action:"search". If something matches, use it instead of asking. Never ask the user "what is it called" or "where is it stored" while the vault has a matching entry.',
+    '1. BEFORE asking the user for any password, token, API key or connection secret — or running an interactive login such as \`gh auth login\`, \`docker login\` or \`ssh-add\` — check this vault: call `credential` with action:"list" or action:"search". If something matches, use it instead of asking. Never ask the user "what is it called" or "where is it stored" while the vault has a matching entry; only hand an interactive login command to the user when the vault has no match.',
     '2. A name you were given may not be the stored spelling. action:"search" matches by name, alias and service, and action:"get"/"use"/"reveal" accept any close spelling too. If a lookup reports several matches, repeat it with one of the exact names it lists — never guess.',
     '3. To USE a secret, call action:"use" with its name. The result contains no value, only an environment variable name — the exact name is the envVar field of that result, so never derive it yourself: ASCII names map to DSH_CRED_<SLUG>, and names that fold (non-ASCII or digit-leading) get a stable hash suffix so distinct credentials stay distinct. That variable is injected into every model shell tool call (bash/pwsh — for example `await tools.bash({ command: "... $DSH_CRED_…" })`) until the grant expires; it never appears in a run_code/PTC program\'s process.env or its child processes, so check it inside a shell tool command (with its `$` prefix), never via process.env. When it has expired, re-run action:"use" with the same name to get a fresh one.',
     '4. Never echo, print, or run `env`/`printenv` for a DSH_CRED_* variable, and never write its value into a file, URL, git remote, command-line argument, or message. The value must stay in the variable.',

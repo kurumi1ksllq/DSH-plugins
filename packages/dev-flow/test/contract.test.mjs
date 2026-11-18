@@ -120,6 +120,10 @@ describe('the contract text', () => {
     // The old flow had three stop points; the third one (spec confirmation) is
     // now the agent's own call, so the number must not creep back in.
     assert.equal(/三个?停点|三次交互/.test(text), false, 'the contract must not reintroduce a third stop point')
+    // issue-224: 环境前置不满足必须先查凭据保险库,交互式登录只是兜底
+    assert.match(text, /凭据保险库/)
+    assert.match(text, /DSH_CRED_/)
+    assert.match(text, /库里没有可用凭据/)
   })
 
   it('takes the technical decisions away from the user', () => {

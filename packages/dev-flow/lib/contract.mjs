@@ -54,6 +54,6 @@ export function renderFlowContract({ docPath } = {}) {
 - 禁止直接改 main:改动走 issue-<n>-<desc> 分支 → PR。
 - 禁测私有函数、调用次数、内部顺序;只测公开行为与输出。
 - 每个流程节点写一次 docs/specs/.flow/<issue>.json(任务板的唯一进度源)。
-- 环境前置(gh 认证、git remote)不满足时不要猜:在结论里写明缺口和用户要执行的那一条命令,其余能做的照做。
+- 环境前置(gh 认证、git remote)不满足时不要猜:**先查凭据保险库**(credential 工具 action:"search"/action:"use",token 经 DSH_CRED_* 变量在 shell 工具调用里使用);库里没有可用凭据,才在结论里写明缺口和用户要执行的那一条命令,其余能做的照做。
 - 破坏性操作(rm -rf、drop/truncate、force-push、重启宿主进程)先说明再问——这是安全前置,不计入两次交互。`
 }

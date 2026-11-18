@@ -1,0 +1,24 @@
+{
+  "issue": 224,
+  "grade": "standard",
+  "stage": "ci",
+  "updatedAt": "2026-11-18T11:23:41.110Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "vault 指针 required:true + CLI 登录条款 + 契约测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "dev-flow FLOW.md 前置自检 vault-first + 契约测试",
+      "state": "done"
+    }
+  ],
+  "pr": 226,
+  "ci": {
+    "status": "green",
+    "run": 0,
+    "max": 2
+  }
+}

@@ -74,6 +74,14 @@ test('the index is capped and points at search when truncated', () => {
   assert.equal(text.includes('credential-59'), false)
 })
 
+test('rule 1 also covers interactive CLI logins before asking the user (issue-224)', () => {
+  const text = buildHintText([entry('github token')])
+  assert.match(text, /gh auth login/)
+  assert.match(text, /docker login/)
+  assert.match(text, /ssh-add/)
+  assert.match(text, /vault has no match/)
+})
+
 test('the rules forbid asking the user before checking the vault', () => {
   const text = buildHintText([entry('github token')])
   assert.match(text, /before (asking|ask)/i)

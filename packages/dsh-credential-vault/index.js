@@ -64,7 +64,10 @@ export function apply(ctx, config = {}) {
   // Short pointer on the context channel: it reaches the runtime-context
   // snapshot, which deep-ptc sessions demonstrably follow, while the full
   // section above is assembled into the (large) system prompt (#220).
-  ctx.systemPrompt.context({ name: HINT_POINTER_NAME, order: HINT_POINTER_ORDER, text: HINT_POINTER_TEXT })
+  // required: the pointer is the one vault text deep-ptc sessions demonstrably
+  // follow (#220); compositions that suppress optional runtime context (minimal-
+  // style subagent spawns) still need it — subagents use credentials too (#224).
+  ctx.systemPrompt.context({ name: HINT_POINTER_NAME, order: HINT_POINTER_ORDER, text: HINT_POINTER_TEXT, required: true })
 
   // Zero-plaintext path: `use` records a grant and `shellEnv` injects the value
   // into each shell call, so the secret never enters the conversation.
@@ -124,7 +127,7 @@ export function apply(ctx, config = {}) {
       return ctx.tools.register(defineTool({
       name: TOOL_NAME,
       description:
-        'Read credentials from the encrypted vault. Prefer `action:"use"`, which returns only an environment ' +
+        'Read credentials from the encrypted vault. Before asking the user for any secret — or running an interactive login (`gh auth login`, `docker login`, `ssh-add`) — call this tool first with action:"list" or action:"search". Prefer `action:"use"`, which returns only an environment ' +
         'variable name so the secret never enters this conversation. `action:"list"` shows what exists, ' +
         '`action:"search"` finds one by any spelling (name, alias, service), `action:"get"` returns masked ' +
         'metadata, and `action:"reveal"` returns plaintext (every reveal is audited — use it only when the ' +

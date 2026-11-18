@@ -61,7 +61,7 @@ gh --version && gh auth status && git remote -v
 ```
 
 - 任一失败 → 不带着假设往下走:把缺口写进最终结论,并给出用户要执行的那一条命令;其余能做的照做,不因此停工(这不是第三次交互)。
-- `gh` 未认证 → `gh auth login` 是交互式的,会卡死 bash 工具;输出命令让用户自己在终端执行,确认后再继续。
+- `gh` 未认证 → **先查凭据保险库**:`credential` 工具 `action:"search"`(搜 `github`、`token` 等词,别名与近似拼写都能命中),有匹配就 `action:"use"` 拿 `DSH_CRED_*` 变量,在 shell 工具调用里以 `GH_TOKEN=$DSH_CRED_…` 传给 `gh`(变量经 shell 调用注入,不在 run_code 的 process.env 里);库里没有可用凭据,才把 `gh auth login` 交给用户自己在终端执行(交互式,会卡死 bash 工具),确认后再继续。
 - `git remote -v` 为空 → 与用户确认目标仓库(已有远程 or `gh repo create\))。
 - 远程是镜像地址导致 `gh` 认不出仓库时,用 `gh … -R <owner>/<repo>` 指名,不要因此停工。
 
