@@ -29,11 +29,11 @@ test('patch carries exactly the 133 non-whitelisted preset rows', async () => {
   assert.equal(new Set(rows.map((row) => row.id)).size, 133, 'row ids unique')
   const configIds = new Set(rows.map((row) => row.config.id))
   for (const kept of WHITELIST) {
-    assert.equal(configIds.has(kept), false, `whitelisted preset ${kept} must stay in the main profile, not here`)
+    assert.equal(configIds.has(kept), false, `whitelisted preset ${kept} must not be re-added to this bundle (retired by spec issue-226)`)
   }
 })
 
-test('the main profile patch still carries the whitelisted rows and none of the moved ones', async (t) => {
+test('the main profile patch carries none of the moved rows nor the retired whitelist', async (t) => {
   // Deployment-side sentinel: reads the HOST's profile patch, which only
   // exists on the operator machine (not in CI or verify-clean worktrees).
   // It can never turn red from a repository change alone, so the skip is
@@ -42,12 +42,17 @@ test('the main profile patch still carries the whitelisted rows and none of the 
   const profilePatch = await readFile(join(PKG, '..', '..', '..', '.dsh', 'profiles', 'web', 'cordis.patch.yml'), 'utf8')
     .catch(() => null)
   if (profilePatch === null) return t.skip('host profile layout not present (CI / clean worktree)')
+  // Positive anchor: an emptied or destroyed host patch must fail this test too,
+  // not just a patch that re-adds preset rows.
+  const parsed = yaml.load(profilePatch)
+  assert.ok(Array.isArray(parsed) && parsed.length > 0, 'host profile patch must remain a non-empty patch list')
+  assert.match(profilePatch, /^- id: agent-preset-registry$/m, 'host profile patch must still mount the preset registry')
   const moved = yaml.load(await readFile(join(PKG, 'cordis.patch.yml'), 'utf8'))[0].insert.map((row) => row.id)
   for (const id of moved) {
     assert.equal(
       new RegExp(`^    - id: ${id}$`, 'm').test(profilePatch),
       false,
-      `${id} still mounted in the main profile patch — deployment step pending (spec issue-151 §验收 D)`,
+      `${id} still mounted in the main profile patch — retired by spec issue-226`,
     )
   }
   // issue-226: the whitelist is retired — the profile keeps only the four

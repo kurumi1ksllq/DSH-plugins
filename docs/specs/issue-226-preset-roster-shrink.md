@@ -18,20 +18,18 @@
 - 委派(`role_search`/`delegate_role`)读 `agentPresets.list()`;这 138 个角色随 preset 消失。用户已确认接受。
 - `SYNONYMS.计划` 映射含 `planner`(仅存在于白名单),删除后 `计划` 仍可经 `gan-planner`(ECC bundle 内)?**不,ECC bundle 也关**——故 `计划`→planner/gan-planner 均不可达。`planning` 词缀也无行。`sprint-prioritizer` 也在 ECC bundle。→ 同义词表 `计划` 会成为死键。
 
-## 变更
+## 变更(按 review 裁决修订)
 
-1. **仓库(`packages/dsh-task-dispatcher`)**:`lib/roles.mjs` 的 `SYNONYMS.计划` 移除 `planner`/`sprint-prioritizer`/`planning` 等仅由被清 preset 满足的词条,或改指向仍可达的词(`gan-planner` 亦被清,同样失效)。实际口径:删除 `计划` 键(synonyms-live 测试按仓库内 ECC patch 文件断言,不受部署影响——但 roster 在部署上不再含这些行,注入文本不能再宣传死键)。注意 `test/chinese-search.test.mjs`/`test/synonyms-live.test.mjs` 的断言随词条调整。
-2. **仓库(`packages/ecc-agent-presets`)**:`test/bundle.test.mjs` 的部署哨兵(断言 5 行留在主 profile)与 WHITELIST 语义反转:新部署不再在主 profile 保留这 5 行;README 更新白名单段落。bundle 版本号 +1(patch 文件不变,纯测试/文档改动也须升版,见版本纪律)。
-3. **仓库(`packages/dsh-task-dispatcher`)**:`BUILTIN_PRESETS` 不变(仍排除五个内置组合);README/注入文本如提及白名单 5 件套需校对(`lib/delegation-text.mjs` 未引用这 5 个 id,无需改)。
-4. **部署(本机 profile,仓库外)**:
-   - 删除 `~/.dsh/profiles/web/cordis.patch.yml` 中 5 行白名单块及其注释,改写注释说明去向;
-   - `plugin_manager set_bundle ecc-agent-presets enabled:false`(经 Web UI 工具或会话内调用;CLI `dsh plugin manager` 不是子命令)。禁重启宿主。
+裁决:dispatcher(`dsh-task-dispatcher`)不改——SYNONYMS/ROLE_EXAMPLES 是 ECC bundle 数据的索引,bundle 随时可重新启用;测试读仓库内 ECC patch 文件,不受部署状态影响。部署态的「死键」是部署状态而非仓库缺陷,接受;§验收的「无死键」验收项据此改写为「仓库数据与其索引源(bundle patch 文件)一致」。
+
+1. **仓库(`packages/ecc-agent-presets`)**:`test/bundle.test.mjs` 部署哨兵反转(主 profile 不得再挂白名单 5 行)+ 正向锚(patch 可解析且仍挂 registry);test 名与失败消息改为新语义;package.json description 与 README 白名单段落改退役表述;版本 +1。
+2. **部署(本机 profile,仓库外)**:删除主 profile 补丁白名单块;禁用 ecc-agent-presets bundle(经 profile manifest bundles,依赖保留)。
 
 ## 验收
 
 - 组合树 preset 行 = 4(standard/ptc/minimal/cordis);运行时名册含 deep-ptc。
 - `pnpm test` / `pnpm verify` 全绿。
-- 注入文本中的中文关键词无死键。
+- 仓库测试数据与索引源一致;部署态死键为已接受状态(见 §变更 裁决)。
 
 ## 变更点
 

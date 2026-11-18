@@ -14,7 +14,7 @@ test-only changes are exempt.
 
 ### ecc-agent-presets 0.1.1 — preset 名册收缩哨兵反转(issue-226)
 
-**问题**:主 profile 此前挂 5 个白名单委派 preset(architect/planner/code-reviewer/security-reviewer/build-error-resolver)+ 133 个 ECC preset,UI 名册共 142 项;用户要求只留四个内置(standard/ptc/minimal/cordis)与 dsh-deep-ptc-mode 运行时注册的深度PTC模式。
+**问题**:主 profile 此前挂 5 个白名单委派 preset(architect/planner/code-reviewer/security-reviewer/build-error-resolver)+ 133 个 ECC preset,组合树 preset patch 行共 142(另含 dsh-deep-ptc-mode 运行时注册的深度PTC,不在 patch 行内);用户要求只留四个内置(standard/ptc/minimal/cordis)与 dsh-deep-ptc-mode 运行时注册的深度PTC模式。
 
 **改法**:①部署哨兵反转——主 profile 不得再挂白名单 5 行;②README 白名单段落改退役说明;③部署侧删 profile 补丁白名单块(-1049 行)并从 bundles 移除 ecc-agent-presets(依赖保留,可随时重启用);复验组合树 preset 行 = 4。
 

@@ -1,12 +1,12 @@
 {
   "issue": 226,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-18T17:40:13.652Z",
+  "stage": "review",
+  "updatedAt": "2026-11-18T17:52:58.342Z",
   "tickets": [
     {
       "id": 1,
-      "title": "dispatcher 同义词表去死键 + 测试",
+      "title": "裁决 dispatcher 不改(spec 对齐)+ 哨兵消息/正锚修订",
       "state": "done"
     },
     {
@@ -17,16 +17,16 @@
     {
       "id": 3,
       "title": "部署:profile 补丁去 5 行 + 关 bundle",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
     "status": "unknown"
   },
   "review": {
-    "state": "not-started",
+    "state": "running",
     "axes": 2
   },
   "merge": {

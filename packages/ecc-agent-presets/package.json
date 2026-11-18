@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "ECC engineering agent presets collected from the main profile patch so the Web UI roster stays short; loading the bundle re-registers all 133 rows in the agent-preset-registry, unloading removes them from every UI surface without touching the five whitelisted delegation presets",
+  "description": "ECC engineering agent presets collected from the main profile patch so the Web UI roster stays short; loading the bundle re-registers all 133 rows in the agent-preset-registry, unloading removes them from every UI surface (the five whitelisted delegation presets were retired from the main profile by issue-226)",
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0"
