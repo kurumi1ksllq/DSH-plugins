@@ -80,12 +80,25 @@ test('official tool failures stay under the official contract', () => {
   assert.equal(f.state.guard(f.call('read')), undefined);
   assert.equal(f.state.status(f.agent).blocked.length, 0);
 });
-test('search first returns extensions, then admitted official equivalents after quarantine', () => {
+test('search merges all layers into one ranked result, each row annotated with layer and provider', () => {
   const f = setup();
-  assert.equal(f.state.search(f.agent, { query: 'read' }).layer, 'external');
-  f.state.observe(f.call(), broken);
+  const plain = { ...def('plain_reader', 'Read files plainly') };
+  delete plain.deepPtc;
+  f.live.set('plain_reader', plain);
   const result = f.state.search(f.agent, { query: 'read' });
-  assert.equal(result.layer, 'official'); assert.equal(result.results[0].name, 'read');
+  const rows = Object.fromEntries(result.results.map(r => [r.name, r]));
+  assert.deepEqual(result.results.map(r => r.name).sort(), ['better_read', 'plain_reader', 'read']);
+  assert.equal(rows.better_read.layer, 'external');
+  assert.equal(rows.better_read.provider, 'example-plugin');
+  assert.equal(rows.read.layer, 'official');
+  assert.equal(rows.read.provider, 'installed official module');
+  assert.equal(rows.plain_reader.layer, 'unattributed');
+  assert.equal(rows.plain_reader.provider, 'unknown plugin');
+  // A quarantined row disappears, but the remaining layers stay visible in the same result set.
+  f.state.observe(f.call(), broken);
+  const after = f.state.search(f.agent, { query: 'read' });
+  assert.ok(!after.results.some(r => r.name === 'better_read'));
+  assert.equal(after.total, 2);
   assert.equal(f.state.search(f.agent, { query: 'read' }, new Set()).total, 0);
 });
 test('schemas are disclosed only after selection; unavailable capabilities never become callable', () => {
@@ -203,8 +216,51 @@ test('official tools outside the preset stay visible and are never quarantined',
   state.observe(exec, broken);
   assert.equal(state.guard({ name: 'working_directory', agent: f.agent }), undefined);
   assert.equal(state.status(f.agent).blocked.length, 0);
-  assert.equal(state.search(f.agent, { query: 'directory' }).layer, 'official');
+  const merged = state.search(f.agent, { query: 'directory' });
+  assert.equal(merged.results[0]?.name, 'working_directory');
+  assert.equal(merged.results[0]?.layer, 'official');
   assert.ok(!state.sdkDefinitions(f.agent).some(d => d.name === 'better_read'), 'a real extension stays on demand');
+});
+
+test('a bundle declaring dsh.toolNames is attributed without reading its source', () => {
+  const sources = { 'third-party-plugin': 'defineTool({ name: "scraped_tool" })' };
+  const manifests = { 'third-party-plugin': { dsh: { toolNames: ['role_search', 'delegate_role'] } } };
+  const entries = [{ options: { name: 'third-party-plugin' } }];
+  const directory = toolDirectory(() => ({ entries: () => entries }), {
+    readSource: moduleName => { if (!(moduleName in sources)) throw new Error('unreadable'); return sources[moduleName]; },
+    readManifest: moduleName => { if (!(moduleName in manifests)) throw new Error('unreadable'); return manifests[moduleName]; },
+  });
+  assert.equal(directory.isOfficial('role_search'), false);
+  assert.equal(directory.providerOf('role_search'), 'third-party-plugin');
+  assert.equal(directory.providerOf('delegate_role'), 'third-party-plugin');
+  assert.equal(directory.isExternal('role_search'), true);
+  assert.equal(directory.providerOf('scraped_tool'), 'third-party-plugin', 'scraped names keep working alongside declared ones');
+});
+
+test('an official bundle declaration is official, and invalid declarations are ignored', () => {
+  const manifests = { '@deepseek-ai/dsh-tool-x': { dsh: { toolNames: ['declared_official', 42, null, 'declared_official'] } }, 'broken-bundle': 'not-an-object' };
+  const entries = [{ options: { name: '@deepseek-ai/dsh-tool-x' } }, { options: { name: 'broken-bundle' } }];
+  const directory = toolDirectory(() => ({ entries: () => entries }), {
+    readSource: () => { throw new Error('unreadable source'); },
+    readManifest: moduleName => { const m = manifests[moduleName]; if (typeof m === 'string') throw new Error('unreadable manifest'); return m; },
+  });
+  assert.equal(directory.isOfficial('declared_official'), true);
+  assert.equal(directory.providerOf('declared_official'), '@deepseek-ai/dsh-tool-x');
+  assert.equal(directory.providerOf('anything'), undefined);
+});
+
+test('a declared third-party tool is quarantined on failure', () => {
+  const f = setup();
+  const plain = def('declared_role');
+  delete plain.deepPtc;
+  f.live.set('declared_role', plain);
+  const directory = { isOfficial: () => false, isExternal: name => name === 'declared_role', providerOf: name => name === 'declared_role' ? 'dsh-task-dispatcher' : undefined, namesOf: () => new Set() };
+  const state = createCompatibilityState(f.tools, [], f.storage, directory);
+  const exec = { name: 'declared_role', agent: f.agent };
+  state.dispatched(exec);
+  state.observe(exec, broken);
+  assert.equal(state.status(f.agent).blocked[0].provider, 'dsh-task-dispatcher');
+  assert.equal(state.guard(exec)?.includes('quarantined'), true);
 });
 
 test('tool names are read from installed source without running it', () => {

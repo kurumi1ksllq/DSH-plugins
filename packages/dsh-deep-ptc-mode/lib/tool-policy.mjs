@@ -182,12 +182,11 @@ export function createCompatibilityState(tools, preferences = [], storage = {}, 
     search(agent, args, toolSet) {
       const excluded = new Set(usableState(agent).blocked.map(item => item.name));
       const visible = definitions(agent, toolSet).filter(def => def.name !== DIRECTORY_TOOL && !excluded.has(def.name));
-      const externalTools = visible.filter(external);
-      const result = searchCatalog(externalTools, args.query, args.offset, args.limit);
-      if (result.total) return { layer: 'external', ...result };
-      const baseline=searchCatalog(visible.filter(official),args.query,args.offset,args.limit);
-      if(baseline.total)return {layer:'official',...baseline};
-      return {layer:'unattributed',...searchCatalog(visible.filter(def=>!external(def)&&!official(def)),args.query,args.offset,args.limit)};
+      // One ranked pass over every layer: a hit in one layer must never mask
+      // another (issue-223: the official subagent family used to shadow the
+      // unattributed role tools for any natural-language delegation query).
+      const annotate = definition => ({ layer: official(definition) ? 'official' : external(definition) ? 'external' : 'unattributed', provider: providerOf(definition) });
+      return searchCatalog(visible, args.query, args.offset, args.limit, annotate);
     },
     load(agent, names, toolSet) {
       if (!Array.isArray(names) || names.length < 1 || names.length > 6 || names.some(name => !validName(name))) throw new Error('Load 1–6 exact tool names');

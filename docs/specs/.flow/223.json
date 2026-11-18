@@ -1,0 +1,18 @@
+{
+  "issue": 223,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-18T08:30:30.294Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "search 三层合并(tool-catalog annotate + tool-policy)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "声明式归属(official-names readManifest)+ bundle 声明 + 版本",
+      "state": "red"
+    }
+  ]
+}
