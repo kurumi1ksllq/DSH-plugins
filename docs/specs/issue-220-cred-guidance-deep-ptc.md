@@ -6,7 +6,7 @@
 
 issue 原文的两条机制性断言经取证**均不成立**,真实缺口是「指引不精确导致模型误判」:
 
-1. **hint 段其实已注入**。证据会话 `session-2fb16c46`(issue 证据来源,audit.log 15:48–16:36 UTC 十次 reveal)
+1. **hint 段其实已注入**。证据会话 `session-2fb16c46`(issue 证据来源,audit.log 15:48–16:36 UTC 十二次 reveal)
    与 `session-860e5dd2`、`session-b9ef7417` 的 `session.v4.jsonl.zstd` 里,system message(92,580 字符,
    三会话同长)都含完整 hint 段(位于 3% 处)与 github-rope-token 索引行。模型在 idx 223 自报「上下文里没有」
    ——记录与自述矛盾,指向大系统提示下的小段被忽略(注意力/显著性问题),不是装配缺失。
@@ -51,8 +51,8 @@ issue 原文的两条机制性断言经取证**均不成立**,真实缺口是「
 
 (留空,实现中如需调整在此追加)
 
-- **测试基建**:11 处测试假 ctx 补 `context()`(生产代码不加 typeof 防御——宿主 dsh-system-prompt 服务固定提供 section+context,不发明故障模式)。
-- **CHANGELOG 计数注记**:docs-contract 要求自述计数与 `### ` 条目数一致,新增条目后按注记惯例重算 62→63(59 tagged + 3 untagged + 1 repo-level)。
+- **测试基建**:12 处测试假 ctx 补 `context()`(生产代码不加 typeof 防御——宿主 dsh-system-prompt 服务固定提供 section+context,不发明故障模式)。
+- **CHANGELOG 计数注记**:docs-contract 要求自述计数与 `### ` 条目数一致,新增条目后按注记惯例重算 62→63(60 tagged + 2 untagged + 1 repo-level;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。
 - **预存环境红对照**(与本改动无关,已在 HEAD 干净 worktree 复现):dsh-inventory `sync-issues-3-10` 两例时钟断言(0!==1)、dsh-task-dispatcher `synonyms-live` 与 ecc-agent-presets `bundle` 的 js-yaml 解析——三者在 HEAD(不含本改动)上同样失败;本 diff 与这三个包零重叠。
-- **全量四件套口径**:以 `/opt/dsh-runtime/node24/bin/node` 直跑(系统 node 18 缺 `fs.globSync`,为环境性假红):dev-flow 249/249、vault 231/231、deep-ptc 175/175、skill-surface 108/108、websearch 29/29、repo-level 104/104 全绿;verify 三脚本全绿(workspace ok: 8 bundles / bundles ok: 8 checked,0.6.2 未打 tag 为合并后动作)。
+- **全量四件套口径**:以 `/opt/dsh-runtime/node24/bin/node` 直跑(系统 node 18 缺 `fs.globSync`,为环境性假红):dev-flow 249/249、vault 231/231(node24,glob 口径与 CI 一致;目录口径含空文件条目计 232,亦全绿)、deep-ptc 175/175、skill-surface 108/108、websearch 29/29、repo-level 104/104 全绿;verify 三脚本全绿(workspace ok: 8 bundles / bundles ok: 8 checked,0.6.2 未打 tag 为合并后动作)。
 - **gh 未认证**:按 FLOW 前置自检记录缺口;push/PR 经保险库 `use` 授权,在 bash 工具调用里以 `GH_TOKEN="$DSH_CRED_*"` 注入(零明文,只出现变量名)。

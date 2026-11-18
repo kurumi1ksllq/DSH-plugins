@@ -7,7 +7,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { apply, TOOL_NAME, API_BASE } from '../index.js'
-import { HINT_POINTER_NAME, HINT_POINTER_ORDER } from '../lib/hint.js'
 import { createVaultStore } from '../lib/vault-store.js'
 import { readAudit } from '../lib/audit.js'
 
@@ -144,9 +143,10 @@ test('apply registers the compact context-channel pointer (#220)', async () => {
   try {
     const ctx = fakeContext()
     apply(ctx, { vaultDir: dir })
-    const pointer = ctx.registered.contexts.find((item) => item.name === HINT_POINTER_NAME)
+    const pointer = ctx.registered.contexts.find((item) => item.name === 'dsh-credential-vault:pointer')
     assert.ok(pointer, 'the context-channel pointer must be registered')
-    assert.equal(pointer.order, HINT_POINTER_ORDER)
+    assert.equal(pointer.name, 'dsh-credential-vault:pointer')
+    assert.equal(pointer.order, 20900)
     assert.match(pointer.text, /`credential` tool/)
     assert.match(pointer.text, /tools\.bash/)
     assert.match(pointer.text, /process\.env/)

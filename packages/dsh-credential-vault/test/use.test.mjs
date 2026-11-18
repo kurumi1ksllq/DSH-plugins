@@ -433,6 +433,7 @@ test('the use note points at shell tool calls, not process.env (#220)', async ()
     const result = await tool.execute({ action: 'use', name: 'github token' }, { agent: { session: { header: { id: 's1' } } } })
     assert.match(result.note, /tools\.bash/)
     assert.match(result.note, /process\.env/)
+    assert.match(result.note, /grant below is still valid/)
     assert.match(result.note, /tell the user/)
     assert.match(result.note, /Never echo/)
   } finally {

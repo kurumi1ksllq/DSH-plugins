@@ -102,7 +102,7 @@ test('the plugin registers its credential tool without the real package present'
     const { apply, TOOL_NAME } = await import('../index.js')
     const registered = []
     const sections = []
-  const contexts = []
+    const contexts = []
     const routes = []
     const ctx = {
       effect: (fn) => fn(),

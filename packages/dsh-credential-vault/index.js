@@ -340,14 +340,14 @@ if (!isValidName(credName) && !store.has(credName)) {
               expiresAt: grant.expiresAt,
               ttlSeconds,
               note:
-                `The value is NOT in this result. Reference ${grant.envVar} inside a model shell tool call — ` +
-                'for example `await tools.bash({ command: "..." })` — where it is injected into each call ' +
+                `The value is NOT in this result. Reference $${grant.envVar} inside a model shell tool call — ` +
+                'for example `await tools.bash({ command: "... $DSH_CRED_…" })` — where it is injected into each call ' +
                 'until it expires. It never appears in a run_code/PTC program\'s process.env or its child ' +
                 'processes: check it inside a shell tool command, never via process.env. Never echo it, ' +
                 'printenv it, or write it to a file, URL or command-line argument. If a shell tool call still ' +
-                'finds the variable missing, the injection channel is down — stop and tell the user instead ' +
-                'of falling back to reveal. When it expires, re-run action:"use" with the same name to get a ' +
-                'fresh grant.',
+                'finds the variable missing while the grant below is still valid, the injection channel is ' +
+                'down — stop and tell the user instead of falling back to reveal; if the grant has expired, ' +
+                're-run action:"use" with the same name to get a fresh one.',
             }
           }
           if (action === 'reveal') {
