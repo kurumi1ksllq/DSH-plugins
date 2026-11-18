@@ -1,8 +1,8 @@
 {
   "issue": 224,
   "grade": "standard",
-  "stage": "ci",
-  "updatedAt": "2026-11-18T11:23:41.110Z",
+  "stage": "done",
+  "updatedAt": "2026-11-18T12:10:18.237Z",
   "tickets": [
     {
       "id": 1,
@@ -20,5 +20,10 @@
     "status": "green",
     "run": 0,
     "max": 2
+  },
+  "merge": {
+    "authorized": true,
+    "pr": 226,
+    "mergedAt": "2026-11-18T12:09:06Z"
   }
 }
