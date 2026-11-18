@@ -1,6 +1,6 @@
 # Deep PTC mode
 
-[中文](README.zh.md) · MIT · **1.15.0**
+[中文](README.zh.md) · MIT · **1.16.0**
 
 [1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) — 历史快照，当前版本见下方 "Current release"
 **Let plugins cooperate. Keep current official PTC tools as the fallback. Stay interruptible while work runs.**
@@ -24,9 +24,9 @@ An extension must publish into the `deep-ptc` scope and support the installed ho
 
 The official fallback retains the 1.6.1 derivation mechanism: the plugin reads the running host’s PTC declaration and checks for changes every five seconds; only changed declarations or this plugin’s settings rebuild the preset and follows its module names and configuration. The bundled snapshot is used only if loading, parsing or derivation fails, with a warning. Reload after an official upgrade and use a new preset revision; existing sessions are not forcibly switched. DSH support is declared as `>=0.2.2-rc.1 <0.3.0-0`; future host APIs still require verification.
 
-## Current release: 1.15.0
+## Current release: 1.16.0
 
-This repository carries the 1.15.0 line. The mechanism sections below were written at 1.7.3 and still describe the derivation, reachability and working-contract behaviour; the releases after it changed the governor packaging, execution environments, localisation and delegation wiring:
+This repository carries the 1.16.0 line. The mechanism sections below were written at 1.7.3 and still describe the derivation, reachability and working-contract behaviour; the releases after it changed the governor packaging, execution environments, localisation and delegation wiring:
 
 - **1.8.0** — absorbed `dsh-stall-governor` and `dsh-git-bash-tool`; Git Bash became a first-class execution environment.
 - **1.9.0** — the 5007-line governor was split into six modules (peer / core / anchor / settings / softcut / apply) with byte-identical declaration bodies.
@@ -35,6 +35,7 @@ This repository carries the 1.15.0 line. The mechanism sections below were writt
 - **1.12.0** — deterministic `allowedAgentPresets` on the spawn-side delegation row, exposing the `agent_preset` parameter to `subagent` (reverted in 1.15.0).
 - **1.13.0 / 1.13.1** — wiring follow-ups for the `dsh-auto-delegation` → `dsh-task-dispatcher` rename; optional test prerequisites (React, YAML parser) now skip with an actionable reason instead of failing at load time.
 - **1.15.0** — removes the `allowedAgentPresets` stamping added in 1.12.0: the `agent_preset` argument produced a child with no file tools and no persona, so the shell path is now unreachable and role delegation goes through `dsh-task-dispatcher`'s `delegate_role` only (#207).
+- **1.16.0** — merges the tool-catalog search into one ranked result annotated per row (a hit in one layer no longer shadows another) and reads `dsh.toolNames` declarations for tool attribution.
 
 See [CHANGELOG.md](CHANGELOG.md) for the per-release detail.
 
@@ -135,10 +136,10 @@ A prompt changes the model's working tendency, not the real token limit or billi
 Requires Node `>=24` and DSH `>=0.2.2-rc.1 <0.3.0-0`. Windows desktop rc.5 was used for real WSL/PowerShell command checks. macOS/Zsh configuration, argv and tool mounting were checked; native macOS execution has not been verified on this Windows host.
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.15.0" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.16.0" })
 // Or from a local checkout or archive:
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
-// Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.15.0.tgz"
+// Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.16.0.tgz"
 ```
 
 Repository locator: `github:lishize20040802-rgb/dsh-deep-ptc-mode`. It installs content actually published there; a local upgrade does not publish to GitHub or npm.

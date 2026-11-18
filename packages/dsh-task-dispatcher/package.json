@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-dispatcher",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "type": "module",
   "description": "Task dispatcher: injects a delegation discipline with COUNTABLE split triggers and a role table as a runtime context, and registers role_search (Chinese and English keywords) / delegate_role so the lead agent and every teammate can hand a subtask to a specialist ROLE whose child inherits the parent toolset and receives that role persona",
@@ -37,7 +37,11 @@
     "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
-    }
+    },
+    "toolNames": [
+      "role_search",
+      "delegate_role"
+    ]
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "*"

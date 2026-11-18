@@ -14,17 +14,17 @@ export function summary(definition) {
   }
   return row;
 }
-export function searchCatalog(definitions, query = '', offset = 0, limit = 6) {
+export function searchCatalog(definitions, query = '', offset = 0, limit = 6, annotate) {
   const terms = String(query).slice(0, 512).toLowerCase().trim().split(/[\s,，]+/u).filter(Boolean).slice(0, 12);
   const ranked = definitions.map(def => {
     const row = summary(def);
     const score = terms.reduce((sum, word) => sum + (row.name.toLowerCase().includes(word) ? 8 : row.text.includes(word) ? 1 : 0), 0);
-    return { row, score };
+    return { def, row, score };
   }).filter(entry => terms.length === 0 || entry.score > 0)
     .sort((a, b) => b.score - a.score || (a.row.name < b.row.name ? -1 : a.row.name > b.row.name ? 1 : 0));
   const start = Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
   const count = Math.max(1, Math.min(8, Number.isSafeInteger(limit) ? limit : 6));
-  return { total: ranked.length, results: ranked.slice(start, start + count).map(({ row }) => ({ name: row.name, description: row.description })),
+  return { total: ranked.length, results: ranked.slice(start, start + count).map(({ def, row }) => ({ name: row.name, description: row.description, ...(typeof annotate === 'function' ? annotate(def) ?? {} : {}) })),
     nextOffset: start + count < ranked.length ? start + count : null };
 }
 export function toolSchema(def) {

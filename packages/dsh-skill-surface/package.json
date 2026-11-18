@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-surface",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "description": "Fallback skill discovery for agents whose preset mounts no skill provider: an official filesystem provider in the global layer, a skill_get loader and a hint that stay silent whenever the official skill tool already exists",
@@ -37,7 +37,10 @@
     "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
-    }
+    },
+    "toolNames": [
+      "skill_get"
+    ]
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-llm": "*",

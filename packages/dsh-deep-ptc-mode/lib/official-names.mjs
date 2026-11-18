@@ -54,6 +54,42 @@ function installedSource(moduleName, base) {
   return row;
 }
 
+const manifestCache = new Map();
+function installedManifest(moduleName, base) {
+  let file;
+  if (base !== undefined) {
+    try { file = createRequire(base).resolve(moduleName + '/package.json'); } catch {
+      // Not installed beside this tree; the runtime's own graph may still hold it.
+    }
+  }
+  if (file === undefined) {
+    const url = resolveHost(moduleName + '/package.json');
+    if (url !== undefined) file = fileURLToPath(url);
+  }
+  const stat = statSync(file);
+  const stamp = `${file}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}`;
+  let row = manifestCache.get(file);
+  if (row?.stamp !== stamp) { row = { stamp, manifest: JSON.parse(readFileSync(file, 'utf8')) }; manifestCache.set(file, row); }
+  return row.manifest;
+}
+
+/**
+ * Tool names a bundle declares for itself (`dsh.toolNames` in its package.json).
+ * Source scraping cannot reach registrations behind an indirect entry (issue-223:
+ * task-dispatcher registers in lib via a helper), so a bundle that knows its own
+ * model-facing names says so; scraping stays the fallback. Never throws.
+ */
+function declaredToolNames(readManifest, moduleName, base) {
+  try {
+    const names = readManifest(moduleName, base)?.dsh?.toolNames;
+    return Array.isArray(names)
+      ? [...new Set(names.filter(name => typeof name === 'string' && name.length > 0 && name.length <= 256))]
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Attribute tool names to the modules that declare them.
  * @param getLoader - current root loader, whose rows hold the profile's tools.
@@ -61,7 +97,7 @@ function installedSource(moduleName, base) {
  * @param readSource - source reader, replaced in tests.
  * @param base - resolution base for `modules`.
  */
-export function toolDirectory(getLoader, { modules = [], readSource = installedSource, base, refreshMs = REFRESH_MS } = {}) {
+export function toolDirectory(getLoader, { modules = [], readSource = installedSource, readManifest = installedManifest, base, refreshMs = REFRESH_MS } = {}) {
   const scanned = new Map();
   const namesIn = (moduleName, rowBase) => {
     const key=moduleName+'\0'+String(rowBase ?? '');
@@ -95,6 +131,7 @@ export function toolDirectory(getLoader, { modules = [], readSource = installedS
       if (entry.disabled || typeof moduleName !== 'string' || moduleName.startsWith('cordis:') || moduleName.startsWith(OWN_PACKAGE)) continue;
       const isOfficial = moduleName.startsWith(OFFICIAL_SCOPE);
       for (const name of namesIn(moduleName, entry.parent?.tree?.ctx?.baseUrl)) add(name, moduleName, isOfficial);
+      for (const name of declaredToolNames(readManifest, moduleName, entry.parent?.tree?.ctx?.baseUrl)) add(name, moduleName, isOfficial);
       // Tools named by their row's configuration, such as the subagent tools.
       if (typeof entry.options.config?.toolName === 'string') add(entry.options.config.toolName, moduleName, isOfficial);
     }

@@ -1,0 +1,23 @@
+{
+  "issue": 223,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-18T10:18:56.012Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "search 三层合并(tool-catalog annotate + tool-policy)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "声明式归属(official-names readManifest)+ bundle 声明 + 版本",
+      "state": "done"
+    }
+  ],
+  "review": {
+    "state": "running",
+    "verdict": "axis1 APPROVE(0 P0/P1);axis2 P1 fixed, P2-1 fixed, P2-2 wontfix(记录于 PR)"
+  },
+  "pr": 225
+}
