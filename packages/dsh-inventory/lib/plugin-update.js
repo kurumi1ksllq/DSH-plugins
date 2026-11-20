@@ -647,8 +647,8 @@ export async function performUpdate(options) {
         if (installed.ok !== true) return await undo(`pnpm install failed: ${installed.error}`)
       }
       if (needsBuild(files)) {
-        const built = await runIn(repo, 'pnpm', ['build:inventory-client'], 180_000)
-        if (built.ok !== true) return await undo(`build:inventory-client failed: ${built.error}`)
+        const built = await runIn(repo, 'pnpm', BUILD_COMMAND, 180_000)
+        if (built.ok !== true) return await undo(`${BUILD_COMMAND.join(' ')} failed: ${built.error}`)
       }
       return moved
     },

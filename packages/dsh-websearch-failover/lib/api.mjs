@@ -27,6 +27,7 @@ class ApiError extends Error {
  *   refresh: (ids?: string[]) => object | Promise<object>,
  *   setEnabled: (id: string, enabled: boolean) => object,
  *   resetStats: (id?: string) => object,
+ *   clearCooldown: (id?: string) => object | Promise<object>,
  *   maxBodyBytes?: number,
  * }} service
  */
@@ -60,15 +61,19 @@ export function createApiHandler(service) {
     },
     [`${API_BASE}/clear-cooldown`]: {
       methods: ['POST'],
-      run: ({ body }) => {
-        // issue-232: an auth-class cooldown lasts 86400s; without this route the
-        // panel could only show the countdown, never end it.
+      // issue-232: an auth-class cooldown lasts 86400s; without this route the
+      // panel could only show the countdown, never end it.
+      // ASYNC on purpose: the wired implementation serializes through the state
+      // mutex and therefore returns a Promise. Awaiting it is what makes the
+      // returned snapshot describe the state AFTER the clear — a sync read here
+      // handed the panel the pre-clear snapshot, so the button looked dead.
+      run: async ({ body }) => {
         if (body?.id !== undefined && (typeof body.id !== 'string' || body.id.trim().length === 0)) {
-          throw new ApiError(400, 'invalid-id', 'id must be a non-empty string when present')
+          throw new ApiError(400, 'invalid-clear-cooldown', 'id must be a non-empty string when present')
         }
         if (typeof clearCooldownFn !== 'function') throw new ApiError(500, 'unsupported', 'clearCooldown is not wired in this deployment')
-        const result = clearCooldownFn(typeof body?.id === 'string' ? body.id.trim() : undefined)
-        return { ...snapshot(), cleared: result.cleared }
+        const result = await clearCooldownFn(typeof body?.id === 'string' ? body.id.trim() : undefined)
+        return { ...snapshot(), cleared: result?.cleared ?? [] }
       },
     },
     [`${API_BASE}/stats/reset`]: {

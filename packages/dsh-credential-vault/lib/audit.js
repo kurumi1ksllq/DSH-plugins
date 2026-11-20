@@ -18,9 +18,12 @@ export const AUDIT_MAX_LINES = 2000
 let modeWarned = false
 
 /** How many appends between self-trim checks (issue-232). */
-const TRIM_CHECK_EVERY = 25
+export const TRIM_CHECK_EVERY = 25
 
-/** Appends since the last self-trim check. */
+/** Appends since the last self-trim check, shared across vault directories in
+ * this process. Per-directory counting would be more precise; the cost of being
+ * off by a few writes is a trim that runs a little later, so the simpler counter
+ * stays. */
 let writesSinceTrim = 0
 
 /** Append one audit record. Fields never include secret material. */

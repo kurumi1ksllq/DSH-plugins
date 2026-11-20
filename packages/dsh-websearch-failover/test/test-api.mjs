@@ -218,31 +218,36 @@ await okAsync('a throwing service becomes a 500 with the error message', async (
   assert.match(result.json.message, /boom/)
 })
 
-await okAsync('POST /clear-cooldown forwards the id and returns the cleared list (issue-232)', async () => {
-  const cleared = []
+await okAsync('POST /clear-cooldown returns the state AFTER the clear (issue-232)', async () => {
+  // The wired implementation is async (it serializes through the state mutex), so
+  // the stub must be too: a sync stub hid the bug where the route returned the
+  // PRE-clear snapshot and the panel's button appeared to do nothing.
+  let cooled = true
+  const seen = []
   const { handler } = makeHandler({
-    clearCooldown(id) {
-      cleared.push(id)
-      return { cleared: id === undefined ? ['exa', 'tavily'] : [id] }
+    snapshot: () => ({
+      ok: true,
+      generatedAt: 1,
+      providers: [{ id: 'exa', kind: 'exa', label: 'Exa', enabled: true, rank: 1, keyPresent: true, balance: null, cooldown: cooled ? { active: true, until: Date.now() + 86_400_000, reason: 'auth' } : { active: false } }],
+    }),
+    async clearCooldown(id) {
+      seen.push(id)
+      cooled = false
+      return { cleared: id === undefined ? ['exa'] : [id] }
     },
   })
-  const one = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: { id: 'exa' } })
-  assert.equal(one.status, 200)
-  assert.deepEqual(cleared, ['exa'])
-  assert.deepEqual(one.json.cleared, ['exa'])
-  assert.equal(one.json.ok, true, 'the panel needs the fresh snapshot back')
-
-  const all = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: {} })
-  assert.equal(all.status, 200)
-  assert.deepEqual(cleared, ['exa', undefined])
-  assert.deepEqual(all.json.cleared.sort(), ['exa', 'tavily'])
+  const result = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: { id: 'exa' } })
+  assert.equal(result.status, 200)
+  assert.deepEqual(result.json.cleared, ['exa'], 'the response must carry what was cleared')
+  assert.equal(result.json.providers[0].cooldown.active, false, 'the snapshot must reflect the clear, not the state before it')
+  assert.deepEqual(seen, ['exa'])
 })
 
 await okAsync('POST /clear-cooldown rejects a blank id and a missing implementation', async () => {
   const { handler } = makeHandler()
   const blank = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: { id: '  ' } })
   assert.equal(blank.status, 400)
-  assert.equal(blank.json.error, 'invalid-id')
+  assert.equal(blank.json.error, 'invalid-clear-cooldown')
 
   const unsupported = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: {} })
   assert.equal(unsupported.status, 500)

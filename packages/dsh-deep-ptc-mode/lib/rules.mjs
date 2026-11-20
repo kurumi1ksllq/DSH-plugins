@@ -51,8 +51,11 @@ export function reachabilityGuard(config, jobsOf = () => undefined, languageOf =
       // a number the host will honour either.
       const raw = args.timeout;
       const timeout = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
-      if (typeof timeout === 'number' && Number.isFinite(timeout)
-        && (timeout === -1 || timeout > config.maxQuestionSeconds))
+      // Infinity / 1e999 / NaN all mean "wait forever" — they must be refused,
+      // not exempted. Requiring Number.isFinite here would have re-opened the
+      // hole this check exists to close (a numeric Infinity used to be refused).
+      if (typeof timeout === 'number'
+        && (Number.isNaN(timeout) || timeout === -1 || !Number.isFinite(timeout) || timeout > config.maxQuestionSeconds))
         return `Deep PTC limits ask_user_question to timeout <= ${config.maxQuestionSeconds} seconds. An unanswered question becomes pending and the user can still answer it later; continue independent work meanwhile.`;
     }
     return undefined;

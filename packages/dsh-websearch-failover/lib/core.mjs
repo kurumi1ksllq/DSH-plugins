@@ -599,7 +599,7 @@ export async function search({ query, limit, config, statePath, force = false, s
  * Test every configured provider once, ignoring priority and cooldowns, and
  * never writing cooldown state. Use to find out which keys are alive.
  */
-export async function probeAll({ config, signal, query = 'deepseek harness', limit = 3 }) {
+export async function probeAll({ config, signal, query = 'deepseek harness', limit = 3, timeoutMs }) {
   const results = [];
   for (const provider of config.providers) {
     const started = Date.now();
@@ -608,7 +608,12 @@ export async function probeAll({ config, signal, query = 'deepseek harness', lim
       const adapter = ADAPTERS[provider.kind];
       if (!adapter) throw new SearchError(`unknown provider kind "${provider.kind}"`, 'CONFIG_INVALID');
       const sources = await adapter(
-        { ...provider, timeoutMs: provider.timeoutMs ?? config.defaults.timeoutMs },
+        {
+          ...provider,
+          timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0
+            ? timeoutMs
+            : (provider.timeoutMs ?? config.defaults.timeoutMs),
+        },
         { query, limit, key },
         signal,
       );

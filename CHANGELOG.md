@@ -20,11 +20,11 @@ test-only changes are exempt.
 ### dsh-websearch-failover 0.6.0 — `--timeout` 真正生效 + 可手动解除冷却(issue-232)
 
 **问题**:CLI `--timeout` 接受参数但 `core.search` 不接收,静默无效;auth 类冷却 86400s 无任何出口,只能手改 state 文件。
-**修复**:`core.search` 接受 `timeoutMs` 并优先于配置默认值(实测:请求 150ms 时 155ms 返回,修复前会等满 60s 配置默认);新增 `clearCooldown` + `POST /api/clear-cooldown` + 面板「解除冷却」按钮(仅冷却中显示)。
+**修复**:`core.search` 接受 `timeoutMs` 并优先于配置默认值(回归测试:配置默认 60s、请求 150ms,断言搜索在 5s 内返回;去掉该优先级时实测等满 60s 才失败);新增 `clearCooldown` + `POST /api/clear-cooldown` + 面板「解除冷却」按钮(仅冷却中显示)。
 
 ### dsh-inventory 0.14.1 — 更新流程的构建判断修正(issue-232)
 
-**问题(比原报告更严重)**:`needsBuild` 对 `packages/dsh-websearch-failover/lib/` 的任何改动返回 true,而该目录是**被 git 跟踪的源码**(在 `files` 里、已提交),不是构建产物;随后执行的 `pnpm build:websearch` **在本仓库根本不存在**——实测 `Command "build:websearch" not found`。结果是每次 failover 更新都走 undo 路径。
+**问题(比原报告更严重)**:`needsBuild` 对 `packages/dsh-websearch-failover/lib/` 的任何改动返回 true,而该目录是**被 git 跟踪的源码**(在 `files` 里、已提交),不是构建产物;随后执行的 `pnpm build:websearch` **在本仓库根本不存在**——实测 `Command "build:websearch" not found`。结果是凡改动落在 `packages/dsh-websearch-failover/lib/` 的更新都会走 undo 路径(只改 README 等不命中该前缀的改动不受影响)。
 **修复**:`needsBuild` 只对真正生成的部件(`dsh-inventory/client/`)返回 true;新增根脚本 `build:inventory-client`,更新流程改调它。
 
 ### dsh-deep-ptc-mode 1.16.1 — 提问超时上限不再被字符串绕过(issue-232)

@@ -27,3 +27,6 @@
 2. **failover-b 从「API 可达」扩到「面板可达」**:只加 API 用户仍然点不到,故补 `dsh-inventory/client/80-websearch.js` 的「解除冷却」按钮(仅冷却中显示)+ zh/en 词条,并重建 client.js。
 3. **failover 升 minor(0.5.3→0.6.0)**:新增了 API 路由与面板按钮,属能力新增而非纯修复;其余三包升 patch。
 4. vault 版本从 0.6.3 起跳(0.6.3 已被 issue-230 之外的历史占用),本次为 0.6.4。
+5. **vault-a 实现偏离目标措辞**:spec 写「追加后也调用 trimAudit」,实现为「每 25 次追加自检一次」。理由:每次追加都全量读+重写 2000 行会落在工具热路径上;有界性不变。CHANGELOG 与本条口径一致。
+6. **inventory-a 未实现「按包清单」方案**:spec 目标写的是「按包清单判断」,实现仍是一个具体路径(`packages/dsh-inventory/client/`)。理由:仓库里真正「生成且提交」的产物当前只有这一个;做通用清单需要扫 8 个包的 build 脚本并维护映射表,收益为负。**这是放弃 spec 目标措辞的偏离,如实记录**。下一个包引入生成物时必须回来改成清单。
+7. **双轴 review 后补**:①`Infinity`/`1e999` 曾被新加的 `Number.isFinite` 放行(旧代码会拒)——已改为「非有限数即拒绝」并补 4 条断言;②`POST /clear-cooldown` 曾返回清除前快照(路由未 await 异步实现)——已改 async 并让测试断言「响应里 cooldown.active === false」。两处均反向验证成立。

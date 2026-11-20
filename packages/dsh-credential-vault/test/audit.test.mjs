@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { appendAudit, readAudit, trimAudit, AUDIT_MAX_LINES } from '../lib/audit.js'
+import { appendAudit, readAudit, trimAudit, AUDIT_MAX_LINES, TRIM_CHECK_EVERY } from '../lib/audit.js'
 
 function tempDir() {
   return mkdtempSync(join(tmpdir(), 'vault-audit-test-'))
@@ -37,7 +37,9 @@ test('appendAudit self-trims so the log cannot grow without an API request (issu
       appendAudit(dir, { name: 'n' + i, outcome: 'ok', source: 'tool', action: 'use' })
     }
     const lines = readFileSync(join(dir, 'audit.log'), 'utf8').split('\n').filter((line) => line.length > 0)
-    assert.ok(lines.length <= AUDIT_MAX_LINES + 50, 'audit log grew unbounded: ' + lines.length + ' lines')
+    // Tolerance is the check interval itself, so it tracks the implementation
+    // instead of a hand-picked 50 that would hide a drifting trim point.
+    assert.ok(lines.length <= AUDIT_MAX_LINES + TRIM_CHECK_EVERY, 'audit log grew unbounded: ' + lines.length + ' lines')
     // 最近的记录必须还在(截断是从旧的删)。
     const records = readAudit(dir, 1)
     assert.equal(records[0].name, 'n' + (total - 1))
