@@ -66,7 +66,7 @@ async function main() {
 
   if (args.probe === true) {
     const query = typeof args.query === 'string' ? args.query : 'deepseek harness web search';
-    const results = await probeAll({ config, query, limit: 3 });
+    const results = await probeAll({ config, query, limit: 3, ...(args.timeout ? { timeoutMs: Number(args.timeout) } : {}) });
     if (args.json === true) {
       console.log(JSON.stringify({ query, results }, null, 2));
       return;

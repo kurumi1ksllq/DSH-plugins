@@ -385,9 +385,17 @@ test('probeTargetEntries parses the target’s entry files, not the working tree
   assert.equal(bad.failures[0].path, 'packages/dsh-one/index.js')
 })
 
-test('the build predicate follows the file list', () => {
-  assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), true)
+test('the build predicate only fires for real generated artifacts (issue-232)', () => {
+  // failover's lib/*.mjs is TRACKED SOURCE, not a build product: it ships in the
+  // package's "files" list and is committed. Treating it as generated made the
+  // update run `pnpm build:websearch`, a script that does not exist in this
+  // repository — so every failover update ended in a refused install/undo.
+  assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), false)
+  // dsh-inventory's client.js IS generated from client/ parts and committed, so a
+  // change to a part requires the build step.
+  assert.equal(needsBuild(['packages/dsh-inventory/client/80-websearch.js']), true)
   assert.equal(needsBuild(['packages/dsh-inventory/client.js']), false)
+  assert.equal(needsBuild(['packages/dev-flow/index.js']), false)
 })
 
 test('a version-only bump does not ask for an install', async () => {

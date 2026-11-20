@@ -88,6 +88,16 @@ test('the guard refuses waiting and leaves ordinary work alone', () => {
   assert.match(call('ask_user_question', { questions: [], timeout: -1 }), /timeout <= 300/);
   assert.match(call('ask_user_question', { questions: [], timeout: 900 }), /timeout <= 300/);
   assert.equal(call('ask_user_question', { questions: [], timeout: 120 }), undefined);
+  // issue-232: a string timeout used to slip past the numeric check entirely.
+  assert.match(call('ask_user_question', { questions: [], timeout: '9999' }), /timeout <= 300/);
+  assert.match(call('ask_user_question', { questions: [], timeout: '-1' }), /timeout <= 300/);
+  assert.equal(call('ask_user_question', { questions: [], timeout: '120' }), undefined);
+  // "wait forever" spellings must all be refused, not just the ones that happen
+  // to be finite numbers: JSON allows 1e999, which parses to Infinity.
+  assert.match(call('ask_user_question', { questions: [], timeout: Infinity }), /timeout <= 300/);
+  assert.match(call('ask_user_question', { questions: [], timeout: 'Infinity' }), /timeout <= 300/);
+  assert.match(call('ask_user_question', { questions: [], timeout: 1e999 }), /timeout <= 300/);
+  assert.match(call('ask_user_question', { questions: [], timeout: '1e999' }), /timeout <= 300/);
   assert.equal(call('job_output', { job_id: 'job-1', wait: true }), undefined);
   agent.inbox.nextStep.push({ id: 'm1', source: { kind: 'user' } });
   assert.match(call('job_output', { job_id: 'job-1', wait: true }), /user sent a new message/);

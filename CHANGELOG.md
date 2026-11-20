@@ -12,6 +12,26 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-credential-vault 0.6.4 — 审计日志自截断 + 导入备份有界(issue-232)
+
+**问题**:`trimAudit` 只在 HTTP API 请求后调用,纯 `credential` 工具路径(模型高频 use/reveal)下 `audit.log` 无限增长;`applyImport` 每次导入留一份全量 `vault.json.bak-*`,无上限累积。
+**修复**:`appendAudit` 每 25 次写自检并截断(保留全部 reveal 记录);导入备份只保留最近 5 份。
+
+### dsh-websearch-failover 0.6.0 — `--timeout` 真正生效 + 可手动解除冷却(issue-232)
+
+**问题**:CLI `--timeout` 接受参数但 `core.search` 不接收,静默无效;auth 类冷却 86400s 无任何出口,只能手改 state 文件。
+**修复**:`core.search` 接受 `timeoutMs` 并优先于配置默认值(回归测试:配置默认 60s、请求 150ms,断言搜索在 5s 内返回;去掉该优先级时实测等满 60s 才失败);新增 `clearCooldown` + `POST /api/clear-cooldown` + 面板「解除冷却」按钮(仅冷却中显示)。
+
+### dsh-inventory 0.14.1 — 更新流程的构建判断修正(issue-232)
+
+**问题(比原报告更严重)**:`needsBuild` 对 `packages/dsh-websearch-failover/lib/` 的任何改动返回 true,而该目录是**被 git 跟踪的源码**(在 `files` 里、已提交),不是构建产物;随后执行的 `pnpm build:websearch` **在本仓库根本不存在**——实测 `Command "build:websearch" not found`。结果是凡改动落在 `packages/dsh-websearch-failover/lib/` 的更新都会走 undo 路径(只改 README 等不命中该前缀的改动不受影响)。
+**修复**:`needsBuild` 只对真正生成的部件(`dsh-inventory/client/`)返回 true;新增根脚本 `build:inventory-client`,更新流程改调它。
+
+### dsh-deep-ptc-mode 1.16.1 — 提问超时上限不再被字符串绕过(issue-232)
+
+**问题**:`ask_user_question` 的超时守卫要求 `typeof args.timeout === 'number'`,传 `"9999"` 即完全跳过上限。
+**修复**:先归一化(数字字符串按数字处理)再判上限。
+
 ### dsh-inventory 0.14.0 — MCP gate 搜索上限收紧 + 插件更新异步化(issue-230)
 
 **问题 A**:gate 从会话 cwd 向上找 `.dsh/mcp.json` 的默认是走到根(`Infinity`)——克隆一个自带深层 `mcp.json` 的仓库,命中即对所有新会话静默挂载声明里的任意 stdio 命令,全程无确认。
@@ -714,7 +734,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 71 个条目:60 条有对应 tag;缺 tag 的 10 条(#224 两条合并后打 tag,issue-230 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+10+1=71。计数按 `git tag -l` 对 Unreleased 全部 70 个 `### ` 标题逐条实测重算(2026-11-20,issue-230 新增 2 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 75 个条目:60 条有对应 tag;缺 tag 的 14 条(#224 两条合并后打 tag,issue-230 两条与 issue-232 四条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+14+1=75。计数按 `git tag -l` 对 Unreleased 全部 74 个 `### ` 标题逐条实测重算(2026-11-20,issue-232 新增 4 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

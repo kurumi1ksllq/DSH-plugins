@@ -11,6 +11,7 @@
       order: `${WEBSEARCH_BASE}/order`,
       refresh: `${WEBSEARCH_BASE}/refresh`,
       enable: `${WEBSEARCH_BASE}/enable`,
+      clearCooldown: `${WEBSEARCH_BASE}/clear-cooldown`,
     }
     const PROMPT_ROUTE = '/prompt-inject/state'
 
@@ -338,6 +339,18 @@
           })
       }
 
+      // issue-232: an auth-class cooldown lasts a day; before this the panel could
+      // only show the countdown, so a fixed key meant waiting it out or editing
+      // the state file by hand.
+      const clearCooldown = (provider) => {
+        if (!snapshot || !provider || phase === 'saving') return
+        setFailure('')
+        setPhase('saving')
+        providerPost(WEBSEARCH_ROUTES.clearCooldown, { id: provider.id })
+          .then(accept)
+          .catch(reject)
+      }
+
       const onDropRow = (event, id) => {
         event.preventDefault()
         let source = dragId
@@ -514,6 +527,9 @@
               selected.enabled === false ? t('providerEnable') : t('providerDisable'),
             ),
             h(RowButton, { label: t('providerRefreshOne'), disabled: busy, onClick: () => refresh([selected.id]) }),
+            cooldown.active === true
+              ? h(RowButton, { label: t('providerClearCooldown'), disabled: busy, onClick: () => clearCooldown(selected) })
+              : null,
           ),
         )
       }
