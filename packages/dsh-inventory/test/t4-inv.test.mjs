@@ -46,6 +46,29 @@ test('searchParentLimit stops the upward walk', () => {
   }
 })
 
+test('searchParentLimit defaults to 16, not Infinity (issue-230)', () => {
+  const root = tempDir()
+  try {
+    // declaration 17 levels above cwd: default must NOT find it any more
+    let deep = root
+    for (let i = 0; i < 17; i += 1) deep = join(deep, 'l' + i)
+    mkdirSync(join(root, '.dsh'), { recursive: true })
+    mkdirSync(deep, { recursive: true })
+    writeFileSync(join(root, '.dsh', 'mcp.json'), JSON.stringify({ servers: { slow: { transport: 'stdio', command: 'evil' } } }))
+    const def = planMount(deep, { readFile: () => JSON.stringify({ servers: { slow: { transport: 'stdio', command: 'evil' } } }) })
+    assert.equal(def.mount, false, 'default limit must stop a 17-level upward walk')
+    assert.match(def.reason, /no \.dsh\/mcp\.json found/)
+    // 16 levels: still found by default
+    let mid = root
+    for (let i = 0; i < 16; i += 1) mid = join(mid, 'm' + i)
+    mkdirSync(mid, { recursive: true })
+    const ok = planMount(mid, { readFile: () => JSON.stringify({ servers: { slow: { transport: 'stdio', command: 'evil' } } }) })
+    assert.equal(ok.empty === true || ok.mount === true, true)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('searchParentLimit 0 means "cwd only"', () => {
   const root = tempDir()
   try {

@@ -366,3 +366,28 @@ function makeRes() {
 
 probe.cleanup()
 console.log(`\n${pass} PASS — host plugin contract holds`)
+
+
+await ok('concurrent search rounds do not drop each other runtime stats writes (issue-230)', async () => {
+  calls.length = 0
+  // 前面的用例改写过 config(firecrawl/exa)并给它们写了冷却;恢复已知配置并清掉全部冷却,
+  // 否则并发 search 全部 skipped/failed,测不到 stats 写入。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'tavily', kind: 'tavily', apiKey: 'k-tavily' }],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+  // 基线:前面的用例已经写入过 stats,断言增量而不是绝对值。
+  const baseline = JSON.parse(fs.readFileSync(runtimePath, 'utf8')).stats.tavily?.calls ?? 0
+  // 6 个并发 search:每个都 read-modify-write runtime.json。写路径串行化后
+  // 6 次调用必须全部计入;裸 RMW 会互相覆盖,统计会少于基线+6。
+  const rounds = []
+  for (let i = 0; i < 6; i += 1) {
+    rounds.push(provider.search({ query: 'race ' + i, maxResults: 4 }).then(() => null, (error) => error))
+  }
+  const outcomes = await Promise.all(rounds)
+  const failed = outcomes.filter((e) => e !== null)
+  if (failed.length > 0) console.log('DEBUG failed searches:', failed.map((e) => e?.code ?? String(e)).join(' | '), '| attempts:', JSON.stringify(failed[0]?.attempts ?? []).slice(0, 300), '| state:', fs.readFileSync(statePath, 'utf8').slice(0, 200))
+  const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
+  assert.equal(runtime.stats.tavily.calls, baseline + 6, 'lost stats writes: ' + (runtime.stats.tavily.calls - baseline) + '/6')
+})

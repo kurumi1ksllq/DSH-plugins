@@ -290,15 +290,21 @@ export function apply(ctx, config = {}) {
           signal,
         })
 
-        for (const attempt of result.attempts) {
-          if (attempt.outcome === 'ok') runtime = recordResult(runtime, attempt.provider, 'ok', { at: Date.now() })
-          else if (attempt.outcome === 'failed') {
-            runtime = recordResult(runtime, attempt.provider, 'failed', { at: Date.now(), message: attempt.message })
-          } else if (attempt.outcome === 'empty') {
-            runtime = recordResult(runtime, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
+        // issue-230 ticket C: the stats read-modify-write shares the refresh
+        // mutex — a search landing between a panel refresh's RMW used to drop
+        // one side's writes (the same #103 T1.web shape, on the search path).
+        await refreshMutex.run(() => {
+          let current = readRuntime(runtimePath)
+          for (const attempt of result.attempts) {
+            if (attempt.outcome === 'ok') current = recordResult(current, attempt.provider, 'ok', { at: Date.now() })
+            else if (attempt.outcome === 'failed') {
+              current = recordResult(current, attempt.provider, 'failed', { at: Date.now(), message: attempt.message })
+            } else if (attempt.outcome === 'empty') {
+              current = recordResult(current, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
+            }
           }
-        }
-        writeRuntime(runtime, runtimePath)
+          writeRuntime(current, runtimePath)
+        })
         appendLog(
           logPath,
           `search "${truncate(query, 80)}" -> ${result.provider} (${result.sources.length} sources) attempts: ${formatAttempts(result.attempts)}`,
@@ -314,21 +320,26 @@ export function apply(ctx, config = {}) {
           truncated: false,
         }
       } catch (error) {
-        for (const attempt of error?.attempts ?? []) {
-          if (attempt.outcome === 'failed') {
-            runtime = recordResult(runtime, attempt.provider, 'failed', {
-              at: Date.now(),
-              message: attempt.message ?? attempt.code ?? 'failed',
-            })
-          } else if (attempt.outcome === 'empty') {
-            runtime = recordResult(runtime, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
-          } else if (attempt.outcome === 'aborted') {
-            // T4.web ABORTED 计数: user-intent cancellation is tracked on its
-            // own counter, not as a provider failure.
-            runtime = recordResult(runtime, attempt.provider, 'aborted', { at: Date.now(), message: 'aborted' })
+        // Same mutex as the success path: the failure attempt list is also an
+        // RMW over runtime.json (issue-230 ticket C).
+        await refreshMutex.run(() => {
+          let current = readRuntime(runtimePath)
+          for (const attempt of error?.attempts ?? []) {
+            if (attempt.outcome === 'failed') {
+              current = recordResult(current, attempt.provider, 'failed', {
+                at: Date.now(),
+                message: attempt.message ?? attempt.code ?? 'failed',
+              })
+            } else if (attempt.outcome === 'empty') {
+              current = recordResult(current, attempt.provider, 'empty', { at: Date.now(), message: 'empty result' })
+            } else if (attempt.outcome === 'aborted') {
+              // T4.web ABORTED 计数: user-intent cancellation is tracked on its
+              // own counter, not as a provider failure.
+              current = recordResult(current, attempt.provider, 'aborted', { at: Date.now(), message: 'aborted' })
+            }
           }
-        }
-        writeRuntime(runtime, runtimePath)
+          writeRuntime(current, runtimePath)
+        })
         appendLog(
           logPath,
           `search "${truncate(query, 80)}" FAILED: ${truncate(error?.message ?? String(error), 300)} attempts: ${formatAttempts(error?.attempts)}`,

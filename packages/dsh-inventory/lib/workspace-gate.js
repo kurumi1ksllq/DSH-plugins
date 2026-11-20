@@ -45,7 +45,7 @@ export function pathKey(dir) {
  * Walk up from `cwd` looking for the declaration file.
  * @returns {{ root: string, file: string } | undefined}
  */
-export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE, searchParents = true, searchParentLimit = Infinity) {
+export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE, searchParents = true, searchParentLimit = 16) {
   let dir = normalizeDir(cwd);
   const relative = declarationFile.replace(/^[\\/]+/, '');
   const root = path.parse(dir).root;
@@ -165,7 +165,7 @@ export function planMount(cwd, options = {}) {
   const {
     declarationFile = DEFAULT_DECLARATION_FILE,
     searchParents = true,
-    searchParentLimit = Infinity,
+    searchParentLimit = 16,
     allowServerNames = [],
     serverNameSuffix = '',
     enabled = true,

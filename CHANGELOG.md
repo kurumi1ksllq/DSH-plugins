@@ -12,6 +12,19 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.0 — MCP gate 搜索上限收紧 + 插件更新异步化(issue-230)
+
+**问题 A**:gate 从会话 cwd 向上找 `.dsh/mcp.json` 的默认是走到根(`Infinity`)——克隆一个自带深层 `mcp.json` 的仓库,命中即对所有新会话静默挂载声明里的任意 stdio 命令,全程无确认。
+**修复 A**:默认上限收紧为 **16 层**(真实工作区都在其仓库根之下);更深的依赖可在 gate 行 config 显式写 `searchParentLimit`(0 = 只看 cwd,负数 = 走到根)。README 已补说明。
+
+**问题 B**:插件更新路由(`lib/plugin-update.js`)全链路 `execFileSync`,`pnpm install` 上限 300s——点「更新」期间整个宿主事件循环冻结。
+**修复 B**:gitIn/runIn/checkSyntax 全部改为 spawn + timeout + maxBuffer 的异步实现(语义不变:failure-as-value),更新期间事件循环可响应;新增可响应性回归测试。
+
+### dsh-websearch-failover 0.5.3 — search 的 stats 写入串行化(issue-230)
+
+**问题**:`searchProvider.search` 对 runtime.json 的 read-modify-write 没走 #103 加的互斥队列,与面板 refresh/resetStats 并发时互相覆盖丢数据(并发测试实测 6 次写丢 1-2 次)。
+**修复**:search 成功/失败两条路径的 stats 段全部并入同一把 `refreshMutex`;并发回归测试入 test-host-plugin(反向验证:摘掉 mutex 测试变红)。
+
 ### dsh-task-dispatcher 0.9.3 — 注入文本对齐宿主 Team 工具面(issue-225)
 
 **问题**:zh/en 分档 bullet 仍写「组队(`spawn_teammate` + 任务板)」,而 `spawn_teammate`

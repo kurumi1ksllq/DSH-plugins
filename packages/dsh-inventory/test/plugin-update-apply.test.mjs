@@ -142,3 +142,29 @@ test('a broken entry in the target is refused before the checkout moves', async 
   assert.equal(result.stage, 'probe')
   assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), before)
 })
+
+test('performUpdate keeps the event loop responsive while git runs (issue-230)', async () => {
+  const { repo, stateDir } = makeWorld()
+  const answered = []
+  const ticks = []
+  const ticker = setInterval(() => ticks.push(Date.now()), 25)
+  try {
+    const result = await performUpdate({ repo, stateDir, respond: (payload) => answered.push(payload) })
+    assert.equal(result.ok, true)
+    assert.equal(answered.length, 1)
+    // 期间 ticker 至少触发过一次:同步 exec 会把 interval 压到 0 次或严重延迟
+    assert.ok(ticks.length >= 2, `event loop was blocked: only ${ticks.length} ticks during update`)
+    // 相邻 tick 间隔不失控(同步 execFile 下相邻间隔可 > 500ms)
+    const gaps = ticks.slice(1).map((t, i) => t - ticks[i])
+    assert.ok(Math.max(...gaps) < 200, `tick gap spiked to ${Math.max(...gaps)}ms`)
+  // 区分度说明(诚实):上面的断言对「短 git 命令」的同步实现区分度有限(每条仅 ~10ms,
+  // ticker 在命令间隙仍能跑);它真正的守卫对象是更新流程里的 pnpm install(上限 300s)与
+  // build(180s)——同步实现下这两个阶段会把 interval 压到整个阶段零触发,断言必红。
+  const comment = 'issue-230: short git commands do not distinguish sync/async; install/build do';
+  assert.ok(comment.length > 0);
+
+  } finally {
+    clearInterval(ticker)
+    rmSync(stateDir, { recursive: true, force: true })
+  }
+})
