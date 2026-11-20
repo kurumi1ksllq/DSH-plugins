@@ -16,6 +16,10 @@ DSH 的安装清单插件。左侧栏 **「工具管理」** 面板分两部分�
 
 两者分开成两行是有意的：清单是 HTTP 面，门控挂在每个 agent 生命周期上；分开后任一半失败都不会拖垮另一半。
 
+### 门控行的 `searchParentLimit`
+
+gate 从会话 cwd **向上**找 `.dsh/mcp.json`。默认上限 **16 层**(issue-230 起收紧,原来是走到根)——任何真实工作区都在它的仓库根之下,16 层足够覆盖;再往上就是家目录,克隆进来的代码树不该从那里命中声明、静默挂载任意命令。确实依赖更深层的部署,在 gate 行 config 里显式写 `searchParentLimit`(数值;0 = 只看 cwd,负数 = 走到根)。
+
 ### 门控行的 `serverNameSuffix`
 
 bundle 里的 gate 行**不带 config**，装上去就按 `.dsh/mcp.json` 里写的 `serverName` 原样挂载，工具名是 `mcp__<serverName>__<tool>`。

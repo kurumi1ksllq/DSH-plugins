@@ -12,6 +12,19 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.0 — MCP gate 搜索上限收紧 + 插件更新异步化(issue-230)
+
+**问题 A**:gate 从会话 cwd 向上找 `.dsh/mcp.json` 的默认是走到根(`Infinity`)——克隆一个自带深层 `mcp.json` 的仓库,命中即对所有新会话静默挂载声明里的任意 stdio 命令,全程无确认。
+**修复 A**:默认上限收紧为 **16 层**(真实工作区都在其仓库根之下);更深的依赖可在 gate 行 config 显式写 `searchParentLimit`(0 = 只看 cwd,负数 = 走到根)。README 已补说明。
+
+**问题 B**:插件更新路由(`lib/plugin-update.js`)全链路 `execFileSync`,`pnpm install` 上限 300s——点「更新」期间整个宿主事件循环冻结。
+**修复 B**:gitIn/runIn/checkSyntax 全部改为 spawn + timeout + maxBuffer 的异步实现(failure-as-value 语义保持;与旧实现的差异:超时/超限时失败原因写明 timeout/maxBuffer 而非笼统退出码),更新期间事件循环可响应;新增可响应性回归测试(runUpdate 注入面 + timer 延迟采样,反向验证:同步阻塞替身下测试实测变红)。
+
+### dsh-websearch-failover 0.5.3 — search 的 stats 写入串行化(issue-230)
+
+**问题**:旧代码丢写的根因是 `runtime` 在 `await coreSearch`(网络等待)之前读出、之后整份写回——RMW 跨越了 await,写回过期快照,连带覆盖面板 refresh 写入的余额;stats 段也没走 #103 加的互斥队列。
+**修复**(两层,都在):①search 成功/失败两条路径的 stats RMW 改为**锁内重读**当前盘上状态再写回(行为修复的承重件);②该段与 refresh/resetStats 并入同一把 `refreshMutex`(防御性收敛)。并发回归测试入 test-host-plugin;反向验证如实说明:回退为「预读旧快照」式实现时测试变红(实测 6 并发丢 2 次),mutex 本身可摘除而测试仍绿——防丢靠锁内重读,mutex 保证与 refresh 的串行次序。
+
 ### dsh-task-dispatcher 0.9.3 — 注入文本对齐宿主 Team 工具面(issue-225)
 
 **问题**:zh/en 分档 bullet 仍写「组队(`spawn_teammate` + 任务板)」,而 `spawn_teammate`
@@ -701,7 +714,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 69 个条目:60 条有对应 tag;缺 tag 的 8 条(#224 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+8+1=69。计数按 `git tag -l` 对 Unreleased 全部 68 个 `### ` 标题逐条实测重算(2026-11-18,#223 新增 3 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 71 个条目:60 条有对应 tag;缺 tag 的 10 条(#224 两条合并后打 tag,issue-230 两条合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、以及 #225 的 `dsh-task-dispatcher@0.9.3`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+10+1=71。计数按 `git tag -l` 对 Unreleased 全部 70 个 `### ` 标题逐条实测重算(2026-11-20,issue-230 新增 2 条后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
