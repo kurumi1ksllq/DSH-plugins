@@ -17,6 +17,12 @@ export const AUDIT_MAX_LINES = 2000
 /** Warn once per process when the audit file mode cannot be tightened (#103 D11). */
 let modeWarned = false
 
+/** How many appends between self-trim checks (issue-232). */
+const TRIM_CHECK_EVERY = 25
+
+/** Appends since the last self-trim check. */
+let writesSinceTrim = 0
+
 /** Append one audit record. Fields never include secret material. */
 export function appendAudit(dir, record) {
   const line = JSON.stringify({
@@ -60,6 +66,15 @@ export function appendAudit(dir, record) {
     }
   } catch {
     /* diagnostics only */
+  }
+  // issue-232: the tool path (model use/reveal) only ever calls appendAudit, and
+  // the HTTP route's trimAudit never runs in a session that keeps the panel shut.
+  // Checking every Nth write keeps the cost off the hot path while bounding the
+  // file; trimAudit itself keeps every reveal record.
+  writesSinceTrim += 1
+  if (writesSinceTrim >= TRIM_CHECK_EVERY) {
+    writesSinceTrim = 0
+    trimAudit(dir)
   }
 }
 

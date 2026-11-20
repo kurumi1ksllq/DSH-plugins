@@ -44,9 +44,17 @@ export function reachabilityGuard(config, jobsOf = () => undefined, languageOf =
       if (job?.status === 'running' && countPoll(exec.rootCallId, args.job_id) > config.maxPollsPerProgram)
         return `Deep PTC refuses polling job ${args.job_id} again inside this run_code program. ${LATER}`;
     }
-    if (exec.name === 'ask_user_question' && typeof args.timeout === 'number'
-      && (args.timeout === -1 || args.timeout > config.maxQuestionSeconds))
-      return `Deep PTC limits ask_user_question to timeout <= ${config.maxQuestionSeconds} seconds. An unanswered question becomes pending and the user can still answer it later; continue independent work meanwhile.`;
+    if (exec.name === 'ask_user_question') {
+      // issue-232: the check used to require a NUMBER, so a string timeout
+      // ("9999") skipped it entirely and waited past the cap. Normalize first:
+      // a numeric string is the same request, and anything unparseable is not
+      // a number the host will honour either.
+      const raw = args.timeout;
+      const timeout = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : raw;
+      if (typeof timeout === 'number' && Number.isFinite(timeout)
+        && (timeout === -1 || timeout > config.maxQuestionSeconds))
+        return `Deep PTC limits ask_user_question to timeout <= ${config.maxQuestionSeconds} seconds. An unanswered question becomes pending and the user can still answer it later; continue independent work meanwhile.`;
+    }
     return undefined;
   };
 }

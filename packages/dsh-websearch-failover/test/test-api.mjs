@@ -218,4 +218,35 @@ await okAsync('a throwing service becomes a 500 with the error message', async (
   assert.match(result.json.message, /boom/)
 })
 
+await okAsync('POST /clear-cooldown forwards the id and returns the cleared list (issue-232)', async () => {
+  const cleared = []
+  const { handler } = makeHandler({
+    clearCooldown(id) {
+      cleared.push(id)
+      return { cleared: id === undefined ? ['exa', 'tavily'] : [id] }
+    },
+  })
+  const one = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: { id: 'exa' } })
+  assert.equal(one.status, 200)
+  assert.deepEqual(cleared, ['exa'])
+  assert.deepEqual(one.json.cleared, ['exa'])
+  assert.equal(one.json.ok, true, 'the panel needs the fresh snapshot back')
+
+  const all = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: {} })
+  assert.equal(all.status, 200)
+  assert.deepEqual(cleared, ['exa', undefined])
+  assert.deepEqual(all.json.cleared.sort(), ['exa', 'tavily'])
+})
+
+await okAsync('POST /clear-cooldown rejects a blank id and a missing implementation', async () => {
+  const { handler } = makeHandler()
+  const blank = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: { id: '  ' } })
+  assert.equal(blank.status, 400)
+  assert.equal(blank.json.error, 'invalid-id')
+
+  const unsupported = await call(handler, { method: 'POST', url: `${API_BASE}/clear-cooldown`, body: {} })
+  assert.equal(unsupported.status, 500)
+  assert.equal(unsupported.json.error, 'unsupported')
+})
+
 console.log(`\n${pass} PASS — API contract holds`)

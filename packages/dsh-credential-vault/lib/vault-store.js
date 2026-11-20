@@ -4,6 +4,7 @@
 
 import { randomBytes, randomUUID } from 'node:crypto'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   KINDS,
   VAULT_VERSION,
@@ -26,6 +27,35 @@ import {
 } from './store.js'
 
 const MASTER_KEY_BYTES = 32
+
+/** How many `.bak-*` import backups to keep (issue-232). */
+const MAX_IMPORT_BACKUPS = 5
+
+/**
+ * Drop the oldest import backups beyond MAX_IMPORT_BACKUPS.
+ *
+ * Every applyImport used to leave one full copy of vault.json behind, so a
+ * machine that imports often accumulated plaintext-adjacent ciphertext copies
+ * without limit. Names carry an ISO timestamp, so lexical sort is chronological.
+ * Best effort: a failed cleanup must never fail the import that just landed.
+ */
+function pruneBackups(dir) {
+  try {
+    const prefix = 'vault.json.bak-'
+    const stale = readdirSync(dir)
+      .filter((name) => name.startsWith(prefix))
+      .sort()
+    for (const name of stale.slice(0, Math.max(0, stale.length - MAX_IMPORT_BACKUPS))) {
+      try {
+        unlinkSync(join(dir, name))
+      } catch {
+        /* a backup we cannot remove is not worth failing the import over */
+      }
+    }
+  } catch {
+    /* listing failure is not fatal either */
+  }
+}
 
 /** Write a file with mode 0600 via an exclusive fd. */
 function writePrivateFileSync(path, data) {
@@ -416,6 +446,7 @@ export function createVaultStore(dir) {
         const bakPath = `${vaultFilePath(dir)}.bak-${stamp}`
         copyFileSync(vaultFilePath(dir), bakPath)
         chmodSync(bakPath, 0o600)
+        pruneBackups(dir)
       }
       const now = new Date().toISOString()
       for (const entry of writes) {

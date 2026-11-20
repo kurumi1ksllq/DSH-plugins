@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { search, SearchError, DEFAULT_COOLDOWN } from '../lib/core.mjs'
+import { search, SearchError, DEFAULT_COOLDOWN, clearCooldown } from '../lib/core.mjs'
 import { createApiHandler, API_BASE } from '../lib/api.mjs'
 import { ADAPTERS } from '../lib/core.mjs'
 
@@ -257,6 +257,72 @@ test('ALL_FAILED error message guides the agent to the panel', async () => {
       assert.match(error.message, /provider|面板|panel/i)
       assert.match(error.message, /enable|启用|检查/i)
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---------- issue-232: --timeout reaches the adapter ----------
+
+test('search({ timeoutMs }) shortens the wait below the config default', async () => {
+  const dir = tempDir()
+  try {
+    const statePath = join(dir, 'state.json')
+    const origFetch = globalThis.fetch
+    // A provider that never answers: the ONLY thing that can end this search is
+    // the timeout. With the config default (60s) the call would hang; with the
+    // requested 150ms it must give up quickly and report the failure.
+    globalThis.fetch = (url, init = {}) => new Promise((resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted by timeout')), { once: true })
+    })
+    try {
+      const started = Date.now()
+      await assert.rejects(
+        search({
+          query: 'q',
+          limit: 1,
+          config: fakeConfig([{ ...okProvider('p1'), apiKey: 'k-test' }], { timeoutMs: 60_000 }),
+          statePath,
+          timeoutMs: 150,
+        }),
+        (error) => error instanceof SearchError,
+      )
+      const elapsed = Date.now() - started
+      assert.ok(elapsed < 5000, 'search waited for the 60s config default instead of the requested 150ms (waited ' + elapsed + 'ms)')
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ---------- issue-232: manual cooldown clearing ----------
+
+test('clearCooldown removes the named provider cooldown, or all of them', async () => {
+  const dir = tempDir()
+  try {
+    const statePath = join(dir, 'state.json')
+    const now = Date.now()
+    writeFileSync(statePath, JSON.stringify({
+      providers: {
+        exa: { until: now + 86_400_000, reason: 'auth' },
+        tavily: { until: now + 1_800_000, reason: 'quota' },
+      },
+    }), 'utf8')
+
+    // One provider: only that entry disappears.
+    const one = clearCooldown(statePath, 'exa')
+    assert.deepEqual(one.cleared.sort(), ['exa'])
+    const afterOne = JSON.parse(readFileSync(statePath, 'utf8'))
+    assert.equal(afterOne.providers.exa, undefined, 'exa cooldown must be gone')
+    assert.ok(afterOne.providers.tavily !== undefined, 'tavily cooldown must survive')
+
+    // No id: everything clears.
+    const all = clearCooldown(statePath)
+    assert.deepEqual(all.cleared.sort(), ['tavily'])
+    const afterAll = JSON.parse(readFileSync(statePath, 'utf8'))
+    assert.deepEqual(afterAll.providers, {})
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

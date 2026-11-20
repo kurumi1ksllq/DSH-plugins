@@ -27,6 +27,25 @@ test('appendAudit writes JSON lines without secret material', () => {
   }
 })
 
+test('appendAudit self-trims so the log cannot grow without an API request (issue-232)', () => {
+  const dir = tempDir()
+  try {
+    // 工具路径(模型 use/reveal)只调 appendAudit,从不经过 HTTP API 的 trimAudit。
+    // 写满上限之后继续写,文件必须自己保持在有界范围内。
+    const total = AUDIT_MAX_LINES + 200
+    for (let i = 0; i < total; i += 1) {
+      appendAudit(dir, { name: 'n' + i, outcome: 'ok', source: 'tool', action: 'use' })
+    }
+    const lines = readFileSync(join(dir, 'audit.log'), 'utf8').split('\n').filter((line) => line.length > 0)
+    assert.ok(lines.length <= AUDIT_MAX_LINES + 50, 'audit log grew unbounded: ' + lines.length + ' lines')
+    // 最近的记录必须还在(截断是从旧的删)。
+    const records = readAudit(dir, 1)
+    assert.equal(records[0].name, 'n' + (total - 1))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('readAudit is newest-first and capped', () => {
   const dir = tempDir()
   try {

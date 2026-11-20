@@ -423,10 +423,27 @@ export async function needsInstall(repoDir, from, to, files) {
   return false
 }
 
-/** The generated engine copies are gitignored, so a checkout alone does not run. */
+/**
+ * Whether a checkout needs a rebuild before it can run.
+ *
+ * issue-232: this used to answer "yes" for any change under
+ * `packages/dsh-websearch-failover/lib/` and the caller then ran
+ * `pnpm build:websearch` — a script that does not exist in this repository, so
+ * every failover update took the undo path. That directory is TRACKED SOURCE
+ * (it is in the package's `files` list and committed), not a build product.
+ *
+ * The one real generated-and-committed artifact here is dsh-inventory's
+ * `client.js`, assembled from the ordered parts in `client/`. A change to a part
+ * therefore needs `scripts/build-inventory-client.mjs` to run; a change to the
+ * assembled file itself does not.
+ * @param {string[]} files changed paths, repo-relative
+ */
 export function needsBuild(files) {
-  return files.some((file) => file.startsWith('packages/dsh-websearch-failover/lib/'))
+  return files.some((file) => file.startsWith('packages/dsh-inventory/client/'))
 }
+
+/** The command that rebuilds the generated artifacts, or null when none is needed. */
+export const BUILD_COMMAND = ['build:inventory-client']
 
 /**
  * Syntax-check the bundles that would be replaced, reading the TARGET, not the
@@ -630,8 +647,8 @@ export async function performUpdate(options) {
         if (installed.ok !== true) return await undo(`pnpm install failed: ${installed.error}`)
       }
       if (needsBuild(files)) {
-        const built = await runIn(repo, 'pnpm', ['build:websearch'], 180_000)
-        if (built.ok !== true) return await undo(`build:websearch failed: ${built.error}`)
+        const built = await runIn(repo, 'pnpm', ['build:inventory-client'], 180_000)
+        if (built.ok !== true) return await undo(`build:inventory-client failed: ${built.error}`)
       }
       return moved
     },

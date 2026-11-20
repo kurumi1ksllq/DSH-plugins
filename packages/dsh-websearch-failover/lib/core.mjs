@@ -107,6 +107,32 @@ function writeState(state, statePath) {
   }
 }
 
+/**
+ * Manually clear provider cooldowns (issue-232).
+ *
+ * An auth-class failure parks a provider for 86400s. Until now the only way out
+ * was editing the state file by hand: the panel showed the countdown but nothing
+ * could end it early, so a fixed key meant a day without that provider.
+ *
+ * @param {string} [statePath] state file; defaults to the resolved default
+ * @param {string} [id] provider id to clear; omit to clear every cooldown
+ * @returns {{cleared: string[]}} ids that were removed
+ */
+export function clearCooldown(statePath = defaultStatePath(), id) {
+  const state = readState(statePath);
+  const target = typeof id === 'string' && id.trim().length > 0 ? id.trim() : undefined;
+  const cleared = [];
+  if (target === undefined) {
+    for (const key of Object.keys(state.providers)) cleared.push(key);
+    state.providers = {};
+  } else if (state.providers[target] !== undefined) {
+    delete state.providers[target];
+    cleared.push(target);
+  }
+  if (cleared.length > 0) writeState(state, statePath);
+  return { cleared };
+}
+
 function cooldownActive(entry, now) {
   if (!entry || typeof entry.until !== 'number') return false;
   return entry.until > now;
@@ -462,7 +488,7 @@ function t4Guidance(attempts) {
   );
 }
 
-export async function search({ query, limit, config, statePath, force = false, signal, now = Date.now() }) {
+export async function search({ query, limit, config, statePath, force = false, signal, now = Date.now(), timeoutMs }) {
   if (!query || query.trim().length === 0) throw new SearchError('empty query', 'BAD_QUERY');
   const { providers, defaults } = config;
   const state = readState(statePath);
@@ -498,7 +524,12 @@ export async function search({ query, limit, config, statePath, force = false, s
       const key = resolveKey(provider);
       const adapter = ADAPTERS[provider.kind];
       if (!adapter) throw new SearchError(`unknown provider kind "${provider.kind}" (known: ${KINDS.join(', ')})`, 'CONFIG_INVALID');
-      const sources = await adapter({ ...provider, timeoutMs: provider.timeoutMs ?? defaults.timeoutMs }, { query, limit: want, key }, signal);
+      // issue-232: a caller-supplied timeout (the CLI's --timeout) wins over both
+      // the provider row and the config default, so the flag is not decorative.
+      const effectiveTimeout = Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? timeoutMs
+        : (provider.timeoutMs ?? defaults.timeoutMs);
+      const sources = await adapter({ ...provider, timeoutMs: effectiveTimeout }, { query, limit: want, key }, signal);
       const elapsedMs = Date.now() - started;
       if (sources.length === 0) {
         attempts.push({ provider: provider.id, outcome: 'empty', elapsedMs });

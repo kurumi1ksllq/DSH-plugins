@@ -1,0 +1,50 @@
+{
+  "issue": 232,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-20T14:58:53.215Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "vault-a: 工具路径也 trimAudit",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "vault-b: import 备份保留最近 5 份",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "failover-a: --timeout 真正生效",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "failover-b: 清除冷却的动作",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "ptc-a: ask_user_question 超时归一化",
+      "state": "done"
+    },
+    {
+      "id": 6,
+      "title": "inventory-a: needsBuild 去硬编码",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

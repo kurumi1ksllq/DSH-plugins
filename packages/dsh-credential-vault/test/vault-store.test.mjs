@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import { assertOwnerOnly } from './owner-mode.mjs'
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -143,4 +143,28 @@ test('a crash between the rotate key swap and vault swap is recovered from the s
   const recovered = createVaultStore(dir)
   const list = recovered.list()
   assert.ok(list.length === 2 && list.every((entry) => !entry.corrupt), 'recovered store must read every entry without corruption')
+})
+
+test('applyImport keeps only the most recent backups (issue-232)', () => {
+  const dir = tempDir()
+  try {
+    const store = createVaultStore(dir)
+    store.set('seed', { kind: 'token', secret: 'seed-value' })
+    // 20 imports: same-millisecond timestamps collide into one file name, so a
+    // smaller loop would pass by accident without proving anything.
+    for (let i = 0; i < 20; i += 1) {
+      store.applyImport([{
+        id: '00000000-0000-4000-8000-0000000000' + String(i).padStart(2, '0'),
+        name: 'imported-' + i,
+        kind: 'token',
+        secret: 'value-' + i,
+        aliases: [],
+      }])
+    }
+    const backups = readdirSync(dir).filter((name) => name.startsWith('vault.json.bak-'))
+    assert.ok(backups.length <= 5, 'import backups accumulated: ' + backups.length + ' files')
+    assert.ok(backups.length >= 1, 'the most recent backup must survive')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

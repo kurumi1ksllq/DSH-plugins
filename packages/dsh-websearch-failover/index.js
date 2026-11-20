@@ -16,6 +16,7 @@ import path from 'node:path'
 
 import {
   SearchError,
+  clearCooldown,
   defaultConfigPath,
   defaultStatePath,
   loadConfig,
@@ -357,7 +358,11 @@ export function apply(ctx, config = {}) {
     writeRuntime(next, runtimePath)
     return next
   })
-  const apiHandler = createApiHandler({ snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn })
+  // issue-232: clearing a cooldown is a state-file write like resetStats, so it
+  // rides the same mutex — otherwise a concurrent refresh could resurrect the
+  // cooldown entry it just read.
+  const clearCooldownFn = (id) => refreshMutex.run(() => clearCooldown(statePath, id))
+  const apiHandler = createApiHandler({ snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn, clearCooldown: clearCooldownFn })
 
   ctx.effect(() => ctx.web.registerSearchProvider(searchProvider))
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: API_BASE, handler: apiHandler }))
