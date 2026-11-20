@@ -33,6 +33,12 @@
 - 升版本:dsh-inventory、dsh-websearch-failover(patch)。
 - CHANGELOG 补条目。
 
+## 变更点(实现中调整,留证)
+
+1. dsh-inventory 升 **minor(0.13.0→0.14.0)** 而非验收段预写的 patch:gate 默认搜索上限是行为变更,非纯修复;failover 仍升 patch(0.5.2→0.5.3)。
+2. 目标 B 的自相矛盾句修正:`checkUpdatable` 保持同步纯函数;`readCheckoutState` 因内部有 git 调用,一并异步化(实现即如此)。
+3. 双轴 review 后补:可响应性测试改用 `runUpdate` 注入面 + timer「实际-预定」延迟采样(初版 ticker-gap 断言实测无区分度:相邻回调的 Date.now() 差在阻塞恢复后被压缩);CHANGELOG 对 failover 修复的归因改为两层(锁内重读 = 承重件,mutex = 串行次序)——反向验证实验由 review 轴2 完成,主 agent 复核复现。
+
 ## 裁剪
 
 - 无。双轴 review 按 standard 执行。

@@ -43,6 +43,7 @@ export function pathKey(dir) {
 
 /**
  * Walk up from `cwd` looking for the declaration file.
+ * `searchParentLimit` defaults to 16 (issue-230); Infinity or negative walks to root.
  * @returns {{ root: string, file: string } | undefined}
  */
 export function findDeclaration(cwd, declarationFile = DEFAULT_DECLARATION_FILE, searchParents = true, searchParentLimit = 16) {

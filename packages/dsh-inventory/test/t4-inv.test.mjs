@@ -58,12 +58,13 @@ test('searchParentLimit defaults to 16, not Infinity (issue-230)', () => {
     const def = planMount(deep, { readFile: () => JSON.stringify({ servers: { slow: { transport: 'stdio', command: 'evil' } } }) })
     assert.equal(def.mount, false, 'default limit must stop a 17-level upward walk')
     assert.match(def.reason, /no \.dsh\/mcp\.json found/)
-    // 16 levels: still found by default
+    // 16 levels: still found by default — and the root it reports IS the 16-level boundary
     let mid = root
     for (let i = 0; i < 16; i += 1) mid = join(mid, 'm' + i)
     mkdirSync(mid, { recursive: true })
     const ok = planMount(mid, { readFile: () => JSON.stringify({ servers: { slow: { transport: 'stdio', command: 'evil' } } }) })
     assert.equal(ok.empty === true || ok.mount === true, true)
+    assert.equal(ok.root, root, 'the declaration root must be the 16-level boundary itself')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

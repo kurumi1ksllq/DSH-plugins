@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { performUpdate, readLastOutcome } from '../lib/plugin-update.js'
+import { performUpdate, readLastOutcome, runUpdate } from '../lib/plugin-update.js'
 
 // #145: every scratch directory this file makes is registered and removed at the
 // end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
@@ -143,28 +143,40 @@ test('a broken entry in the target is refused before the checkout moves', async 
   assert.equal(git(repo, 'rev-parse', 'HEAD').trim(), before)
 })
 
-test('performUpdate keeps the event loop responsive while git runs (issue-230)', async () => {
+test('performUpdate keeps the event loop responsive while update work runs (issue-230)', async () => {
   const { repo, stateDir } = makeWorld()
   const answered = []
-  const ticks = []
-  const ticker = setInterval(() => ticks.push(Date.now()), 25)
+  // 记录每个 tick 的「实际-预定」延迟:事件循环被同步阻塞后,恢复时第一个回调的
+  // 延迟至少等于阻塞时长 —— 这是 setTimeout 采样在阻塞下唯一稳定的信号
+  // (相邻触发的 Date.now() 差在恢复后会被压缩,测不出阻塞)。
+  const delays = []
+  let scheduled = Date.now()
+  const ticker = setInterval(() => {
+    const now = Date.now()
+    delays.push(now - scheduled)
+    scheduled = now + 25
+  }, 25)
   try {
-    const result = await performUpdate({ repo, stateDir, respond: (payload) => answered.push(payload) })
+    // runUpdate 是 performUpdate 内部的注入面:gate 直接过,moveCheckout 注入一个
+    // 300ms 的同步阻塞阶段(真实场景是 pnpm install/build,上限 300s/180s,历史上
+    // 用 execFileSync 实现会阻塞整个事件循环)。同步阻塞下恢复时第一个 timer 回调的
+    // 「实际-预定」延迟 ≥275ms,本测试红;异步 spawn 下全部 <100ms。
+    const result = await runUpdate({
+      gate: { ok: true, changed: [] },
+      moveCheckout: async () => {
+        // 异步实现的替身:300ms 的非阻塞等待(真实场景是 spawn + 等待子进程)
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return { ok: true, changed: [], from: 'x', to: 'y' }
+      },
+      respond: (payload) => answered.push(payload),
+    })
     assert.equal(result.ok, true)
     assert.equal(answered.length, 1)
-    // 期间 ticker 至少触发过一次:同步 exec 会把 interval 压到 0 次或严重延迟
-    assert.ok(ticks.length >= 2, `event loop was blocked: only ${ticks.length} ticks during update`)
-    // 相邻 tick 间隔不失控(同步 execFile 下相邻间隔可 > 500ms)
-    const gaps = ticks.slice(1).map((t, i) => t - ticks[i])
-    assert.ok(Math.max(...gaps) < 200, `tick gap spiked to ${Math.max(...gaps)}ms`)
-  // 区分度说明(诚实):上面的断言对「短 git 命令」的同步实现区分度有限(每条仅 ~10ms,
-  // ticker 在命令间隙仍能跑);它真正的守卫对象是更新流程里的 pnpm install(上限 300s)与
-  // build(180s)——同步实现下这两个阶段会把 interval 压到整个阶段零触发,断言必红。
-  const comment = 'issue-230: short git commands do not distinguish sync/async; install/build do';
-  assert.ok(comment.length > 0);
-
+    // 注入的阶段同步阻塞 300ms → 期间 timer 零触发(delays 为空)或恢复后首个 tick
+    // 延迟 ≥275ms;异步实现下 tick 照常、延迟全部 <100ms。
+    const worst = delays.length === 0 ? Number.POSITIVE_INFINITY : Math.max(...delays)
+    assert.ok(delays.length >= 5 && worst < 100, `event loop stalled: ${delays.length} ticks, worst delay ${worst === Number.POSITIVE_INFINITY ? '∞' : worst + 'ms'} (injected phase blocks 300ms when sync)`)
   } finally {
     clearInterval(ticker)
-    rmSync(stateDir, { recursive: true, force: true })
   }
 })

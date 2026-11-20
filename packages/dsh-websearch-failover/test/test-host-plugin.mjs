@@ -387,7 +387,40 @@ await ok('concurrent search rounds do not drop each other runtime stats writes (
   }
   const outcomes = await Promise.all(rounds)
   const failed = outcomes.filter((e) => e !== null)
-  if (failed.length > 0) console.log('DEBUG failed searches:', failed.map((e) => e?.code ?? String(e)).join(' | '), '| attempts:', JSON.stringify(failed[0]?.attempts ?? []).slice(0, 300), '| state:', fs.readFileSync(statePath, 'utf8').slice(0, 200))
+  assert.deepEqual(failed, [], 'all concurrent searches must succeed: ' + failed.map((e) => e?.code ?? String(e)).join(' | '))
   const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
   assert.equal(runtime.stats.tavily.calls, baseline + 6, 'lost stats writes: ' + (runtime.stats.tavily.calls - baseline) + '/6')
 })
+
+await ok('search and refresh interleave keeps both sides runtime writes (issue-230)', async () => {
+  calls.length = 0
+  // 恢复已知配置(firecrawl 带 balance API)并清冷却,让 refresh 有东西可写。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc' }],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+  const route = boot.routes[0]
+  const baselineStats = JSON.parse(fs.readFileSync(runtimePath, 'utf8')).stats.firecrawl?.calls ?? 0
+  // 3 轮交错:每轮 search(写 stats)+ refresh(写 balance)并发。
+  const searchStub = globalThis.fetch
+  for (let round = 0; round < 3; round += 1) {
+    // firecrawl 对 search 查询返回 500 会被记 error 冷却,下一轮就 skipped 而不计 calls——
+    // 每轮开始清掉冷却,保证 3 轮都真正产生 stats 写入。
+    fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+    const pair = [
+      provider.search({ query: 'interleave ' + round, maxResults: 4 }).then(() => null, (error) => error),
+      route.handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/refresh', body: {} }), makeRes()).then(() => null, (error) => error),
+    ]
+    await Promise.all(pair)
+  }
+  const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
+  // search 写入保留:firecrawl 对 search 查询 500 → failed 计数,但 calls 必须全记到。
+  assert.equal(runtime.stats.firecrawl.calls, baselineStats + 3, 'search stats lost against refresh: ' + (runtime.stats.firecrawl.calls - baselineStats) + '/3')
+  // refresh 写入保留:balance 槽存在(search 的整份过期写回会把它抹掉)。
+  assert.ok(runtime.balances.firecrawl !== undefined, 'refresh balance lost against search writes')
+})
+
+probe.cleanup()
+console.log(`
+${pass} PASS — host plugin contract holds`)

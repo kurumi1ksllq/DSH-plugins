@@ -18,12 +18,12 @@ test-only changes are exempt.
 **修复 A**:默认上限收紧为 **16 层**(真实工作区都在其仓库根之下);更深的依赖可在 gate 行 config 显式写 `searchParentLimit`(0 = 只看 cwd,负数 = 走到根)。README 已补说明。
 
 **问题 B**:插件更新路由(`lib/plugin-update.js`)全链路 `execFileSync`,`pnpm install` 上限 300s——点「更新」期间整个宿主事件循环冻结。
-**修复 B**:gitIn/runIn/checkSyntax 全部改为 spawn + timeout + maxBuffer 的异步实现(语义不变:failure-as-value),更新期间事件循环可响应;新增可响应性回归测试。
+**修复 B**:gitIn/runIn/checkSyntax 全部改为 spawn + timeout + maxBuffer 的异步实现(failure-as-value 语义保持;与旧实现的差异:超时/超限时失败原因写明 timeout/maxBuffer 而非笼统退出码),更新期间事件循环可响应;新增可响应性回归测试(runUpdate 注入面 + timer 延迟采样,反向验证:同步阻塞替身下测试实测变红)。
 
 ### dsh-websearch-failover 0.5.3 — search 的 stats 写入串行化(issue-230)
 
-**问题**:`searchProvider.search` 对 runtime.json 的 read-modify-write 没走 #103 加的互斥队列,与面板 refresh/resetStats 并发时互相覆盖丢数据(并发测试实测 6 次写丢 1-2 次)。
-**修复**:search 成功/失败两条路径的 stats 段全部并入同一把 `refreshMutex`;并发回归测试入 test-host-plugin(反向验证:摘掉 mutex 测试变红)。
+**问题**:旧代码丢写的根因是 `runtime` 在 `await coreSearch`(网络等待)之前读出、之后整份写回——RMW 跨越了 await,写回过期快照,连带覆盖面板 refresh 写入的余额;stats 段也没走 #103 加的互斥队列。
+**修复**(两层,都在):①search 成功/失败两条路径的 stats RMW 改为**锁内重读**当前盘上状态再写回(行为修复的承重件);②该段与 refresh/resetStats 并入同一把 `refreshMutex`(防御性收敛)。并发回归测试入 test-host-plugin;反向验证如实说明:回退为「预读旧快照」式实现时测试变红(实测 6 并发丢 2 次),mutex 本身可摘除而测试仍绿——防丢靠锁内重读,mutex 保证与 refresh 的串行次序。
 
 ### dsh-task-dispatcher 0.9.3 — 注入文本对齐宿主 Team 工具面(issue-225)
 

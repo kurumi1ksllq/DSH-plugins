@@ -29,7 +29,7 @@ function runCapture(file, args, { cwd, timeoutMs = 30_000, maxBuffer = 8 * 1024 
     }
     let stdout = ''
     let stderr = ''
-    let killed = false
+    let killed = null
     let settled = false
     const finish = (value) => {
       if (settled) return
@@ -37,28 +37,24 @@ function runCapture(file, args, { cwd, timeoutMs = 30_000, maxBuffer = 8 * 1024 
       clearTimeout(timer)
       resolve(value)
     }
-    const timer = setTimeout(() => {
-      killed = true
+    const kill = (why) => {
+      if (killed !== null) return
+      killed = why
       try { child.kill('SIGKILL') } catch { /* already gone */ }
-    }, timeoutMs)
+    }
+    const timer = setTimeout(() => kill(`timeout after ${timeoutMs}ms`), timeoutMs)
     child.stdout?.on('data', (chunk) => {
       stdout += chunk
-      if (Buffer.byteLength(stdout) > maxBuffer) {
-        killed = true
-        try { child.kill('SIGKILL') } catch { /* already gone */ }
-      }
+      if (Buffer.byteLength(stdout) > maxBuffer) kill('output exceeded maxBuffer')
     })
     child.stderr?.on('data', (chunk) => {
       stderr += chunk
-      if (Buffer.byteLength(stderr) > maxBuffer) {
-        killed = true
-        try { child.kill('SIGKILL') } catch { /* already gone */ }
-      }
+      if (Buffer.byteLength(stderr) > maxBuffer) kill('output exceeded maxBuffer')
     })
     child.on('error', (error) => finish({ ok: false, error: String(error?.message ?? error) }))
     child.on('close', (code) => {
-      void killed
-      finish({ ok: true, stdout, stderr, exitCode: code ?? -1 })
+      if (killed !== null) finish({ ok: false, error: killed, stdout, stderr, exitCode: code ?? -1 })
+      else finish({ ok: true, stdout, stderr, exitCode: code ?? -1 })
     })
   })
 }
@@ -489,9 +485,11 @@ async function checkSyntax(files) {
       try {
         writeFileSync(named, file.text)
         const checked = await runCapture(process.execPath, ['--check', named], { timeoutMs: 20_000 })
-        if (checked.ok !== true || checked.exitCode !== 0) {
-          const stderr = checked.stderr.split('\n').slice(0, 3).join(' ')
-          failures.push({ path: file.path, error: stderr.length > 0 ? stderr : (checked.error ?? 'exit ' + checked.exitCode) })
+        if (checked.ok !== true) {
+          failures.push({ path: file.path, error: checked.error })
+        } else if (checked.exitCode !== 0) {
+          const stderr = (checked.stderr ?? '').split('\n').slice(0, 3).join(' ')
+          failures.push({ path: file.path, error: stderr.length > 0 ? stderr : 'exit ' + checked.exitCode })
         }
       } catch (error) {
         failures.push({ path: file.path, error: String(error?.message ?? error) })
