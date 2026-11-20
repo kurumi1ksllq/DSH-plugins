@@ -1,8 +1,8 @@
 {
   "issue": 232,
   "grade": "standard",
-  "stage": "pr",
-  "updatedAt": "2026-11-20T14:58:53.215Z",
+  "stage": "ci",
+  "updatedAt": "2026-11-20T15:04:18.733Z",
   "tickets": [
     {
       "id": 1,
@@ -36,9 +36,9 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "none"
+    "status": "red"
   },
   "review": {
     "state": "not-started",
