@@ -6,7 +6,7 @@
 
 - **不装本 bundle**(默认):这些 preset 不注册 → 4 个 UI 显示面(Settings 卡片组 / 新会话 picker / 会话头标签 / Plugins 清单页切换器)都不显示;委派引用其 id 会报 `agent-preset/not-found`。
 - **安装本 bundle**:133 行整体回归名册;`plugin_manager set_bundle ecc-agent-presets enabled:false` 可随时收起(免重启)。
-- **白名单 5 件套**(planner / architect / code-reviewer / security-reviewer / build-error-resolver)保留在主 profile,与本 bundle 无关;`dsh-deep-ptc-mode` 的委派白名单只引用这 5 个 id。
+- **白名单 5 件套已退役**(issue-226):主 profile 现在只保留四个内置 preset(standard/ptc/minimal/cordis,即标准/PTC/极简/创造模式);深度PTC模式由 `dsh-deep-ptc-mode` 插件运行时注册,不在任何 patch 里。启用本 bundle 会把 133 行 ECC preset 整体加回名册。
 
 ## 结构
 
