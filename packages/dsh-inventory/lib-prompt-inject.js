@@ -126,9 +126,9 @@ function isForbiddenOrigin(req) {
   const headers = req.headers || {}
 
   const fetchSite = headers['sec-fetch-site']
-  if (typeof fetchSite === 'string' && fetchSite.toLowerCase() === 'cross-site') {
-    return true
-  }
+  // Single-line form on purpose: test/copy-drift.test.mjs pins every copy of this
+  // function to one shape, so a security fix cannot land in one of them only.
+  if (typeof fetchSite === 'string' && fetchSite.toLowerCase() === 'cross-site') return true
 
   const origin = headers.origin
   if (origin === undefined) return false

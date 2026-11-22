@@ -247,7 +247,17 @@ export function apply(ctx, config = {}) {
 
     return refreshMutex.run(() => {
       let runtime = readRuntime(runtimePath)
-      for (const reading of readings) runtime = setBalance(runtime, reading.id, reading.balance)
+      for (const reading of readings) {
+        // issue-234: probing outside the lock means two refreshes can finish out
+        // of order, and without this guard the SLOWER (older) reading would land
+        // last and overwrite the newer one. A reading only wins against an older
+        // one for the same provider.
+        const current = runtime.balances?.[reading.id]
+        const currentAt = Number.isFinite(current?.fetchedAt) ? current.fetchedAt : -1
+        const incomingAt = Number.isFinite(reading.balance?.fetchedAt) ? reading.balance.fetchedAt : 0
+        if (incomingAt < currentAt) continue
+        runtime = setBalance(runtime, reading.id, reading.balance)
+      }
       writeRuntime(runtime, runtimePath)
       if (readings.length > 0) {
         appendLog(logPath, `balances: ${readings.map((reading) => `${reading.id}=${reading.balance.status}`).join(', ')}`)

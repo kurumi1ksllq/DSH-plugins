@@ -11,22 +11,29 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..')
 
-/** http-guard 五份拷贝的相对路径。 */
+/**
+ * Every file in this repository that defines `isForbiddenOrigin`, pinned.
+ *
+ * dsh-inventory carries TWO copies (its HTTP guard and the prompt-inject
+ * half-module). The first version of this list missed the second one — the very
+ * shape this contract exists to catch — so the scan test below now refuses a
+ * list that does not equal the repository's actual set.
+ */
 const HTTP_GUARDS = [
   'packages/dsh-inventory/lib/http-guard.js',
+  'packages/dsh-inventory/lib-prompt-inject.js',
   'packages/dsh-websearch-failover/lib/http.mjs',
   'packages/dsh-credential-vault/lib/http.mjs',
   'packages/dev-flow/lib-git-status/http-guard.js',
   // issue-234: the governor settings route was the one state-changing route in
-  // the repo WITHOUT this check; its copy joins the contract so a future fix
-  // cannot land in four of five.
+  // the repo WITHOUT this check; its copy joins the contract.
   'packages/dsh-deep-ptc-mode/lib/governor-apply.mjs',
 ]
 
@@ -61,17 +68,45 @@ function isForbiddenOriginSource(text) {
  * @returns {string}
  */
 function normalizeCopy(source) {
-  return source.replace(/\s+/g, '').replace(/['"]/g, '').replace(/;/g, '')
+  return source
+    // Comments are style, not behaviour: an explanatory line inside the body
+    // must not turn the comparison red.
+    .replace(/\/\/[^\n]*/g, '')
+    // Quote STYLE is normalised (double → single) but quotes are kept: deleting
+    // them would make `originHost !== host` and `originHost !== "host"` compare
+    // equal, and the second is a real defect (always true → same-origin requests
+    // refused on every call).
+    .replace(/"/g, "'")
+    .replace(/\s+/g, '')
+    .replace(/;/g, '')
 }
 
-test('五份 isForbiddenOrigin 实现体逐字一致(改坏任一份即红)', () => {
+test('the pinned copy list matches every definition in the repository', () => {
+  const found = []
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.git')) continue
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) { walk(full); continue }
+      if (!/\.(mjs|js|ts)$/.test(entry.name)) continue
+      const text = readFileSync(full, 'utf8')
+      if (!text.includes('function isForbiddenOrigin')) continue
+      found.push(full.slice(repoRoot.length + 1).split(sep).join('/'))
+    }
+  }
+  walk(join(repoRoot, 'packages'))
+  assert.deepEqual(found.sort(), [...HTTP_GUARDS].sort(),
+    'a new isForbiddenOrigin copy appeared (or one was deleted): add/remove it in HTTP_GUARDS so it is covered')
+})
+
+test('every isForbiddenOrigin copy is behaviourally identical (change one, it fails)', () => {
   const sources = HTTP_GUARDS.map((rel) => isForbiddenOriginSource(readFileSync(join(repoRoot, rel), 'utf8')))
   for (let index = 1; index < sources.length; index += 1) {
     assert.equal(sources[index], sources[0], `${HTTP_GUARDS[index]} 的 isForbiddenOrigin 与其他副本漂移`)
   }
 })
 
-test('五份 isForbiddenOrigin 实现体都保留 cross-site 与 Origin 双重检查', () => {
+test('every isForbiddenOrigin copy keeps the cross-site and Origin checks', () => {
   for (const rel of HTTP_GUARDS) {
     const source = isForbiddenOriginSource(readFileSync(join(repoRoot, rel), 'utf8'))
     assert.ok(source.includes('sec-fetch-site'), `${rel} 缺 cross-site 检查`)
@@ -100,15 +135,20 @@ function specWithRequired() {
  * @param {object} definition
  */
 async function probeDefinition(definition) {
+  return probeDefinitionWith(definition, { limit: 1 })
+}
+
+/** Drive one definition with explicit args and report the outcome. */
+async function probeDefinitionWith(definition, args) {
   try {
-    const value = await definition.execute({ limit: 1 })
+    const value = await definition.execute(args)
     return { rejected: false, value }
   } catch (error) {
     return { rejected: true, name: error.name, message: error.message }
   }
 }
 
-test('两份 define-tool 兜底行为等价:缺必填参数在执行前被拒、错误形态一致', async () => {
+test('both define-tool stand-ins reject the same inputs (input matrix, not one case)', async () => {
   const [vaultModule] = await Promise.all([
     import(join(repoRoot, 'packages/dsh-credential-vault/lib/define-tool.js')),
   ])
@@ -116,33 +156,50 @@ test('两份 define-tool 兜底行为等价:缺必填参数在执行前被拒、
     join(repoRoot, 'packages/dsh-task-dispatcher/lib/role-tools.mjs')
   )
 
-  // 1) vault 的 FALLBACK_DEFINE_TOOL:公开导出,直接驱动。
   const vaultFallback = vaultModule.FALLBACK_DEFINE_TOOL
-  assert.equal(typeof vaultFallback, 'function', 'vault 应导出 FALLBACK_DEFINE_TOOL')
-  const vaultResult = await probeDefinition(vaultFallback(specWithRequired()))
-  assert.equal(vaultResult.rejected, true, 'vault 兜底必须在执行前拒绝缺参')
-  assert.equal(vaultResult.name, 'ToolArgsError', 'vault 兜底的错误名应为 ToolArgsError')
-  assert.match(vaultResult.message, /missing required property "query"/, 'vault 兜底应报告缺哪个参数')
-
-  // 2) dispatcher 的兜底:通过其公开入口 registerRoleTools(ctx) 拿到注册的工具定义,
-  //    再驱动工具体——测公开行为,不触碰私有符号。
   const registered = []
-  const ctx = {
+  registerRoleTools({
     effect: (fn) => fn(),
-    tools: {
-      register: (definition) => {
-        registered.push(definition)
-        return () => {}
-      },
-    },
-  }
-  registerRoleTools(ctx)
-  assert.equal(registered.length, 2, 'dispatcher 应注册两个角色工具')
-
+    tools: { register: (definition) => { registered.push(definition); return () => {} } },
+  })
   const delegate = registered.find((definition) => definition.name === 'delegate_role')
   assert.ok(delegate, 'dispatcher 应注册 delegate_role')
-  // delegate_role 的参数全部必填,缺 prompt 时应在执行前被拒。
-  const dispatcherResult = await probeDefinition({ ...delegate, execute: delegate.execute })
-  assert.equal(dispatcherResult.rejected, true, 'dispatcher 兜底必须在执行前拒绝缺参')
-  assert.equal(dispatcherResult.name, 'ToolArgsError', 'dispatcher 兜底的错误名应为 ToolArgsError')
+
+  const vaultDefinition = vaultFallback(specWithRequired())
+  const dispatcherDefinition = { ...delegate, execute: delegate.execute }
+
+  // The SAME input shapes against both stand-ins, derived from each one's own
+  // required list (vault: query; dispatcher: role+prompt). The first version of
+  // this test only checked "missing undefined is rejected", which hid a real
+  // divergence: the vault copy accepted whitespace-only while the dispatcher
+  // copy rejected it. Both now trim().
+  const casesFor = (definition) => {
+    const required = definition.parameters?.required ?? []
+    const valid = Object.fromEntries(required.map((name) => [name, 'x']))
+    const blank = Object.fromEntries(required.map((name) => [name, '   ']))
+    const nulled = Object.fromEntries(required.map((name) => [name, null]))
+    return [
+      { label: 'missing', args: {}, rejected: true },
+      { label: 'null', args: nulled, rejected: true },
+      { label: 'whitespace-only', args: blank, rejected: true },
+      { label: 'valid', args: valid, rejected: false },
+    ]
+  }
+
+  for (const [name, definition] of [['vault', vaultDefinition], ['dispatcher', dispatcherDefinition]]) {
+    for (const testCase of casesFor(definition)) {
+      const outcome = await probeDefinitionWith(definition, testCase.args)
+      if (testCase.rejected) {
+        assert.equal(outcome.rejected, true,
+          `${name} stand-in disagreed on "${testCase.label}": expected a validation rejection, got success`)
+        assert.equal(outcome.name, 'ToolArgsError', `${name} stand-in must reject with ToolArgsError`)
+      } else {
+        // A valid call may still fail later in the real body (the dispatcher
+        // needs a calling agent); what this matrix pins is that it got PAST
+        // argument validation.
+        assert.notEqual(outcome.name, 'ToolArgsError',
+          `${name} stand-in rejected valid arguments: ${outcome.message ?? ''}`)
+      }
+    }
+  }
 })

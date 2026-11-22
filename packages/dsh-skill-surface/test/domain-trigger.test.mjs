@@ -264,3 +264,27 @@ test('E-issue-234: a block that is only a quoted nudge is still dropped', async 
   const decision = await run(h, agent(), '本轮涉及 UI,再动手。')
   assert.equal(decision.messages.length, 0, '纯引用块仍应被丢弃')
 })
+
+test('E-issue-234b: a nudge quoted on the SAME line does not swallow the request', async () => {
+  stubHost()
+  const h = harness()
+  const decision = await run(h, agent(), '本轮涉及 UI,再动手。帮我优化一下页面的配色')
+  assert.equal(decision.messages.length, 1, '同行引用也不得吞掉真实任务')
+  const text = decision.messages[0].content[0].text
+  assert.match(text, /make-interfaces-feel-better/)
+})
+
+test('E-issue-234c: a nudge wrapped in brackets is stripped, the rest kept', async () => {
+  stubHost()
+  const h = harness()
+  const decision = await run(h, agent(), '上一轮提醒(本轮涉及 UI,再动手。)请继续优化配色')
+  assert.equal(decision.messages.length, 1, '括号内引用同样只剔除提醒段')
+})
+
+test('E-issue-234d: a nudge split across two lines is still recognised as an echo', async () => {
+  stubHost()
+  const h = harness()
+  // prefix 与 suffix 分处两行:旧的整块判定认得出,逐行判定认不出。子串剔除两行都覆盖。
+  const decision = await run(h, agent(), '本轮涉及 UI\n,再动手。')
+  assert.equal(decision.messages.length, 0, '跨行引用仍应被整体剔除')
+})

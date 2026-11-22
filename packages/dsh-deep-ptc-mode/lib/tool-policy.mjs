@@ -143,22 +143,29 @@ export function createCompatibilityState(tools, preferences = [], storage = {}, 
       if(JSON.stringify(cleaned)!==JSON.stringify(row.state)) save(exec.agent,row,cleaned);
       const definition = tools.get(exec.name, exec.agent, exec.toolSet);
       calls.set(exec, { epoch: row.state.epoch, definition, official: !external(definition), provider: providerOf(definition) });
-      // issue-234: a definition that cannot be attributed is deliberately
-      // treated as official (fail-open, never quarantined). That used to be
-      // fully silent; warn once per tool name so the blind spot stays observable
-      // without changing the quarantine behaviour.
-      if (definition && providerOf(definition) === 'unknown plugin' && !warnedAttribution.has(exec.name)) {
-        warnedAttribution.add(exec.name);
-        if (typeof options.warn === 'function') {
-          options.warn(`Deep PTC: tool "${exec.name}" has no provider attribution; it is treated as an official tool and will never be quarantined`);
-        }
-      }
     },
     guard(exec) { return blocked(exec.agent, exec.name) ? `Deep PTC: ${JSON.stringify(exec.name)} is quarantined in this conversation. Do not retry or diagnose it. Continue with another admitted equivalent or official tool. Only the user can reload all tool states.` : undefined; },
     observe(exec, result) {
       const call = calls.get(exec);
       // No definition means the name never belonged to a plugin, so there is nothing to quarantine.
-      if (!call?.definition || call.official || exec.name === DIRECTORY_TOOL || exec.name === 'run_code') return;
+      if (!call?.definition) return;
+      // issue-234: an unattributable tool is deliberately fail-open (treated as
+      // official, never quarantined). That blind spot becomes observable only
+      // when it actually FAILS — warning at dispatch time fired for every
+      // unattributed tool, including this plugin's own deep_ptc_tools (filtered
+      // out of the directory by OWN_PACKAGE), which was a false alarm.
+      if (call.official && call.provider === 'unknown plugin'
+        && exec.name !== DIRECTORY_TOOL && exec.name !== 'run_code'
+        && !warnedAttribution.has(exec.name)) {
+        const blindSpotOutcome = classifyToolOutcome(exec, result);
+        if (blindSpotOutcome) {
+          warnedAttribution.add(exec.name);
+          if (typeof options.warn === 'function') {
+            options.warn(`Deep PTC: tool "${exec.name}" failed but has no provider attribution (unattributed, fail-open); quarantine cannot apply to it`);
+          }
+        }
+      }
+      if (call.official || exec.name === DIRECTORY_TOOL || exec.name === 'run_code') return;
       const row = entry(exec.agent);
       if (!row || call.epoch !== row.state.epoch || blocked(exec.agent, exec.name)) return;
       const outcome = classifyToolOutcome(exec, result);

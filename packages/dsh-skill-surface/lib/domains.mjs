@@ -39,27 +39,28 @@ export function looksLikeNudge(text) {
 }
 
 /**
- * Remove nudge lines from a text, keeping everything else.
+ * Remove rendered nudge passages from a text, keeping everything else.
  *
  * issue-234: the echo guard used to drop the WHOLE block when any nudge line
  * was quoted in it — so a relayed report that quoted the format together with
- * a real request silently lost the real request too. The guard is line-level
- * now: quoted nudge lines go, the request they travel with stays.
- *
- * A line counts as a nudge line when it is a nudge on its own (prefix + suffix),
- * not when the text merely mentions the words somewhere — a sentence that
- * quotes half of the format and carries a real task must keep counting.
+ * a real request silently lost the real request too. It is a SUBSTRING removal
+ * now (from the provenance prefix to the next suffix), not a line filter: the
+ * same-line and wrapped cases ("本轮涉及 UI,再动手。帮我配色") kept swallowing
+ * the request under a per-line rule.
  * @param {string} text
- * @returns {string} text with nudge lines removed
+ * @returns {string} text with each nudge passage replaced by a space
  */
 export function stripNudgeLines(text) {
   if (typeof text !== 'string' || text.length === 0) return text
-  const kept = []
-  for (const line of text.split(/\r?\n/u)) {
-    if (looksLikeNudge(line.trim())) continue
-    kept.push(line)
+  let out = text
+  for (;;) {
+    const start = out.indexOf(NUDGE_PREFIX)
+    if (start < 0) break
+    const end = out.indexOf(NUDGE_SUFFIX, start)
+    if (end < 0) break
+    out = out.slice(0, start) + ' ' + out.slice(end + NUDGE_SUFFIX.length)
   }
-  return kept.join('\n')
+  return out
 }
 
 /** Most names one nudge may carry: a hint, not a reading list. */
