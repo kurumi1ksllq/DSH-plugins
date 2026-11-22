@@ -4,6 +4,7 @@
 //   POST /websearch-failover/api/refresh     → { ids?: [id, ...] } (omit = all)
 //   POST /websearch-failover/api/enable      → { id, enabled }
 //   POST /websearch-failover/api/stats/reset → { id? } (omit = all)
+//   POST /websearch-failover/api/clear-cooldown → { id? } (omit = all, issue-232)
 import { MAX_BODY_BYTES, isForbiddenOrigin, readJsonBody, sendJson, truncate } from './http.mjs'
 
 export const API_BASE = '/websearch-failover/api'
@@ -26,11 +27,12 @@ class ApiError extends Error {
  *   refresh: (ids?: string[]) => object | Promise<object>,
  *   setEnabled: (id: string, enabled: boolean) => object,
  *   resetStats: (id?: string) => object,
+ *   clearCooldown: (id?: string) => object | Promise<object>,
  *   maxBodyBytes?: number,
  * }} service
  */
 export function createApiHandler(service) {
-  const { snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn } = service
+  const { snapshot, reorder, refresh, setEnabled, resetStats: resetStatsFn, clearCooldown: clearCooldownFn } = service
   const maxBodyBytes = Number.isFinite(service.maxBodyBytes) ? service.maxBodyBytes : MAX_BODY_BYTES
 
   const routes = {
@@ -55,6 +57,23 @@ export function createApiHandler(service) {
         if (typeof body?.id !== 'string' || body.id.trim().length === 0) throw new ApiError(400, 'invalid-enable', 'id is required')
         if (typeof body?.enabled !== 'boolean') throw new ApiError(400, 'invalid-enable', 'enabled must be a boolean')
         return setEnabled(body.id.trim(), body.enabled)
+      },
+    },
+    [`${API_BASE}/clear-cooldown`]: {
+      methods: ['POST'],
+      // issue-232: an auth-class cooldown lasts 86400s; without this route the
+      // panel could only show the countdown, never end it.
+      // ASYNC on purpose: the wired implementation serializes through the state
+      // mutex and therefore returns a Promise. Awaiting it is what makes the
+      // returned snapshot describe the state AFTER the clear — a sync read here
+      // handed the panel the pre-clear snapshot, so the button looked dead.
+      run: async ({ body }) => {
+        if (body?.id !== undefined && (typeof body.id !== 'string' || body.id.trim().length === 0)) {
+          throw new ApiError(400, 'invalid-clear-cooldown', 'id must be a non-empty string when present')
+        }
+        if (typeof clearCooldownFn !== 'function') throw new ApiError(500, 'unsupported', 'clearCooldown is not wired in this deployment')
+        const result = await clearCooldownFn(typeof body?.id === 'string' ? body.id.trim() : undefined)
+        return { ...snapshot(), cleared: result?.cleared ?? [] }
       },
     },
     [`${API_BASE}/stats/reset`]: {

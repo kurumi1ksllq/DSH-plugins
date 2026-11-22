@@ -12,25 +12,67 @@
  * moves, and the refusal has to name the thing that is in the way.
  */
 
-import { execFileSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 
-/** Run git and capture stdout; a failure is a value, not an exception. */
-export function gitIn(dir, args, options = {}) {
-  try {
-    const stdout = execFileSync('git', ['-C', dir, ...args], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: options.timeoutMs ?? 30_000,
-      maxBuffer: 4 * 1024 * 1024,
+/** Async child process: spawn with timeout + stdout cap, failure is a value. */
+function runCapture(file, args, { cwd, timeoutMs = 30_000, maxBuffer = 8 * 1024 * 1024 } = {}) {
+  return new Promise((resolve) => {
+    let child
+    try {
+      child = spawn(file, args, { cwd, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (error) {
+      resolve({ ok: false, error: String(error?.message ?? error) })
+      return
+    }
+    let stdout = ''
+    let stderr = ''
+    let killed = null
+    let settled = false
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const kill = (why) => {
+      if (killed !== null) return
+      killed = why
+      try { child.kill('SIGKILL') } catch { /* already gone */ }
+    }
+    const timer = setTimeout(() => kill(`timeout after ${timeoutMs}ms`), timeoutMs)
+    child.stdout?.on('data', (chunk) => {
+      stdout += chunk
+      if (Buffer.byteLength(stdout) > maxBuffer) kill('output exceeded maxBuffer')
     })
-    return { ok: true, stdout }
-  } catch (error) {
-    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim() : ''
-    return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk
+      if (Buffer.byteLength(stderr) > maxBuffer) kill('output exceeded maxBuffer')
+    })
+    child.on('error', (error) => finish({ ok: false, error: String(error?.message ?? error) }))
+    child.on('close', (code) => {
+      if (killed !== null) finish({ ok: false, error: killed, stdout, stderr, exitCode: code ?? -1 })
+      else finish({ ok: true, stdout, stderr, exitCode: code ?? -1 })
+    })
+  })
+}
+
+/** Run git and capture stdout; a failure is a value, not an exception. Async so
+ * long git operations (fetch, pnpm install in performUpdate) never block the
+ * host event loop (issue-230 ticket B). */
+export async function gitIn(dir, args, options = {}) {
+  const result = await runCapture('git', ['-C', dir, ...args], {
+    timeoutMs: options.timeoutMs ?? 30_000,
+    maxBuffer: 4 * 1024 * 1024,
+  })
+  if (result.ok !== true) return { ok: false, error: result.error }
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr.trim()
+    return { ok: false, error: stderr.length > 0 ? stderr : `git exited ${result.exitCode}` }
   }
+  return { ok: true, stdout: result.stdout }
 }
 
 /**
@@ -42,17 +84,17 @@ export function gitIn(dir, args, options = {}) {
  * @param {string} dir
  * @returns {{ok: boolean, branch?: string|null, head?: string, clean?: boolean, dirty?: string[], error?: string}}
  */
-export function readCheckoutState(dir) {
-  const top = gitIn(dir, ['rev-parse', '--is-inside-work-tree'])
+export async function readCheckoutState(dir) {
+  const top = await gitIn(dir, ['rev-parse', '--is-inside-work-tree'])
   if (top.ok !== true || top.stdout.trim() !== 'true') {
     return { ok: false, error: `not a git repository: ${dir}` }
   }
 
-  const head = gitIn(dir, ['rev-parse', 'HEAD'])
+  const head = await gitIn(dir, ['rev-parse', 'HEAD'])
   if (head.ok !== true) return { ok: false, error: `cannot read HEAD: ${head.error}` }
 
-  const branch = gitIn(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
-  const status = gitIn(dir, ['status', '--porcelain'])
+  const branch = await gitIn(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+  const status = await gitIn(dir, ['status', '--porcelain'])
   if (status.ok !== true) return { ok: false, error: `cannot read status: ${status.error}` }
 
   const dirty = status.stdout
@@ -109,8 +151,8 @@ export function parsePackagesVersions(files) {
  * @param {string} target
  * @returns {{relation: 'same'|'behind'|'ahead'|'diverged'|'unknown', ahead: number, behind: number}}
  */
-export function relationTo(dir, target) {
-  const counts = gitIn(dir, ['rev-list', '--left-right', '--count', `HEAD...${target}`])
+export async function relationTo(dir, target) {
+  const counts = await gitIn(dir, ['rev-list', '--left-right', '--count', `HEAD...${target}`])
   if (counts.ok !== true) return { relation: 'unknown', ahead: 0, behind: 0 }
   const [aheadText = '0', behindText = '0'] = counts.stdout.trim().split(/\s+/)
   const ahead = Number(aheadText)
@@ -261,13 +303,13 @@ export async function runUpdate({ gate, respond, moveCheckout, reconcile }) {
 }
 
 /** The bundles checked out on disk: name + version from `packages/**\/package.json`. */
-export function localBundles(repoDir) {
-  const listed = gitIn(repoDir, ['ls-files', 'packages/*/package.json', 'packages/*/*/package.json'])
+export async function localBundles(repoDir) {
+  const listed = await gitIn(repoDir, ['ls-files', 'packages/*/package.json', 'packages/*/*/package.json'])
   if (listed.ok !== true) return []
   const files = []
   for (const path of listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean)) {
-    const shown = gitIn(repoDir, ['show', `HEAD:${path}`])
-    const onDisk = gitIn(repoDir, ['show', `:${path}`])
+    const shown = await gitIn(repoDir, ['show', `HEAD:${path}`])
+    const onDisk = await gitIn(repoDir, ['show', `:${path}`])
     // The checkout's own copy wins: an uncommitted local edit is what the loader
     // is running, but the gate refuses dirty trees anyway.
     files.push({ path, text: onDisk.ok === true ? onDisk.stdout : shown.ok === true ? shown.stdout : '' })
@@ -277,13 +319,13 @@ export function localBundles(repoDir) {
 }
 
 /** name → version at one ref of this repository. */
-export function remoteVersionsAt(repoDir, ref) {
-  const listed = gitIn(repoDir, ['ls-tree', '-r', '--name-only', ref, 'packages'])
+export async function remoteVersionsAt(repoDir, ref) {
+  const listed = await gitIn(repoDir, ['ls-tree', '-r', '--name-only', ref, 'packages'])
   if (listed.ok !== true) return {}
   const files = []
   for (const path of listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean)) {
     if (!path.endsWith('/package.json')) continue
-    const shown = gitIn(repoDir, ['show', `${ref}:${path}`])
+    const shown = await gitIn(repoDir, ['show', `${ref}:${path}`])
     if (shown.ok === true) files.push({ path, text: shown.stdout })
   }
   return parsePackagesVersions(files)
@@ -307,12 +349,12 @@ export async function moveCheckout(repoDir, options = {}) {
     typeof options.run === 'function'
       ? options.run
       : async (file, args) => {
-          const result = gitIn(repoDir, args)
+          const result = await gitIn(repoDir, args)
           return result.ok === true ? { ok: true, stdout: result.stdout } : result
         }
 
-  const from = readCheckoutState(repoDir).head
-  const before = localBundles(repoDir)
+  const from = (await readCheckoutState(repoDir)).head
+  const before = await localBundles(repoDir)
 
   const fetched = await run('git', ['fetch', '--quiet', remote, ref])
   if (fetched?.ok !== true) {
@@ -325,19 +367,19 @@ export async function moveCheckout(repoDir, options = {}) {
     return { ok: false, error: `fast-forward refused: ${merged?.error ?? 'unknown error'}` }
   }
 
-  const after = localBundles(repoDir)
+  const after = await localBundles(repoDir)
   const afterVersions = Object.fromEntries(after.map((item) => [item.name, item.version]))
   const changed = before
     .filter((item) => afterVersions[item.name] !== item.version)
     .map((item) => ({ name: item.name, from: item.version, to: afterVersions[item.name] }))
 
-  const to = readCheckoutState(repoDir).head
+  const to = (await readCheckoutState(repoDir)).head
   return { ok: true, changed, from, to }
 }
 
 /** Paths that differ between two commits of this repository. */
-export function changedFiles(repoDir, from, to) {
-  const listed = gitIn(repoDir, ['diff', '--name-only', `${from}..${to}`])
+export async function changedFiles(repoDir, from, to) {
+  const listed = await gitIn(repoDir, ['diff', '--name-only', `${from}..${to}`])
   if (listed.ok !== true) return []
   return listed.stdout.split('\n').map((line) => line.trim()).filter(Boolean)
 }
@@ -350,7 +392,7 @@ export function changedFiles(repoDir, from, to) {
  * checkout that had no dependencies to install). `pnpm-lock.yaml` is the honest
  * signal; a package.json only counts when its dependency fields differ.
  */
-export function needsInstall(repoDir, from, to, files) {
+export async function needsInstall(repoDir, from, to, files) {
   if (files.includes('pnpm-lock.yaml')) return true
   const manifests = files.filter((file) => /(^|\/)package\.json$/.test(file))
   const FIELDS = [
@@ -362,8 +404,8 @@ export function needsInstall(repoDir, from, to, files) {
     'pnpm',
   ]
   for (const file of manifests) {
-    const read = (ref) => {
-      const shown = gitIn(repoDir, ['show', `${ref}:${file}`])
+    const read = async (ref) => {
+      const shown = await gitIn(repoDir, ['show', `${ref}:${file}`])
       if (shown.ok !== true) return null
       try {
         return JSON.parse(shown.stdout)
@@ -371,8 +413,8 @@ export function needsInstall(repoDir, from, to, files) {
         return null
       }
     }
-    const before = read(from)
-    const after = read(to)
+    const before = await read(from)
+    const after = await read(to)
     if (before === null || after === null) return true
     for (const field of FIELDS) {
       if (JSON.stringify(before[field] ?? {}) !== JSON.stringify(after[field] ?? {})) return true
@@ -381,10 +423,27 @@ export function needsInstall(repoDir, from, to, files) {
   return false
 }
 
-/** The generated engine copies are gitignored, so a checkout alone does not run. */
+/**
+ * Whether a checkout needs a rebuild before it can run.
+ *
+ * issue-232: this used to answer "yes" for any change under
+ * `packages/dsh-websearch-failover/lib/` and the caller then ran
+ * `pnpm build:websearch` — a script that does not exist in this repository, so
+ * every failover update took the undo path. That directory is TRACKED SOURCE
+ * (it is in the package's `files` list and committed), not a build product.
+ *
+ * The one real generated-and-committed artifact here is dsh-inventory's
+ * `client.js`, assembled from the ordered parts in `client/`. A change to a part
+ * therefore needs `scripts/build-inventory-client.mjs` to run; a change to the
+ * assembled file itself does not.
+ * @param {string[]} files changed paths, repo-relative
+ */
 export function needsBuild(files) {
-  return files.some((file) => file.startsWith('packages/dsh-websearch-failover/lib/'))
+  return files.some((file) => file.startsWith('packages/dsh-inventory/client/'))
 }
+
+/** The command that rebuilds the generated artifacts, or null when none is needed. */
+export const BUILD_COMMAND = ['build:inventory-client']
 
 /**
  * Syntax-check the bundles that would be replaced, reading the TARGET, not the
@@ -402,10 +461,10 @@ export function needsBuild(files) {
  * @param {{runNode?: (files: string[]) => object}} [options] injectable for tests
  * @returns {{ok: boolean, failures?: {path: string, error: string}[]}}
  */
-export function probeTargetEntries(repoDir, ref, bundleDirs, options = {}) {
+export async function probeTargetEntries(repoDir, ref, bundleDirs, options = {}) {
   const files = []
   for (const dir of bundleDirs) {
-    const manifest = gitIn(repoDir, ['show', `${ref}:${dir}/package.json`])
+    const manifest = await gitIn(repoDir, ['show', `${ref}:${dir}/package.json`])
     if (manifest.ok !== true) continue
     let pkg
     try {
@@ -415,18 +474,18 @@ export function probeTargetEntries(repoDir, ref, bundleDirs, options = {}) {
     }
     const entry = typeof pkg.main === 'string' && pkg.main.length > 0 ? pkg.main : 'index.js'
     const path = `${dir}/${entry.replace(/^\.\//, '')}`
-    const blob = gitIn(repoDir, ['show', `${ref}:${path}`])
+    const blob = await gitIn(repoDir, ['show', `${ref}:${path}`])
     if (blob.ok !== true) continue
     files.push({ path, text: blob.stdout })
   }
 
   const runNode = typeof options.runNode === 'function' ? options.runNode : checkSyntax
-  const result = runNode(files)
+  const result = await runNode(files)
   return result ?? { ok: true }
 }
 
 /** Write each file to a temp dir and ask Node to parse it. */
-function checkSyntax(files) {
+async function checkSyntax(files) {
   const failures = []
   let dir
   try {
@@ -442,10 +501,15 @@ function checkSyntax(files) {
       const named = join(dir, `${file.path.replace(/[^A-Za-z0-9._-]+/g, '_')}.mjs`)
       try {
         writeFileSync(named, file.text)
-        execFileSync(process.execPath, ['--check', named], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 20_000 })
+        const checked = await runCapture(process.execPath, ['--check', named], { timeoutMs: 20_000 })
+        if (checked.ok !== true) {
+          failures.push({ path: file.path, error: checked.error })
+        } else if (checked.exitCode !== 0) {
+          const stderr = (checked.stderr ?? '').split('\n').slice(0, 3).join(' ')
+          failures.push({ path: file.path, error: stderr.length > 0 ? stderr : 'exit ' + checked.exitCode })
+        }
       } catch (error) {
-        const stderr = typeof error?.stderr === 'string' ? error.stderr.split('\n').slice(0, 3).join(' ') : ''
-        failures.push({ path: file.path, error: stderr.length > 0 ? stderr : String(error?.message ?? error) })
+        failures.push({ path: file.path, error: String(error?.message ?? error) })
       }
     }
   } finally {
@@ -503,28 +567,28 @@ export async function performUpdate(options) {
     return value
   }
 
-  const fetched = gitIn(repo, ['fetch', '--quiet', remoteName, ref], { timeoutMs: 60_000 })
+  const fetched = await gitIn(repo, ['fetch', '--quiet', remoteName, ref], { timeoutMs: 60_000 })
   if (fetched.ok !== true) {
     const refused = { ok: false, stage: 'fetch', detail: fetched.error, at: Date.now() }
     remember(refused)
     return refused
   }
 
-  const resolved = gitIn(repo, ['rev-parse', target])
+  const resolved = await gitIn(repo, ['rev-parse', target])
   if (resolved.ok !== true) {
     const refused = { ok: false, stage: 'target', detail: resolved.error, at: Date.now() }
     remember(refused)
     return refused
   }
 
-  const local = localBundles(repo)
-  const remote = remoteVersionsAt(repo, target)
+  const local = await localBundles(repo)
+  const remote = await remoteVersionsAt(repo, target)
   const gate = checkUpdatable({
-    state: readCheckoutState(repo),
+    state: await readCheckoutState(repo),
     local,
     remote,
     targetHead: resolved.stdout.trim(),
-    relation: relationTo(repo, target).relation,
+    relation: (await relationTo(repo, target)).relation,
   })
 
   if (gate.ok !== true) {
@@ -536,7 +600,7 @@ export async function performUpdate(options) {
   // Probe the TARGET's entry files before anything moves: a replacement that
   // fails to load is not recoverable, the old version is not restored.
   const moving = new Set((gate.changed ?? []).map((item) => item.name))
-  const listed = gitIn(repo, ['ls-tree', '-r', '--name-only', target, 'packages'])
+  const listed = await gitIn(repo, ['ls-tree', '-r', '--name-only', target, 'packages'])
   const dirs = []
   if (listed.ok === true) {
     for (const dir of new Set(
@@ -545,7 +609,7 @@ export async function performUpdate(options) {
         .filter((path) => /^packages\/[^/]+\/package\.json$/.test(path))
         .map((path) => path.replace(/\/package\.json$/, '')),
     )) {
-      const manifest = gitIn(repo, ['show', `${target}:${dir}/package.json`])
+      const manifest = await gitIn(repo, ['show', `${target}:${dir}/package.json`])
       if (manifest.ok !== true) continue
       let name
       try {
@@ -556,7 +620,7 @@ export async function performUpdate(options) {
       if (moving.size === 0 || moving.has(name)) dirs.push(dir)
     }
   }
-  const probe = probeTargetEntries(repo, target, dirs)
+  const probe = await probeTargetEntries(repo, target, dirs)
   if (probe.ok !== true) {
     const refused = {
       ok: false,
@@ -573,18 +637,18 @@ export async function performUpdate(options) {
     moveCheckout: async () => {
       const moved = await moveCheckout(repo, { remote: remoteName, ref })
       if (moved.ok !== true) return moved
-      const files = changedFiles(repo, moved.from, moved.to)
-      const undo = (why) => {
-        const restored = gitIn(repo, ['reset', '--hard', '--quiet', moved.from])
+      const files = await changedFiles(repo, moved.from, moved.to)
+      const undo = async (why) => {
+        const restored = await gitIn(repo, ['reset', '--hard', '--quiet', moved.from])
         return { ok: false, error: `${why}${restored.ok === true ? ' (checkout restored)' : ' (restore FAILED)'}` }
       }
-      if (needsInstall(repo, moved.from, moved.to, files)) {
-        const installed = runIn(repo, 'pnpm', ['install', '--prefer-offline'], 300_000)
-        if (installed.ok !== true) return undo(`pnpm install failed: ${installed.error}`)
+      if (await needsInstall(repo, moved.from, moved.to, files)) {
+        const installed = await runIn(repo, 'pnpm', ['install', '--prefer-offline'], 300_000)
+        if (installed.ok !== true) return await undo(`pnpm install failed: ${installed.error}`)
       }
       if (needsBuild(files)) {
-        const built = runIn(repo, 'pnpm', ['build:websearch'], 180_000)
-        if (built.ok !== true) return undo(`build:websearch failed: ${built.error}`)
+        const built = await runIn(repo, 'pnpm', BUILD_COMMAND, 180_000)
+        if (built.ok !== true) return await undo(`${BUILD_COMMAND.join(' ')} failed: ${built.error}`)
       }
       return moved
     },
@@ -607,21 +671,16 @@ export async function performUpdate(options) {
   return remember({ at: Date.now(), ...result })
 }
 
-/** Run a command in `cwd`; a failure is a value. */
-function runIn(cwd, file, args, timeoutMs) {
-  try {
-    const stdout = execFileSync(file, args, {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: timeoutMs,
-      maxBuffer: 8 * 1024 * 1024,
-    })
-    return { ok: true, stdout }
-  } catch (error) {
-    const stderr = typeof error?.stderr === 'string' ? error.stderr.trim().split('\n').slice(-3).join(' ') : ''
-    return { ok: false, error: stderr.length > 0 ? stderr : String(error?.message ?? error) }
+/** Run a command in `cwd`; a failure is a value. Async so the pnpm install
+ * inside an update never blocks the host event loop (issue-230 ticket B). */
+async function runIn(cwd, file, args, timeoutMs) {
+  const result = await runCapture(file, args, { cwd, timeoutMs, maxBuffer: 8 * 1024 * 1024 })
+  if (result.ok !== true) return { ok: false, error: result.error }
+  if (result.exitCode !== 0) {
+    const stderr = result.stderr.trim().split('\n').slice(-3).join(' ')
+    return { ok: false, error: stderr.length > 0 ? stderr : 'exited ' + (result.exitCode ?? '?') }
   }
+  return { ok: true, stdout: result.stdout }
 }
 
 /**

@@ -1,0 +1,35 @@
+{
+  "issue": 230,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-20T14:04:02.579Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "A: gate searchParentLimit 收紧为 16 + README",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "B: plugin-update 异步化(spawn 替代 execFileSync)",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "C: failover search stats 串行化",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}

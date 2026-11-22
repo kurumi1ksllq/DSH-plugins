@@ -293,6 +293,7 @@ window.__ModuleLoader__.load({
       providerMoveDown: '下移，降低优先级',
       providerDragHint: '也可以拖动条目调整顺序',
       providerRefreshOne: '只刷新这一家',
+      providerClearCooldown: '解除冷却',
       providerReset: '重置',
       providerResetMonthlyFirst: '每月 1 日重置',
       providerResetMonthlyAllowance: '每月免费额度恢复（付费额度不重置）',
@@ -623,6 +624,7 @@ window.__ModuleLoader__.load({
       providerMoveDown: 'Move down (lower priority)',
       providerDragHint: 'You can also drag rows to reorder',
       providerRefreshOne: 'Refresh this provider only',
+      providerClearCooldown: 'Clear cooldown',
       providerReset: 'Resets',
       providerResetMonthlyFirst: 'Resets on the 1st of each month',
       providerResetMonthlyAllowance: 'Monthly free allowance renews (paid credits do not)',
@@ -3260,6 +3262,7 @@ window.__ModuleLoader__.load({
       order: `${WEBSEARCH_BASE}/order`,
       refresh: `${WEBSEARCH_BASE}/refresh`,
       enable: `${WEBSEARCH_BASE}/enable`,
+      clearCooldown: `${WEBSEARCH_BASE}/clear-cooldown`,
     }
     const PROMPT_ROUTE = '/prompt-inject/state'
 
@@ -3587,6 +3590,18 @@ window.__ModuleLoader__.load({
           })
       }
 
+      // issue-232: an auth-class cooldown lasts a day; before this the panel could
+      // only show the countdown, so a fixed key meant waiting it out or editing
+      // the state file by hand.
+      const clearCooldown = (provider) => {
+        if (!snapshot || !provider || phase === 'saving') return
+        setFailure('')
+        setPhase('saving')
+        providerPost(WEBSEARCH_ROUTES.clearCooldown, { id: provider.id })
+          .then(accept)
+          .catch(reject)
+      }
+
       const onDropRow = (event, id) => {
         event.preventDefault()
         let source = dragId
@@ -3763,6 +3778,9 @@ window.__ModuleLoader__.load({
               selected.enabled === false ? t('providerEnable') : t('providerDisable'),
             ),
             h(RowButton, { label: t('providerRefreshOne'), disabled: busy, onClick: () => refresh([selected.id]) }),
+            cooldown.active === true
+              ? h(RowButton, { label: t('providerClearCooldown'), disabled: busy, onClick: () => clearCooldown(selected) })
+              : null,
           ),
         )
       }

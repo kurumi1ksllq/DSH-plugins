@@ -30,8 +30,11 @@ const DEFAULTS = {
   enabled: true,
   declarationFile: '.dsh/mcp.json',
   searchParents: true,
-  /** T4.inv: upper bound on upward declaration search; Infinity = walk to root. */
-  searchParentLimit: Infinity,
+  /** Issue-230: bounded upward declaration search. 16 levels cover any real
+   * workspace under its repo root; beyond that is the home directory, where a
+   * cloned tree must not get its MCP commands mounted by default. Deployments
+   * that relied on walk-to-root set searchParentLimit back in config. */
+  searchParentLimit: 16,
   serverNameSuffix: '',
   allowServerNames: [],
   mountTimeoutMs: 15_000,

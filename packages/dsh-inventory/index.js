@@ -1353,20 +1353,20 @@ async function handleSyncPreview(ctx) {
  * @returns {string|null} absolute path, or null when this install is not a git
  *   checkout (a copied bundle inside a profile has no history to update from).
  */
-function pluginCheckoutRoot() {
+async function pluginCheckoutRoot() {
   // An explicit override exists so an unusual layout (a copied bundle, a nested
   // clone) can name its repository, and so tests can point the route at a
   // throwaway checkout instead of the one this process was loaded from.
   const override = checkoutOverride()
   const here = dirname(fileURLToPath(import.meta.url))
-  const top = override !== undefined && override.length > 0 ? { ok: true, stdout: override } : gitIn(here, ['rev-parse', '--show-toplevel'])
+  const top = override !== undefined && override.length > 0 ? { ok: true, stdout: override } : await gitIn(here, ['rev-parse', '--show-toplevel'])
   if (top.ok !== true || top.stdout.trim().length === 0) return null
   const root = top.stdout.trim()
   // A checkout that merely CONTAINS this bundle is not ours to move: the repo
   // may have been cloned inside another repository, or $HOME may itself be one.
   // Requiring our own packages/<name>/package.json keeps `git fetch` off
   // strangers' trees.
-  const own = gitIn(root, ['show', 'HEAD:packages/dsh-inventory/package.json'])
+  const own = await gitIn(root, ['show', 'HEAD:packages/dsh-inventory/package.json'])
   if (own.ok !== true) return null
   try {
     return JSON.parse(own.stdout).name === 'dsh-inventory' ? root : null
@@ -1393,7 +1393,7 @@ async function handlePluginUpdate(ctx, req) {
   const method = typeof req.method === 'string' ? req.method.toUpperCase() : 'GET'
   if (method !== 'GET') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
 
-  const repo = pluginCheckoutRoot()
+  const repo = await pluginCheckoutRoot()
   if (repo === null) {
     return {
       status: 200,
@@ -1408,11 +1408,11 @@ async function handlePluginUpdate(ctx, req) {
   // Reading the remote needs a fetch. A failure here still leaves the local side
   // worth reporting: the panel shows the checkout's state and says why the remote
   // side is unknown.
-  const fetched = gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
-  const state = readCheckoutState(repo)
-  const { relation, ahead, behind } = relationTo(repo, UPDATE_TARGET)
-  const local = localBundles(repo)
-  const remote = fetched.ok === true ? remoteVersionsAt(repo, UPDATE_TARGET) : {}
+  const fetched = await gitIn(repo, ['fetch', '--quiet', 'origin', 'main'], { timeoutMs: 60_000 })
+  const state = await readCheckoutState(repo)
+  const { relation, ahead, behind } = await relationTo(repo, UPDATE_TARGET)
+  const local = await localBundles(repo)
+  const remote = fetched.ok === true ? await remoteVersionsAt(repo, UPDATE_TARGET) : {}
 
   return {
     status: 200,
@@ -1443,7 +1443,7 @@ async function handlePluginUpdateApply(ctx, req, res) {
   if (method !== 'POST') return { status: 405, payload: { ok: false, error: 'method-not-allowed' } }
   warnSink = typeof ctx.logger?.warn === 'function' ? ctx.logger.warn.bind(ctx.logger) : null
 
-  const repo = pluginCheckoutRoot()
+  const repo = await pluginCheckoutRoot()
   if (repo === null) {
     return { status: 400, payload: { ok: false, error: 'this plugin is not running from its own git checkout' } }
   }

@@ -68,25 +68,25 @@ function initCheckout(prefix = 'pu-') {
 
 // ---- reading the checkout's own state -------------------------------------
 
-test('readCheckoutState reports the branch, head and whether the tree is clean', () => {
+test('readCheckoutState reports the branch, head and whether the tree is clean', async () => {
   const dir = initCheckout()
-  const state = readCheckoutState(dir)
+  const state = await readCheckoutState(dir)
   assert.equal(state.branch, 'main')
   assert.equal(state.head.length, 40)
   assert.equal(state.clean, true, 'a freshly committed tree has nothing uncommitted')
 })
 
-test('readCheckoutState reports a dirty tree with the files that made it dirty', () => {
+test('readCheckoutState reports a dirty tree with the files that made it dirty', async () => {
   const dir = initCheckout()
   writeFileSync(join(dir, 'packages', 'dsh-one', 'loose.txt'), 'x\n')
-  const state = readCheckoutState(dir)
+  const state = await readCheckoutState(dir)
   assert.equal(state.clean, false)
   assert.deepEqual(state.dirty, ['packages/dsh-one/loose.txt'])
 })
 
-test('readCheckoutState reports a missing repository instead of throwing', () => {
+test('readCheckoutState reports a missing repository instead of throwing', async () => {
   const dir = track(mkdtempSync(join(tmpdir(), 'pu-norepo-')))
-  const state = readCheckoutState(dir)
+  const state = await readCheckoutState(dir)
   assert.equal(state.ok, false)
   assert.match(state.error, /not a git repository/i)
 })
@@ -263,7 +263,7 @@ test('runUpdate degrades honestly when the profile has no hmr service', async ()
 
 // ---- reading the target and moving the checkout ---------------------------
 
-test('remoteVersionsAt reads the bundles from a ref, not from the working tree', () => {
+test('remoteVersionsAt reads the bundles from a ref, not from the working tree', async () => {
   const dir = initCheckout()
   git(dir, 'checkout', '-q', '-b', 'next')
   writeFileSync(join(dir, 'packages', 'dsh-one', 'package.json'), JSON.stringify({ name: 'dsh-one', version: '0.2.0' }))
@@ -271,18 +271,18 @@ test('remoteVersionsAt reads the bundles from a ref, not from the working tree',
   git(dir, 'commit', '-q', '-m', 'bump')
   git(dir, 'checkout', '-q', 'main')
 
-  assert.deepEqual(remoteVersionsAt(dir, 'next'), { 'dsh-one': '0.2.0' })
-  assert.deepEqual(remoteVersionsAt(dir, 'main'), { 'dsh-one': '0.1.0' })
+  assert.deepEqual(await remoteVersionsAt(dir, 'next'), { 'dsh-one': '0.2.0' })
+  assert.deepEqual(await remoteVersionsAt(dir, 'main'), { 'dsh-one': '0.1.0' })
 })
 
-test('localBundles reports the versions actually checked out', () => {
+test('localBundles reports the versions actually checked out', async () => {
   const dir = initCheckout()
-  assert.deepEqual(localBundles(dir), [{ name: 'dsh-one', version: '0.1.0' }])
+  assert.deepEqual(await localBundles(dir), [{ name: 'dsh-one', version: '0.1.0' }])
 })
 
 test('moveCheckout reports a failed fetch and leaves HEAD where it was', async () => {
   const dir = initCheckout()
-  const before = readCheckoutState(dir).head
+  const before = await readCheckoutState(dir).head
   const result = await moveCheckout(dir, {
     remote: 'origin',
     ref: 'main',
@@ -293,7 +293,7 @@ test('moveCheckout reports a failed fetch and leaves HEAD where it was', async (
   })
   assert.equal(result.ok, false)
   assert.match(result.error, /could not resolve host/)
-  assert.equal(readCheckoutState(dir).head, before, 'a failed fetch must not move HEAD')
+  assert.equal(await readCheckoutState(dir).head, before, 'a failed fetch must not move HEAD')
 })
 
 test('moveCheckout fast-forwards a behind checkout to the fetched ref', async () => {
@@ -356,41 +356,49 @@ test('checkUpdatable refuses when the relation could not be read', () => {
   assert.equal(verdict.reason, 'unknown-relation')
 })
 
-test('readCheckoutState keeps the whole path of a modified tracked file', () => {
+test('readCheckoutState keeps the whole path of a modified tracked file', async () => {
   // Porcelain v1 marks a modified tracked file with a LEADING space (` M path`);
   // trimming before slicing ate two characters of the path.
   const dir = initCheckout()
   writeFileSync(join(dir, 'packages', 'dsh-one', 'package.json'), JSON.stringify({ name: 'dsh-one', version: '0.1.1' }))
-  const state = readCheckoutState(dir)
+  const state = await readCheckoutState(dir)
   assert.deepEqual(state.dirty, ['packages/dsh-one/package.json'])
 })
 
 // ---- the entry probe ------------------------------------------------------
 
-test('probeTargetEntries parses the target’s entry files, not the working tree', () => {
+test('probeTargetEntries parses the target’s entry files, not the working tree', async () => {
   const dir = initCheckout()
   writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const ok = 1\n')
   git(dir, 'add', '.')
   git(dir, 'commit', '-q', '-m', 'entry')
 
-  const good = probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
+  const good = await probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
   assert.equal(good.ok, true)
 
   // A broken entry in the target must be caught BEFORE anything moves.
   writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const =\n')
   git(dir, 'add', '.')
   git(dir, 'commit', '-q', '-m', 'break')
-  const bad = probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
+  const bad = await probeTargetEntries(dir, 'HEAD', ['packages/dsh-one'])
   assert.equal(bad.ok, false)
   assert.equal(bad.failures[0].path, 'packages/dsh-one/index.js')
 })
 
-test('the build predicate follows the file list', () => {
-  assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), true)
+test('the build predicate only fires for real generated artifacts (issue-232)', () => {
+  // failover's lib/*.mjs is TRACKED SOURCE, not a build product: it ships in the
+  // package's "files" list and is committed. Treating it as generated made the
+  // update run `pnpm build:websearch`, a script that does not exist in this
+  // repository — so every failover update ended in a refused install/undo.
+  assert.equal(needsBuild(['packages/dsh-websearch-failover/lib/core.mjs']), false)
+  // dsh-inventory's client.js IS generated from client/ parts and committed, so a
+  // change to a part requires the build step.
+  assert.equal(needsBuild(['packages/dsh-inventory/client/80-websearch.js']), true)
   assert.equal(needsBuild(['packages/dsh-inventory/client.js']), false)
+  assert.equal(needsBuild(['packages/dev-flow/index.js']), false)
 })
 
-test('a version-only bump does not ask for an install', () => {
+test('a version-only bump does not ask for an install', async () => {
   // A `pnpm install` for a version bump is pure cost — and on a checkout with no
   // dependencies it failed and rolled the update back.
   const dir = initCheckout()
@@ -399,10 +407,10 @@ test('a version-only bump does not ask for an install', () => {
   git(dir, 'commit', '-q', '-m', 'version only')
   const from = git(dir, 'rev-parse', 'HEAD~1').trim()
   const to = git(dir, 'rev-parse', 'HEAD').trim()
-  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), false)
+  assert.equal(await needsInstall(dir, from, to, ['packages/dsh-one/package.json']), false)
 })
 
-test('a dependency change asks for an install', () => {
+test('a dependency change asks for an install', async () => {
   const dir = initCheckout()
   writeFileSync(
     join(dir, 'packages', 'dsh-one', 'package.json'),
@@ -412,26 +420,26 @@ test('a dependency change asks for an install', () => {
   git(dir, 'commit', '-q', '-m', 'add dep')
   const from = git(dir, 'rev-parse', 'HEAD~1').trim()
   const to = git(dir, 'rev-parse', 'HEAD').trim()
-  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
+  assert.equal(await needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
 })
 
-test('a moved lockfile asks for an install on its own', () => {
+test('a moved lockfile asks for an install on its own', async () => {
   const dir = initCheckout()
-  assert.equal(needsInstall(dir, 'HEAD', 'HEAD', ['pnpm-lock.yaml']), true)
-  assert.equal(needsInstall(dir, 'HEAD', 'HEAD', ['packages/dsh-one/index.js']), false)
+  assert.equal(await needsInstall(dir, 'HEAD', 'HEAD', ['pnpm-lock.yaml']), true)
+  assert.equal(await needsInstall(dir, 'HEAD', 'HEAD', ['packages/dsh-one/index.js']), false)
 })
 
-test('changedFiles lists exactly the paths between two commits', () => {
+test('changedFiles lists exactly the paths between two commits', async () => {
   const dir = initCheckout()
   writeFileSync(join(dir, 'packages', 'dsh-one', 'index.js'), 'export const a = 1\n')
   git(dir, 'add', '.')
   git(dir, 'commit', '-q', '-m', 'entry')
   const from = git(dir, 'rev-parse', 'HEAD~1').trim()
   const to = git(dir, 'rev-parse', 'HEAD').trim()
-  assert.deepEqual(changedFiles(dir, from, to), ['packages/dsh-one/index.js'])
+  assert.deepEqual(await changedFiles(dir, from, to), ['packages/dsh-one/index.js'])
 })
 
-test('a pnpm-level config change asks for an install', () => {
+test('a pnpm-level config change asks for an install', async () => {
   // `pnpm.overrides` / `patchedDependencies` move the dependency graph without
   // necessarily moving the lockfile.
   const dir = initCheckout()
@@ -443,7 +451,7 @@ test('a pnpm-level config change asks for an install', () => {
   git(dir, 'commit', '-q', '-m', 'override')
   const from = git(dir, 'rev-parse', 'HEAD~1').trim()
   const to = git(dir, 'rev-parse', 'HEAD').trim()
-  assert.equal(needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
+  assert.equal(await needsInstall(dir, from, to, ['packages/dsh-one/package.json']), true)
 })
 
 test('the checkout override is honoured only when it is absolute', () => {

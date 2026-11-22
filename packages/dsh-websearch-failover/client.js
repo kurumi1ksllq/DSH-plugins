@@ -15,6 +15,7 @@
  *   POST ${base}/order    {order:[id,...]}   -> same state payload
  *   POST ${base}/refresh  {ids?:[id,...]}    -> same state payload
  *   POST ${base}/enable   {id, enabled}      -> same state payload
+ *   POST ${base}/clear-cooldown {id?}        -> same state payload + {cleared} (issue-232)
  *
  * Only `react` is required from the module loader; every other capability
  * (`slots`, `locale`, `layout`) arrives through the injected Cordis context.
