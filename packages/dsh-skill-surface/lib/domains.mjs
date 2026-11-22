@@ -38,6 +38,30 @@ export function looksLikeNudge(text) {
   return typeof text === 'string' && text.includes(NUDGE_PREFIX) && text.includes(NUDGE_SUFFIX)
 }
 
+/**
+ * Remove nudge lines from a text, keeping everything else.
+ *
+ * issue-234: the echo guard used to drop the WHOLE block when any nudge line
+ * was quoted in it — so a relayed report that quoted the format together with
+ * a real request silently lost the real request too. The guard is line-level
+ * now: quoted nudge lines go, the request they travel with stays.
+ *
+ * A line counts as a nudge line when it is a nudge on its own (prefix + suffix),
+ * not when the text merely mentions the words somewhere — a sentence that
+ * quotes half of the format and carries a real task must keep counting.
+ * @param {string} text
+ * @returns {string} text with nudge lines removed
+ */
+export function stripNudgeLines(text) {
+  if (typeof text !== 'string' || text.length === 0) return text
+  const kept = []
+  for (const line of text.split(/\r?\n/u)) {
+    if (looksLikeNudge(line.trim())) continue
+    kept.push(line)
+  }
+  return kept.join('\n')
+}
+
 /** Most names one nudge may carry: a hint, not a reading list. */
 export const MAX_NAMES = 3
 

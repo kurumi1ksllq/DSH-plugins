@@ -19,6 +19,41 @@ import { resetChurnCountOnTurnBoundary, resetOverLongCountOnTurnBoundary, findRe
 
 
 
+/**
+ * Reject state-changing requests that did not come from this same host.
+ *
+ * issue-234: this route is registered through `ctx.webServer.register`, which
+ * bypasses the /api authorization layer — the same shape every other bundle in
+ * this repository guards with the identical check (dsh-inventory/http-guard.js,
+ * dsh-websearch-failover/http.mjs, dsh-credential-vault/http.mjs,
+ * dev-flow/lib-git-status/http-guard.js). The governor settings POST was the
+ * one state-changing route in the whole repo without it, so any web page the
+ * user had open could POST to http://127.0.0.1:<port>/plugins/stall-governor/
+ * settings and change detector thresholds, the discipline block or the locale.
+ *
+ * Judgment is byte-identical to the other four copies (test/copy-drift.test.mjs
+ * pins them): cross-site → forbidden; empty/unparseable Origin → forbidden;
+ * Origin host ≠ Host → forbidden; no Origin (curl, same-origin fetch) → allowed.
+ * @param {import("node:http").IncomingMessage} req
+ * @returns {boolean} true when the request must be refused.
+ */
+function isForbiddenOrigin(req) {
+	const headers = req.headers || {};
+	const fetchSite = headers["sec-fetch-site"];
+	if (typeof fetchSite === "string" && fetchSite.toLowerCase() === "cross-site") return true;
+	const origin = headers.origin;
+	if (origin === undefined) return false;
+	if (typeof origin !== "string" || origin.length === 0) return true;
+	let originHost;
+	try {
+		originHost = new URL(origin).host;
+	} catch {
+		return true;
+	}
+	const host = headers.host;
+	return typeof host !== "string" || host.length === 0 || originHost !== host;
+}
+
 // --- 外部插件软切请求：挂起表 + 钩子现场消费 -----------------------------
 // 背景：agent/soft-cut 是内核在模型流式生成期间周期性回调的钩子，只有在钩子
 // 现场返回 { kind: "cut" } 的决策才会被内核采纳。外部插件（如
@@ -795,6 +830,11 @@ function apply(ctx, config) {
 						return;
 					}
 					if (req.method === "POST") {
+						// issue-234: same-origin only (see isForbiddenOrigin above).
+						if (isForbiddenOrigin(req)) {
+							sendJson(res, 403, { ok: false, error: "forbidden-origin" });
+							return;
+						}
 						const body = await readRequestBody(req);
 						const patch = body && typeof body.settings === "object" ? body.settings : body;
 						// 每个引擎只取自己的键,互不污染;两份快照合并落盘。
@@ -1174,4 +1214,4 @@ function apply(ctx, config) {
 }
 
 // 单行导出:测试的 eval 加载器按行剥 export,多行导出会留下悬挂表达式
-export { EXTERNAL_SOFT_CUT_TTL_MS, EXTERNAL_ANCHOR_MAX_CHARS, EXTERNAL_ANCHOR_PREFIX, EXTERNAL_ANCHOR_FALLBACK, externalSoftCutPending, kernelSoftCutProbe, requestExternalSoftCut, consumeExternalSoftCut, reasoningKey, HIGH_REASONING_EFFORT_LEVELS, readReasoningEffort, anchorContentHash, injectedAnchorHashesBySession, INJECTED_ANCHOR_HASH_LIMIT, INJECTED_ANCHOR_SESSION_LIMIT, alreadyInjectedAnchor, rememberInjectedAnchor, injectedAnchorPointsBySession, INJECTED_ANCHOR_POINTS_LIMIT, INJECTED_ANCHOR_STRIP_MIN_CHARS, rememberInjectedPoints, stripInjectedAnchors, apply };
+export { isForbiddenOrigin, EXTERNAL_SOFT_CUT_TTL_MS, EXTERNAL_ANCHOR_MAX_CHARS, EXTERNAL_ANCHOR_PREFIX, EXTERNAL_ANCHOR_FALLBACK, externalSoftCutPending, kernelSoftCutProbe, requestExternalSoftCut, consumeExternalSoftCut, reasoningKey, HIGH_REASONING_EFFORT_LEVELS, readReasoningEffort, anchorContentHash, injectedAnchorHashesBySession, INJECTED_ANCHOR_HASH_LIMIT, INJECTED_ANCHOR_SESSION_LIMIT, alreadyInjectedAnchor, rememberInjectedAnchor, injectedAnchorPointsBySession, INJECTED_ANCHOR_POINTS_LIMIT, INJECTED_ANCHOR_STRIP_MIN_CHARS, rememberInjectedPoints, stripInjectedAnchors, apply };

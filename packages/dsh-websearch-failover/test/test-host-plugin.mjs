@@ -421,6 +421,48 @@ await ok('search and refresh interleave keeps both sides runtime writes (issue-2
   assert.ok(runtime.balances.firecrawl !== undefined, 'refresh balance lost against search writes')
 })
 
+await ok('a slow balance probe does not block a concurrent search (issue-232/234)', async () => {
+  calls.length = 0
+  // firecrawl 带 balance API:refresh 会去探 credit-usage。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc' }],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+
+  const originalFetch = globalThis.fetch
+  // 余额探测端点故意慢(1000ms);搜索端点立即返回 500(让搜索快速失败、走 RMW 写路径)。
+  globalThis.fetch = async (url, init = {}) => {
+    const target = String(url)
+    if (target.includes('credit-usage')) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      return new Response(JSON.stringify({ data: { remainingCredits: 100, planCredits: 1000 } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    return new Response(JSON.stringify({ error: 'unexpected host' }), { status: 500 })
+  }
+  const route = boot.routes[0]
+  try {
+    const searchStarted = Date.now()
+    const searchCall = provider.search({ query: 'slow probe test', maxResults: 4 }).then(() => null, (error) => error)
+    // refresh 并发启动,但只测搜索自己的完成时间:搜索不该被慢探测挡住。
+    const refreshCall = route.handler(
+      makeReq({ method: 'POST', url: `${plugin.API_BASE}/refresh`, body: {} }),
+      makeRes(),
+    )
+    const searchOutcome = await searchCall
+    const elapsed = Date.now() - searchStarted
+    assert.ok(elapsed < 800, `search was blocked behind the slow probe: waited ${elapsed}ms`)
+    void searchOutcome
+    await refreshCall
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+
 probe.cleanup()
 console.log(`
 ${pass} PASS — host plugin contract holds`)

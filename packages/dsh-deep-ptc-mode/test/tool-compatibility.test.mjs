@@ -411,3 +411,60 @@ test('a positively attributed external shadow never transfers quarantine to the 
  f.live.set('read',f.official);assert.equal(state.guard(exec),undefined);
  assert.ok(state.sdkDefinitions(f.agent).includes(f.official));
 });
+
+// ---- issue-234:归因盲区的可观测警告 ----
+
+test('a tool with no provider attribution warns once and keeps its fail-open behaviour', () => {
+  // 有定义、但既没标 provider、目录也不认识的工具:被当作 official(永不隔离)。
+  // 这是刻意的 fail-open,但此前完全静默——失败时没人知道这个工具其实可能有问题。
+  // 契约:每个工具名警告一次,且警告不改变隔离行为(仍不隔离)。
+  const session = {}
+  const agent = { session }
+  const unattributable = { name: 'mystery_tool', description: 'no attribution info', parameters: { type: 'object' } }
+  const attributed = { name: 'known_plugin_tool', description: 'has provider', deepPtc: { provider: 'example-plugin' }, parameters: { type: 'object' } }
+  const live = new Map([[unattributable.name, unattributable], [attributed.name, attributed]])
+  const tools = {
+    get: (name, agent, admitted) => !admitted || admitted.has(name) ? live.get(name) : undefined,
+    definitions: (agent, admitted) => [...live.values()].filter((d) => !admitted || admitted.has(d.name)),
+  }
+  const warnings = []
+  const state = createCompatibilityState(tools, [], { read: () => blankState(), write: () => {} }, {}, {
+    warn: (message) => warnings.push(message),
+  })
+
+  const first = { name: 'mystery_tool', agent }
+  state.dispatched(first)
+  assert.equal(warnings.length, 1, '归因失败应警告一次')
+  assert.match(warnings[0], /mystery_tool/, '警告应点名该工具')
+
+  // 同名字的后续调用不再重复警告(每工具名一次)。
+  state.dispatched({ name: 'mystery_tool', agent })
+  assert.equal(warnings.length, 1, '同一工具名只警告一次')
+
+  // 归因成功的工具不触发警告。
+  state.dispatched({ name: 'known_plugin_tool', agent })
+  assert.equal(warnings.length, 1, '能归因的工具不警告')
+
+  // fail-open 行为不变:归因失败的工具仍被当作 official,不进入隔离。
+  const exec = { name: 'mystery_tool', agent }
+  state.dispatched(exec)
+  state.observe(exec, broken)
+  state.observe(exec, broken)
+  state.observe(exec, broken)
+  assert.equal(state.guard({ name: 'mystery_tool', agent }), undefined, '归因失败的工具不得被隔离(行为不变)')
+})
+
+test('a missing definition does not warn (nothing was ever attributed)', () => {
+  const session = {}
+  const agent = { session }
+  const tools = {
+    get: () => undefined,
+    definitions: () => [],
+  }
+  const warnings = []
+  const state = createCompatibilityState(tools, [], { read: () => blankState(), write: () => {} }, {}, {
+    warn: (message) => warnings.push(message),
+  })
+  state.dispatched({ name: 'never_defined', agent })
+  assert.equal(warnings.length, 0, '没有定义的工具不是归因失败,不该警告')
+})

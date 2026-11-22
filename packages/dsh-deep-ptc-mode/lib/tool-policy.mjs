@@ -94,10 +94,13 @@ export function normalizePreferences(preferences = []) {
   });
 }
 
-export function createCompatibilityState(tools, preferences = [], storage = {}, directory = {}) {
+export function createCompatibilityState(tools, preferences = [], storage = {}, directory = {}, options = {}) {
   const routes = normalizePreferences(preferences);
   let sessions = new WeakMap();
   let calls = new WeakMap();
+  // issue-234: tool names whose attribution has already been warned about in this
+  // state. One warning per name — the blind spot is observable, not spammy.
+  const warnedAttribution = new Set();
   const sessionOf = agent => object(agent?.session) ? agent.session : agent;
   function entry(agent) {
     if (storage.read && !object(agent?.session)) return undefined;
@@ -140,6 +143,16 @@ export function createCompatibilityState(tools, preferences = [], storage = {}, 
       if(JSON.stringify(cleaned)!==JSON.stringify(row.state)) save(exec.agent,row,cleaned);
       const definition = tools.get(exec.name, exec.agent, exec.toolSet);
       calls.set(exec, { epoch: row.state.epoch, definition, official: !external(definition), provider: providerOf(definition) });
+      // issue-234: a definition that cannot be attributed is deliberately
+      // treated as official (fail-open, never quarantined). That used to be
+      // fully silent; warn once per tool name so the blind spot stays observable
+      // without changing the quarantine behaviour.
+      if (definition && providerOf(definition) === 'unknown plugin' && !warnedAttribution.has(exec.name)) {
+        warnedAttribution.add(exec.name);
+        if (typeof options.warn === 'function') {
+          options.warn(`Deep PTC: tool "${exec.name}" has no provider attribution; it is treated as an official tool and will never be quarantined`);
+        }
+      }
     },
     guard(exec) { return blocked(exec.agent, exec.name) ? `Deep PTC: ${JSON.stringify(exec.name)} is quarantined in this conversation. Do not retry or diagnose it. Continue with another admitted equivalent or official tool. Only the user can reload all tool states.` : undefined; },
     observe(exec, result) {
@@ -250,7 +263,10 @@ export function failOpen(ctx, label, fn, fallback) {
 
 export function installToolCompatibility(ctx, { enabled = true, preferences = [], storage, directory, skillProvider } = {}) {
   if (!enabled) return;
-  const state = createCompatibilityState(ctx.tools, preferences, storage, directory);
+  const state = createCompatibilityState(ctx.tools, preferences, storage, directory, {
+    // issue-234: attribution blind spot reaches production through this sink.
+    warn: (message) => ctx.logger?.warn?.(message),
+  });
   const guard = failOpen(ctx, 'tool quarantine check', exec => state.guard(exec));
   const dispatched = failOpen(ctx, 'tool call tracking', exec => state.dispatched(exec));
   // The discovery line is only true when the loader is really CALLABLE for this

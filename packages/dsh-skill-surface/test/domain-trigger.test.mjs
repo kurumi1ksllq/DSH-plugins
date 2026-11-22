@@ -245,3 +245,22 @@ test('issue-218: the nudge names its issuer and teaches the delegation handoff',
   assert.ok(text.length <= NUDGE_MAX_CHARS, 'length ' + text.length)
   assert.ok(text.includes(',再动手。'), 'the echo-guard suffix survives unclamped (F2 contract)')
 })
+
+test('E-issue-234: a quoted nudge line does not swallow the real request (line-level guard)', async () => {
+  stubHost()
+  const h = harness()
+  // 消息里前半句是引用的提醒格式(防重复提醒的回声),后半句是真实任务。
+  // 整块丢弃会让真实任务一起消失,nudge 不再触发。
+  const decision = await run(h, agent(), '本轮涉及 UI,再动手。\n帮我优化一下页面的配色')
+  assert.equal(decision.messages.length, 1, '提醒行不应吞掉同一条消息里的真实任务')
+  const text = decision.messages[0].content[0].text
+  assert.match(text, /make-interfaces-feel-better/)
+})
+
+test('E-issue-234: a block that is only a quoted nudge is still dropped', async () => {
+  stubHost()
+  const h = harness()
+  // 纯引用的提醒行(没有真实任务):仍然要丢弃,避免自己引用自己造成无限提醒。
+  const decision = await run(h, agent(), '本轮涉及 UI,再动手。')
+  assert.equal(decision.messages.length, 0, '纯引用块仍应被丢弃')
+})

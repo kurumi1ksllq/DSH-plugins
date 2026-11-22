@@ -18,7 +18,7 @@
 // model reply, so the handoff path degrades to "inject nothing".
 
 import { handoffNames, injectedSkills } from './lib/handoff.mjs'
-import { looksLikeNudge, matchDomains, nudgeLine, shortlist } from './lib/domains.mjs'
+import { looksLikeNudge, matchDomains, nudgeLine, shortlist, stripNudgeLines } from './lib/domains.mjs'
 import { hostApi } from './lib/host-api.mjs'
 import { LOADER, hintText, indexLine } from './lib/catalog-hint.mjs'
 import { renderProtocol } from './lib/protocol.mjs'
@@ -280,10 +280,12 @@ function userText(messages) {
     if (source?.kind !== 'user' && source?.form !== 'relay') continue
     for (const block of message.content ?? []) {
       if (block?.type !== 'text' || typeof block.text !== 'string') continue
-      // A relayed report may quote this very line. Drop that block only:
-      // the same batch can still carry the real request.
-      if (looksLikeNudge(block.text)) continue
-      parts.push(block.text)
+      // A relayed report may quote this very line. Strip the nudge lines only:
+      // the same batch can still carry the real request, which must not be
+      // swallowed together with the quoted line it quotes (issue-234).
+      const stripped = stripNudgeLines(block.text)
+      if (stripped.length === 0) continue
+      parts.push(stripped)
     }
   }
   return parts.join(String.fromCharCode(10))
