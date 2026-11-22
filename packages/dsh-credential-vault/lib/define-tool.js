@@ -55,7 +55,10 @@ function validateArgs(parameters, args) {
   const required = Array.isArray(parameters.required) ? parameters.required : []
   for (const name of required) {
     const value = args?.[name]
-    if (value === undefined || value === null || (typeof value === 'string' && value.length === 0)) {
+    // Whitespace-only counts as missing — the dispatcher's copy of this stand-in
+    // has always used trim(), and test/copy-drift.test.mjs now asserts the two
+    // behave identically on the same input matrix (issue-234).
+    if (value === undefined || value === null || (typeof value === 'string' && value.trim().length === 0)) {
       // Wording matches the runtime's ToolArgsError so callers (and existing
       // tests) cannot tell which implementation resolved.
       problems.push(`missing required property "${name}"`)

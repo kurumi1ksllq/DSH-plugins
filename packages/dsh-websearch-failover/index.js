@@ -223,8 +223,11 @@ export function apply(ctx, config = {}) {
    * probe await and their read-modify-write of runtime.json would drop the
    * other's balance readings (#103 T1.web). */
   const refreshMutex = createMutex()
+  // issue-234: only the RMW of runtime.json is serialized, not the whole refresh.
+  // Probing is network work that can be slow; holding the mutex across it used to
+  // block a concurrent search's stats write behind a slow balance probe.
   function refresh(ids) {
-    return refreshMutex.run(() => doRefresh(ids))
+    return doRefresh(ids)
   }
 
   async function doRefresh(ids) {
@@ -232,6 +235,9 @@ export function apply(ctx, config = {}) {
     const only = Array.isArray(ids) && ids.length > 0 ? new Set(ids.filter((id) => typeof id === 'string')) : null
     const selected = only ? targets.filter((provider) => only.has(provider.id)) : targets
 
+    // Probing happens outside the lock: two concurrent refreshes may probe
+    // simultaneously, and neither can lose the other's reading (the RMW below
+    // re-reads the file inside the lock, the same shape #103 fixed for refresh).
     const readings = await Promise.all(
       selected.map(async (provider) => {
         const balance = await probeBalance(provider, { key: keyOf(provider), now: Date.now() })
@@ -239,13 +245,25 @@ export function apply(ctx, config = {}) {
       }),
     )
 
-    let runtime = readRuntime(runtimePath)
-    for (const reading of readings) runtime = setBalance(runtime, reading.id, reading.balance)
-    writeRuntime(runtime, runtimePath)
-    if (readings.length > 0) {
-      appendLog(logPath, `balances: ${readings.map((reading) => `${reading.id}=${reading.balance.status}`).join(', ')}`)
-    }
-    return snapshot()
+    return refreshMutex.run(() => {
+      let runtime = readRuntime(runtimePath)
+      for (const reading of readings) {
+        // issue-234: probing outside the lock means two refreshes can finish out
+        // of order, and without this guard the SLOWER (older) reading would land
+        // last and overwrite the newer one. A reading only wins against an older
+        // one for the same provider.
+        const current = runtime.balances?.[reading.id]
+        const currentAt = Number.isFinite(current?.fetchedAt) ? current.fetchedAt : -1
+        const incomingAt = Number.isFinite(reading.balance?.fetchedAt) ? reading.balance.fetchedAt : 0
+        if (incomingAt < currentAt) continue
+        runtime = setBalance(runtime, reading.id, reading.balance)
+      }
+      writeRuntime(runtime, runtimePath)
+      if (readings.length > 0) {
+        appendLog(logPath, `balances: ${readings.map((reading) => `${reading.id}=${reading.balance.status}`).join(', ')}`)
+      }
+      return snapshot()
+    })
   }
 
   const searchProvider = {

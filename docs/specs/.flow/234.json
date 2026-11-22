@@ -1,0 +1,45 @@
+{
+  "issue": 234,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-22T15:24:56.144Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "copy-drift: 契约测试钉死重复实现",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "attribution-warn: 归因失败警告",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "nudge-guard: 提醒守卫行级剔除",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "lock-span: 探测移出锁",
+      "state": "done"
+    },
+    {
+      "id": 5,
+      "title": "read-unread: 通读未覆盖区域",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

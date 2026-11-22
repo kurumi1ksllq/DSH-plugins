@@ -177,3 +177,60 @@ test("405 / 损坏请求体 500", async () => {
 	await p;
 	assert.equal(res2.status, 500);
 });
+
+// ---- issue-234:设置 POST 必须有 origin 守卫 ----
+// 该路由经 ctx.webServer.register 注册,绕过 /api 授权层;其它四个 bundle 的
+// 状态变更路由都做了同源校验,唯独本插件缺失——任意网页可跨站 POST 改治理器设置。
+
+async function callPostWithHeaders(handler, payload, headers) {
+	const res = fakeRes();
+	const req = new EventEmitter();
+	req.method = "POST";
+	req.headers = headers;
+	const p = handler(req, res);
+	req.emit("data", JSON.stringify(payload));
+	req.emit("end");
+	await p;
+	return { status: res.status, body: JSON.parse(res.body) };
+}
+
+test("POST 跨站请求被拒(sec-fetch-site: cross-site)", async () => {
+	const ctx = createCtx(); apply(ctx);
+	const { status, body } = await callPostWithHeaders(
+		route(ctx),
+		{ settings: { enableSoftCut: false } },
+		{ "sec-fetch-site": "cross-site", host: "127.0.0.1:3081", origin: "https://evil.example" },
+	);
+	assert.equal(status, 403, "跨站 POST 必须被拒绝");
+	assert.equal(body.ok, false);
+	assert.equal(body.error, "forbidden-origin");
+});
+
+test("POST 的 Origin 与 Host 不一致时被拒", async () => {
+	const ctx = createCtx(); apply(ctx);
+	const { status, body } = await callPostWithHeaders(
+		route(ctx),
+		{ settings: { enableSoftCut: false } },
+		{ host: "127.0.0.1:3081", origin: "https://evil.example" },
+	);
+	assert.equal(status, 403);
+	assert.equal(body.error, "forbidden-origin");
+});
+
+test("POST 同源请求照常生效", async () => {
+	const ctx = createCtx(); apply(ctx);
+	const { status, body } = await callPostWithHeaders(
+		route(ctx),
+		{ settings: { enableSoftCut: false } },
+		{ host: "127.0.0.1:3081", origin: "http://127.0.0.1:3081" },
+	);
+	assert.equal(status, 200, "同源 POST 必须通过");
+	assert.equal(body.ok, true);
+	assert.equal(body.settings.enableSoftCut, false);
+});
+
+test("POST 无 Origin(curl/同源 fetch)仍然通过", async () => {
+	const ctx = createCtx(); apply(ctx);
+	const { status } = await callPostWithHeaders(route(ctx), { settings: { enableSoftCut: true } }, { host: "127.0.0.1:3081" });
+	assert.equal(status, 200, "无 Origin 头按同源处理");
+});

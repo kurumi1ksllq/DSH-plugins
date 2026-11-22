@@ -94,10 +94,13 @@ export function normalizePreferences(preferences = []) {
   });
 }
 
-export function createCompatibilityState(tools, preferences = [], storage = {}, directory = {}) {
+export function createCompatibilityState(tools, preferences = [], storage = {}, directory = {}, options = {}) {
   const routes = normalizePreferences(preferences);
   let sessions = new WeakMap();
   let calls = new WeakMap();
+  // issue-234: tool names whose attribution has already been warned about in this
+  // state. One warning per name — the blind spot is observable, not spammy.
+  const warnedAttribution = new Set();
   const sessionOf = agent => object(agent?.session) ? agent.session : agent;
   function entry(agent) {
     if (storage.read && !object(agent?.session)) return undefined;
@@ -145,7 +148,24 @@ export function createCompatibilityState(tools, preferences = [], storage = {}, 
     observe(exec, result) {
       const call = calls.get(exec);
       // No definition means the name never belonged to a plugin, so there is nothing to quarantine.
-      if (!call?.definition || call.official || exec.name === DIRECTORY_TOOL || exec.name === 'run_code') return;
+      if (!call?.definition) return;
+      // issue-234: an unattributable tool is deliberately fail-open (treated as
+      // official, never quarantined). That blind spot becomes observable only
+      // when it actually FAILS — warning at dispatch time fired for every
+      // unattributed tool, including this plugin's own deep_ptc_tools (filtered
+      // out of the directory by OWN_PACKAGE), which was a false alarm.
+      if (call.official && call.provider === 'unknown plugin'
+        && exec.name !== DIRECTORY_TOOL && exec.name !== 'run_code'
+        && !warnedAttribution.has(exec.name)) {
+        const blindSpotOutcome = classifyToolOutcome(exec, result);
+        if (blindSpotOutcome) {
+          warnedAttribution.add(exec.name);
+          if (typeof options.warn === 'function') {
+            options.warn(`Deep PTC: tool "${exec.name}" failed but has no provider attribution (unattributed, fail-open); quarantine cannot apply to it`);
+          }
+        }
+      }
+      if (call.official || exec.name === DIRECTORY_TOOL || exec.name === 'run_code') return;
       const row = entry(exec.agent);
       if (!row || call.epoch !== row.state.epoch || blocked(exec.agent, exec.name)) return;
       const outcome = classifyToolOutcome(exec, result);
@@ -250,7 +270,10 @@ export function failOpen(ctx, label, fn, fallback) {
 
 export function installToolCompatibility(ctx, { enabled = true, preferences = [], storage, directory, skillProvider } = {}) {
   if (!enabled) return;
-  const state = createCompatibilityState(ctx.tools, preferences, storage, directory);
+  const state = createCompatibilityState(ctx.tools, preferences, storage, directory, {
+    // issue-234: attribution blind spot reaches production through this sink.
+    warn: (message) => ctx.logger?.warn?.(message),
+  });
   const guard = failOpen(ctx, 'tool quarantine check', exec => state.guard(exec));
   const dispatched = failOpen(ctx, 'tool call tracking', exec => state.dispatched(exec));
   // The discovery line is only true when the loader is really CALLABLE for this

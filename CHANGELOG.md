@@ -12,6 +12,34 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.17.0 — 治理器设置路由补源站校验 + 归因盲区警告(issue-234)
+
+**问题 A(安全)**:治理器设置 POST 路由(`/plugins/stall-governor/settings`)经 `ctx.webServer.register` 注册、绕过 /api 授权层,却**没有同源校验**——本仓库其它四个 bundle 的状态变更路由全都做了该检查,唯独此处缺失。任意网页可在用户浏览时跨站 POST,改检测阈值、关闭命令执行纪律块或切换注入语言。
+**修复 A**:补上与其余四份逐字等价的 `isForbiddenOrigin`(cross-site / Origin 空或不可解析 / Origin≠Host 一律 403;无 Origin 的 curl 与同源 fetch 放行),并把该第 5 份拷贝纳入仓库级 `test/copy-drift.test.mjs` 契约(改坏任一份即红)。
+
+**问题 B**:工具归因失败的 external 工具被当 official、永不隔离,且**日志层面完全静默**(目录结果里仅有 `layer: unattributed` 标注)。修复:该工具**失败时**按工具名警告一次(派发不警告;插件自己的 `deep_ptc_tools` 排除),生产路径经 `ctx.logger.warn` 输出,并有走 `installToolCompatibility` 公开入口的测试守护。
+
+### dsh-websearch-failover 0.6.1 — 余额探测移出互斥区(issue-234)
+
+**问题**:`doRefresh` 在锁内做网络探测(上限 8s),并发的搜索 stats 写入被挡在锁外。**修复**:探测在锁外、RMW 留在锁内(锁内重读),并加「新读数才覆盖」守卫——探测出锁后两次并发 refresh 可能乱序落盘,旧读数会覆盖新读数(评审实测指出)。回归测试两条:慢探测(1000ms)期间并发搜索不被阻塞(修复前实测等满 1004ms);先慢后快两次并发 refresh,最终余额是新值。
+
+### dsh-skill-surface 0.4.5 — 提醒回声守卫改为行级(issue-234)
+
+**问题**:`looksLikeNudge` 命中即丢弃整个文本块——用户消息里引用提醒格式时,同一条消息里的真实任务一起消失,nudge 不再触发。**修复**:`stripNudgeLines` 只剔除提醒行,保留其余文本;纯引用块仍整体丢弃。
+
+### dsh-credential-vault 0.6.5 — defineTool 兜底与 dispatcher 拷贝对齐(issue-234)
+
+**问题**:同一份兜底实现被两个 bundle 各写一遍,判空口径已经分叉——vault 用 `length === 0`,dispatcher 用 `trim().length === 0`,于是纯空白串在两边判定相反(契约测试实测)。
+**修复**:vault 改为 `trim()`(更严,与 dispatcher 一致);`test/copy-drift.test.mjs` 改为同一输入矩阵(缺失/null/纯空白/正常)比对两份实现。
+
+### dsh-inventory 0.14.2 — prompt-inject 的 origin 守卫纳入契约(issue-234)
+
+**内容**:`lib-prompt-inject.js` 是本包第二份 `isForbiddenOrigin`(第一版契约测试漏了它)。本次只做形态对齐(多行 if 改单行)并纳入 `test/copy-drift.test.mjs`;清单同时改为「仓库扫描集合必须等于钉死清单」,第七份出现时自动红。
+
+### 仓库级 — 重复实现契约测试(issue-234)
+
+新增 `test/copy-drift.test.mjs`:全部六份 `isForbiddenOrigin` 与两份 defineTool 兜底实现纳入契约。各 bundle 必须独立可 `link:` 安装,无法跨包共享模块,故用测试把「一处修了其余不动」的风险变成测试时的失败。纯测试改动,免升版。
+
 ### ecc-agent-presets 0.1.1 — preset 名册收缩哨兵反转(issue-226)
 
 **问题**:主 profile 此前挂 5 个白名单委派 preset(architect/planner/code-reviewer/security-reviewer/build-error-resolver)+ 133 个 ECC preset,组合树 preset patch 行共 142(另含 dsh-deep-ptc-mode 运行时注册的深度PTC,不在 patch 行内);用户要求只留四个内置(standard/ptc/minimal/cordis)与 dsh-deep-ptc-mode 运行时注册的深度PTC模式。
@@ -739,7 +767,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 76 个条目:60 条有对应 tag;缺 tag 的 15 条(#224 两条合并后打 tag,issue-230 两条与 issue-232 四条、#228 的 ecc-agent-presets 0.1.1 均合并后打 tag,其余同前)为 `dsh-skill-surface@0.1.0`、`dsh-credential-vault@0.6.2`(#220)、#223 的 `dsh-deep-ptc-mode@1.16.0`/`dsh-task-dispatcher@0.9.2`/`dsh-skill-surface@0.4.4`(合并后打 tag)、#225 的 `dsh-task-dispatcher@0.9.3`、#228 的 `ecc-agent-presets@0.1.1`(合并后打 tag)。另有 1 条「仓库级工具(无版本号)」——它不属于任何 bundle,本就不该有 tag。60+15+1=76。计数按 `git tag -l` 对 Unreleased 全部 75 个 `### ` 标题逐条实测重算(2026-11-22,合并 issue-226 分支后重算;`dsh-inventory@0.13.0` 已于 2026-11-18 05:31+08:00 打 tag,不再计缺)。待下一次统一归档至 History 段。
+> > > 本段现有 82 个条目:74 条有对应 tag;缺 tag 的 6 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-skill-surface@0.1.0`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+6+2=82。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-22),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

@@ -411,3 +411,95 @@ test('a positively attributed external shadow never transfers quarantine to the 
  f.live.set('read',f.official);assert.equal(state.guard(exec),undefined);
  assert.ok(state.sdkDefinitions(f.agent).includes(f.official));
 });
+
+// ---- issue-234:归因盲区的可观测警告 ----
+
+function unattributedSetup() {
+  const session = {}
+  const agent = { session }
+  const unattributable = { name: 'mystery_tool', description: 'no attribution info', parameters: { type: 'object' } }
+  const attributed = { name: 'known_plugin_tool', description: 'has provider', deepPtc: { provider: 'example-plugin' }, parameters: { type: 'object' } }
+  const owned = { name: 'deep_ptc_tools', description: 'this plugin owns it', parameters: { type: 'object' } }
+  const live = new Map([[unattributable.name, unattributable], [attributed.name, attributed], [owned.name, owned]])
+  const tools = {
+    get: (name, a, admitted) => (!admitted || admitted.has(name) ? live.get(name) : undefined),
+    definitions: (a, admitted) => [...live.values()].filter((d) => !admitted || admitted.has(d.name)),
+  }
+  const warnings = []
+  const state = createCompatibilityState(tools, [], { read: () => blankState(), write: () => {} }, {}, {
+    warn: (message) => warnings.push(message),
+  })
+  return { state, agent, warnings, live }
+}
+
+test('an unattributed tool that fails warns once (fail-open blind spot is observable)', () => {
+  const f = unattributedSetup()
+  const exec = { name: 'mystery_tool', agent: f.agent }
+  f.state.dispatched(exec)
+  assert.equal(f.warnings.length, 0, '派发本身不该警告——只有失败才是盲区暴露点')
+
+  f.state.observe(exec, broken)
+  assert.equal(f.warnings.length, 1, '失败的无归因工具应警告一次')
+  assert.match(f.warnings[0], /mystery_tool/)
+  assert.match(f.warnings[0], /unattributed/, '文案应说明是未归因,不是被当成官方工具')
+
+  // 同名第二次失败不重复警告。
+  const again = { name: 'mystery_tool', agent: f.agent }
+  f.state.dispatched(again)
+  f.state.observe(again, broken)
+  assert.equal(f.warnings.length, 1, '同一工具名只警告一次')
+
+  // fail-open 行为不变:仍然不隔离。
+  assert.equal(f.state.guard({ name: 'mystery_tool', agent: f.agent }), undefined)
+})
+
+test('successful, attributed and self-owned tools never warn', () => {
+  const f = unattributedSetup()
+  // 成功:不警告
+  const okExec = { name: 'mystery_tool', agent: f.agent }
+  f.state.dispatched(okExec)
+  f.state.observe(okExec, { isError: false, value: 'fine' })
+  assert.equal(f.warnings.length, 0, '成功的未归因工具不该警告')
+
+  // 能归因:失败也不警告
+  const attributedExec = { name: 'known_plugin_tool', agent: f.agent }
+  f.state.dispatched(attributedExec)
+  f.state.observe(attributedExec, broken)
+  assert.equal(f.warnings.length, 0, '能归因的工具不该警告')
+
+  // 插件自己的 deep_ptc_tools:失败也不警告(OWN_PACKAGE 过滤导致它必然无归因)
+  const ownedExec = { name: 'deep_ptc_tools', agent: f.agent }
+  f.state.dispatched(ownedExec)
+  f.state.observe(ownedExec, broken)
+  assert.equal(f.warnings.length, 0, '插件自己的工具不该被报成归因缺失')
+})
+
+test('the production wiring reaches ctx.logger.warn (installToolCompatibility, public entry)', () => {
+  // 走公开装配入口:删掉 warn 桥接时本测试必须变红,否则「生产路径会输出警告」
+  // 就只是注释里的一句话。
+  const session = {}
+  const agent = { session }
+  const mystery = { name: 'mystery_tool', description: 'no attribution', parameters: { type: 'object' } }
+  const warned = []
+  const handlers = new Map()
+  const ctx = {
+    logger: { warn: (message) => warned.push(message), info() {}, error() {} },
+    tools: {
+      get: (name) => (name === 'mystery_tool' ? mystery : undefined),
+      definitions: () => [mystery],
+      guard: () => {},
+    },
+    systemPrompt: { section: () => () => {}, context: () => () => {} },
+    on(event, handler) { handlers.set(event, handler); return () => {} },
+    effect(fn) { return fn() },
+  }
+  installToolCompatibility(ctx, { enabled: true, preferences: [], storage: { read: () => blankState(), write: () => {} } })
+  const resultHandler = handlers.get('tools/result')
+  assert.equal(typeof resultHandler, 'function', '应注册 tools/result 观察器')
+  const exec = { name: 'mystery_tool', agent }
+  // 先派发(装配体在 tools/execute 里做),再投递结果。
+  handlers.get('tools/execute')(exec, () => Promise.resolve({}))
+  resultHandler(exec, broken)
+  assert.equal(warned.length >= 1, true, '生产装配必须把未归因工具的失败透出到 ctx.logger.warn')
+  assert.match(warned[0], /mystery_tool/)
+})

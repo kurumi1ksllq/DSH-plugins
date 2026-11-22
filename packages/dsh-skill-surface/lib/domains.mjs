@@ -38,6 +38,31 @@ export function looksLikeNudge(text) {
   return typeof text === 'string' && text.includes(NUDGE_PREFIX) && text.includes(NUDGE_SUFFIX)
 }
 
+/**
+ * Remove rendered nudge passages from a text, keeping everything else.
+ *
+ * issue-234: the echo guard used to drop the WHOLE block when any nudge line
+ * was quoted in it — so a relayed report that quoted the format together with
+ * a real request silently lost the real request too. It is a SUBSTRING removal
+ * now (from the provenance prefix to the next suffix), not a line filter: the
+ * same-line and wrapped cases ("本轮涉及 UI,再动手。帮我配色") kept swallowing
+ * the request under a per-line rule.
+ * @param {string} text
+ * @returns {string} text with each nudge passage replaced by a space
+ */
+export function stripNudgeLines(text) {
+  if (typeof text !== 'string' || text.length === 0) return text
+  let out = text
+  for (;;) {
+    const start = out.indexOf(NUDGE_PREFIX)
+    if (start < 0) break
+    const end = out.indexOf(NUDGE_SUFFIX, start)
+    if (end < 0) break
+    out = out.slice(0, start) + ' ' + out.slice(end + NUDGE_SUFFIX.length)
+  }
+  return out
+}
+
 /** Most names one nudge may carry: a hint, not a reading list. */
 export const MAX_NAMES = 3
 

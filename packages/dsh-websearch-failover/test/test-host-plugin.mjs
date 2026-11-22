@@ -421,6 +421,96 @@ await ok('search and refresh interleave keeps both sides runtime writes (issue-2
   assert.ok(runtime.balances.firecrawl !== undefined, 'refresh balance lost against search writes')
 })
 
+await ok('a slow balance probe does not block a concurrent search (issue-234)', async () => {
+  calls.length = 0
+  // firecrawl 带 balance API:refresh 会去探 credit-usage。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc' }],
+  }), 'utf8')
+  // A cooldown left by an earlier test would make this search "skipped" instead
+  // of "failed", and a skipped attempt records no stats — clear it.
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+
+  const originalFetch = globalThis.fetch
+  // 余额探测端点故意慢(1000ms);搜索端点立即返回 500(让搜索快速失败、走 RMW 写路径)。
+  globalThis.fetch = async (url, init = {}) => {
+    const target = String(url)
+    if (target.includes('credit-usage')) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      return new Response(JSON.stringify({ data: { remainingCredits: 100, planCredits: 1000 } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+    return new Response(JSON.stringify({ error: 'unexpected host' }), { status: 500 })
+  }
+  const route = boot.routes[0]
+  try {
+    const searchStarted = Date.now()
+    const searchCall = provider.search({ query: 'slow probe test', maxResults: 4 }).then(() => null, (error) => error)
+    // refresh 并发启动,但只测搜索自己的完成时间:搜索不该被慢探测挡住。
+    const refreshCall = route.handler(
+      makeReq({ method: 'POST', url: `${plugin.API_BASE}/refresh`, body: {} }),
+      makeRes(),
+    )
+    const searchOutcome = await searchCall
+    const elapsed = Date.now() - searchStarted
+    // Fixed implementation needs tens of ms; the broken one needs the full
+    // 1000ms probe. 500 leaves a 2x margin on the good side and only 2x on the
+    // bad side, so a loaded CI box cannot flip the verdict either way.
+    assert.ok(elapsed < 500, `search was blocked behind the slow probe: waited ${elapsed}ms`)
+    // A fast failure (e.g. an early throw) would also finish quickly — assert the
+    // search really did reach its stats write, or this test could pass green
+    // without exercising the mutex at all.
+    const afterSearch = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
+    assert.ok((afterSearch.stats.firecrawl?.calls ?? 0) >= 1, 'the concurrent search must have recorded its attempt')
+    assert.ok(searchOutcome !== null, 'the search was expected to fail (500 from the stub) and record it')
+    await refreshCall
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+
+await ok('a slower refresh cannot overwrite a newer reading for the same provider (issue-234)', async () => {
+  calls.length = 0
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc' }],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+  const route = boot.routes[0]
+  const originalFetch = globalThis.fetch
+  let probeCount = 0
+  // First probe (older) is slow and reports 100 credits; the second (newer) is
+  // fast and reports 999. The older one finishes LAST — without the newest-wins
+  // guard it lands last and the panel shows the stale 100.
+  globalThis.fetch = async (url) => {
+    const target = String(url)
+    if (target.includes('credit-usage')) {
+      probeCount += 1
+      const mine = probeCount
+      if (mine === 1) await new Promise((resolve) => setTimeout(resolve, 400))
+      return new Response(JSON.stringify({
+        data: { remainingCredits: mine === 1 ? 100 : 999, planCredits: 1000 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    const first = route.handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/refresh', body: { ids: ['firecrawl'] } }), makeRes())
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const second = route.handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/refresh', body: { ids: ['firecrawl'] } }), makeRes())
+    await Promise.all([first, second])
+    const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
+    assert.equal(runtime.balances.firecrawl.remaining, 999,
+      'the newer reading must survive; got ' + runtime.balances.firecrawl.remaining)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 probe.cleanup()
 console.log(`
 ${pass} PASS — host plugin contract holds`)
