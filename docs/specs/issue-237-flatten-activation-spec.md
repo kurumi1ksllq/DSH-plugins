@@ -32,3 +32,14 @@
 
 - **轴1(spec 一致性)**:实现与 spec 的目标/边界一致(`buildDelegationRequest` 未改、未引入 `agentPreset`);验收项「spec 不得有 request 键」已落为断言。**未验证项**:acceptance 里「摊平后能通过宿主能力校验」未在真机跑过 `delegate_role`(需重载 DSH 宿主,不在本会话授权内),证据是类型契约(`types.d.ts:23`)与宿主读取点(`spec.parent.id` :3024、`spec.prompt` :1557、`spec.maxDepth` :1497/:3021)均为顶层。
 - **轴2(仓库规范)**:断言只走公开行为(工具 `execute()` 交给 `startActivation` 的 spec),反向验证已实测(改回嵌套时 4 条红,含 1 条 TypeError);src 中已无 `spec.request` 残留(全仓 grep 仅命中 websearch 的同名字段,无关);无凭证/危险指令引入;CHANGELOG 版本纪律由 `pnpm verify` 绿确认。
+
+## 双轴 review 裁决(轴2 有独立回报,轴1 未回报)
+
+轴2 子代理回报 4 条,逐条裁决:
+
+1. **`.flow` 与 CI 实况不符** → **不采纳(已过期)**:评审基线是 `4072cf1`,当时 CI 仍 pending;此后 HEAD 已把 `ci.status` 改 `green`、`stage` 推进到 `review/merge`。
+2. **评审对象被后续提交取代** → **采纳为留证**:评审基线钉在 `4072cf1`,其后两个提交只动 `docs/specs/`(+`.flow`)与注释文字,不含实现变更。
+3. **`role-tools.mjs` 注释仍写 `request.maxDepth`** → **采纳并已改**:改为「宿主比较的是 spec 顶层的 `maxDepth`(`dsh-subagent resolveChildDepth`)」。
+4. **CHANGELOG 行号漏 `:3019`,「100% 失败」过绝对** → **采纳并已改**:补 `:3019`,改为「在当前宿主契约下必然失败」。次要项 `assert.equal(Array.isArray(...), true)` → `assert.ok(...)` 已改。
+
+轴1(对 spec)子代理超时未回报,收尾时仍未产出——轴1 结论由 lead 自审代替,已在上文「双轴 review 留证」记录(**无独立第二视角**)。

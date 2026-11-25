@@ -198,8 +198,9 @@ export function registerRoleTools(ctx) {
 
       const { name: provider } = pickProvider(subagents, 'spawn')
       const request = buildDelegationRequest({ role, persona, task, cwd: args.cwd })
-      // Carry the deployment's depth cap explicitly. The host gate is a
-      // comparison against `request.maxDepth`; omitting the field means NO
+      // Carry the deployment's depth cap explicitly. The host gate compares
+      // the spec's top-level `maxDepth` (dsh-subagent resolveChildDepth);
+      // omitting the field means NO
       // limit, not "use the default" -- only the official subagent tool reads
       // the configured value (dsh-tool-subagent/lib/index.js:452). Without this
       // a role child could re-delegate forever, since these tools live on the

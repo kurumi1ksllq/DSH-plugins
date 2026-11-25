@@ -14,7 +14,7 @@ test-only changes are exempt.
 
 ### dsh-task-dispatcher 0.9.4 — delegate_role 启动 spec 摊平(#237)
 
-**问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557/3024`)。宿主读 `spec.parent.id` 直接抛 `TypeError`——`delegate_role` 100% 失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
+**问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557`(parent/prompt)与 `:3019/3024`(provider/parent.id))。宿主读 `spec.parent.id` 直接抛 `TypeError`——在当前宿主契约下 `delegate_role` 必然失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
 
 ### dsh-deep-ptc-mode 1.17.0 — 治理器设置路由补源站校验 + 归因盲区警告(issue-234)
 

@@ -119,7 +119,7 @@ test('delegate_role starts a child that inherits the parent composition', async 
   // `request` object leaves both undefined and startActivation throws.
   assert.equal(Object.hasOwn(seen, 'request'), false, 'the spec must be flat, not carry a request sub-object')
   assert.equal(seen.parent.id, 'parent', 'the host authorizes spec.parent.id')
-  assert.equal(Array.isArray(seen.prompt), true, 'the host renders spec.prompt as the child message')
+  assert.ok(Array.isArray(seen.prompt), 'the host renders spec.prompt as the child message')
   assert.match(seen.prompt[0].text, /You audit Django apps for security defects\./)
   assert.match(seen.prompt[0].text, /Audit the auth flow\./)
 })
