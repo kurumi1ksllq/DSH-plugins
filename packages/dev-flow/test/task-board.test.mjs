@@ -532,3 +532,25 @@ test('#244 an empty merged-PR list is an answer, not a gap', () => {
   const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
   assert.equal(card.mergeEvidenceUnknown, false)
 })
+
+// ---- #256: missing merge evidence must not be read as a lie -------------
+
+test('#256 unknown merge evidence does not accuse the flow file of being stale', () => {
+  const board = buildTaskBoard(snap({
+    issues: [issue(9)],
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, branch('issue-9-x')] },
+    prs: [],
+    mergedPrs: null,
+    flowStates: new Map([[9, { stage: 'done', review: { state: 'done' }, merge: { authorized: true } }]]),
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
+  assert.equal(card.mergeEvidenceUnknown, true)
+  assert.equal(card.stale, false, 'a failed query is not evidence that the .flow file is wrong')
+})
+
+test('#256 the board carries the truncation flags it was built from', () => {
+  const clean = buildTaskBoard(snap({ issues: [issue(1)] }))
+  assert.deepEqual(clean.truncated, { prs: false, issues: false })
+  const capped = buildTaskBoard({ ...snap({ issues: [issue(1)] }), prsTruncated: true, issuesTruncated: true })
+  assert.deepEqual(capped.truncated, { prs: true, issues: true })
+})

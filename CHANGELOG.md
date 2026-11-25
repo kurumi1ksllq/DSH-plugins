@@ -12,6 +12,15 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dev-flow 0.8.3 — #254 review 遗留三项:截断不再吃掉列表 / 缺失证据不再诬告 stale / 板面也报截断(#256)
+
+**问题 A**:#243 的截断提示走的是 `ghHintText`,而 `PrCard` / `IssueCard` 是「有提示就只渲染提示」——一旦命中上限,已经抓到的 200 行 PR/issue 一行都不显示,比修前更差。**修复**:截断不算失败提示,列表照常渲染,列表末尾追加一行说明(与 `StashCard` 的「已显示 / 总数」同形)。
+
+**问题 B**:#244 只给卡片加了「合并证据暂不可用」,但 `stale` 仍按 `flow.stage !== evidence` 判——合并查询超时后,卡片同时显示「状态过期」与「证据暂不可用」,两句互相打架。**修复**:合并证据未知且 `.flow` 写 `done` 时不再判 stale。
+
+**问题 C**:板子从同一批有上限的列表画出,却只有 PR / issue 卡带截断提示,列头只显示 `cards.length`。**修复**:`buildTaskBoard` 透传 `truncated.{prs,issues}`,板面显示同一句说明。
+
+**问题 D(注释)**:`runCommand` 在致命模式下的 spawn error 由 `null` 变成 `undefined`(现仓无致命调用者),已在该函数注释里写明。
 ### dsh-websearch-failover 0.6.2 — truncated 透传真值 + 余额探测超时同源 + 4xx 不再误判冷却(#245 #246 #247)
 
 **问题**:①`core.search` 算出了 `truncated`,宿主层却写死 `truncated: false`,模型永远看不到「结果被提供方截断」(#245);②余额探测内部写死 8s 上限,`doRefresh` 根本没把 `defaults.timeoutMs` 传下去,超时又被塞进 `status: 'error'`,面板只剩下一个「未知」(#246);③失败分类先看正文关键词再看状态码,400/422 正文里出现 `exceeded` / `api key` 就被判成 quota(1800s)或 auth(86400s),而重试同样的请求永远好不了(#247)。
@@ -790,7 +799,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 86 个条目:其中 83 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。83+1+2=86。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 87 个条目:其中 83 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dev-flow@0.8.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。83+2+2=87。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

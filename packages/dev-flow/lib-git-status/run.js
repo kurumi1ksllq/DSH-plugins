@@ -95,6 +95,9 @@ function runCapture(file, args, opts = {}) {
 export async function runCommand(file, args, opts = {}) {
   const out = await runCapture(file, args, opts)
   if (out !== null && typeof out === 'object') return out.stdout
+  // Fatal failures resolve `undefined`; a spawn error is the one case that used to
+  // resolve `null` here (#256). Every caller today passes allowFailure, so the two
+  // are indistinguishable in practice — but the value is part of what callers see.
   return opts.allowFailure ? null : undefined
 }
 

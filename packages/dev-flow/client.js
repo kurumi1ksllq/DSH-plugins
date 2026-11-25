@@ -573,10 +573,9 @@ function DiffView({ t, sessionId, path, statusSha }) {
       const key = FORGE_HINT_KEYS[snap?.forgeHint]
       if (key !== undefined) return t(key)
       if (snap?.prs === null || snap?.issues === null) return t('ghHintFailed')
-      // A list that exactly fills the query limit is indistinguishable from a
-      // complete one in gh's answer; say so rather than draw a short list as the
-      // whole truth (issue #243).
-      if (snap?.prsTruncated === true || snap?.issuesTruncated === true) return t('ghHintTruncated')
+      // Truncation is NOT a failure hint: this function's callers render the hint
+      // INSTEAD of the list, so returning it here hid the 200 rows we had already
+      // fetched (#256). Truncated lists render normally and then append a note.
       return null
     }
 // PART 3 — cards
@@ -806,6 +805,9 @@ function DiffView({ t, sessionId, path, statusSha }) {
         }),
         )
       }
+      // #243/#256: a list that exactly filled the query is still a list — show it,
+      // then say it was cut. Same shape as StashCard's "shown / total".
+      if (snap.prsTruncated === true) rows.push(h('div', { key: 'prs-truncated', style: S.hint }, t('ghHintTruncated')))
       for (const pr of (snap.mergedPrs ?? []).slice(0, 5)) {
         rows.push(
           h(Row, {
@@ -823,17 +825,16 @@ function DiffView({ t, sessionId, path, statusSha }) {
       if (hint) return h(Card, { title: t('sectionIssues') }, h('div', { style: S.hint }, hint))
       const issues = snap.issues ?? []
       if (issues.length === 0) return h(Card, { title: t('sectionIssues') }, h('div', { style: S.hint }, t('noIssues')))
-      return h(
-        Card,
-        { title: t('sectionIssues') },
-        issues.map((it, i) =>
-          h(Row, {
-            key: it.number ?? i, first: i === 0, title: `#${it.number} ${it.title}`,
-            sub: it.author?.login ?? '',
-            right: it.url ? h('a', { href: it.url, target: '_blank', rel: 'noreferrer', style: S.link }, '↗') : null,
-          }),
-        ),
+      const rows = issues.map((it, i) =>
+        h(Row, {
+          key: it.number ?? i, first: i === 0, title: `#${it.number} ${it.title}`,
+          sub: it.author?.login ?? '',
+          right: it.url ? h('a', { href: it.url, target: '_blank', rel: 'noreferrer', style: S.link }, '↗') : null,
+        }),
       )
+      // #243/#256: the fetched issues stay on screen; the cut is reported after them.
+      if (snap.issuesTruncated === true) rows.push(h('div', { key: 'issues-truncated', style: S.hint }, t('ghHintTruncated')))
+      return h(Card, { title: t('sectionIssues') }, rows)
     }
 // PART 4 — panel, tab type, apply
     // PART 4 — task board (dev-flow)
@@ -957,6 +958,12 @@ function DiffView({ t, sessionId, path, statusSha }) {
       return h(
         'div',
         null,
+        // #256: the board draws from the same capped lists as the PR / issue
+        // cards, so it needs the same admission — a column count alone cannot say
+        // whether 200 cards is everything or the query limit.
+        board.truncated?.prs === true || board.truncated?.issues === true
+          ? h('div', { style: S.hint }, t('ghHintTruncated'))
+          : null,
         h(NeedsUser, { t, items: board.needsUser ?? [], total: board.needsUserTotal }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
         h('div', { style: S.board, 'data-board': 'columns' }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),

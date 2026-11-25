@@ -1,0 +1,40 @@
+{
+  "issue": 256,
+  "grade": "trivial",
+  "stage": "dev",
+  "updatedAt": "2026-11-25T03:53:36.578Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "截断不再顶掉列表(PR/issue)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "缺失合并证据时不判 stale",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "板面透传并显示截断",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "runCommand 致命路径注释",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
