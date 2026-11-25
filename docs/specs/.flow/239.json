@@ -1,8 +1,8 @@
 {
   "issue": 239,
   "grade": "standard",
-  "stage": "review",
-  "updatedAt": "2026-11-25T04:24:24.239Z",
+  "stage": "done",
+  "updatedAt": "2026-11-25T04:30:48.187Z",
   "tickets": [
     {
       "id": 1,
@@ -11,7 +11,7 @@
     },
     {
       "id": 2,
-      "title": "#240 裸块要求名字信号 + 围栏内容不参与判定",
+      "title": "#240 裸块要求名字信号;围栏内容不参与判定",
       "state": "done"
     },
     {
@@ -30,6 +30,6 @@
     "axes": 2
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
