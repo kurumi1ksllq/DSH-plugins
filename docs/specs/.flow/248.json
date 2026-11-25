@@ -1,8 +1,8 @@
 {
   "issue": 248,
   "grade": "trivial",
-  "stage": "dev",
-  "updatedAt": "2026-11-25T05:56:44.950Z",
+  "stage": "merge",
+  "updatedAt": "2026-11-25T05:59:05.725Z",
   "tickets": [
     {
       "id": 1,
@@ -11,13 +11,13 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "none"
+    "status": "green"
   },
   "review": {
-    "state": "not-started",
-    "axes": 2
+    "state": "done",
+    "axes": 0
   },
   "merge": {
     "authorized": false
