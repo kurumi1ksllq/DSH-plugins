@@ -530,7 +530,9 @@ function detectNumberRunaway(fullVisibleText) {
 		// Tail-directed: after a real runaway the model is still counting, so no
 		// words follow it. Prose after the run means it stopped — that is a list in
 		// normal reasoning, and cutting there deleted everything after it (#239).
-		if (/[A-Za-z\u4e00-\u9fff]/.test(fullVisibleText.slice(runEnd))) continue;
+		// \p{L} 覆盖任意语言的字母:只认 ASCII 与汉字时,一句日文/韩文说明会让同一条
+		// 规则失效,合法列表照样被截(#239 review)。
+		if (/\p{L}/u.test(fullVisibleText.slice(runEnd))) continue;
 		hit = { chars: span, digitRatio, increaseRatio, trimTo: runStart };
 	}
 	return hit;
@@ -1194,9 +1196,10 @@ function hasPseudoToolCall(fullVisibleText) {
 	const outside = fenceStart >= 0 ? unfenced.slice(0, fenceStart) : unfenced;
 	if (matchPseudoToolCall(outside.slice(-PSEUDO_TOOL_SCAN_TAIL))) return true;
 	if (fenceStart < 0) return false;
-	const inside = unfenced.slice(fenceStart);
-	return PSEUDO_FUNCTION_TAG.test(inside) && PSEUDO_PARAMETER_TAG.test(inside)
-		&& PSEUDO_CLOSER_PATTERNS.some((pattern) => pattern.test(inside));
+	// 未闭合围栏内用**同一套**判定口径:上一版在这里额外要求「名字 + 参数 + 闭合」
+	// 三件套,比围栏外更严,于是正文里一个孤立的 ``` 之后,只带 function 名字的真
+	// 调用就再也判不出来 —— 等于用更隐蔽的方式给了免死金牌(#240 review)。
+	return matchPseudoToolCall(unfenced.slice(fenceStart).slice(-PSEUDO_TOOL_SCAN_TAIL));
 }
 
 /**

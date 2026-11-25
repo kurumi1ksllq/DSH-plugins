@@ -135,3 +135,17 @@ test("#241 落单的引号不吞掉后续句号", () => {
 	const sentences = api.splitSentences(text);
 	assert.ok(sentences.length >= 3, "奇数个引号不得把整段压成一句,得到 " + sentences.length);
 });
+
+test('#241 review 词尾所有格之后的落单引号也不得吞句号', () => {
+  // 预算版把 files' 也算成一个「可配对引号」,于是它之后的落单引号照样开栈。
+  const text = "the files' owner said '还没写完. 后面一句. 第三句."
+  assert.ok(api.splitSentences(text).length >= 3, '得到 ' + api.splitSentences(text).length + ' 句')
+})
+
+test('#240 review 正文里有孤立围栏时,只带 function 名字的真调用仍命中', async () => {
+  assert.equal(typeof softCutHandler, 'function')
+  const fnOnly = '<tool_call>\n<function name="edit">{"path":"a.txt"}</function>\n</tool_call>'
+  const text = '示例先放这里 ```\n' + prose(3) + '\n\n' + fnOnly + '\n\n' + prose(10)
+  const decision = await cutOf(text)
+  assert.equal(decision?.cutClass, 'pseudoTool', '未闭合围栏内用同一套口径,fn-only 真调用必须命中')
+})
