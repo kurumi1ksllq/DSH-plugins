@@ -1,0 +1,30 @@
+{
+  "issue": 238,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T04:41:57.878Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "每个传输各记各的 404(含默认分支重试)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "双 404 才判「没发布」,5xx/403/崩溃不算",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

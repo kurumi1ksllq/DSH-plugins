@@ -193,18 +193,29 @@ export function apply(ctx, rawConfig) {
           }
 
           await Promise.all(Object.entries(plan.servers).map(async ([declaredName, serverConfig]) => {
+            // #252:超时也是一条结论。原来的超时只写一行 warn,随后照旧写「挂上了」
+            // 的成功行 —— 日志里既没有失败状态,又谎报了一次成功。
+            let timedOut = false
             try {
               const mounting = Promise.resolve(agent.ctx.plugin(mod, serverConfig))
               const fiber = await withTimeout(
                 mounting,
                 config.mountTimeoutMs,
-                () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
+                () => {
+                  timedOut = true
+                  emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName} status=timeout; session continues`)
+                },
               )
-              if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
-              emit(
-                'info',
-                `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
-              )
+              if (timedOut === false) {
+                if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
+                // #252 review:超时与「plugin 正常返回但没给 fiber」同形,两种都不许
+                // 写成 status=ok —— 按 mount .* status=ok 计数的巡检会把「什么都没
+                // 挂上」算成挂上了。
+                emit(
+                  'info',
+                  `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root} status=${fiber === undefined ? 'nofiber' : 'ok'}`,
+                )
+              }
               // The timeout above only gave up *waiting* on the mount; the
               // underlying plugin call may still succeed later. Consume the
               // original promise so a late fiber is still tracked — or disposed
@@ -227,7 +238,7 @@ export function apply(ctx, rawConfig) {
                   // A late mount failure is only a leak risk; nothing to do.
                 })
             } catch (error) {
-              emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
+              emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName} status=error: ${String(error)}`)
             }
           }))
         } catch (error) {

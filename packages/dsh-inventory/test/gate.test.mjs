@@ -221,6 +221,18 @@ test('a mount that resolves after mountTimeoutMs is disposed when the agent is g
     logs.some(([, message]) => message.includes('mount slow agent=gate-late')),
     'the slow mount must be reported',
   )
+  // #252:超时是一条结论,不是「挂上了」——只允许一行 status=timeout,不得再补成功行。
+  const lateLines = logs.filter(([, message]) => message.includes('agent=gate-late'))
+  assert.equal(
+    lateLines.filter(([, message]) => message.includes('status=timeout')).length,
+    1,
+    'the timeout must be reported once, with status=timeout',
+  )
+  assert.equal(
+    lateLines.filter(([, message]) => message.includes('status=ok')).length,
+    0,
+    'a timed-out mount must not write the success line',
+  )
 
   // The agent goes away (the timed-out mount was never recorded in the
   // mounted table), then the underlying mount succeeds.
@@ -256,6 +268,10 @@ test('a mount that completes within the window stays alive while the agent lives
   const agent = { id: 'gate-fast', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
   await dispatch(listeners, logs, agent)
   assert.ok(logs.some(([, m]) => m.includes('mount agent=gate-fast')), 'the fast mount must be logged')
+  // #252:正常分支保持成功行,并且不出现 timeout 行。
+  const fastLines = logs.filter(([, m]) => m.includes('agent=gate-fast'))
+  assert.equal(fastLines.filter(([, m]) => m.includes('status=ok')).length, 1, 'a fast mount writes one success line')
+  assert.equal(fastLines.filter(([, m]) => m.includes('status=timeout')).length, 0, 'a fast mount is never a timeout')
   assert.equal(fiber.disposed, false, 'a fast mount must survive while the agent is alive')
   if (typeof cleanup === 'function') cleanup()
   assert.equal(fiber.disposed, true, 'the tracked fiber must be disposed at plugin teardown')
@@ -342,4 +358,21 @@ test('a re-dispatched agent keeps its earlier tracked fibers (#106 A2)', async (
   if (typeof cleanup === 'function') cleanup()
   assert.equal(fiber1.disposed, true, 'the first fiber must survive the re-dispatch and be disposed at teardown')
   assert.equal(fiber2.disposed, true, 'the second fiber must also be tracked')
+})
+
+test('#252 review 插件返回但没有 fiber 时,成功行改写成 status=nofiber', async () => {
+  // 超时与「plugin 正常返回但没给 fiber」同形:两种都不许写成 status=ok,否则按
+  // `mount .* status=ok` 计数的巡检会把「什么都没挂上」算成挂上了。
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => Promise.resolve(undefined)
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile })
+  const agent = { id: 'gate-nofiber', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  await dispatch(listeners, logs, agent)
+  const lines = logs.filter(([, m]) => m.includes('agent=gate-nofiber'))
+  assert.equal(lines.filter(([, m]) => m.includes('status=nofiber')).length, 1, 'a fiber-less mount is reported as such')
+  assert.equal(lines.filter(([, m]) => m.includes('status=ok')).length, 0, 'and never as a success')
 })

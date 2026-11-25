@@ -64,7 +64,7 @@ export function resolveTransport(state) {
 }
 
 /** Read the manifest over the configured transport. */
-async function fetchManifest(state, { fetchImpl, timeoutMs }) {
+async function fetchManifest(state, { fetchImpl, timeoutMs, gitBin, clone } = {}) {
   const transport = resolveTransport(state)
   if (transport.error !== undefined) return { error: transport.error }
   if (transport.kind === 'http') {
@@ -87,6 +87,10 @@ async function fetchManifest(state, { fetchImpl, timeoutMs }) {
     token: state.token,
     fetchImpl,
     timeoutMs,
+    // #251:这两个 seam 以前在这里断掉(测试传了也用不上),git clone 的真实
+    // 报错因此无法在服务层被断言或注入。
+    gitBin,
+    clone,
   })
 }
 
@@ -97,15 +101,26 @@ async function fetchManifest(state, { fetchImpl, timeoutMs }) {
  * additionally wants the parsed section map so it can merge its own section in.
  * Returns `{ fleet, machines, manifest, text, via, ... }` or `{ error }`.
  */
-async function fetchFleet(state, { fetchImpl, timeoutMs }) {
-  const fetched = await fetchManifest(state, { fetchImpl, timeoutMs })
+async function fetchFleet(state, options = {}) {
+  const fetched = await fetchManifest(state, options)
   if (fetched.error !== undefined) {
     // "The manifest does not exist yet" is the state before a fleet's first
     // publish, not a failure: an empty fleet with no sections. Callers that
     // read in order to publish start from here; readers (status/apply) see the
     // empty view and report zero entries.
     if (fetched.notFound === true) {
-      return { empty: true, fleet: { fleetVersion: 2, generatedAt: 0, machines: {} }, machines: {}, manifest: null }
+      // #251:404 被四种原因共用,把每一次传输的实况一起带上去,上层才有可能
+      // 区分「凭据 / ref / path 写错」与「真的没发布」。
+      return {
+        empty: true,
+        fleet: { fleetVersion: 2, generatedAt: 0, machines: {} },
+        machines: {},
+        manifest: null,
+        reason: fetched.error,
+        // #251 review:发布路径要用它做「空底座确认」——只有仓库本身读得到时,
+        // 「双 404」才足以支持「可以按首次发布写入」。
+        repoAccess: fetched.repoAccess ?? 'unknown',
+      }
     }
     return { error: fetched.error }
   }
@@ -167,10 +182,7 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
     }
     return { ...remoteCache.payload, ...freshBase, fromCache: true, cacheAgeMs: now - remoteCache.at }
   }
-  const fetched = await fetchFleet(readOnlyState, {
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-  })
+  const fetched = await fetchFleet(readOnlyState, options)
   if (fetched.error !== undefined) {
     // T4.inv 失败记忆: the failure is PERSISTED so the panel can answer "why is
     // the fleet stale" even after the process that saw it restarted. The error
@@ -181,6 +193,9 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
   // Nothing published yet (or an empty fleet file): a first-run state with
   // zero remote entries, not a fetch failure.
   if (fetched.manifest === null) {
+    // #251 review:「没发布」这个结论要把上一次的失败横幅清掉,否则面板会一边说
+    // 「没有可同步的内容」一边挂着「上次拉取失败:鉴权失败」。
+    writeState({ lastFetchError: '', lastFetchErrorAt: 0 }, options.env)
     return {
       ...base,
       manifest: {
@@ -195,6 +210,8 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
       rows: [],
       counts: summarizeDiff([]),
       via: fetched.via,
+      // #251:「没发布」同样是结论 —— 带上判定用的实况,面板才有东西可显示。
+      ...(typeof fetched.reason === 'string' && fetched.reason.length > 0 ? { emptyReason: fetched.reason } : {}),
       empty: true,
     }
   }
@@ -297,11 +314,23 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
   for (let attempt = 1; attempt <= PUBLISH_ATTEMPTS; attempt += 1) {
     // (1) Read the current remote document. A 404/empty remote is a normal
     // first publish: the fleet starts from just this machine.
-    const current = await fetchFleet(state, { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs })
+    const current = await fetchFleet(state, options)
     if (current.error !== undefined) {
       // A hard read failure (bad token, unreachable host) must not be worked
       // around by blind-writing over a document we could not see.
       return { ok: false, error: `发布前读取远端失败：${current.error}` }
+    }
+    // (1b) #251 review:不要凭一个「双 404」就按首次发布写入。仓库本身读得到
+    //      (repoAccess=ok,用的是同一个 token 探的)才说明「确实还没有清单」;
+    //      读不到时双 404 与「token 过期 / 无权限」同形,盲目写入会以空底座
+    //      覆盖远端别人的分节。空底座确认就是这个判断。
+    //      只针对「远端没有清单」这一种空(http 直连的空文档走另一条路,manifest 非 null)。
+    if (current.empty === true && current.manifest === null && current.repoAccess !== 'ok') {
+      return {
+        ok: false,
+        error: '无法确认远端是否已有清单（本次读取的 404 与凭据/权限问题同形）,已停止写入以免覆盖其它机器的分节:'
+          + String(current.reason ?? current.repoAccess ?? ''),
+      }
     }
     // (2) Merge our section into everyone else's. An empty remote starts a
     // fresh fleet; a v1 base is taken over (its content was this machine's
@@ -353,7 +382,7 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
       // hosts the contents API rejects a stale sha server-side, so no
       // verification pass is needed there.
       if (transport.kind === 'http' && result.unchanged !== true) {
-        const verify = await fetchFleet(state, { fetchImpl: options.fetchImpl, timeoutMs: options.timeoutMs })
+        const verify = await fetchFleet(state, options)
         const landed = verify.error === undefined
           && verify.legacy !== true
           && machineIds(verify.fleet).includes(machineId)
@@ -414,11 +443,13 @@ export async function syncApply({ snapshot, state = readState(), selection, opti
   const transport = resolveTransport(state)
   if (transport.error !== undefined) return { ok: false, error: transport.error, results: [] }
 
-  const fetched = await fetchFleet(state, {
-    fetchImpl: options.fetchImpl,
-    timeoutMs: options.timeoutMs,
-  })
+  const fetched = await fetchFleet(state, options)
   if (fetched.error !== undefined) return { ok: false, error: fetched.error, results: [] }
+  // #251:远端没有清单时不能说「清单里没有这一项」——那是「凭据 / ref / path
+  // 写错」与「真的没发布」共用的沉默,安静地「无需安装」比报错更误导。
+  if (fetched.manifest === null) {
+    return { ok: false, error: fetched.reason ?? '远端还没有可安装的清单', results: [] }
+  }
 
   const capabilities = options.capabilities ?? probeCapabilities(options)
   const rows = diffManifest(fetched.manifest, snapshot, { capabilities })

@@ -173,6 +173,11 @@ test('syncPublish records the push time only on a real change', async () => {
         if (init?.method === 'PUT') {
           return { ok: true, status: 201, json: async () => ({ content: { sha: 'x' } }) }
         }
+        // #251 review:仓库本身读得到、只是还没有清单 —— 这才是「首次发布」的形状。
+        // 探测也回 404 时,新代码会把它与「凭据读不到」并看,拒绝盲目写入。
+        if (/\/repos\/o\/r$/.test(String(url))) {
+          return { ok: true, status: 200, json: async () => ({ default_branch: 'main' }) }
+        }
         return { ok: false, status: 404, json: async () => ({}) }
       },
     },

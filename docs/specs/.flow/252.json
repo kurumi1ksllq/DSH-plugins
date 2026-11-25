@@ -1,0 +1,30 @@
+{
+  "issue": 252,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T04:41:57.905Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "超时写 status=timeout 并抑制成功行",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "nofiber 与 error 也带 status",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
