@@ -12,6 +12,16 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.4 — 远端「没发布」按每个传输各判 + 挂载超时只记 timeout(#238 #251 #252)
+
+**问题 A(#238)**:`lib/sync-remote.js` 只有一个共享的 `missingFile`,每个传输都给它赋值:raw 报 500 之后,紧接着 contents API 的 404 又把它翻成 true。注释写着「每个传输都 404 才算没发布」,实现是「最后一个说话的赢」。**修复**:raw / contents API 各记各的 `notFoundRaw` / `notFoundApi`,两者都是 404 才判没发布(默认分支重试也按各自传输记);5xx、403、传输崩溃都只是「没读到」。
+
+**问题 B(#251)**:走到 missing 分支时 `attempts`(每一次传输的状态码、git clone 的真实报错)不再拼进 error,404 被「凭据为空/过期、ref 写错、path 写错、真的没发布」四种原因共用。私有仓库无 token 时 raw 与 contents 双双 404 → 面板显示「尚未发布」、`syncApply` 安静地「无需安装」。**修复**:missing 分支的 error 带上全部 attempts;clone 报鉴权错(`could not read Username` 等)且本次读取未带 token 时以「鉴权失败」报错并保留 attempts;clone 报分支不存在时回到 ref 建议。服务层把判定理由透传为 `emptyReason`,`syncApply` 在远端没有清单时直接报原因而非逐项「清单里没有这一项」;顺带把 `gitBin` / `clone` 两个 seam 在 `fetchManifest` 里接上(以前传了也不生效)。
+
+**问题 C(#252)**:`gate.js` 的 `withTimeout` 超时后 `resolve(undefined)`,调用方随后照旧写 `mount agent=…` 成功行——日志里既没有失败状态,又谎报了一次成功。**修复**:超时分支写 `status=timeout` 并抑制成功行;正常分支的成功行补 `status=ok`。
+
+回归测试:raw 500 + api 404、raw 404 + api 403 都不判 `notFound`,双 404 才判且 error 带两次 404;token 空 + 全 404 + clone `could not read Username` → 鉴权失败而不是「未发布」(`fetchManifestText` 与 `syncStatus` 各一条);clone 报分支不存在时回到 ref;syncApply 无清单时报原因;gate 超时只有一行 `status=timeout` 且无成功行,正常挂载只有一行 `status=ok`。
+
 ### dev-flow 0.8.3 — #254 review 遗留三项:截断不再吃掉列表 / 缺失证据不再诬告 stale / 板面也报截断(#256)
 
 **问题 A**:#243 的截断提示走的是 `ghHintText`,而 `PrCard` / `IssueCard` 是「有提示就只渲染提示」——一旦命中上限,已经抓到的 200 行 PR/issue 一行都不显示,比修前更差。**修复**:截断不算失败提示,列表照常渲染,列表末尾追加一行说明(与 `StashCard` 的「已显示 / 总数」同形)。
@@ -799,7 +809,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 87 个条目:其中 84 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。84+1+2=87。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 88 个条目:其中 84 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dsh-inventory@0.14.4`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。84+2+2=88。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

@@ -221,6 +221,18 @@ test('a mount that resolves after mountTimeoutMs is disposed when the agent is g
     logs.some(([, message]) => message.includes('mount slow agent=gate-late')),
     'the slow mount must be reported',
   )
+  // #252:超时是一条结论,不是「挂上了」——只允许一行 status=timeout,不得再补成功行。
+  const lateLines = logs.filter(([, message]) => message.includes('agent=gate-late'))
+  assert.equal(
+    lateLines.filter(([, message]) => message.includes('status=timeout')).length,
+    1,
+    'the timeout must be reported once, with status=timeout',
+  )
+  assert.equal(
+    lateLines.filter(([, message]) => message.includes('status=ok')).length,
+    0,
+    'a timed-out mount must not write the success line',
+  )
 
   // The agent goes away (the timed-out mount was never recorded in the
   // mounted table), then the underlying mount succeeds.
@@ -256,6 +268,10 @@ test('a mount that completes within the window stays alive while the agent lives
   const agent = { id: 'gate-fast', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
   await dispatch(listeners, logs, agent)
   assert.ok(logs.some(([, m]) => m.includes('mount agent=gate-fast')), 'the fast mount must be logged')
+  // #252:正常分支保持成功行,并且不出现 timeout 行。
+  const fastLines = logs.filter(([, m]) => m.includes('agent=gate-fast'))
+  assert.equal(fastLines.filter(([, m]) => m.includes('status=ok')).length, 1, 'a fast mount writes one success line')
+  assert.equal(fastLines.filter(([, m]) => m.includes('status=timeout')).length, 0, 'a fast mount is never a timeout')
   assert.equal(fiber.disposed, false, 'a fast mount must survive while the agent is alive')
   if (typeof cleanup === 'function') cleanup()
   assert.equal(fiber.disposed, true, 'the tracked fiber must be disposed at plugin teardown')

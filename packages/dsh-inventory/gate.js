@@ -193,18 +193,26 @@ export function apply(ctx, rawConfig) {
           }
 
           await Promise.all(Object.entries(plan.servers).map(async ([declaredName, serverConfig]) => {
+            // #252:超时也是一条结论。原来的超时只写一行 warn,随后照旧写「挂上了」
+            // 的成功行 —— 日志里既没有失败状态,又谎报了一次成功。
+            let timedOut = false
             try {
               const mounting = Promise.resolve(agent.ctx.plugin(mod, serverConfig))
               const fiber = await withTimeout(
                 mounting,
                 config.mountTimeoutMs,
-                () => emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName}; session continues`),
+                () => {
+                  timedOut = true
+                  emit('warn', `${LOG} mount slow agent=${agentId} server=${serverConfig.serverName} status=timeout; session continues`)
+                },
               )
-              if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
-              emit(
-                'info',
-                `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root}`,
-              )
+              if (timedOut === false) {
+                if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
+                emit(
+                  'info',
+                  `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root} status=ok`,
+                )
+              }
               // The timeout above only gave up *waiting* on the mount; the
               // underlying plugin call may still succeed later. Consume the
               // original promise so a late fiber is still tracked — or disposed

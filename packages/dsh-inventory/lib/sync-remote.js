@@ -174,14 +174,16 @@ export async function fetchManifestText(parsed, options = {}) {
   const ref = options.ref ?? 'main'
   const path = options.path ?? DEFAULT_MANIFEST_PATH
   const token = options.token ?? null
+  // clone 不带 token,所以它说「没凭据」时,只有本次读取也没带凭据才构成证据。
+  const authenticated = typeof token === 'string' && token.length > 0
   const timeoutMs = options.timeoutMs ?? 15000
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   const attempts = []
-  // Set only while a transport is reporting "this file does not exist", and
-  // cleared by anything that finds actual content: when it survives to the
-  // end, every transport agreed the manifest is simply not there yet — the
-  // normal state before a fleet's first publish, not an error.
-  let missingFile = false
+  // #238:每个传输各记各的「文件不存在」。原来只有一个共享的 missingFile,
+  // 后说话的传输会覆盖前一个 —— raw 报 500 之后,contents API 的 404 又把它翻成
+  // true,「读不到」被说成「没发布」。只有每一次传输都 404,才算没发布。
+  let notFoundRaw = false
+  let notFoundApi = false
 
   // Lazily learned default branch, memoized for this call only. `undefined`
   // means "not probed yet"; `null` means "probed and learned nothing", which
@@ -229,8 +231,7 @@ export async function fetchManifestText(parsed, options = {}) {
         attempts.push('raw: 空文件')
       } else {
         attempts.push(`raw: HTTP ${response.status}`)
-        if (response.status === 404) missingFile = true
-        else missingFile = false
+        notFoundRaw = response.status === 404
         // 404 on the configured ref usually means the default branch is not
         // `main`. Probe the repository's real default branch and retry once
         // before giving up — `parseRepoUrl`'s `/tree/<ref>/` escape hatch
@@ -241,12 +242,13 @@ export async function fetchManifestText(parsed, options = {}) {
             const retried = await readRaw(retryRef, { parsed, path, timeoutMs, fetchImpl })
             if (retried.text !== undefined) return retried
             attempts.push(`raw(${retryRef}): ${retried.error}`)
+            notFoundRaw = retried.notFound === true
           }
         }
       }
     } catch (error) {
       attempts.push(`raw: ${error?.message ?? error}`)
-      missingFile = false
+      notFoundRaw = false
     }
 
     // 2. Contents API (private repos, and better error reporting). A 404 here
@@ -257,20 +259,21 @@ export async function fetchManifestText(parsed, options = {}) {
       const first = await readContents(ref, { parsed, path, token, timeoutMs, fetchImpl })
       if (first.text !== undefined) return first
       attempts.push(`api: ${first.error}`)
-      missingFile = first.notFound === true
+      notFoundApi = first.notFound === true
       if (first.notFound === true) {
         const retryRef = await fallbackRef(ref)
         if (retryRef !== null) {
           const retried = await readContents(retryRef, { parsed, path, token, timeoutMs, fetchImpl })
           if (retried.text !== undefined) return retried
           attempts.push(`api(${retryRef}): ${retried.error}`)
+          notFoundApi = retried.notFound === true
         }
       }
     } catch (error) {
       attempts.push(`api: ${error?.message ?? error}`)
       // A transport crash is not evidence that the file is missing: only an
       // explicit 404 from every transport may claim "not published".
-      missingFile = false
+      notFoundApi = false
     }
   } else {
     attempts.push('无 fetch 实现')
@@ -283,6 +286,9 @@ export async function fetchManifestText(parsed, options = {}) {
   const cloned = await fetchViaClone(parsed, { ref, path, timeoutMs, gitBin: options.gitBin, clone: options.clone })
   if (cloned.text !== undefined) return { text: cloned.text, via: 'git' }
   attempts.push(`git: ${cloned.error}`)
+  // #251:git 是唯一说得出「凭据错」「ref 错」的传输,它的失败性质决定
+  // 「没发布」这个结论还站不站得住。
+  let cloneVeto = cloneVetoReason(cloned)
   if (
     cloned.branchMissing === true &&
     defaultBranch !== undefined &&
@@ -298,14 +304,22 @@ export async function fetchManifestText(parsed, options = {}) {
     })
     if (retried.text !== undefined) return { text: retried.text, via: 'git' }
     attempts.push(`git(${defaultBranch}): ${retried.error}`)
+    cloneVeto = cloneVetoReason(retried)
   }
 
-  if (missingFile === true) {
-    // raw and the contents API both said 404, and the clone found no file
-    // either (or no clone could happen). The manifest itself does not exist
-    // on this ref — the normal state before a fleet's first publish. Report
-    // that as "not published" instead of the scary generic read failure.
-    return { notFound: true, error: '清单尚未发布（文件不存在）', missing: true }
+  // clone 从不带 token,所以「没凭据」只有在本次读取本身也没有凭据时才算证据;
+  // 带 token 时 contents API 才是权威声音,不能因为 git 读不到就否掉它的 404
+  // (否则私有仓库的新机器第一次发布会永远读不到远端)。
+  if (cloneVeto === 'auth' && authenticated === false) {
+    return {
+      error: `无法读取清单：鉴权失败（凭据为空或已过期），先配置一个能读该仓库的 token 再重试（${attempts.join('；')}）`,
+    }
+  }
+
+  // #238:每个传输都说 404 才算「没发布」;#251:即使如此也要带上每一次传输的
+  // 状态码与真实报错,否则「凭据过期 / ref 写错 / path 写错」都被说成没发布。
+  if (notFoundRaw === true && notFoundApi === true && cloneVeto !== 'ref') {
+    return { notFound: true, error: `清单尚未发布（文件不存在）：${attempts.join('；')}`, missing: true }
   }
 
   return {
@@ -394,6 +408,29 @@ function looksLikeMissingRef(text) {
   return /remote branch .* not found|couldn't find remote ref|could not find remote branch|not found in upstream/i.test(
     text,
   )
+}
+
+/**
+ * What a failed clone proves (#251).
+ *
+ * 'auth' — it could not authenticate: the repository may well hold the file,
+ *          we simply were not allowed to look, so "the file does not exist" is
+ *          a guess, not a finding.
+ * 'ref'  — the branch does not exist: the configured ref is wrong, which is a
+ *          configuration answer rather than "nothing published yet".
+ * null   — anything else (no git, no network, or a file missing from a clone
+ *          that did work) leaves the network transports' 404 verdict alone.
+ */
+function cloneVetoReason(result) {
+  const message = String(result?.error ?? '')
+  if (
+    /could not read Username|terminal prompts disabled|Authentication failed|invalid username or password|Permission denied|authentication required|access denied/i.test(
+      message,
+    )
+  ) {
+    return 'auth'
+  }
+  return result?.branchMissing === true ? 'ref' : null
 }
 
 /**
