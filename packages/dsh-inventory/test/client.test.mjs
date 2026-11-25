@@ -1420,7 +1420,9 @@ async function bootProviders(state) {
   const tree = () => resolveTree(render(module.__webSearchProviders, { t: (key) => dictionary[key] ?? key }))
   tree()
   await new Promise((resolve) => setTimeout(resolve, 0))
-  return { calls, tree }
+  // `dictionary` goes out with the boot so assertions can name a copy key instead
+  // of hardcoding today's Chinese string.
+  return { calls, tree, dictionary }
 }
 
 /** Same boot, but for the prompt editor: the live route answers with `text`. */
@@ -1550,12 +1552,42 @@ test('a timed-out balance probe renders its reason and is not dressed up as a co
       },
     ],
   }
-  const { tree } = await bootProviders(state)
+  const { tree, dictionary } = await bootProviders(state)
   const rendered = tree()
   assert.match(textOf(rendered), /balance probe timeout after 60ms/, 'the probe reason must reach the panel')
+  assert.match(textOf(rendered), new RegExp(dictionary.providerBalanceFailed), 'and it says the read failed, not that the provider has no balance API')
   // 状态点文案来自 providerStatus();余额探测超时不是搜索冷却,不能画成 cooldown。
-  assert.equal(findNode(rendered, (node) => node.props?.title === '冷却'), null, 'a probe timeout is not a search cooldown')
-  assert.ok(findNode(rendered, (node) => node.props?.title === '未知'), 'the timeout keeps the neutral state')
+  assert.equal(findNode(rendered, (node) => node.props?.title === dictionary.providerStatusCooldown), null,
+    'a probe timeout is not a search cooldown')
+  assert.ok(findNode(rendered, (node) => node.props?.title === dictionary.providerStatusUnknown),
+    'the timeout keeps the neutral state')
+})
+
+test('a failed balance probe is shown as unknown with its reason, never as a cooldown (#246)', async () => {
+  // The other half of #246: a probe that fails outright (HTTP 500, DNS) used to
+  // be painted as "cooling down" while the cooldown column next to it read "—".
+  const state = {
+    ok: true,
+    generatedAt: 1,
+    providers: [
+      {
+        id: 'firecrawl', kind: 'firecrawl', label: 'Firecrawl', enabled: true, rank: 1, keyPresent: true,
+        balance: {
+          status: 'error', remaining: null, total: null, used: null, unit: 'unknown', ratio: null,
+          source: 'none', detail: 'HTTP 500 from the balance endpoint', fetchedAt: 1, resetKind: 'period-end', resetsAt: null,
+        },
+        cooldown: { active: false, until: 0, reason: '', message: '' },
+        stats: { calls: 1, successes: 1, failures: 0, lastUsedAt: null },
+      },
+    ],
+  }
+  const { tree, dictionary } = await bootProviders(state)
+  const rendered = tree()
+  assert.match(textOf(rendered), /HTTP 500 from the balance endpoint/, 'the failure reason must reach the panel')
+  assert.equal(findNode(rendered, (node) => node.props?.title === dictionary.providerStatusCooldown), null,
+    'a balance probe failure is not a search cooldown')
+  assert.ok(findNode(rendered, (node) => node.props?.title === dictionary.providerStatusUnknown),
+    'it reads as unknown, alongside its reason')
 })
 test('the prompt section loads, saves and rejects an empty injection', async () => {
   const { calls, open } = await bootPrompt('原来的注入文本')

@@ -134,11 +134,12 @@ await ok('available() is synchronous and true with a valid config', async () => 
 
 await ok('search() calls the top provider, returns sources, and records stats', async () => {
   calls.length = 0
-  // #245: 只问 1 条而提供方正好回了 1 条 = 填满了本次请求的上限,truncated 必须是真值。
-  const result = await provider.search({ query: 'deepseek harness', maxResults: 1 })
+  // #245/#255 review: 提供方回得比要的少,就不是「seam 丢了结果」——truncated 只描述
+  // 我们自己夹紧到 50 的那一下,否则每次默认 limit=4 的搜索都会让模型去「再细化查询」。
+  const result = await provider.search({ query: 'deepseek harness', maxResults: 4 })
   assert.equal(result.sources.length, 1)
   assert.equal(result.sources[0].url, 'https://t.example/1')
-  assert.equal(result.truncated, true)
+  assert.equal(result.truncated, false)
   assert.ok(calls[0].url.includes('api.tavily.com'), 'tavily is first in config order')
   const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
   assert.equal(runtime.stats.tavily.calls, 1)
@@ -531,7 +532,7 @@ await ok('requested 100 / provider returns 62 rows -> sources=50 and truncated=t
   try {
     const wide = await provider.search({ query: 'wide', maxResults: 100 })
     assert.equal(wide.sources.length, 50, 'core clamps the request to 50')
-    assert.equal(wide.truncated, true, '62 rows for a clamped 50-row request is truncated')
+    assert.equal(wide.truncated, true, '62 rows for a clamped 50-row request means the seam dropped some')
     const narrow = await provider.search({ query: 'narrow', maxResults: 100 })
     assert.equal(narrow.sources.length, 3)
     assert.equal(narrow.truncated, false, 'a provider that returned fewer rows is not truncated')
@@ -540,6 +541,33 @@ await ok('requested 100 / provider returns 62 rows -> sources=50 and truncated=t
   }
   // 夹紧这件事面板看不到,只能落在诊断日志里。
   assert.match(fs.readFileSync(logPath, 'utf8'), /limit clamped 100 -> 50/)
+})
+
+await ok('a per-row timeoutMs wins over defaults for the probe, as it does for search (#246 review)', async () => {
+  // 搜索侧的上限顺序是 caller -> provider.timeoutMs -> defaults.timeoutMs;探测只读默认值
+  // 时,一个把 20s 写在行里的慢家会在 15s 就被余额探测判超时——#246 的不对称只是从 8s 变 15s。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 60, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc', timeoutMs: 400 }],
+  }), 'utf8')
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = (url, init = {}) => new Promise((resolve, reject) => {
+    const signal = init.signal
+    if (signal?.aborted === true) reject(signal.reason)
+    else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })
+  try {
+    const started = Date.now()
+    const res = makeRes()
+    await boot.routes[0].handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/refresh', body: { ids: ['firecrawl'] } }), res)
+    const elapsed = Date.now() - started
+    const balance = JSON.parse(res.body).providers.find((p) => p.id === 'firecrawl').balance
+    assert.equal(balance.status, 'timeout')
+    assert.match(String(balance.detail), /400ms/, 'the row timeout is the one that applied; got ' + balance.detail)
+    assert.ok(elapsed >= 350, 'the probe must not have used defaults.timeoutMs (60ms), waited ' + elapsed + 'ms')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 })
 
 await ok('a balance probe honours defaults.timeoutMs and reports its own timeout state (#246)', async () => {
@@ -611,6 +639,13 @@ await ok('400 whose body mentions the API key is a bad_request, not a 86400s aut
 await ok('422 whose body says "exceeded" is a bad_request, not a quota cooldown (#247)', async () => {
   const cooldown = await cooldownAfterFirstProviderFails(422, JSON.stringify({ error: 'query exceeded the allowed length' }))
   assert.equal(cooldown.active, false)
+})
+
+await ok('408 stays a retryable error, not a bad_request (#247 review)', async () => {
+  // 408/425 是「这次慢」,下次可能就好了;当成 bad_request 意味着永不冷却、每次都撞。
+  const cooldown = await cooldownAfterFirstProviderFails(408, '')
+  assert.equal(cooldown.active, true)
+  assert.match(String(cooldown.reason), /error/)
 })
 
 await ok('429 and 401 keep their cooldowns (#247 regression)', async () => {

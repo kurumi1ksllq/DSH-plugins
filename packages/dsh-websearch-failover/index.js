@@ -249,7 +249,12 @@ export function apply(ctx, config = {}) {
     // re-reads the file inside the lock, the same shape #103 fixed for refresh).
     const readings = await Promise.all(
       selected.map(async (provider) => {
-        const balance = await probeBalance(provider, { key: keyOf(provider), now: Date.now(), timeoutMs: probeTimeoutMs() })
+        // 行级 timeoutMs 优先,与搜索的 effectiveTimeout 同序;都没有才用配置默认值(#246)。
+        const balance = await probeBalance(provider, {
+          key: keyOf(provider),
+          now: Date.now(),
+          timeoutMs: provider.timeoutMs ?? probeTimeoutMs(),
+        })
         return { id: provider.id, balance }
       }),
     )

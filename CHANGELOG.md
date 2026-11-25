@@ -15,11 +15,11 @@ test-only changes are exempt.
 ### dsh-websearch-failover 0.6.2 — truncated 透传真值 + 余额探测超时同源 + 4xx 不再误判冷却(#245 #246 #247)
 
 **问题**:①`core.search` 算出了 `truncated`,宿主层却写死 `truncated: false`,模型永远看不到「结果被提供方截断」(#245);②余额探测内部写死 8s 上限,`doRefresh` 根本没把 `defaults.timeoutMs` 传下去,超时又被塞进 `status: 'error'`,面板只剩下一个「未知」(#246);③失败分类先看正文关键词再看状态码,400/422 正文里出现 `exceeded` / `api key` 就被判成 quota(1800s)或 auth(86400s),而重试同样的请求永远好不了(#247)。
-**修复**:①`truncated: result.truncated === true`,请求被 core 夹到 50 条时把 `limit clamped 100 -> 50` 写进 `plugin.log`(宿主 `WebSearchResult` 只有 `sources` / `truncated`,没有 notes 字段);②余额探测改用 `defaults.timeoutMs`,超时单独给 `status: 'timeout'` 并保留 `detail`,dsh-inventory 面板把 error/timeout 的 `detail` 显示出来;③429/402/401/403 之外的 4xx 一律 `bad_request`、不写冷却。回归测试:requested 100 / 62 行 → `sources=50` 且 `truncated=true`;上限压到 60ms 且端点不响应 → `status=timeout`、`detail` 带原因(去掉 `timeoutMs` 实测等满 8003ms);400「size exceeded」/ 400「api key」/ 422「exceeded」均无冷却,429/401 冷却不变。
+**修复**:①`truncated: result.truncated === true`,而 core 的口径改成宿主契约那句「seam 真丢了结果」——**请求被夹到 50 条、且提供方填满了这个更窄的窗口**才算真;只是「填满请求」不再置真(否则默认 `limit=4` 的每次搜索都会让模型去细化一个背后没东西的查询)。夹紧仍写进 `plugin.log`(`limit clamped 100 -> 50`),宿主 `WebSearchResult` 只有 `sources` / `truncated`,没有 notes 字段。②余额探测的上限顺序与搜索一致(行内 `timeoutMs` → `defaults.timeoutMs`),超时单独给 `status: 'timeout'` 并保留 `detail`;dsh-inventory 面板把 error/timeout 的原因显示出来,并且不再把余额探测失败画成「冷却」。③429/402/401/403 之外的 4xx 一律 `bad_request`、不写冷却(408/425 属可重试,仍按 `error` 进冷却)。回归测试:requested 100 / 62 行 → `sources=50` 且 `truncated=true`;requested 4 / 1 行 → `false`;上限 60ms 且端点不响应 → `status=timeout`、`detail` 带原因;行内 400ms 覆盖默认 60ms;400「size exceeded」/ 400「api key」/ 422「exceeded」均无冷却,408 仍冷却,429/401 冷却不变。
 ### dsh-inventory 0.14.3 — 余额探测失败原因上屏(#246)
 
 **问题**:工具管理页的余额列只读 `remaining` / `total` / `unit`,宿主探到的失败原因 `balance.detail` 从不显示,探测超时看起来和「没有余额接口」一模一样。
-**修复**:`providerBalanceText` 在 `balance.status` 为 `error` / `timeout` 且带 `detail` 时把原因追加在「未提供余额接口」之后;`status: 'timeout'` 仍走中性状态,不会被画成搜索冷却。其余渲染行为不变。
+**修复**:`providerBalanceText` 在 `balance.status` 为 `error` / `timeout` 时用「余额读取失败 · <原因>」而不是「未提供余额接口」;两者都走中性状态(`providerStatus` 不再把 `balance.status === 'error'` 映射成「冷却」——冷却只由 `cooldown.active` 决定)。其余渲染行为不变。
 
 ### dev-flow 0.8.2 — 面板四处静默失败改为可见(#242 #243 #244 #250)
 

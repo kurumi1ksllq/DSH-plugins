@@ -39,3 +39,31 @@
 | `test/test-host-plugin.mjs` | 原有 maxResults 用例改断言真值 + 新增 #245/#246/#247 六条用例 |
 | `dsh-inventory/test/client.test.mjs` | 新增 timeout 渲染用例;`bootProviders` 每次新模块实例(否则第二次 boot 命中 ESM 缓存) |
 | `package.json` ×2、根 `CHANGELOG.md` | 版本 0.6.2 / 0.14.3;两条 Unreleased 条目;条目计数 83 → 85、缺 tag 7 → 9 |
+
+## 双轴 review 裁决(两轴各回报一份,共 10 条;采纳 8、部分采纳 1、不采纳 1)
+
+**轴1(对 spec)**
+1. **error 仍被画成「冷却」,#246 只修了 timeout 一半** → **采纳**:providerStatus 不再把 balance.status === 'error' 映射成 cooldown,补 status: 'error' 的渲染用例(断言用字典键而不是写死中文)。
+2. **spec 的验收命令实际不绿(inventory test/*.test.mjs 有 2 条预存红)** → **采纳为留证**:那 2 条(#10 syncApply lastPullAt)在干净 main 快照上同样红,与本 diff 无关;本 PR 的验收以 client.test.mjs + client-build.test.mjs + CI 全量跑为准。
+3. **探测上限只跟 defaults,不跟行内 timeoutMs** → **采纳**:provider.timeoutMs ?? defaults.timeoutMs,并补「行内 400ms 覆盖默认 60ms」用例。
+4. **spec 写「不 push、不开 PR」与实况冲突;.flow 状态滞后** → **采纳**:本节即更正,.flow/245.json 推进到 review 并说明 #246/#247 三合一挂在此卡。
+5. **片段被裁到 600 无留痕** → **部分采纳**:本轮只在 spec 记为已知遗留(不动裁剪点、不加日志),因为宿主没有可回传的 notes 通道。
+
+**轴2(对规范)**
+6. **truncated 语义应是「seam 真丢结果」,否则默认 limit=4 的每次搜索都提示模型去细化查询** → **采纳**(最重的一条):core 改为「请求被夹到 50 且提供方填满了这个更窄的窗口」,两个方向都补用例(4 请求 / 1 行 → false;100 请求 / 62 行 → true)。
+7. **providerStatus 把 error 画成冷却 + README 文案不成立** → **采纳**(同第 1 条),README 的「error/timeout 同为中性状态」现在成立。
+8. **新用例证不到它声称的事、断言过松、写死中文** → **采纳**:补 error 用例,断言改走 dictionary 的键。
+9. **既有冒烟用例把 maxResults 改成 1 迁就新语义,丢了「要 4 得 1 → false」的覆盖** → **采纳**:恢复 maxResults: 4 并断言 truncated === false。
+10. **providerBalanceText 把超时说成「未提供余额接口」自相矛盾** → **采纳**:新增 providerBalanceFailed(zh/en)并重建 client.js。
+
+**轴的边界问题**:4xx 一刀切把 408/425 也算 bad_request(永不冷却) → **采纳**:408/425 仍按 error 进冷却,并补用例。
+
+**未采纳/降级**:轴1 第 5 条(片段裁剪留痕)降级为已知遗留。轴2 关于「balance.detail 上屏可能回显上游错误体里的 key 片段」的提醒 → **不采纳**:该字段本来就写进 runtime.json 并由 GET /state 返回,不是本轮新增暴露面。
+
+**仍未验证**:真机上的面板观感(本次只跑测试与构建);宿主 WebSearchResult 的类型声明只有子代理读过,lead 未独立复核。
+
+## 变更点(相对开工时的计划)
+
+1. **truncated 的口径改了**:原计划直接透传 core 的 sources.length >= want,review 指出这与宿主契约(「seam 真的裁掉了」)不符,改为「被夹到 50 且填满更窄窗口」。
+2. **error 也离开「冷却」**:原计划只给 timeout 开新状态,review 指出 #246 的原文就包括 error 被画成冷却,故一并改。
+3. **CHANGELOG 计数按实测重写**:开工时写「缺 tag 7 → 9」,合并 main(#254)后实测 86 = 81 已打 tag + 3 待打 + 2 仓库级。
