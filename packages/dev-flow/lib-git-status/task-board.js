@@ -150,8 +150,12 @@ function cardOf({ issueNumber, issue, branch, pr, mergedPr, mergedPrsUnknown, ch
     merged: Boolean(mergedPr),
     flow: flow ?? null,
   })
-  // Evidence wins. The flow file may only disagree, and disagreement is shown.
+  // Evidence wins. The flow file may only disagree, and disagreement is shown —
+  // except when the evidence itself is missing: a timed-out merged-PR query says
+  // nothing about whether the .flow file is right, and accusing it while the card
+  // also says "merge evidence unavailable" is two answers to one question (#256).
   const stale = flow !== null && flow?.stage !== evidence
+    && !(mergedPrsUnknown === true && flow?.stage === 'done')
   const stageIndex = stageIndexOf(evidence)
   return {
     // The number survives without forge data: it came from the branch name, which
@@ -258,6 +262,13 @@ export function buildTaskBoard(snapshot) {
     // The board cannot place branches whose merge status is unknown; the panel
     // says so rather than drawing them as still in development (#244).
     mergedPrsUnknown,
+    // The board is drawn from the same capped PR / issue lists as the cards, so it
+    // has to admit a cap too: a column count cannot distinguish "200 is all" from
+    // "the query stopped at 200" (#243/#256).
+    truncated: {
+      prs: snapshot?.prsTruncated === true,
+      issues: snapshot?.issuesTruncated === true,
+    },
     offFlow,
     forgeHint: snapshot?.forgeHint ?? null,
   }

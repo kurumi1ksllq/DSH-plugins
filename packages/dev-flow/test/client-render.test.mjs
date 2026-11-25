@@ -376,3 +376,30 @@ test('the diff preview asks for the rendered status hash', () => {
   assert.ok(clickable.length >= 4, 'changed-file rows are clickable')
   assert.ok(textOf(panel).includes('loose.txt'))
 })
+
+// ---- #256: a capped list is still a list --------------------------------
+
+test('#256 a truncated PR list renders its rows and then the notice', () => {
+  const snap = structuredClone(SNAP)
+  snap.gh = { available: true, loggedIn: true, reason: null, source: 'gh_token' }
+  snap.forgeHint = null
+  snap.prsTruncated = true
+  snap.prs = [{
+    number: 42, title: 'capped list still renders', author: { login: 'me' }, headRefName: 'feat/x',
+    baseRefName: 'main', isDraft: false, mergeable: 'MERGEABLE', url: 'https://github.com/me/repo/pull/42',
+  }]
+  const text = textOf(renderPanel(snap))
+  assert.match(text, /#42 capped list still renders/, 'the rows we did fetch must stay on screen')
+  assert.match(text, /列表已达单次查询上限/, 'and the cut is reported next to them')
+})
+
+test('#256 a truncated issue list renders its rows and then the notice', () => {
+  const snap = structuredClone(SNAP)
+  snap.gh = { available: true, loggedIn: true, reason: null, source: 'gh_token' }
+  snap.forgeHint = null
+  snap.issuesTruncated = true
+  snap.issues = [{ number: 77, title: 'capped issue still renders', author: { login: 'me' }, labels: [], url: 'https://github.com/me/repo/issues/77' }]
+  const text = textOf(renderPanel(snap))
+  assert.match(text, /#77 capped issue still renders/)
+  assert.match(text, /列表已达单次查询上限/)
+})
