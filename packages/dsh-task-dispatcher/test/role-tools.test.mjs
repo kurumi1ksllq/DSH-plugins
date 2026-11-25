@@ -114,9 +114,14 @@ test('delegate_role starts a child that inherits the parent composition', async 
   assert.equal(seen.delivery, 'parent')
   assert.equal(seen.label, 'audit auth')
   // The invariant that keeps the child's toolset intact:
-  assert.equal(Object.hasOwn(seen.request, 'agentPreset'), false, 'the child must inherit, never mount a preset')
-  assert.match(seen.request.prompt[0].text, /You audit Django apps for security defects\./)
-  assert.match(seen.request.prompt[0].text, /Audit the auth flow\./)
+  assert.equal(Object.hasOwn(seen, 'agentPreset'), false, 'the child must inherit, never mount a preset')
+  // The host reads spec.parent.id and spec.prompt at the top level; a nested
+  // `request` object leaves both undefined and startActivation throws.
+  assert.equal(Object.hasOwn(seen, 'request'), false, 'the spec must be flat, not carry a request sub-object')
+  assert.equal(seen.parent.id, 'parent', 'the host authorizes spec.parent.id')
+  assert.equal(Array.isArray(seen.prompt), true, 'the host renders spec.prompt as the child message')
+  assert.match(seen.prompt[0].text, /You audit Django apps for security defects\./)
+  assert.match(seen.prompt[0].text, /Audit the auth flow\./)
 })
 
 test('delegate_role refuses a role whose declaration has no persona', async () => {
@@ -178,7 +183,7 @@ test('delegate_role forwards the deployment depth cap', async () => {
     { role: 'django-security', prompt: 'Audit.' },
     { agent: { id: 'parent' }, signal: undefined },
   )
-  assert.equal(seen.request.maxDepth, 3, 'omitting maxDepth would disable the host gate entirely')
+  assert.equal(seen.maxDepth, 3, 'omitting maxDepth would disable the host gate entirely')
 })
 
 test('delegate_role omits maxDepth only when the host cannot resolve one', async () => {
@@ -200,7 +205,7 @@ test('delegate_role omits maxDepth only when the host cannot resolve one', async
     { role: 'django-security', prompt: 'Audit.' },
     { agent: { id: 'parent' }, signal: undefined },
   )
-  assert.equal(Object.hasOwn(seen.request, 'maxDepth'), false)
+  assert.equal(Object.hasOwn(seen, 'maxDepth'), false)
 })
 
 test('delegate_role refuses a blank prompt instead of starting an empty child', async () => {
@@ -253,7 +258,7 @@ test('delegate_role reads a date-shaped persona through its real loader', async 
     { role: 'django-security', prompt: 'Audit.' },
     { agent: { id: 'parent' }, signal: undefined },
   )
-  assert.match(seen.request.prompt[0].text, /2026-11-12/, 'a date-shaped persona must survive as text')
+  assert.match(seen.prompt[0].text, /2026-11-12/, 'a date-shaped persona must survive as text')
 })
 
 test('delegate_role tolerates a !!js tag in a declaration', async () => {
@@ -280,6 +285,6 @@ test('delegate_role tolerates a !!js tag in a declaration', async () => {
     { role: 'django-security', prompt: 'Audit.' },
     { agent: { id: 'parent' }, signal: undefined },
   )
-  assert.match(seen.request.prompt[0].text, /some\.expression/, 'the expression is read as text, never evaluated')
+  assert.match(seen.prompt[0].text, /some\.expression/, 'the expression is read as text, never evaluated')
 })
 

@@ -1,0 +1,25 @@
+{
+  "issue": 237,
+  "grade": "trivial",
+  "stage": "pr",
+  "updatedAt": "2026-11-25T00:15:16.503Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "摊平 startActivation spec + 断言改 seen.*",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

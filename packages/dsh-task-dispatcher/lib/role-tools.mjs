@@ -207,10 +207,16 @@ export function registerRoleTools(ctx) {
       const maxDepth = typeof subagents.resolveMaxDepth === 'function'
         ? subagents.resolveMaxDepth(undefined)
         : undefined
+      // The spec must be FLAT: the host reads spec.parent.id, spec.prompt and
+      // spec.maxDepth at the top level (dsh-subagent/lib/types/types.d.ts:23
+      // extends Omit<SubagentStartRequest,'label'|'signal'>). Nesting these
+      // under `request` leaves them undefined and startActivation throws.
       const activation = await subagents.startActivation({
         provider,
         label: typeof args?.description === 'string' && args.description !== '' ? args.description : 'role: ' + role,
-        request: { ...request, parent, ...(maxDepth === undefined ? {} : { maxDepth }) },
+        ...request,
+        parent,
+        ...(maxDepth === undefined ? {} : { maxDepth }),
         signal: exec.signal,
         delivery: 'parent',
       })

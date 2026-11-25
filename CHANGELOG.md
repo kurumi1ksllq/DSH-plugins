@@ -12,6 +12,10 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.9.4 — delegate_role 启动 spec 摊平(#237)
+
+**问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557/3024`)。宿主读 `spec.parent.id` 直接抛 `TypeError`——`delegate_role` 100% 失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
+
 ### dsh-deep-ptc-mode 1.17.0 — 治理器设置路由补源站校验 + 归因盲区警告(issue-234)
 
 **问题 A(安全)**:治理器设置 POST 路由(`/plugins/stall-governor/settings`)经 `ctx.webServer.register` 注册、绕过 /api 授权层,却**没有同源校验**——本仓库其它四个 bundle 的状态变更路由全都做了该检查,唯独此处缺失。任意网页可在用户浏览时跨站 POST,改检测阈值、关闭命令执行纪律块或切换注入语言。
