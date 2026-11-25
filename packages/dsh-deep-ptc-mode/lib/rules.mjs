@@ -11,7 +11,8 @@ export function reachabilityText(config) {
 - A foreground command still running after ${config.foregroundSeconds} s, or still running when the user sends a message, moves to a background job by itself. A command reported as moved to the background after only a few seconds means a user message is waiting: finish the current step quickly and answer it.
 - job_output waits end as soon as the user sends a message, and waiting again while that message is unread is refused.
 - Pauses longer than ${MAX_PAUSE_SECONDS} s are refused: a real sleep or Start-Sleep command in the foreground, and a timer the program awaits in run_code. Text in strings, comments and arguments does not count. Polling one running job more than ${config.maxPollsPerProgram} times in one run_code program is refused.
-- ask_user_question waits at most ${config.maxQuestionSeconds} s (timeout is in seconds; -1 is refused). An unanswered question becomes pending, the user can still answer it, and a message the user writes instead ends the wait.`;
+- ask_user_question waits at most ${config.maxQuestionSeconds} s (timeout is in seconds; -1 is refused). An unanswered question becomes pending, the user can still answer it, and a message the user writes instead ends the wait.
+- One run_code program has a hard deadline (deployment setting, tens of minutes). A foreground tool such as ralph runs its whole loop inside one program, so a target that needs more than that is cut off mid-batch and restarts from round 1. Estimate the total first: when it may exceed one program, split the target into batches and carry progress through numbered handoff files in the workspace (round-01.md, round-02.md, ...), then resume from the next number instead of starting over. A batch writes what it learned to the workspace before it returns, because that file -- not the transcript -- is what the next batch reads.`;
 }
 
 // Returns the denial reason for one tool execution, or undefined to allow it.

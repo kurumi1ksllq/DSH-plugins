@@ -1,0 +1,35 @@
+{
+  "issue": 236,
+  "grade": "trivial",
+  "stage": "dev",
+  "updatedAt": "2026-11-25T08:37:30.048Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "patch 覆盖 ptc-runtime 行(10min/30min)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "注入规则 + README 分批续跑约定",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "契约测试 + 版本 1.18.0",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

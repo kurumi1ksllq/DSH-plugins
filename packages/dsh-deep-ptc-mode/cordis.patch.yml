@@ -8,6 +8,17 @@
       config:
         environment: auto
         wslDistribution: ''
+# issue-236: the single-run_code deadline is this row's config, not a constant in
+# the runtime. @deepseek-ai/dsh-base declares the row with NO config, so its
+# loader defaults apply: timeoutMs 120s / maxTimeoutMs 600s. A foreground tool
+# (ralph is one) runs entirely inside one program, so 600s cut it off mid-batch.
+# 30 minutes covers the slowest round measured on this machine (577s) with room
+# to spare; the runtime accepts anything up to MAX_TIMER_DELAY_MS (~24.8 days).
+# Long targets still batch — see the "run_code deadline" section of README.zh.md.
+- id: ptc-runtime
+  config:
+    timeoutMs: 600000
+    maxTimeoutMs: 1800000
 # Row overrides absorbed from dsh-git-bash-tool: enable the bash tool, disable
 # the pwsh tool. The timeoutMs is restated verbatim: a patch hit replaces the
 # row config wholesale.
