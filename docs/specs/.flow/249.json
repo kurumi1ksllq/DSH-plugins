@@ -1,0 +1,40 @@
+{
+  "issue": 249,
+  "grade": "trivial",
+  "stage": "merge",
+  "updatedAt": "2026-11-25T06:11:41.245Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "上限提成具名常量 SELECTED_TOOL_LIMIT",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "load 返回 evicted 并改准 note",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "返回值与 selected 一致",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "TDD 用例三条 + 版本/CHANGELOG/文档",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}

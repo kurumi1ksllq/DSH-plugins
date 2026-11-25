@@ -42,6 +42,17 @@ const INPUT_TEXT = /enoent|no such file|not found|does not exist|invalid|missing
 const TEMPORARY_TEXT = /timed? ?out|timeout|etimedout|econnreset|econnrefused|eai_again|enotfound|socket hang up|network|fetch failed|rate.?limit|too many requests|\b429\b|\b50[234]\b|temporar|try again|overloaded/iu;
 /** Consecutive unexplained or temporary failures before a capability is quarantined. */
 export const QUARANTINE_STRIKES = 3;
+/**
+ * How many external tool schemas stay selected — i.e. disclosed in full in the host
+ * SDK section — at once, per conversation.
+ *
+ * issue-249: this used to be a bare `12` in two places, with no comment, no config and
+ * no report to the caller, so the 13th load silently pushed the 1st out while load still
+ * returned it as loaded. The number itself is carried over unchanged from the upstream
+ * dsh-deep-ptc-mode 1.7.3 import (commit 112f653); it bounds the generated SDK section.
+ * Eviction is now reported in load's `evicted` field instead of being silent.
+ */
+const SELECTED_TOOL_LIMIT = 12;
 const IMMEDIATE = new Set(['unavailable', 'partial']);
 
 export function classifyToolOutcome(exec, result) {
@@ -214,20 +225,41 @@ export function createCompatibilityState(tools, preferences = [], storage = {}, 
       const row = entry(agent);
       if (!row) throw new Error('No conversation is active');
       let budget = 16000;
-      const loaded = [], unavailable = [], deferred = [];
+      const loaded = [], unavailable = [], deferred = [], evicted = [];
+      // Selecting is the only way a name reaches the next host SDK, so every add that
+      // pushes another name out is recorded here and reported by the return value.
+      const select = name => {
+        row.selected.delete(name);
+        row.selected.add(name);
+        while (row.selected.size > SELECTED_TOOL_LIMIT) {
+          const oldest = row.selected.values().next().value;
+          row.selected.delete(oldest);
+          evicted.push(oldest);
+        }
+      };
       for (const name of new Set(names)) {
         const def = live.get(name);
         if (!def || blocked(agent, name) || name === DIRECTORY_TOOL) { unavailable.push(name); continue; }
         const schema = toolSchema(def);
         const size = Buffer.byteLength(JSON.stringify(schema), 'utf8');
-        if (size > budget) { row.selected.add(name); if(row.selected.size>12)row.selected.delete(row.selected.values().next().value); deferred.push(name); continue; }
+        if (size > budget) { select(name); deferred.push(name); continue; }
         budget -= size;
-        row.selected.delete(name);
-        row.selected.add(name);
-        if (row.selected.size > 12) row.selected.delete(row.selected.values().next().value);
+        select(name);
         loaded.push(schema);
       }
-      return { loaded, unavailable, deferred, nextStep: true, note: 'Deferred names are selected and will appear in full in the next host SDK. Unavailable names are hidden or quarantined. No tool was executed. Use an equivalent or load fewer definitions.' };
+      // A name this same call evicted (a later name in the batch pushed it out) must not
+      // be reported as loaded: the reply and `selected` describe the same set.
+      const kept = loaded.filter(schema => row.selected.has(schema.name));
+      const dropped = evicted.filter(name => !row.selected.has(name));
+      const deferredKept = deferred.filter(name => row.selected.has(name));
+      const rest = 'Unavailable names are hidden or quarantined. No tool was executed. Use an equivalent or load fewer definitions.';
+      // issue-249: the old note promised the next SDK for names that had just been evicted.
+      const note = dropped.length === 0
+        ? `Deferred names are selected and will appear in full in the next host SDK. ${rest}`
+        : `These names were removed from this conversation's SDK selection (at most ${SELECTED_TOOL_LIMIT} full schemas are disclosed) and will NOT appear in the next host SDK: ${JSON.stringify(dropped)}. Load them again when you need them.`
+          + (deferredKept.length ? ' Deferred names still selected will appear in full in the next host SDK.' : ' No deferred name remains selected.')
+          + ` ${rest}`;
+      return { loaded: kept, unavailable, deferred, evicted: dropped, nextStep: true, note };
     },
     text({ scope: agent, toolSet } = {}) {
       if (!object(agent)) return '';
