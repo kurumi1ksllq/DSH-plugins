@@ -83,7 +83,7 @@ DSH 自带的 `ctx.web` 只解析**一个**搜索提供方（`@deepseek-ai/dsh-w
   - firecrawl `GET https://api.firecrawl.dev/v2/team/credit-usage` → `data.remainingCredits` / `data.planCredits`（v1 的 snake_case 字段也接受）；
   - tavily `GET https://api.tavily.com/usage` → `account.plan_limit - account.plan_usage`。
 
-  其它家若想显示余额，在行里加 `"balance": { "request": {...}, "response": { "remainingPath"|"totalPath"|"usedPath" }, "unit": "credits|usd|percent|requests|tokens" }`；路径可以是单个点号路径，也可以是**候选路径数组**（取第一个能取到值的，用来兼容 v1/v2 或改名后的响应）。没有余额接口就显示中性提示（`status: unknown`），不影响搜索。
+  其它家若想显示余额，在行里加 `"balance": { "request": {...}, "response": { "remainingPath"|"totalPath"|"usedPath" }, "unit": "credits|usd|percent|requests|tokens" }`；路径可以是单个点号路径，也可以是**候选路径数组**（取第一个能取到值的，用来兼容 v1/v2 或改名后的响应）。没有余额接口就显示中性提示（`status: unknown`），不影响搜索。探测失败或超时同样是中性状态（`status: error` / `status: timeout`），原因写在 `balance.detail` 里、工具管理页会显示出来；探测上限与搜索共用 `defaults.timeoutMs`。
 
 - **重置时间**：面板右列会显示「重置」一行，字段是 `balance.resetKind` + `balance.resetsAt`（epoch ms）。内置规则（2026-10-24 核实）：
 
@@ -139,10 +139,10 @@ Host 通过 `ctx.webServer.register({ kind: 'prefix', path: '/websearch-failover
 
 | 分类 | 触发 | 冷却 |
 | --- | --- | --- |
-| `quota` | HTTP 429 / 402，或响应含 quota / credit / insufficient / balance / rate limit / 额度 / 余额 / 配额… | `cooldown.quota`，默认 1800s，`retry_after` 优先 |
+| `quota` | HTTP 429 / 402，或非 4xx 响应含 quota / credit / insufficient / balance / rate limit / 额度 / 余额 / 配额… | `cooldown.quota`，默认 1800s，`retry_after` 优先 |
 | `auth` | 401，403（无额度字样）、key 缺失 | `cooldown.auth`，默认 86400s |
 | `error` | 5xx、网络错误、响应不可解析 | `cooldown.error`，默认 60s |
-| `bad_request` | 400 / 422 | 不冷却（配置问题，冷却没意义） |
+| `bad_request` | 400 / 422，以及其它非 429/402/401/403 的 4xx | 不冷却（请求本身有问题，冷却没意义；先按状态码判，再看正文关键词） |
 
 空结果 → 换下一家但不冷却；冷却中的家不发请求，直接 `skipped`；搜索成功会清掉该家的冷却记录；全部失败抛 `ALL_FAILED` 并附带逐家 `attempts`。工具管理页 `stats` 会把每次 `ok` / `failed` / `empty` 记到 `runtime.json`。
 

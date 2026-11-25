@@ -1,0 +1,35 @@
+{
+  "issue": 245,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T03:44:46.437Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "#245 truncated 透传真值(seam 真裁)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "#246 余额探测超时同源 + 失败原因上屏",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "#247 4xx 判定先于关键词,408/425 仍可重试",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

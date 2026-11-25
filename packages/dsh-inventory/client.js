@@ -274,6 +274,7 @@ window.__ModuleLoader__.load({
       providerFailed: '操作失败',
       providerNoProviders: '还没有可用的提供方，请检查 providers.json 配置。',
       providerUnknownBalance: '未提供余额接口',
+      providerBalanceFailed: '余额读取失败',
       providerEnable: '启用',
       providerDisable: '停用',
       providerCalls: '调用次数',
@@ -605,6 +606,7 @@ window.__ModuleLoader__.load({
       providerFailed: 'Operation failed',
       providerNoProviders: 'No providers available. Check the providers.json config.',
       providerUnknownBalance: 'No balance API',
+      providerBalanceFailed: 'Balance read failed',
       providerEnable: 'Enable',
       providerDisable: 'Disable',
       providerCalls: 'Calls',
@@ -3302,7 +3304,14 @@ window.__ModuleLoader__.load({
     function providerBalanceText(t, balance) {
       if (!balance) return t('providerUnknownBalance')
       const amount = providerAmount(balance.remaining)
-      if (amount === '') return t('providerUnknownBalance')
+      if (amount === '') {
+        // 探测失败/超时的原因要能看见,否则面板只剩一个「未知」(#246)。这里说的是
+        // 「读取失败」而不是「没有余额接口」:两句话对用户指向的动作不同。
+        const detail = typeof balance.detail === 'string' ? balance.detail : ''
+        const failed = balance.status === 'error' || balance.status === 'timeout'
+        if (!failed) return t('providerUnknownBalance')
+        return detail === '' ? t('providerBalanceFailed') : `${t('providerBalanceFailed')} · ${detail}`
+      }
       let text = `${amount} ${providerUnitLabel(t, balance.unit)}`
       const total = providerNum(balance.total)
       if (total !== null && total > 0) text += ` / ${providerAmount(total)}`
@@ -3333,7 +3342,8 @@ window.__ModuleLoader__.load({
       if (!provider) return 'unknown'
       if (provider.cooldown?.active === true) return 'cooldown'
       if (provider.balance?.status === 'ok') return 'ok'
-      if (provider.balance?.status === 'error') return 'cooldown'
+      // 余额探测失败不是搜索冷却:一家余额端点 500、搜索仍可用的提供方,被画成
+      // 黄色「冷却」会让人去等一个不会结束的东西(#246)。冷却只看 cooldown 字段。
       return 'unknown'
     }
 

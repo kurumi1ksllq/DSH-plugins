@@ -210,7 +210,9 @@ function unknownBalance(detail, now, reset = { resetKind: 'none', resetsAt: null
 
 /**
  * Probe one provider's balance. Never throws: every failure becomes a record
- * with `status: 'error'` or `status: 'unknown'` plus a short `detail`.
+ * with `status: 'error'`, `status: 'timeout'` (its own state since #246: a slow
+ * probe is neither an upstream failure nor a search cooldown) or `status:
+ * 'unknown'`, plus a short `detail`.
  *
  * @param {object} provider provider config row
  * @param {{key?: string, now?: number, fetchImpl?: typeof fetch, timeoutMs?: number, signal?: AbortSignal}} [options]
@@ -239,7 +241,11 @@ export async function probeBalance(provider, options = {}) {
 
   const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 8000
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error(`balance probe timeout after ${timeoutMs}ms`)), timeoutMs)
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort(new Error(`balance probe timeout after ${timeoutMs}ms`))
+  }, timeoutMs)
   const onAbort = () => controller.abort(options.signal?.reason)
   options.signal?.addEventListener?.('abort', onAbort, { once: true })
 
@@ -251,7 +257,8 @@ export async function probeBalance(provider, options = {}) {
   } catch (error) {
     return {
       ...unknownBalance(String(error?.message ?? error).slice(0, 300), now, resetOf(provider, spec, undefined, now)),
-      status: 'error',
+      // #246: 探测超时是独立状态——它不是上游报错,也不是搜索冷却。
+      status: timedOut ? 'timeout' : 'error',
     }
   } finally {
     clearTimeout(timer)

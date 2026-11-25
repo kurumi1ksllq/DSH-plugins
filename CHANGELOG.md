@@ -12,6 +12,15 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-websearch-failover 0.6.2 — truncated 透传真值 + 余额探测超时同源 + 4xx 不再误判冷却(#245 #246 #247)
+
+**问题**:①`core.search` 算出了 `truncated`,宿主层却写死 `truncated: false`,模型永远看不到「结果被提供方截断」(#245);②余额探测内部写死 8s 上限,`doRefresh` 根本没把 `defaults.timeoutMs` 传下去,超时又被塞进 `status: 'error'`,面板只剩下一个「未知」(#246);③失败分类先看正文关键词再看状态码,400/422 正文里出现 `exceeded` / `api key` 就被判成 quota(1800s)或 auth(86400s),而重试同样的请求永远好不了(#247)。
+**修复**:①`truncated: result.truncated === true`,而 core 的口径改成宿主契约那句「seam 真丢了结果」——**请求被夹到 50 条、且提供方填满了这个更窄的窗口**才算真;只是「填满请求」不再置真(否则默认 `limit=4` 的每次搜索都会让模型去细化一个背后没东西的查询)。夹紧仍写进 `plugin.log`(`limit clamped 100 -> 50`),宿主 `WebSearchResult` 只有 `sources` / `truncated`,没有 notes 字段。②余额探测的上限顺序与搜索一致(行内 `timeoutMs` → `defaults.timeoutMs`),超时单独给 `status: 'timeout'` 并保留 `detail`;dsh-inventory 面板把 error/timeout 的原因显示出来,并且不再把余额探测失败画成「冷却」。③429/402/401/403 之外的 4xx 一律 `bad_request`、不写冷却(408/425 属可重试,仍按 `error` 进冷却)。回归测试:requested 100 / 62 行 → `sources=50` 且 `truncated=true`;requested 4 / 1 行 → `false`;上限 60ms 且端点不响应 → `status=timeout`、`detail` 带原因;行内 400ms 覆盖默认 60ms;400「size exceeded」/ 400「api key」/ 422「exceeded」均无冷却,408 仍冷却,429/401 冷却不变。
+### dsh-inventory 0.14.3 — 余额探测失败原因上屏(#246)
+
+**问题**:工具管理页的余额列只读 `remaining` / `total` / `unit`,宿主探到的失败原因 `balance.detail` 从不显示,探测超时看起来和「没有余额接口」一模一样。
+**修复**:`providerBalanceText` 在 `balance.status` 为 `error` / `timeout` 时用「余额读取失败 · <原因>」而不是「未提供余额接口」;两者都走中性状态(`providerStatus` 不再把 `balance.status === 'error'` 映射成「冷却」——冷却只由 `cooldown.active` 决定)。其余渲染行为不变。
+
 ### dev-flow 0.8.2 — 面板四处静默失败改为可见(#242 #243 #244 #250)
 
 **问题 A(#242)**:`fileDiffOf` 以 `maxBuffer = maxBytes*4` 读 diff,一旦超过就由 `runCommand` 丢掉已读内容并返回 null,于是超大改动渲染成「没有改动」(实测 1.69 MB 的 diff → `diff.length=0`、`truncated=false`),未跟踪路径还会退化成一整段「新增文件」。**修复**:新增 `runCommandCapped`(读满 `maxBytes+1` 即停并返回 `{stdout, capped}`),`fileDiffOf` 据此给出 `truncated:true` 并保留真实前缀;`capped` 时不再走未跟踪文件渲染。
@@ -781,7 +790,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 84 个条目:其中 80 条已有对应 tag;2 条待合并后打 tag(`dsh-skill-surface@0.1.0`、`dev-flow@0.8.2`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。80+2+2=84。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 86 个条目:其中 81 条已有对应 tag;3 条待合并后打 tag(`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。81+3+2=86。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

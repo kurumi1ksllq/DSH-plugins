@@ -150,9 +150,14 @@ export function classifyFailure({ status, bodyText, error }) {
   if (status === 429 || status === 402) return { kind: 'quota', retryAfter: parseRetryAfter(bodyText) };
   if (status === 401) return { kind: 'auth' };
   if (status === 403) return QUOTA_RE.test(text) ? { kind: 'quota' } : { kind: 'auth' };
+  // #247: 剩下的 4xx(400/422/404…)是请求本身有问题,正文里的 exceeded/api key 等字眼
+  // 不能把它升级成 quota/auth——那会白锁 1800s/86400s,而重试同样的请求永远不会好。
+  // 408/425 是「这次慢/太早」,重试可能就好,按可重试的错误处理;其余 4xx 是请求本身
+  // 有问题,冷却没有意义(重发同样的请求永远好不了)。
+  if (status === 408 || status === 425) return { kind: 'error' };
+  if (typeof status === 'number' && status >= 400 && status < 500) return { kind: 'bad_request' };
   if (QUOTA_RE.test(text)) return { kind: 'quota', retryAfter: parseRetryAfter(bodyText) };
   if (AUTH_RE.test(text)) return { kind: 'auth' };
-  if (status === 400 || status === 422) return { kind: 'bad_request' };
   return { kind: 'error' };
 }
 
@@ -492,7 +497,15 @@ export async function search({ query, limit, config, statePath, force = false, s
   if (!query || query.trim().length === 0) throw new SearchError('empty query', 'BAD_QUERY');
   const { providers, defaults } = config;
   const state = readState(statePath);
-  const want = Math.max(1, Math.min(Number(limit ?? defaults.limit) || defaults.limit, 50));
+  const requested = Number(limit ?? defaults.limit) || defaults.limit;
+  const want = Math.max(1, Math.min(requested, 50));
+  // #245/#255 review: `truncated` means "the seam dropped sources", which is the
+  // host's own definition (dsh-web/src/index.ts capSources). So it needs BOTH:
+  // we asked the provider for less than the caller wanted, AND the provider filled
+  // even that shorter window (otherwise nothing was left behind). Saying "true"
+  // merely because the provider filled the request made every default (limit 4)
+  // search tell the model to refine a query that had nothing more behind it.
+  const capped = requested > want;
   const attempts = [];
   let stateDirty = false;
 
@@ -541,7 +554,7 @@ export async function search({ query, limit, config, statePath, force = false, s
         stateDirty = true;
       }
       if (stateDirty) writeState(state, statePath);
-      return { provider: provider.id, kind: provider.kind, query, sources, attempts, truncated: sources.length >= want };
+      return { provider: provider.id, kind: provider.kind, query, sources, attempts, limit: want, truncated: capped && sources.length >= want };
     } catch (error) {
       if (error?.code === 'ABORTED' || signal?.aborted === true) {
         // T4.web ABORTED 计数: attribute the abort to the provider that was
