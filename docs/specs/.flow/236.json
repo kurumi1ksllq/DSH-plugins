@@ -1,0 +1,35 @@
+{
+  "issue": 236,
+  "grade": "trivial",
+  "stage": "merge",
+  "updatedAt": "2026-11-25T09:33:28.983Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "patch 只抬上限(maxTimeoutMs),默认保持宿主值",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "注入规则(timeoutMs 指引 + 分批续跑)+ 中英 README",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "组合测试(宿主 patch 层)+ 版本 1.18.0",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

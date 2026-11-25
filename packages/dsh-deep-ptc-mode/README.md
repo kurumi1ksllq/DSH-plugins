@@ -1,6 +1,6 @@
 # Deep PTC mode
 
-[中文](README.zh.md) · MIT · **1.17.3**
+[中文](README.zh.md) · MIT · **1.18.0**
 
 [1.7.3 时期实测汇总 / Test summary](TEST_REPORT.md) — 历史快照，当前版本见下方 "Current release"
 **Let plugins cooperate. Keep current official PTC tools as the fallback. Stay interruptible while work runs.**
@@ -24,9 +24,9 @@ An extension must publish into the `deep-ptc` scope and support the installed ho
 
 The official fallback retains the 1.6.1 derivation mechanism: the plugin reads the running host’s PTC declaration and checks for changes every five seconds; only changed declarations or this plugin’s settings rebuild the preset and follows its module names and configuration. The bundled snapshot is used only if loading, parsing or derivation fails, with a warning. Reload after an official upgrade and use a new preset revision; existing sessions are not forcibly switched. DSH support is declared as `>=0.2.2-rc.1 <0.3.0-0`; future host APIs still require verification.
 
-## Current release: 1.17.3
+## Current release: 1.18.0
 
-This repository carries the 1.17.3 line. The mechanism sections below were written at 1.7.3 and still describe the derivation, reachability and working-contract behaviour; the releases after it changed the governor packaging, execution environments, localisation and delegation wiring:
+This repository carries the 1.18.0 line. The mechanism sections below were written at 1.7.3 and still describe the derivation, reachability and working-contract behaviour; the releases after it changed the governor packaging, execution environments, localisation and delegation wiring:
 
 - **1.8.0** — absorbed `dsh-stall-governor` and `dsh-git-bash-tool`; Git Bash became a first-class execution environment.
 - **1.9.0** — the 5007-line governor was split into six modules (peer / core / anchor / settings / softcut / apply) with byte-identical declaration bodies.
@@ -90,6 +90,23 @@ From 1.5.0, "don't sleep or wait" is enforced by plugin code, not just requested
 | `setTimeout`, `setInterval` or `time.sleep` in a `run_code` program | Known waits over 5 s are refused; unresolved durations pass through; polling one running job more than 3 times in one program is refused |
 | `ask_user_question` | Runs in timed mode: 120 s by default, at most 300 s, `-1` refused. An unanswered question becomes pending and your later answer arrives as a message; typing a reply instead of using the card ends the wait at once |
 
+### The single `run_code` deadline, and batching
+
+One `run_code` program has a hard deadline, and that deadline is also its **uninterruptible window**: your message is read at the next step boundary and never interrupts a program already running. This bundle raises only the **cap** (exact milliseconds live in `cordis.patch.yml`; the tool description prints the current default and cap). The default stays at the host value — raising it would stretch every ordinary program's silent window. To get a longer budget, pass `timeoutMs` explicitly.
+
+**A foreground tool runs its whole loop inside one program** — `ralph` is one — so a target that needs longer than one program is cut off mid-batch and starts over from round 1.
+
+| Situation | What to do |
+| --- | --- |
+| Estimated total fits one program | Run it; no batching |
+| It may exceed one program | Batch first: each batch runs a fixed number of rounds and writes its findings to numbered handoff files in the workspace (`round-01.md`, `round-02.md`, …) |
+| The previous batch was cut off | Count the existing numbered files and resume from the next number; do not restart at round 1 |
+| Anything to carry across batches | Write a file — the next batch reads the workspace, not this conversation |
+
+The workspace is the only reliable memory across batches; a batch that was cut off leaves no handoff, so the next one has to start over.
+
+Note: the deadline override edits the profile's `ptc-runtime` row, so it applies to **every preset in this profile**, not only Deep PTC sessions; what other modes see is only that a caller *may* ask for a longer budget.
+
 These rules apply only to Deep PTC sessions. They rely on the desktop "busy Enter" setting being **steer**; with **queue**, messages wait for the whole turn to end.
 
 ```yaml
@@ -136,7 +153,7 @@ A prompt changes the model's working tendency, not the real token limit or billi
 Requires Node `>=24` and DSH `>=0.2.2-rc.1 <0.3.0-0`. Windows desktop rc.5 was used for real WSL/PowerShell command checks. macOS/Zsh configuration, argv and tool mounting were checked; native macOS execution has not been verified on this Windows host.
 
 ```js
-plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.17.3" })
+plugin_manager({ action: "install_bundle", target: "dsh-deep-ptc-mode@1.18.0" })
 // Or from a local checkout or archive:
 plugin_manager({ action: "install_bundle", target: "C:\\path\\to\\dsh-deep-ptc-mode" })
 // Or target: "C:\\path\\to\\dsh-deep-ptc-mode-1.16.0.tgz"

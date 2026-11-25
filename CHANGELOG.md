@@ -12,6 +12,10 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.18.0 — 单次 run_code 时限放宽到 30 分钟 + 分批续跑约定(#236)
+
+**问题**:`run_code` 单次程序的硬时限来自 `ptc-runtime` 这一行的配置,而 `@deepseek-ai/dsh-base` 声明该行时**不带任何 config**,于是 `dsh-ptc-runtime-node` 的 loader 默认值(默认 120s / 上限 600s)生效。前台阻塞的工具(如 `ralph`)整个循环跑在一次程序里,长目标在 600s 被截断,重新调用又从第 1 轮开始——实测 20 轮审查里最慢一轮 577s,9 个子会话都停在「round 1 of 20」。`foregroundSeconds`(5–600)与它无关:那只设 shell executor 行,改它不会放宽 `run_code`。
+**修复**:本包 `cordis.patch.yml` 按行 id 覆盖 `ptc-runtime`,**只抬上限**(`maxTimeoutMs`),默认值保持宿主原值——程序的时限同时也是它不可插话的窗口,抬默认会把每段普通程序的静默期一起拉长。要长预算就显式传 `timeoutMs`(工具描述会印出默认值与上限)。同时把「一次程序有硬时限且不可插话、需要时显式传 `timeoutMs`、跨程序要分批并用编号交接文件续跑」写进注入规则(`lib/rules.mjs`)与中英 README,文档里**不写具体毫秒**(只留在 patch 里)。契约测试用宿主自己的 patch 层组合一遍真实 base 声明,行被改名时会红而不是静默失效。不修改也不包装官方 `dsh-tool-ralph`。
 ### dsh-deep-ptc-mode 1.17.3 — 第 13 个工具不再静默顶掉第 1 个(#249)
 
 **问题**:`lib/tool-policy.mjs` 的 `load` 里写着 `if (row.selected.size > 12) row.selected.delete(...)`,`12` 没有名字、没有注释、没有配置、也不回传给调用方。第 13 次 load 把第 1 个挤出 `selected`,`load` 的返回值却仍把它算进 `loaded`、note 仍承诺「Deferred names … will appear in full in the next host SDK」;下一次 `sdkDefinitions` 按 `selected` 过滤,被挤出的工具就此消失,而模型以为自己加载过它,于是去调用一个宿主侧不存在的工具。deferred 分支同样会挤人,同一句承诺对它也不成立。
@@ -838,7 +842,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 92 个条目:其中 89 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。89+1+2=92。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 93 个条目:其中 89 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dsh-deep-ptc-mode@1.18.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。89+2+2=93。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
