@@ -1,8 +1,8 @@
 {
   "issue": 256,
   "grade": "trivial",
-  "stage": "ci",
-  "updatedAt": "2026-11-25T03:54:51.852Z",
+  "stage": "done",
+  "updatedAt": "2026-11-25T03:59:09.201Z",
   "tickets": [
     {
       "id": 1,
@@ -26,15 +26,15 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
     "state": "done",
     "axes": 0
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
