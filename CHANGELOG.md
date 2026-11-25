@@ -12,6 +12,10 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-skill-surface 0.4.6 — 技能提醒先筛目录再切上限(#248)
+
+**问题**:`shortlist()` 先按 curated 顺序切到 `MAX_NAMES`(3) 个,`index.js` 才用目录里真实存在的名字过滤。ui 域的 curated 第 4 个 `accessibility` 因此永远进不了候选——若这台机器只装了它,过滤后为空,这一轮连提醒都不出现,无日志也无降级(#218 建立的宿主提醒在最该提醒的 UI 轮次静默失效)。
+**修复**:把 `available` 传进 `shortlist`,先按目录过滤再切上限;上限仍约束一条提醒最多列几个名字。回归测试:目录只有 `accessibility` 时仍产出提醒并点名它;目录齐全时仍不超过 3 个名字。
 ### dsh-deep-ptc-mode 1.17.2 — #258 review 遗留:引号配对改成直接找伴、未闭合围栏内不再更严、尾向判据认任意字母(#260)
 
 **问题 A**:`maskQuotedSentenceStops` 的「引号预算」与消耗口径不一致——预算只过滤词内撇号,消耗时还会把词尾所有格(`files'`)当撇号。于是所有格在预算里算了一个可配对引号、消耗时又不扣,它之后的落单引号照样开栈、照样吞句号。**修复**:删掉预算,改成在需要开引号时直接向后找「能闭合它的同伴」(承诺跳过词内撇号);`files'`、`doesn't`、`'quoted text.'` 三种形状各自归位。
@@ -825,7 +829,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 90 个条目:其中 87 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。87+1+2=90。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 91 个条目:其中 87 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dsh-skill-surface@0.4.6`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。87+2+2=91。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
