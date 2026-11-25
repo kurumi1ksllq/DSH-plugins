@@ -1,0 +1,25 @@
+{
+  "issue": 241,
+  "grade": "standard",
+  "stage": "done",
+  "updatedAt": "2026-11-25T04:30:48.215Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "撇号与落单引号不再吞掉后文句号",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": true
+  }
+}
