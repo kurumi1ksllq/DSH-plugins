@@ -150,9 +150,11 @@ export function classifyFailure({ status, bodyText, error }) {
   if (status === 429 || status === 402) return { kind: 'quota', retryAfter: parseRetryAfter(bodyText) };
   if (status === 401) return { kind: 'auth' };
   if (status === 403) return QUOTA_RE.test(text) ? { kind: 'quota' } : { kind: 'auth' };
+  // #247: 剩下的 4xx(400/422/404…)是请求本身有问题,正文里的 exceeded/api key 等字眼
+  // 不能把它升级成 quota/auth——那会白锁 1800s/86400s,而重试同样的请求永远不会好。
+  if (typeof status === 'number' && status >= 400 && status < 500) return { kind: 'bad_request' };
   if (QUOTA_RE.test(text)) return { kind: 'quota', retryAfter: parseRetryAfter(bodyText) };
   if (AUTH_RE.test(text)) return { kind: 'auth' };
-  if (status === 400 || status === 422) return { kind: 'bad_request' };
   return { kind: 'error' };
 }
 
@@ -541,7 +543,7 @@ export async function search({ query, limit, config, statePath, force = false, s
         stateDirty = true;
       }
       if (stateDirty) writeState(state, statePath);
-      return { provider: provider.id, kind: provider.kind, query, sources, attempts, truncated: sources.length >= want };
+      return { provider: provider.id, kind: provider.kind, query, sources, attempts, limit: want, truncated: sources.length >= want };
     } catch (error) {
       if (error?.code === 'ABORTED' || signal?.aborted === true) {
         // T4.web ABORTED 计数: attribute the abort to the provider that was

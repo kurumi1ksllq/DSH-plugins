@@ -12,6 +12,14 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-websearch-failover 0.6.2 — truncated 透传真值 + 余额探测超时同源 + 4xx 不再误判冷却(#245 #246 #247)
+
+**问题**:①`core.search` 算出了 `truncated`,宿主层却写死 `truncated: false`,模型永远看不到「结果被提供方截断」(#245);②余额探测内部写死 8s 上限,`doRefresh` 根本没把 `defaults.timeoutMs` 传下去,超时又被塞进 `status: 'error'`,面板只剩下一个「未知」(#246);③失败分类先看正文关键词再看状态码,400/422 正文里出现 `exceeded` / `api key` 就被判成 quota(1800s)或 auth(86400s),而重试同样的请求永远好不了(#247)。
+**修复**:①`truncated: result.truncated === true`,请求被 core 夹到 50 条时把 `limit clamped 100 -> 50` 写进 `plugin.log`(宿主 `WebSearchResult` 只有 `sources` / `truncated`,没有 notes 字段);②余额探测改用 `defaults.timeoutMs`,超时单独给 `status: 'timeout'` 并保留 `detail`,dsh-inventory 面板把 error/timeout 的 `detail` 显示出来;③429/402/401/403 之外的 4xx 一律 `bad_request`、不写冷却。回归测试:requested 100 / 62 行 → `sources=50` 且 `truncated=true`;上限压到 60ms 且端点不响应 → `status=timeout`、`detail` 带原因(去掉 `timeoutMs` 实测等满 8003ms);400「size exceeded」/ 400「api key」/ 422「exceeded」均无冷却,429/401 冷却不变。
+### dsh-inventory 0.14.3 — 余额探测失败原因上屏(#246)
+
+**问题**:工具管理页的余额列只读 `remaining` / `total` / `unit`,宿主探到的失败原因 `balance.detail` 从不显示,探测超时看起来和「没有余额接口」一模一样。
+**修复**:`providerBalanceText` 在 `balance.status` 为 `error` / `timeout` 且带 `detail` 时把原因追加在「未提供余额接口」之后;`status: 'timeout'` 仍走中性状态,不会被画成搜索冷却。其余渲染行为不变。
 ### dsh-task-dispatcher 0.9.4 — delegate_role 启动 spec 摊平(#237)
 
 **问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557`(parent/prompt)与 `:3019/3024`(provider/parent.id))。宿主读 `spec.parent.id` 直接抛 `TypeError`——在当前宿主契约下 `delegate_role` 必然失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
@@ -771,7 +779,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 83 个条目:74 条有对应 tag;缺 tag 的 7 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-task-dispatcher@0.9.4`、`dsh-skill-surface@0.1.0`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+7+2=83。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 85 个条目:74 条有对应 tag;缺 tag 的 9 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-task-dispatcher@0.9.4`、`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+9+2=85。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

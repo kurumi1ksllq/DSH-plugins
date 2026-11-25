@@ -1377,12 +1377,16 @@ const PROVIDER_STATE = {
  * The provider manager used to be its own sidebar entry; it now lives on the
  * Tools page, so this panel owns the provider routes besides the inventory one.
  */
+let providerBootCount = 0
+
 async function bootProviders(state) {
   let current = state
   const calls = []
   const { React, render } = makeReactRuntime()
   globalThis.window = { __ModuleLoader__: { load: (definition) => (globalThis.window.loaded = definition) } }
-  await import(new URL('../client.js?v=providers-case', import.meta.url).href)
+  // 每次 boot 一个新模块实例:固定 query 会命中 ES 模块缓存,第二次 boot 拿不到 window.loaded。
+  providerBootCount += 1
+  await import(new URL('../client.js?v=providers-case-' + providerBootCount, import.meta.url).href)
   const module = globalThis.window.loaded.factory(() => React)
   const registrations = []
   const dictionary = {}
@@ -1530,6 +1534,29 @@ test('the tools page lists web-search providers with balances, priority order an
   assert.deepEqual(JSON.parse(refreshes[0].body), {})
 })
 
+test('a timed-out balance probe renders its reason and is not dressed up as a cooldown (#246)', async () => {
+  const state = {
+    ok: true,
+    generatedAt: 1,
+    providers: [
+      {
+        id: 'firecrawl', kind: 'firecrawl', label: 'Firecrawl', enabled: true, rank: 1, keyPresent: true,
+        balance: {
+          status: 'timeout', remaining: null, total: null, used: null, unit: 'unknown', ratio: null,
+          source: 'none', detail: 'balance probe timeout after 60ms', fetchedAt: 1, resetKind: 'period-end', resetsAt: null,
+        },
+        cooldown: { active: false, until: 0, reason: '', message: '' },
+        stats: { calls: 3, successes: 3, failures: 0, lastUsedAt: null },
+      },
+    ],
+  }
+  const { tree } = await bootProviders(state)
+  const rendered = tree()
+  assert.match(textOf(rendered), /balance probe timeout after 60ms/, 'the probe reason must reach the panel')
+  // 状态点文案来自 providerStatus();余额探测超时不是搜索冷却,不能画成 cooldown。
+  assert.equal(findNode(rendered, (node) => node.props?.title === '冷却'), null, 'a probe timeout is not a search cooldown')
+  assert.ok(findNode(rendered, (node) => node.props?.title === '未知'), 'the timeout keeps the neutral state')
+})
 test('the prompt section loads, saves and rejects an empty injection', async () => {
   const { calls, open } = await bootPrompt('原来的注入文本')
   const textarea = () => findNode(open(), (node) => node.type === 'textarea')

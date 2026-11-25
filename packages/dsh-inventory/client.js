@@ -3302,7 +3302,12 @@ window.__ModuleLoader__.load({
     function providerBalanceText(t, balance) {
       if (!balance) return t('providerUnknownBalance')
       const amount = providerAmount(balance.remaining)
-      if (amount === '') return t('providerUnknownBalance')
+      if (amount === '') {
+        // 探测失败/超时的原因要能看见,否则面板只剩一个「未知」(#246)。
+        const detail = typeof balance.detail === 'string' ? balance.detail : ''
+        const failed = balance.status === 'error' || balance.status === 'timeout'
+        return failed && detail !== '' ? `${t('providerUnknownBalance')} · ${detail}` : t('providerUnknownBalance')
+      }
       let text = `${amount} ${providerUnitLabel(t, balance.unit)}`
       const total = providerNum(balance.total)
       if (total !== null && total > 0) text += ` / ${providerAmount(total)}`

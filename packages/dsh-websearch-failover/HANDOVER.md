@@ -200,10 +200,10 @@ Base：`/websearch-failover/api`（`prefix` 路由，`kind: 'prefix'`）。
 
 | 分类 | 触发 | 默认冷却 |
 |---|---|---|
-| `quota` | 429 / 402；或响应含 quota/credit/insufficient/balance/exceeded/额度/余额/配额… | 1800s（响应带 `retry_after` 优先） |
+| `quota` | 429 / 402；或非 4xx 响应含 quota/credit/insufficient/balance/exceeded/额度/余额/配额… | 1800s（响应带 `retry_after` 优先） |
 | `auth` | 401；403 且不含额度词；或 `KEY_MISSING` | 86400s |
 | `error` | 5xx / 网络 / 不可解析 | 60s |
-| `bad_request` | 400 / 422 | 不冷却 |
+| `bad_request` | 400 / 422 及其它非 429/402/401/403 的 4xx（先于正文关键词判定） | 不冷却 |
 
 行为：冷却中记 `skipped` 且**不发请求**；空结果记 `empty` 换下一家但不冷却；成功立刻清冷却并返回；全失败抛 `ALL_FAILED`（message 带逐家 attempts）。冷却状态在 `$DSH_HOME/websearch-failover-state.json`，统计在 `runtime.json`。
 

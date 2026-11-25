@@ -134,10 +134,11 @@ await ok('available() is synchronous and true with a valid config', async () => 
 
 await ok('search() calls the top provider, returns sources, and records stats', async () => {
   calls.length = 0
-  const result = await provider.search({ query: 'deepseek harness', maxResults: 4 })
+  // #245: 只问 1 条而提供方正好回了 1 条 = 填满了本次请求的上限,truncated 必须是真值。
+  const result = await provider.search({ query: 'deepseek harness', maxResults: 1 })
   assert.equal(result.sources.length, 1)
   assert.equal(result.sources[0].url, 'https://t.example/1')
-  assert.equal(result.truncated, false)
+  assert.equal(result.truncated, true)
   assert.ok(calls[0].url.includes('api.tavily.com'), 'tavily is first in config order')
   const runtime = JSON.parse(fs.readFileSync(runtimePath, 'utf8'))
   assert.equal(runtime.stats.tavily.calls, 1)
@@ -509,6 +510,116 @@ await ok('a slower refresh cannot overwrite a newer reading for the same provide
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+await ok('requested 100 / provider returns 62 rows -> sources=50 and truncated=true (#245)', async () => {
+  calls.length = 0
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'tavily', kind: 'tavily', apiKey: 'k-tavily' }],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+  const originalFetch = globalThis.fetch
+  let round = 0
+  // 第 1 次回 62 行(超过 50 的上限),第 2 次回 3 行(没填满)。
+  globalThis.fetch = async () => {
+    round += 1
+    const rows = round === 1 ? 62 : 3
+    const results = Array.from({ length: rows }, (_, index) => ({ title: 'T' + index, url: 'https://t.example/' + index, content: 'x' }))
+    return new Response(JSON.stringify({ results }), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    const wide = await provider.search({ query: 'wide', maxResults: 100 })
+    assert.equal(wide.sources.length, 50, 'core clamps the request to 50')
+    assert.equal(wide.truncated, true, '62 rows for a clamped 50-row request is truncated')
+    const narrow = await provider.search({ query: 'narrow', maxResults: 100 })
+    assert.equal(narrow.sources.length, 3)
+    assert.equal(narrow.truncated, false, 'a provider that returned fewer rows is not truncated')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  // 夹紧这件事面板看不到,只能落在诊断日志里。
+  assert.match(fs.readFileSync(logPath, 'utf8'), /limit clamped 100 -> 50/)
+})
+
+await ok('a balance probe honours defaults.timeoutMs and reports its own timeout state (#246)', async () => {
+  // 上限压到 60ms(与搜索同源),余额端点永不返回。
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 60, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [{ id: 'firecrawl', kind: 'firecrawl', apiKey: 'k-fc' }],
+  }), 'utf8')
+  const originalFetch = globalThis.fetch
+  // 真 fetch 在 abort 时 reject;stub 照做,否则探测永远挂着,上限根本测不到。
+  globalThis.fetch = (url, init = {}) => new Promise((resolve, reject) => {
+    const signal = init.signal
+    if (signal?.aborted === true) reject(signal.reason)
+    else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })
+  try {
+    const started = Date.now()
+    const res = makeRes()
+    await boot.routes[0].handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/refresh', body: { ids: ['firecrawl'] } }), res)
+    const elapsed = Date.now() - started
+    assert.equal(res.statusCode, 200)
+    const balance = JSON.parse(res.body).providers.find((p) => p.id === 'firecrawl').balance
+    assert.equal(balance.status, 'timeout', 'a probe timeout is its own state, not a generic error')
+    assert.match(String(balance.detail), /timeout/i, 'the payload must carry the reason')
+    assert.ok(elapsed < 2000, 'the probe must use defaults.timeoutMs (60ms), waited ' + elapsed + 'ms')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+/** 让第一家(tavily)以给定状态/正文失败,返回它在 GET /state 里的冷却槽。 */
+async function cooldownAfterFirstProviderFails(status, body) {
+  fs.writeFileSync(configPath, JSON.stringify({
+    defaults: { limit: 4, timeoutMs: 5000, cooldown: { quota: 60, auth: 60, error: 20 } },
+    providers: [
+      { id: 'tavily', kind: 'tavily', apiKey: 'k-tavily' },
+      { id: 'exa', kind: 'exa', apiKey: 'k-exa' },
+    ],
+  }), 'utf8')
+  fs.writeFileSync(statePath, JSON.stringify({ providers: {} }), 'utf8')
+  const route = boot.routes[0]
+  await route.handler(makeReq({ method: 'POST', url: plugin.API_BASE + '/order', body: { order: ['tavily', 'exa'] } }), makeRes())
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).includes('api.tavily.com')) return new Response(body, { status, headers: { 'content-type': 'application/json' } })
+    return originalFetch(url, init)
+  }
+  try {
+    const result = await provider.search({ query: 'classification ' + status, maxResults: 2 })
+    assert.equal(result.sources[0].url, 'https://e.example/1', 'status ' + status + ' must fall through to the next provider')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  const res = makeRes()
+  await route.handler(makeReq({ method: 'GET', url: plugin.API_BASE + '/state' }), res)
+  return JSON.parse(res.body).providers.find((p) => p.id === 'tavily').cooldown
+}
+
+await ok('400 whose body says "exceeded" is a bad_request, not a 1800s quota cooldown (#247)', async () => {
+  const cooldown = await cooldownAfterFirstProviderFails(400, JSON.stringify({ error: 'request size exceeded 4096 bytes' }))
+  assert.equal(cooldown.active, false, 'a 400 never writes a cooldown')
+})
+
+await ok('400 whose body mentions the API key is a bad_request, not a 86400s auth cooldown (#247)', async () => {
+  const cooldown = await cooldownAfterFirstProviderFails(400, JSON.stringify({ error: 'api key must be sent in the Authorization header' }))
+  assert.equal(cooldown.active, false, 'body keywords must not upgrade a 400 to auth')
+})
+
+await ok('422 whose body says "exceeded" is a bad_request, not a quota cooldown (#247)', async () => {
+  const cooldown = await cooldownAfterFirstProviderFails(422, JSON.stringify({ error: 'query exceeded the allowed length' }))
+  assert.equal(cooldown.active, false)
+})
+
+await ok('429 and 401 keep their cooldowns (#247 regression)', async () => {
+  const quota = await cooldownAfterFirstProviderFails(429, JSON.stringify({ error: 'rate limited' }))
+  assert.equal(quota.active, true)
+  assert.match(String(quota.reason), /quota/)
+  const auth = await cooldownAfterFirstProviderFails(401, JSON.stringify({ error: 'unauthorized' }))
+  assert.equal(auth.active, true)
+  assert.match(String(auth.reason), /auth/)
 })
 
 probe.cleanup()

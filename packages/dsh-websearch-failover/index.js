@@ -149,6 +149,15 @@ export function apply(ctx, config = {}) {
     }
   }
 
+  /** #246: 余额探测和搜索共用同一个默认超时;配置读不出来时交给 balance.mjs 的兜底。 */
+  function probeTimeoutMs() {
+    try {
+      return loadConfigCached().defaults.timeoutMs
+    } catch {
+      return undefined
+    }
+  }
+
   function keyOf(provider) {
     try {
       return resolveKey(provider)
@@ -240,7 +249,7 @@ export function apply(ctx, config = {}) {
     // re-reads the file inside the lock, the same shape #103 fixed for refresh).
     const readings = await Promise.all(
       selected.map(async (provider) => {
-        const balance = await probeBalance(provider, { key: keyOf(provider), now: Date.now() })
+        const balance = await probeBalance(provider, { key: keyOf(provider), now: Date.now(), timeoutMs: probeTimeoutMs() })
         return { id: provider.id, balance }
       }),
     )
@@ -324,9 +333,12 @@ export function apply(ctx, config = {}) {
           }
           writeRuntime(current, runtimePath)
         })
+        // #245: truncated 只说明「提供方填满了请求上限」;请求被夹紧是另一件事,
+        // 面板看不到,只有这里能留痕。
+        const clampNote = Number.isFinite(result.limit) && result.limit < limit ? `, limit clamped ${limit} -> ${result.limit}` : ''
         appendLog(
           logPath,
-          `search "${truncate(query, 80)}" -> ${result.provider} (${result.sources.length} sources) attempts: ${formatAttempts(result.attempts)}`,
+          `search "${truncate(query, 80)}" -> ${result.provider} (${result.sources.length} sources${result.truncated ? ', truncated' : ''}${clampNote}) attempts: ${formatAttempts(result.attempts)}`,
         )
 
         return {
@@ -336,7 +348,7 @@ export function apply(ctx, config = {}) {
             ...(source.snippet ? { snippet: source.snippet } : {}),
             ...(source.publishedAt ? { publishedAt: source.publishedAt } : {}),
           })),
-          truncated: false,
+          truncated: result.truncated === true,
         }
       } catch (error) {
         // Same mutex as the success path: the failure attempt list is also an
