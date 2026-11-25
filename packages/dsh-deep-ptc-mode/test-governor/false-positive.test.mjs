@@ -78,30 +78,33 @@ test("#239 尾部真的失控时,trimTo 指向尾段起点而不是中段合法�
 	assert.ok(text.length - (hit.trimTo + hit.chars) <= 400, "命中的 run 要贴着文本尾部");
 });
 
-test("#239 围栏内的数字表不触发(未闭合围栏豁免)", () => {
-	const ids = Array.from({ length: 300 }, (_, i) => 1000 + i).join(", ");
+test("#239 尾部的计数流即使落在未闭合围栏里仍然命中", () => {
+	// 该检测器进的是 confirmed-repeat 桶(精确重复类),按既有契约「精确重复与非法
+	// 调用无论出现在哪里都切」——所以不做围栏豁免,否则一个孤立的 ``` 就是免死金牌。
+	// #239 的围栏豁免被这条「尾向」规则取代:后面的正文会先把它排除掉。
+	const ids = Array.from({ length: 300 }, (_, i) => 1000 + i).join(". ") + ".";
 	const text = prose(10) + "\n```\n" + ids;
-	assert.equal(api.detectNumberRunaway(text), null);
+	assert.ok(api.detectNumberRunaway(text) !== null);
 });
 
 // ---- #240 裸 tool_call 块要看块内内容 ---------------------------------------
 
 test("#240 围栏里的完整 tool_call 示例不是伪调用", async () => {
-	if (!softCutHandler) return;
+	assert.equal(typeof softCutHandler, "function", "agent/soft-cut 必须注册,否则下面的断言全是空跑");
 	const text = "工具调用要写成结构化的,不要写成文本标签。例如:\n\n```\n<tool_call>\n<function name=\"edit\">\n<parameter name=\"path\">a.txt</parameter>\n</function>\n</tool_call>\n```\n\n" + prose(12);
 	const decision = await cutOf(text);
 	assert.notEqual(decision?.cutClass, "pseudoTool", "文档示例不得被判成伪调用");
 });
 
 test("#240 围栏外带 function name 的裸块仍然命中", async () => {
-	if (!softCutHandler) return;
+	assert.equal(typeof softCutHandler, "function", "agent/soft-cut 必须注册,否则下面的断言全是空跑");
 	const text = "我先这样调用:\n\n<tool_call>\n<function name=\"edit\">\n<parameter name=\"path\">a.txt</parameter>\n</function>\n</tool_call>\n\n" + prose(12);
 	const decision = await cutOf(text);
 	assert.equal(decision?.cutClass, "pseudoTool", "真·文本化调用必须仍然被拦");
 });
 
 test("#240 只有成对标签、块内没有名字信号的示例不命中", async () => {
-	if (!softCutHandler) return;
+	assert.equal(typeof softCutHandler, "function", "agent/soft-cut 必须注册,否则下面的断言全是空跑");
 	const text = "格式长这样:\n\n<tool_call>some text</tool_call>\n\n" + prose(12);
 	const decision = await cutOf(text);
 	assert.notEqual(decision?.cutClass, "pseudoTool");
@@ -110,13 +113,21 @@ test("#240 只有成对标签、块内没有名字信号的示例不命中", asy
 // ---- #241 撇号不得吞掉后文句号 ---------------------------------------------
 
 test("#241 含撇号的段落与不含撇号时句数一致", () => {
-	const withApostrophe = "它 doesnt 需要这个字段. 我先看 files 目录. 然后确认结论: 是缓存问题. 最后给出修复方案.";
-	const withoutApostrophe = "它 does not 需要这个字段. 我先看 files 目录. 然后确认结论: 是缓存问题. 最后给出修复方案.";
+	// 样本必须真的带撇号字符:写成 doesnt 时一个引号都没有,断言在任何实现下都成立。
+	const withApostrophe = "It doesn't stop here. 我先看 files' 目录. 然后确认结论: 是缓存问题. 最后给出修复方案.";
+	const withoutApostrophe = "It does not stop here. 我先看 files 目录. 然后确认结论: 是缓存问题. 最后给出修复方案.";
+	assert.ok(/['"]/.test(withApostrophe), "样本必须含引号字符,否则是个空测试");
 	assert.equal(
 		api.splitSentences(withApostrophe).length,
 		api.splitSentences(withoutApostrophe).length,
 		"一个撇号不能改变断句数量"
 	);
+});
+
+test("#241 撇号在前时,后面落单的引号也不得吞句号(引号预算与消耗口径一致)", () => {
+	// 旧实现里预算把词内撇号也数成「后面还有引号可配对」,于是撇号之后的落单引号照样开栈。
+	const text = "it doesn't stop. 他说 '还没写完. 后面一句. 第三句.";
+	assert.ok(api.splitSentences(text).length >= 3, "得到 " + api.splitSentences(text).length + " 句");
 });
 
 test("#241 落单的引号不吞掉后续句号", () => {

@@ -530,6 +530,18 @@ function isWordApostrophe(text, index) {
 	return /[A-Za-z]/.test(text[index - 1] ?? "") && /[A-Za-z]/.test(text[index + 1] ?? "");
 }
 
+/**
+ * Is this the possessive plural ("the files' owner")?
+ *
+ * Same bare `'` problem as isWordApostrophe, on the other side of the word: a
+ * letter before and no letter after. Only consulted when no quote is open, so a
+ * real closing quote (`'quoted text.'`) still closes.
+ */
+function isTrailingApostrophe(text, index) {
+	if (text[index] !== "'") return false;
+	return /[A-Za-z]/.test(text[index - 1] ?? "") && !/[A-Za-z]/.test(text[index + 1] ?? "");
+}
+
 function maskQuotedSentenceStops(text) {
 	let masked = "";
 	const pendingCloseStack = [];
@@ -537,8 +549,11 @@ function maskQuotedSentenceStops(text) {
 	// partner later in the text, otherwise it is a stray mark that must not
 	// swallow the sentence stops after it (#241).
 	const remaining = new Map();
-	for (const ch of text) {
-		if (TOGGLE_QUOTES.has(ch)) remaining.set(ch, (remaining.get(ch) ?? 0) + 1);
+	// Counted with the SAME filter the loop consumes with: a contraction is not a
+	// quote, so it must not budget one (#241 review).
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (TOGGLE_QUOTES.has(ch) && !isWordApostrophe(text, i)) remaining.set(ch, (remaining.get(ch) ?? 0) + 1);
 	}
 	for (let i = 0; i < text.length; i++) {
 		const ch = text[i];
@@ -552,7 +567,9 @@ function maskQuotedSentenceStops(text) {
 			masked += ch;
 			continue;
 		}
-		if (TOGGLE_QUOTES.has(ch) && !isWordApostrophe(text, i)) {
+		const apostrophe = isWordApostrophe(text, i)
+			|| (pendingCloseStack.length === 0 && isTrailingApostrophe(text, i));
+		if (TOGGLE_QUOTES.has(ch) && !apostrophe) {
 			remaining.set(ch, (remaining.get(ch) ?? 0) - 1);
 			if (pendingCloseStack.length > 0 && pendingCloseStack[pendingCloseStack.length - 1] === ch) {
 				pendingCloseStack.pop();

@@ -508,11 +508,6 @@ function detectNumberRunaway(fullVisibleText) {
 	// stop, so nothing follows it. A numeric run that ends mid-answer is a list in
 	// ordinary prose (seed arrays, port tables), and cutting at its start deleted
 	// every sentence after it (#239). Same tail rule as findRepeatingTail.
-	const textLength = fullVisibleText.length;
-	// Prose about a format can legitimately sit inside an unclosed code fence
-	// while it is being written; a counting degeneration does not need the fence
-	// exemption, but a seed array inside a fence does (#239).
-	if (insideUnclosedCodeFence(fullVisibleText)) return null;
 	let hit = null;
 	// evaluate each run
 	for (const run of runs) {
@@ -751,19 +746,6 @@ function stripQuotedSegments(text) {
 function stripFencedBlocks(text) {
 	if (typeof text !== "string") return "";
 	return text.replace(/```[\s\S]*?```/g, " ");
-}
-
-/**
- * 剔除一个未闭合的代码围栏及其后的全部内容。
- *
- * 闭围栏成对时由 stripFencedBlocks 整段删掉;剩下一个孤零零的开标记,说明这段
- * 代码示例还没写完——它后面的内容仍属于示例,不该拿去做调用形态判定(#240)。
- * @param {string} text 已剔除闭合围栏的文本
- * @returns {string}
- */
-function stripUnclosedFence(text) {
-	const open = text.lastIndexOf("```");
-	return open >= 0 ? text.slice(0, open) : text;
 }
 
 /**
@@ -1204,10 +1186,25 @@ const PSEUDO_CLOSER_PATTERNS = [
  */
 function hasPseudoToolCall(fullVisibleText) {
 	if (typeof fullVisibleText !== "string" || fullVisibleText.length === 0) return false;
-	// 围栏里的内容是「示例代码」而不是模型这次的调用:关掉的围栏整段剔除,未闭合的
-	// 围栏连到文本尾一起剔掉(文档写法示例常用于「怎么调用工具」这类回答,#240)。
-	const unfenced = stripUnclosedFence(stripFencedBlocks(fullVisibleText));
-	const tail = unfenced.slice(-PSEUDO_TOOL_SCAN_TAIL);
+	// 闭合围栏里的内容是「示例代码」(文档),不参与判定;未闭合围栏仍然评估,但围栏
+	// 内只认完整三件套(名字 + 参数 + 闭合)——否则正文里出现一个孤立的 ``` 就能把其
+	// 后整段的伪调用判定永久关掉(#240 review)。
+	const unfenced = stripFencedBlocks(fullVisibleText);
+	const fenceStart = unfenced.lastIndexOf("```");
+	const outside = fenceStart >= 0 ? unfenced.slice(0, fenceStart) : unfenced;
+	if (matchPseudoToolCall(outside.slice(-PSEUDO_TOOL_SCAN_TAIL))) return true;
+	if (fenceStart < 0) return false;
+	const inside = unfenced.slice(fenceStart);
+	return PSEUDO_FUNCTION_TAG.test(inside) && PSEUDO_PARAMETER_TAG.test(inside)
+		&& PSEUDO_CLOSER_PATTERNS.some((pattern) => pattern.test(inside));
+}
+
+/**
+ * The signal table itself, applied to one text window.
+ * @param {string} tail
+ * @returns {boolean}
+ */
+function matchPseudoToolCall(tail) {
 	if (PSEUDO_STRONG_PATTERNS.some((pattern) => pattern.test(tail))) return true;
 	const weakHits = PSEUDO_WEAK_PATTERNS.filter((pattern) => pattern.test(tail)).length;
 	const functionTag = PSEUDO_FUNCTION_TAG.test(tail);
