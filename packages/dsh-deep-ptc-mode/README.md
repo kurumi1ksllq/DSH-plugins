@@ -90,6 +90,23 @@ From 1.5.0, "don't sleep or wait" is enforced by plugin code, not just requested
 | `setTimeout`, `setInterval` or `time.sleep` in a `run_code` program | Known waits over 5 s are refused; unresolved durations pass through; polling one running job more than 3 times in one program is refused |
 | `ask_user_question` | Runs in timed mode: 120 s by default, at most 300 s, `-1` refused. An unanswered question becomes pending and your later answer arrives as a message; typing a reply instead of using the card ends the wait at once |
 
+### The single `run_code` deadline, and batching
+
+One `run_code` program has a hard deadline, and that deadline is also its **uninterruptible window**: your message is read at the next step boundary and never interrupts a program already running. This bundle raises only the **cap** (exact milliseconds live in `cordis.patch.yml`; the tool description prints the current default and cap). The default stays at the host value — raising it would stretch every ordinary program's silent window. To get a longer budget, pass `timeoutMs` explicitly.
+
+**A foreground tool runs its whole loop inside one program** — `ralph` is one — so a target that needs longer than one program is cut off mid-batch and starts over from round 1.
+
+| Situation | What to do |
+| --- | --- |
+| Estimated total fits one program | Run it; no batching |
+| It may exceed one program | Batch first: each batch runs a fixed number of rounds and writes its findings to numbered handoff files in the workspace (`round-01.md`, `round-02.md`, …) |
+| The previous batch was cut off | Count the existing numbered files and resume from the next number; do not restart at round 1 |
+| Anything to carry across batches | Write a file — the next batch reads the workspace, not this conversation |
+
+The workspace is the only reliable memory across batches; a batch that was cut off leaves no handoff, so the next one has to start over.
+
+Note: the deadline override edits the profile's `ptc-runtime` row, so it applies to **every preset in this profile**, not only Deep PTC sessions; what other modes see is only that a caller *may* ask for a longer budget.
+
 These rules apply only to Deep PTC sessions. They rely on the desktop "busy Enter" setting being **steer**; with **queue**, messages wait for the whole turn to end.
 
 ```yaml

@@ -8,16 +8,23 @@
       config:
         environment: auto
         wslDistribution: ''
-# issue-236: the single-run_code deadline is this row's config, not a constant in
-# the runtime. @deepseek-ai/dsh-base declares the row with NO config, so its
-# loader defaults apply: timeoutMs 120s / maxTimeoutMs 600s. A foreground tool
-# (ralph is one) runs entirely inside one program, so 600s cut it off mid-batch.
-# 30 minutes covers the slowest round measured on this machine (577s) with room
-# to spare; the runtime accepts anything up to MAX_TIMER_DELAY_MS (~24.8 days).
-# Long targets still batch — see the "run_code deadline" section of README.zh.md.
+# issue-236: a foreground tool (ralph is one) runs its whole loop inside ONE
+# run_code program, so the program's ceiling is the batch length. That ceiling is
+# this row's config, not a constant in the runtime: @deepseek-ai/dsh-base declares
+# the row with NO config, so the loader defaults (120s default / 600s cap) apply.
+#
+# Only the CAP is raised. The default stays 120s on purpose: a program's deadline
+# is also its uninterruptible window (steering is read at step boundaries, and the
+# deep-ptc guard makes job_output / ask_user_question steerable but cannot interrupt
+# a running program), so raising the default would stretch every ordinary program's
+# blackout from 2 to 10 minutes. Long work opts in with an explicit run_code
+# timeoutMs instead — the tool description prints the default and the cap.
+#
+# Scope: a bare-id patch edits the profile row in place, so this applies to every
+# preset in this profile, not only deep-ptc sessions. The visible effect elsewhere
+# is only that a caller MAY ask for a longer budget.
 - id: ptc-runtime
   config:
-    timeoutMs: 600000
     maxTimeoutMs: 1800000
 # Row overrides absorbed from dsh-git-bash-tool: enable the bash tool, disable
 # the pwsh tool. The timeoutMs is restated verbatim: a patch hit replaces the

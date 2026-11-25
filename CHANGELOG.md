@@ -15,7 +15,7 @@ test-only changes are exempt.
 ### dsh-deep-ptc-mode 1.18.0 — 单次 run_code 时限放宽到 30 分钟 + 分批续跑约定(#236)
 
 **问题**:`run_code` 单次程序的硬时限来自 `ptc-runtime` 这一行的配置,而 `@deepseek-ai/dsh-base` 声明该行时**不带任何 config**,于是 `dsh-ptc-runtime-node` 的 loader 默认值(默认 120s / 上限 600s)生效。前台阻塞的工具(如 `ralph`)整个循环跑在一次程序里,长目标在 600s 被截断,重新调用又从第 1 轮开始——实测 20 轮审查里最慢一轮 577s,9 个子会话都停在「round 1 of 20」。`foregroundSeconds`(5–600)与它无关:那只设 shell executor 行,改它不会放宽 `run_code`。
-**修复**:本包 `cordis.patch.yml` 按行 id 覆盖 `ptc-runtime` → `timeoutMs: 600000`(默认 10 分钟)、`maxTimeoutMs: 1800000`(上限 30 分钟);运行时只拒绝超过 `MAX_TIMER_DELAY_MS` 的值,故合法。同时把「一次程序有硬时限、长目标要分批、用编号交接文件续跑」写进注入规则(`lib/rules.mjs`)与 README,规则里**不写具体秒数**(数字只留在 patch 里,避免两处漂移)。不修改也不包装官方 `dsh-tool-ralph`。
+**修复**:本包 `cordis.patch.yml` 按行 id 覆盖 `ptc-runtime`,**只抬上限**(`maxTimeoutMs`),默认值保持宿主原值——程序的时限同时也是它不可插话的窗口,抬默认会把每段普通程序的静默期一起拉长。要长预算就显式传 `timeoutMs`(工具描述会印出默认值与上限)。同时把「一次程序有硬时限且不可插话、需要时显式传 `timeoutMs`、跨程序要分批并用编号交接文件续跑」写进注入规则(`lib/rules.mjs`)与中英 README,文档里**不写具体毫秒**(只留在 patch 里)。契约测试用宿主自己的 patch 层组合一遍真实 base 声明,行被改名时会红而不是静默失效。不修改也不包装官方 `dsh-tool-ralph`。
 ### dsh-deep-ptc-mode 1.17.3 — 第 13 个工具不再静默顶掉第 1 个(#249)
 
 **问题**:`lib/tool-policy.mjs` 的 `load` 里写着 `if (row.selected.size > 12) row.selected.delete(...)`,`12` 没有名字、没有注释、没有配置、也不回传给调用方。第 13 次 load 把第 1 个挤出 `selected`,`load` 的返回值却仍把它算进 `loaded`、note 仍承诺「Deferred names … will appear in full in the next host SDK」;下一次 `sdkDefinitions` 按 `selected` 过滤,被挤出的工具就此消失,而模型以为自己加载过它,于是去调用一个宿主侧不存在的工具。deferred 分支同样会挤人,同一句承诺对它也不成立。
