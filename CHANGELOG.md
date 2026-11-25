@@ -12,6 +12,10 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-task-dispatcher 0.9.4 — delegate_role 启动 spec 摊平(#237)
+
+**问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557`(parent/prompt)与 `:3019/3024`(provider/parent.id))。宿主读 `spec.parent.id` 直接抛 `TypeError`——在当前宿主契约下 `delegate_role` 必然失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
+
 ### dsh-deep-ptc-mode 1.17.0 — 治理器设置路由补源站校验 + 归因盲区警告(issue-234)
 
 **问题 A(安全)**:治理器设置 POST 路由(`/plugins/stall-governor/settings`)经 `ctx.webServer.register` 注册、绕过 /api 授权层,却**没有同源校验**——本仓库其它四个 bundle 的状态变更路由全都做了该检查,唯独此处缺失。任意网页可在用户浏览时跨站 POST,改检测阈值、关闭命令执行纪律块或切换注入语言。
@@ -767,7 +771,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 82 个条目:74 条有对应 tag;缺 tag 的 6 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-skill-surface@0.1.0`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+6+2=82。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-22),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 83 个条目:74 条有对应 tag;缺 tag 的 7 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-task-dispatcher@0.9.4`、`dsh-skill-surface@0.1.0`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+7+2=83。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
