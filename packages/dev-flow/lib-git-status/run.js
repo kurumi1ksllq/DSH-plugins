@@ -34,9 +34,10 @@ export const DEFAULT_MAX_BUFFER = 4 * 1024 * 1024
  *   valid (`gh pr checks` exits 1 with "no checks reported" and 8 while checks
  *   are pending). An EMPTY stdout still resolves to null, so "failed with
  *   nothing to say" stays distinguishable from "failed, here is the body".
- * @returns {Promise<string|null>} stdout, or null on failure when allowFailure
+ * @returns {Promise<{stdout: string, capped: boolean}|null|undefined>} the
+ *   capture, null on an allowed failure, undefined on a fatal one.
  */
-export function runCommand(file, args, opts = {}) {
+function runCapture(file, args, opts = {}) {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxBuffer = Number.isInteger(opts.maxBuffer) && opts.maxBuffer > 0 ? opts.maxBuffer : DEFAULT_MAX_BUFFER
   const cwd = typeof opts.cwd === 'string' && opts.cwd.length > 0 ? opts.cwd : undefined
@@ -64,21 +65,50 @@ export function runCommand(file, args, opts = {}) {
     child.stdout?.on('data', (chunk) => {
       if (settled) return
       size += chunk.length
-      if (size > maxBuffer) {
-        // Over the cap: stop the child instead of buffering the rest of it.
-        try { child.kill('SIGKILL') } catch { /* already gone */ }
-        finish(opts.allowFailure ? null : undefined)
-        return
-      }
-      stdout += chunk
+      const over = size > maxBuffer
+      // Keep at most `maxBuffer` bytes, so `capped` is always visible in the
+      // returned text: the caller can then report truncation instead of
+      // receiving an empty string that reads as "nothing to show".
+      const room = maxBuffer - stdout.length
+      if (room > 0) stdout += chunk.length <= room ? chunk : chunk.slice(0, room)
+      if (!over) return
+      // Over the cap: stop the child instead of buffering the rest of it.
+      try { child.kill('SIGKILL') } catch { /* already gone */ }
+      finish(opts.keepStdoutOnCap === true ? { stdout, capped: true } : opts.allowFailure ? null : undefined)
     })
     child.on('error', () => finish(null))
     child.on('close', (code) => {
-      if (code === 0) finish(stdout)
-      else if (opts.allowFailure && opts.keepStdoutOnFailure && stdout.length > 0) finish(stdout)
+      if (code === 0) finish({ stdout, capped: false })
+      else if (opts.allowFailure && opts.keepStdoutOnFailure && stdout.length > 0) finish({ stdout, capped: false })
       else finish(opts.allowFailure ? null : undefined)
     })
   })
+}
+
+/**
+ * Run one read-only command and capture stdout as a string, discarding the
+ * capture metadata. @see runCommandCapped for the pair that keeps it.
+ * @returns {Promise<string|null|undefined>} stdout; null when `allowFailure`,
+ *   undefined when the caller asked the failure to be fatal.
+ */
+export async function runCommand(file, args, opts = {}) {
+  const out = await runCapture(file, args, opts)
+  if (out !== null && typeof out === 'object') return out.stdout
+  return opts.allowFailure ? null : undefined
+}
+
+/**
+ * Run one read-only command and report whether stdout was cut short.
+ *
+ * `runCommand` throws the partial read away when the cap is hit, which is how
+ * a diff larger than 4x the returned cap rendered as "no change at all"
+ * (issue #242). Callers that must distinguish "empty" from "too big" use this.
+ * @returns {Promise<{stdout: string, capped: boolean}|null>} null when the
+ *   command failed.
+ */
+export async function runCommandCapped(file, args, opts = {}) {
+  const out = await runCapture(file, args, { ...opts, keepStdoutOnCap: true })
+  return out !== null && typeof out === 'object' ? out : null
 }
 
 /** Is the given executable present on PATH? Uses `--version` as the probe. */

@@ -21,6 +21,7 @@ import {
   statusOf,
 } from './git-info.js'
 import {
+  OPEN_LIST_LIMIT,
   forgeHintFor,
   forgeRemoteOf,
   ghStatus,
@@ -228,6 +229,11 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     forgeHint,
     repoSlug,
     prs,
+    // Reaching the limit is indistinguishable from "that is all there is" in
+    // `gh`'s answer, so the snapshot says so instead of letting the panel draw a
+    // short list as the whole truth (issue #243).
+    prsTruncated: Array.isArray(prs) && prs.length >= OPEN_LIST_LIMIT,
+    issuesTruncated: Array.isArray(issues) && issues.length >= OPEN_LIST_LIMIT,
     mergedPrs,
     issues,
     checks,

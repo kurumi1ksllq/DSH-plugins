@@ -140,7 +140,7 @@ function offFlowOf(git, knownIssues) {
 }
 
 /** Merge everything known about one issue into a single card. */
-function cardOf({ issueNumber, issue, branch, pr, mergedPr, checks, flow }) {
+function cardOf({ issueNumber, issue, branch, pr, mergedPr, mergedPrsUnknown, checks, flow }) {
   const evidence = stageOf({
     hasIssue: issue !== null,
     hasBranch: branch !== undefined && branch !== null,
@@ -173,6 +173,10 @@ function cardOf({ issueNumber, issue, branch, pr, mergedPr, checks, flow }) {
     prUrl: pr?.url ?? null,
     prDraft: pr?.isDraft === true,
     prConflicts: pr?.mergeable === 'CONFLICTING',
+    // A branch with no open PR and no merged-PR evidence cannot be placed: the
+    // merged query may simply have failed. Saying nothing drew finished work as
+    // "still in development" (issue #244), so the card admits it instead.
+    mergeEvidenceUnknown: mergedPrsUnknown === true && pr === null && branch !== undefined && branch !== null,
     checks: checks ?? 'unknown',
     tickets: flow?.tickets ?? [],
     ci: flow?.ci ?? null,
@@ -188,6 +192,9 @@ export function buildTaskBoard(snapshot) {
   const issues = Array.isArray(snapshot?.issues) ? snapshot.issues : []
   const prs = Array.isArray(snapshot?.prs) ? snapshot.prs : []
   const mergedPrs = Array.isArray(snapshot?.mergedPrs) ? snapshot.mergedPrs : []
+  // `null` means the merged-PR query failed; `[]` means it answered "nothing
+  // merged". Collapsing the two is what hid a timed-out query (issue #244).
+  const mergedPrsUnknown = snapshot?.mergedPrs === null
   const checks = snapshot?.checks && typeof snapshot.checks === 'object' ? snapshot.checks : {}
   const flowStates = toFlowStateReader(snapshot?.flowStates)
 
@@ -213,7 +220,10 @@ export function buildTaskBoard(snapshot) {
     const mergedPr = pr === null ? mergedPrs.find((p) => p?.headRefName === branch?.name) ?? null : null
     const checksState = pr === null ? undefined : checks[pr.number]
     cards.push(
-      cardOf({ issueNumber: key, issue, branch, pr, mergedPr, checks: checksState, flow: flowStates.get(key) ?? null }),
+      cardOf({
+        issueNumber: key, issue, branch, pr, mergedPr, mergedPrsUnknown,
+        checks: checksState, flow: flowStates.get(key) ?? null,
+      }),
     )
   }
 
@@ -228,16 +238,23 @@ export function buildTaskBoard(snapshot) {
   const offFlowEntry = offFlowOf(git, knownIssues)
   const offFlow = offFlowEntry === null ? [] : [offFlowEntry]
 
-  const needsUser = buildNeedsUser({ cards })
-  // Mirror the pending items onto the cards they belong to, so a card says what
-  // IT is waiting for instead of forcing a look back up at the strip.
+  // The cap is a display limit on the strip, never a filter on the cards: a
+  // card whose action was looked up in the capped list lost its only "what am I
+  // waiting for" line, and nothing else on the board mentioned it (issue #250).
+  const pending = buildNeedsUser({ cards })
   for (const card of cards) {
-    card.action = needsUser.find((n) => n.issue !== null && n.issue === card.issue) ?? null
+    card.action = pending.find((n) => n.issue !== null && n.issue === card.issue) ?? null
   }
 
   return {
     columns,
-    needsUser,
+    needsUser: pending.slice(0, NEEDS_USER_LIMIT),
+    // How many items exist in total, so the strip can say "and N more" instead
+    // of reading like a complete list.
+    needsUserTotal: pending.length,
+    // The board cannot place branches whose merge status is unknown; the panel
+    // says so rather than drawing them as still in development (#244).
+    mergedPrsUnknown,
     offFlow,
     forgeHint: snapshot?.forgeHint ?? null,
   }
@@ -273,7 +290,9 @@ function emptyHintOf(stage) {
 }
 
 /**
- * Strip of items that need the user, capped, blockers first.
+ * Items that need the user, blockers first. Uncapped on purpose: the strip
+ * slices it for display, while each card looks its own action up in the full
+ * list (issue #250).
  *
  * Every item must map to a real dev-flow gate; anything else (a dirty file, a
  * stale branch) belongs in its own column, not here.
@@ -315,5 +334,5 @@ function buildNeedsUser({ cards }) {
       )
     }
   }
-  return entries.slice(0, NEEDS_USER_LIMIT)
+  return entries
 }

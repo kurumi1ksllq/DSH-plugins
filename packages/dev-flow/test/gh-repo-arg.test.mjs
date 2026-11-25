@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 
 import {
   MERGED_PR_LIMIT,
+  OPEN_LIST_LIMIT,
   forgeHintFor,
   forgeRemoteOf,
   openIssues,
@@ -234,4 +235,45 @@ test('a merge older than the newest 20 still lands the branch in done', async ()
   const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
   const card = snapshot.board.columns.flatMap((c) => c.cards).find((c) => c.issue === 1)
   assert.equal(card?.stage, 'done', 'a merge outside the newest 20 must still count as merge evidence')
+})
+
+// ---- #243: a 30-row window was a silent one -------------------------------
+
+test('#243 the open PR and issue queries ask for far more than the old 30', async () => {
+  const argvFile = join(mkdtempSync(join(tmpdir(), 'gh-argv-')), 'argv.txt')
+  const dir = stubGh({
+    argvFile,
+    issues: issuePayload,
+    prs: [{ number: 3, headRefName: 'issue-1-first' }],
+  })
+  await withPath(dir, () => openPullRequests('/tmp', 'me/repo'))
+  await withPath(dir, () => openIssues('/tmp', 'me/repo'))
+  const openCalls = readFileSync(argvFile, 'utf8').split('\n').filter((line) => line.includes('--state open'))
+  assert.equal(openCalls.length, 2, 'both open lists must have run')
+  for (const call of openCalls) {
+    const limit = /--limit (\d+)/.exec(call)
+    assert.ok(limit !== null, 'the open lists must bound their window explicitly')
+    // Pin the constant, not the literal: asserting only ">= 30" let the window
+    // drift back down to exactly 30 and stay green (that was the defect).
+    assert.equal(Number(limit[1]), OPEN_LIST_LIMIT)
+  }
+  assert.ok(OPEN_LIST_LIMIT > 30, 'a window of 30 hid every card past the 30th')
+})
+
+test('#243 a list that fills the query cap is flagged in the snapshot', async () => {
+  const repo = initRepoWithOrigin()
+  const many = Array.from({ length: OPEN_LIST_LIMIT }, (_, i) => ({
+    number: i + 1, title: `t${i + 1}`, author: { login: 'me' }, labels: [],
+    url: `https://github.com/me/repo/issues/${i + 1}`,
+  }))
+  const full = stubGh({ issues: many })
+  invalidateSnapshot()
+  const flagged = await withPath(full, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  assert.equal(flagged.issuesTruncated, true, 'a full window must be reported as truncated')
+  assert.equal(flagged.prsTruncated, false)
+
+  const partial = stubGh({ issues: issuePayload })
+  invalidateSnapshot()
+  const short = await withPath(partial, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  assert.equal(short.issuesTruncated, false, 'a short window is simply the whole list')
 })

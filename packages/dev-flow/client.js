@@ -78,6 +78,8 @@ window.__ModuleLoader__.load({
       ghHintNotInstalled: '未检测到 gh CLI。安装并 `gh auth login` 后,这里会显示 PR 和 issue。',
       ghHintNotLoggedIn: 'gh CLI 已安装但未登录。运行 `gh auth login` 后即可显示 PR 和 issue。',
       ghHintFailed: 'gh 查询失败,PR / issue 暂不可用。',
+      ghHintTruncated: '列表已达单次查询上限,超出的条目没有显示。',
+      mergeEvidenceUnknown: '合并证据暂不可用(合并 PR 查询失败),这张卡可能已经合并。',
       ghHintNoRemote: '这个仓库还没有配置远程(remote),所以没有 PR / issue 可查。',
       ghHintNotGithub: '远程不是 GitHub,按 GitHub 口径的 PR / issue 查询不适用。',
       ghSource: (src) => `已认证:${src}`,
@@ -107,6 +109,7 @@ window.__ModuleLoader__.load({
       // task board
       boardTitle: '任务板',
       needsUserTitle: '需要你出手',
+      needsUserMore: (n) => `还有 ${n} 条未列出`,
       offFlowTitle: '未进流程',
       'offFlow_dirty-main': (branch) => `在 ${branch} 上有未提交改动 —— dev-flow 禁止直接改主干`,
       'offFlow_unnamed-branch': (branch) => `分支 ${branch} 不叫 issue-<n>-<描述>,任务板无法判断它属于哪个任务`,
@@ -181,6 +184,8 @@ window.__ModuleLoader__.load({
       ghHintNotInstalled: 'gh CLI not found. Install it and run `gh auth login` to see PRs and issues here.',
       ghHintNotLoggedIn: 'gh CLI is installed but not logged in. Run `gh auth login` to see PRs and issues here.',
       ghHintFailed: 'gh query failed; PRs / issues unavailable.',
+      ghHintTruncated: 'The list hit the per-query cap; rows beyond it are not shown.',
+      mergeEvidenceUnknown: 'Merge evidence unavailable (the merged-PR query failed); this card may already be merged.',
       ghHintNoRemote: 'This repository has no remote configured, so there are no PRs or issues to query.',
       ghHintNotGithub: 'The remote is not GitHub, so GitHub-style PR / issue queries do not apply.',
       ghSource: (src) => `authenticated via ${src}`,
@@ -209,6 +214,7 @@ window.__ModuleLoader__.load({
       lastCommit: (when, subject) => `${when} · ${subject}`,
       boardTitle: 'Task board',
       needsUserTitle: 'Needs you',
+      needsUserMore: (n) => `${n} more not shown`,
       offFlowTitle: 'Off flow',
       'offFlow_dirty-main': (branch) => `Uncommitted changes on ${branch} — dev-flow forbids committing to the trunk`,
       'offFlow_unnamed-branch': (branch) => `Branch ${branch} is not named issue-<n>-<desc>, so the board cannot place it`,
@@ -567,6 +573,10 @@ function DiffView({ t, sessionId, path, statusSha }) {
       const key = FORGE_HINT_KEYS[snap?.forgeHint]
       if (key !== undefined) return t(key)
       if (snap?.prs === null || snap?.issues === null) return t('ghHintFailed')
+      // A list that exactly fills the query limit is indistinguishable from a
+      // complete one in gh's answer; say so rather than draw a short list as the
+      // whole truth (issue #243).
+      if (snap?.prsTruncated === true || snap?.issuesTruncated === true) return t('ghHintTruncated')
       return null
     }
 // PART 3 — cards
@@ -864,6 +874,9 @@ function DiffView({ t, sessionId, path, statusSha }) {
       // whose branch has no PR yet (or sits on a branch the board cannot place).
       if (card.prNumber !== null || card.checks === 'none') meta.push(checksText)
       if (card.ci && Number.isInteger(card.ci.run)) meta.push(`CI ${card.ci.run}/${card.ci.max ?? 2}`)
+      // #244: a branch whose merged-PR evidence is missing must not look like
+      // work that never merged.
+      if (card.mergeEvidenceUnknown) meta.push(t('mergeEvidenceUnknown'))
       // #157 removed the review item from the strip, so the evidence line is the
       // only place a review in flight can show up — without this it vanished.
       const reviewState = card.review?.state
@@ -911,14 +924,18 @@ function DiffView({ t, sessionId, path, statusSha }) {
     }
 
     /** The two dev-flow gates that still need a human (#157), blockers first. */
-    function NeedsUser({ t, items }) {
+    function NeedsUser({ t, items, total }) {
       if (items.length === 0) return null
+      // The strip is capped for display; without this line three items read as
+      // the whole queue (issue #250).
+      const hidden = Number.isInteger(total) ? total - items.length : 0
       return h(
         'div', { style: S.needsBox },
         h('div', { style: S.needsHead }, t('needsUserTitle')),
         items.map((item, i) =>
           h('div', { key: `n${i}`, style: S.needsRow }, `• ${t(`need_${item.kind}`)(item.issue, item.prNumber)}`),
         ),
+        hidden > 0 ? h('div', { style: S.needsRow }, t('needsUserMore')(hidden)) : null,
       )
     }
 
@@ -940,7 +957,7 @@ function DiffView({ t, sessionId, path, statusSha }) {
       return h(
         'div',
         null,
-        h(NeedsUser, { t, items: board.needsUser ?? [] }),
+        h(NeedsUser, { t, items: board.needsUser ?? [], total: board.needsUserTotal }),
         h(OffFlow, { t, entries: board.offFlow ?? [] }),
         h('div', { style: S.board, 'data-board': 'columns' }, (board.columns ?? []).map((c) => h(BoardColumn, { key: c.stage, t, column: c }))),
         // T4.df 面板↔流程互相指引(键名 boardFlowHint;#154 前叫 boardSkillHint): the board shows WHERE the work is; this
