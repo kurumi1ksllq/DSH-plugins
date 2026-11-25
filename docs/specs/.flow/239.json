@@ -1,0 +1,35 @@
+{
+  "issue": 239,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-25T04:12:23.842Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "#239 数字失控改为尾向判定",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "#240 裸块要求名字信号 + 围栏剔除",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "#241 撇号/落单引号不再吞句号",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

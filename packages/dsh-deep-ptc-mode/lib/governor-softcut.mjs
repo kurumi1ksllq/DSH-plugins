@@ -504,6 +504,16 @@ function detectNumberRunaway(fullVisibleText) {
 		cur = [nowTok];
 	}
 	runs.push(cur);
+	// Only a run that reaches the END of the text is a runaway: the model cannot
+	// stop, so nothing follows it. A numeric run that ends mid-answer is a list in
+	// ordinary prose (seed arrays, port tables), and cutting at its start deleted
+	// every sentence after it (#239). Same tail rule as findRepeatingTail.
+	const textLength = fullVisibleText.length;
+	// Prose about a format can legitimately sit inside an unclosed code fence
+	// while it is being written; a counting degeneration does not need the fence
+	// exemption, but a seed array inside a fence does (#239).
+	if (insideUnclosedCodeFence(fullVisibleText)) return null;
+	let hit = null;
 	// evaluate each run
 	for (const run of runs) {
 		if (run.length < 2) continue;
@@ -522,9 +532,13 @@ function detectNumberRunaway(fullVisibleText) {
 		}
 		const increaseRatio = inc / (run.length - 1);
 		if (increaseRatio < NUMBER_RUN_MIN_INCREASE_RATIO) continue;
-		return { chars: span, digitRatio, increaseRatio, trimTo: runStart };
+		// Tail-directed: after a real runaway the model is still counting, so no
+		// words follow it. Prose after the run means it stopped — that is a list in
+		// normal reasoning, and cutting there deleted everything after it (#239).
+		if (/[A-Za-z\u4e00-\u9fff]/.test(fullVisibleText.slice(runEnd))) continue;
+		hit = { chars: span, digitRatio, increaseRatio, trimTo: runStart };
 	}
-	return null;
+	return hit;
 }
 
 /**
@@ -737,6 +751,19 @@ function stripQuotedSegments(text) {
 function stripFencedBlocks(text) {
 	if (typeof text !== "string") return "";
 	return text.replace(/```[\s\S]*?```/g, " ");
+}
+
+/**
+ * 剔除一个未闭合的代码围栏及其后的全部内容。
+ *
+ * 闭围栏成对时由 stripFencedBlocks 整段删掉;剩下一个孤零零的开标记,说明这段
+ * 代码示例还没写完——它后面的内容仍属于示例,不该拿去做调用形态判定(#240)。
+ * @param {string} text 已剔除闭合围栏的文本
+ * @returns {string}
+ */
+function stripUnclosedFence(text) {
+	const open = text.lastIndexOf("```");
+	return open >= 0 ? text.slice(0, open) : text;
 }
 
 /**
@@ -1111,7 +1138,10 @@ const PSEUDO_STRONG_PATTERNS = [
 	// 换行，仅为覆盖其他含外层闭合的方言。对真实事故样本单独不生效：其外层闭标签
 	// （idx=398）晚于 text 段末检查点（384），内核无流终检，放宽后真实节奏仍永不命中；
 	// 真正截停靠支路一/二的块级信号。
-	/<tool_call>\s*[\s\S]{0,1200}?<\/tool_call>/i,
+	// 裸 tool_call 块:必须块内出现 function/parameter 名字信号才是「把调用写成了
+	// 文本」。只要求成对标签会把文档里的示例代码判成伪调用——回答「怎么调用工具」
+	// 这类问题于是被切断并归因「你的调用没被执行」(#240)。
+	/<tool_call>[\s\S]{0,1200}?(?:<function\s+name\s*=|parameter\s+name\s*=)[\s\S]{0,1200}?<\/tool_call>/i,
 	/<\|tool[▁_]?calls?[▁_]?begin\|>[\s\S]{0,400}<\|tool[▁_]?calls?[▁_]?end\|>/i,
 	/antml:invoke\s*<\s*function[\s\S]{0,1200}?<\/antml:invoke>/i,
 	/antml:invoke\s+name\s*=[\s\S]{0,1200}?<\/antml:invoke>/i
@@ -1174,7 +1204,10 @@ const PSEUDO_CLOSER_PATTERNS = [
  */
 function hasPseudoToolCall(fullVisibleText) {
 	if (typeof fullVisibleText !== "string" || fullVisibleText.length === 0) return false;
-	const tail = fullVisibleText.slice(-PSEUDO_TOOL_SCAN_TAIL);
+	// 围栏里的内容是「示例代码」而不是模型这次的调用:关掉的围栏整段剔除,未闭合的
+	// 围栏连到文本尾一起剔掉(文档写法示例常用于「怎么调用工具」这类回答,#240)。
+	const unfenced = stripUnclosedFence(stripFencedBlocks(fullVisibleText));
+	const tail = unfenced.slice(-PSEUDO_TOOL_SCAN_TAIL);
 	if (PSEUDO_STRONG_PATTERNS.some((pattern) => pattern.test(tail))) return true;
 	const weakHits = PSEUDO_WEAK_PATTERNS.filter((pattern) => pattern.test(tail)).length;
 	const functionTag = PSEUDO_FUNCTION_TAG.test(tail);
