@@ -12,6 +12,13 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.17.3 — 第 13 个工具不再静默顶掉第 1 个(#249)
+
+**问题**:`lib/tool-policy.mjs` 的 `load` 里写着 `if (row.selected.size > 12) row.selected.delete(...)`,`12` 没有名字、没有注释、没有配置、也不回传给调用方。第 13 次 load 把第 1 个挤出 `selected`,`load` 的返回值却仍把它算进 `loaded`、note 仍承诺「Deferred names … will appear in full in the next host SDK」;下一次 `sdkDefinitions` 按 `selected` 过滤,被挤出的工具就此消失,而模型以为自己加载过它,于是去调用一个宿主侧不存在的工具。deferred 分支同样会挤人,同一句承诺对它也不成立。
+
+**修复**:上限提成具名常量 `SELECTED_TOOL_LIMIT = 12`(注释写明来源:上游 1.7.3 导入时带过来的数,约束生成的 SDK 段落),所有入选用同一个 `select()` 收口,挤出的名字逐条记进新字段 `evicted`;返回值新增 `evicted` 数组,note 在真挤出时改口成「这些名字已从本次 SDK 移除,需要时请重新 load」并列出名字,deferred 的承诺只在确有 deferred 名字仍被选中时才说。同时保证返回值与 `selected` 一致:`loaded` 只保留仍被选中的 schema,同一批里被后续名字挤掉的也进 `evicted`。既有字段(loaded/unavailable/deferred/nextStep/note)名字与形状不变,只新增 `evicted`。
+
+回归测试(`test/tool-compatibility.test.mjs`):连续 load 到第 13 个 → `evicted` 为 `['external_0']` 且 note 带名字与「重新 load」;被挤出的名字不在下一次 `sdkDefinitions` 里、重新 load 能拿回(并把再次被挤的那个也报出来);未超限时 `evicted` 为空(不误报)。
 ### dsh-deep-ptc-mode 1.17.2 — #258 review 遗留:引号配对改成直接找伴、未闭合围栏内不再更严、尾向判据认任意字母(#260)
 
 **问题 A**:`maskQuotedSentenceStops` 的「引号预算」与消耗口径不一致——预算只过滤词内撇号,消耗时还会把词尾所有格(`files'`)当撇号。于是所有格在预算里算了一个可配对引号、消耗时又不扣,它之后的落单引号照样开栈、照样吞句号。**修复**:删掉预算,改成在需要开引号时直接向后找「能闭合它的同伴」(承诺跳过词内撇号);`files'`、`doesn't`、`'quoted text.'` 三种形状各自归位。
@@ -825,7 +832,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 90 个条目:其中 87 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。87+1+2=90。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 91 个条目:其中 87 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dsh-deep-ptc-mode@1.17.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。87+2+2=91。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

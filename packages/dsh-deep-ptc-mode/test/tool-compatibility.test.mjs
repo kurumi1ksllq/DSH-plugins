@@ -114,6 +114,35 @@ test('schemas are disclosed only after selection; unavailable capabilities never
   assert.equal(f.state.load(f.agent, ['huge']).loaded.length, 0, 'never truncate an executable schema');
   assert.ok(f.state.sdkDefinitions(f.agent).some(def=>def.name==='huge'), 'oversized schema is selected for full SDK disclosure');
 });
+// issue-249: the selected-schema cap used to evict silently — load still reported the
+// name as loaded while sdkDefinitions no longer disclosed it.
+test('loading past the selected-schema limit reports the names it pushed out', () => {
+  const f = setup();
+  const names = Array.from({ length: 13 }, (_, i) => `external_${i}`);
+  for (const name of names) f.live.set(name, def(name));
+  let last;
+  for (const name of names.slice(0, 12)) last = f.state.load(f.agent, [name]);
+  assert.deepEqual(last.evicted, [], 'nothing is evicted while the selection fits');
+  const overflow = f.state.load(f.agent, ['external_12']);
+  assert.deepEqual(overflow.evicted, ['external_0'], 'the oldest selection is named in the reply');
+  assert.deepEqual(overflow.loaded.map(d => d.name), ['external_12']);
+  assert.match(overflow.note, /external_0/, 'the note names what was dropped');
+  assert.match(overflow.note, /load/i, 'the note says the dropped names can be loaded again');
+});
+
+test('an evicted name leaves the next host SDK and returns only when loaded again', () => {
+  const f = setup();
+  const names = Array.from({ length: 13 }, (_, i) => `external_${i}`);
+  for (const name of names) f.live.set(name, def(name));
+  for (const name of names) f.state.load(f.agent, [name]);
+  const sdk = f.state.sdkDefinitions(f.agent).map(d => d.name);
+  assert.ok(!sdk.includes('external_0'), 'the evicted name is gone from the next host SDK');
+  assert.ok(sdk.includes('external_12'), 'the newest selection is disclosed');
+  const back = f.state.load(f.agent, ['external_0']);
+  assert.deepEqual(back.loaded.map(d => d.name), ['external_0'], 'loading it again returns it');
+  assert.deepEqual(back.evicted, ['external_1'], 'the reply names the name this reload pushed out');
+  assert.ok(f.state.sdkDefinitions(f.agent).map(d => d.name).includes('external_0'));
+});
 test('local directory pagination is deterministic and descriptions are bounded', () => {
   const rows = Array.from({ length: 25 }, (_, i) => def(`file_${String(i).padStart(2, '0')}`, 'File search '+ 'x'.repeat(400)));
   const first = searchCatalog(rows, 'file', 0, 6), second = searchCatalog(rows, 'file', first.nextOffset, 6);
