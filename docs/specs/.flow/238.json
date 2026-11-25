@@ -2,28 +2,23 @@
   "issue": 238,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-25T04:26:41.878Z",
+  "updatedAt": "2026-11-25T04:41:57.878Z",
   "tickets": [
     {
       "id": 1,
-      "title": "#238 每个传输各记各的 404",
+      "title": "每个传输各记各的 404(含默认分支重试)",
       "state": "done"
     },
     {
       "id": 2,
-      "title": "#251 404 不再吞掉真实原因",
-      "state": "done"
-    },
-    {
-      "id": 3,
-      "title": "#252 挂载超时只记 timeout",
+      "title": "双 404 才判「没发布」,5xx/403/崩溃不算",
       "state": "done"
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 1,
     "max": 2,
-    "status": "unknown"
+    "status": "green"
   },
   "review": {
     "state": "done",

@@ -16,9 +16,9 @@ test-only changes are exempt.
 
 **问题 A(#238)**:`lib/sync-remote.js` 只有一个共享的 `missingFile`,每个传输都给它赋值:raw 报 500 之后,紧接着 contents API 的 404 又把它翻成 true。注释写着「每个传输都 404 才算没发布」,实现是「最后一个说话的赢」。**修复**:raw / contents API 各记各的 `notFoundRaw` / `notFoundApi`,两者都是 404 才判没发布(默认分支重试也按各自传输记);5xx、403、传输崩溃都只是「没读到」。
 
-**问题 B(#251)**:走到 missing 分支时 `attempts`(每一次传输的状态码、git clone 的真实报错)不再拼进 error,404 被「凭据为空/过期、ref 写错、path 写错、真的没发布」四种原因共用。私有仓库无 token 时 raw 与 contents 双双 404 → 面板显示「尚未发布」、`syncApply` 安静地「无需安装」。**修复**:missing 分支的 error 带上全部 attempts;clone 报鉴权错(`could not read Username` 等)且本次读取未带 token 时以「鉴权失败」报错并保留 attempts;clone 报分支不存在时回到 ref 建议。服务层把判定理由透传为 `emptyReason`,`syncApply` 在远端没有清单时直接报原因而非逐项「清单里没有这一项」;顺带把 `gitBin` / `clone` 两个 seam 在 `fetchManifest` 里接上(以前传了也不生效)。
+**问题 B(#251)**:走到 missing 分支时 `attempts`(每一次传输的状态码、git clone 的真实报错)不再拼进 error,404 被「凭据为空/过期、ref 写错、path 写错、真的没发布」四种原因共用。私有仓库无 token 时 raw 与 contents 双双 404 → 面板显示「尚未发布」、`syncApply` 安静地「无需安装」。**修复**:missing 分支的 error 带上全部 attempts;clone 报鉴权错(`could not read Username` 等)且「本次没带 token」或「用同一个 token 探仓库被拒」时以「鉴权失败」报错并保留 attempts——后者才覆盖「token 填了但过期/无权限」,因为 GitHub 对这两种情况在 raw 与 contents API 上都回 404;clone 报分支不存在时回到 ref 建议;本地 `EACCES/EPERM/ENOENT` 不再被当成凭据错。服务层把判定理由透传为 `emptyReason`,`syncApply` 在远端没有清单时直接报原因而非逐项「清单里没有这一项」,**发布路径新增空底座确认**——只有仓库本身读得到(`repoAccess=ok`)才允许把双 404 当成「首次发布」写入,否则拒绝写入以免以空底座覆盖其它机器的分节;空舰队结论也会清掉上一次的失败横幅。顺带把 `gitBin` / `clone` 两个 seam 在 `fetchManifest` 里接上(以前传了也不生效)。
 
-**问题 C(#252)**:`gate.js` 的 `withTimeout` 超时后 `resolve(undefined)`,调用方随后照旧写 `mount agent=…` 成功行——日志里既没有失败状态,又谎报了一次成功。**修复**:超时分支写 `status=timeout` 并抑制成功行;正常分支的成功行补 `status=ok`。
+**问题 C(#252)**:`gate.js` 的 `withTimeout` 超时后 `resolve(undefined)`,调用方随后照旧写 `mount agent=…` 成功行——日志里既没有失败状态,又谎报了一次成功。**修复**:超时分支写 `status=timeout` 并抑制成功行;正常分支的成功行补 `status=ok`,而「plugin 返回了但没有 fiber」写 `status=nofiber`(它与超时同形,以前同样被算成挂上了);失败分支补 `status=error`,巡按 `mount .* status=` 就能一次读完三种结局。
 
 回归测试:raw 500 + api 404、raw 404 + api 403 都不判 `notFound`,双 404 才判且 error 带两次 404;token 空 + 全 404 + clone `could not read Username` → 鉴权失败而不是「未发布」(`fetchManifestText` 与 `syncStatus` 各一条);clone 报分支不存在时回到 ref;syncApply 无清单时报原因;gate 超时只有一行 `status=timeout` 且无成功行,正常挂载只有一行 `status=ok`。
 

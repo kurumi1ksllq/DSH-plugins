@@ -117,6 +117,9 @@ async function fetchFleet(state, options = {}) {
         machines: {},
         manifest: null,
         reason: fetched.error,
+        // #251 review:发布路径要用它做「空底座确认」——只有仓库本身读得到时,
+        // 「双 404」才足以支持「可以按首次发布写入」。
+        repoAccess: fetched.repoAccess ?? 'unknown',
       }
     }
     return { error: fetched.error }
@@ -190,6 +193,9 @@ export async function syncStatus({ snapshot, state = readState(), options = {} }
   // Nothing published yet (or an empty fleet file): a first-run state with
   // zero remote entries, not a fetch failure.
   if (fetched.manifest === null) {
+    // #251 review:「没发布」这个结论要把上一次的失败横幅清掉,否则面板会一边说
+    // 「没有可同步的内容」一边挂着「上次拉取失败:鉴权失败」。
+    writeState({ lastFetchError: '', lastFetchErrorAt: 0 }, options.env)
     return {
       ...base,
       manifest: {
@@ -313,6 +319,17 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
       // A hard read failure (bad token, unreachable host) must not be worked
       // around by blind-writing over a document we could not see.
       return { ok: false, error: `发布前读取远端失败：${current.error}` }
+    }
+    // (1b) #251 review:不要凭一个「双 404」就按首次发布写入。仓库本身读得到
+    //      (repoAccess=ok,用的是同一个 token 探的)才说明「确实还没有清单」;
+    //      读不到时双 404 与「token 过期 / 无权限」同形,盲目写入会以空底座
+    //      覆盖远端别人的分节。空底座确认就是这个判断。
+    if (current.empty === true && current.repoAccess !== 'ok') {
+      return {
+        ok: false,
+        error: '无法确认远端是否已有清单（本次读取的 404 与凭据/权限问题同形）,已停止写入以免覆盖其它机器的分节:'
+          + String(current.reason ?? current.repoAccess ?? ''),
+      }
     }
     // (2) Merge our section into everyone else's. An empty remote starts a
     // fresh fleet; a v1 base is taken over (its content was this machine's

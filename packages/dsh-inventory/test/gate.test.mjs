@@ -359,3 +359,20 @@ test('a re-dispatched agent keeps its earlier tracked fibers (#106 A2)', async (
   assert.equal(fiber1.disposed, true, 'the first fiber must survive the re-dispatch and be disposed at teardown')
   assert.equal(fiber2.disposed, true, 'the second fiber must also be tracked')
 })
+
+test('#252 review 插件返回但没有 fiber 时,成功行改写成 status=nofiber', async () => {
+  // 超时与「plugin 正常返回但没给 fiber」同形:两种都不许写成 status=ok,否则按
+  // `mount .* status=ok` 计数的巡检会把「什么都没挂上」算成挂上了。
+  const stubDir = scratch()
+  const stubFile = join(stubDir, 'mcp-client-stub.mjs')
+  writeFileSync(stubFile, 'export function apply() {}\n')
+
+  const { ctx, listeners, logs } = fakeCtx()
+  ctx.plugin = () => Promise.resolve(undefined)
+  apply(ctx, { logFile: '', mcpClientEntry: stubFile })
+  const agent = { id: 'gate-nofiber', session: { header: { cwd: workspaceWith(VALID) } }, ctx }
+  await dispatch(listeners, logs, agent)
+  const lines = logs.filter(([, m]) => m.includes('agent=gate-nofiber'))
+  assert.equal(lines.filter(([, m]) => m.includes('status=nofiber')).length, 1, 'a fiber-less mount is reported as such')
+  assert.equal(lines.filter(([, m]) => m.includes('status=ok')).length, 0, 'and never as a success')
+})

@@ -189,6 +189,10 @@ export async function fetchManifestText(parsed, options = {}) {
   // means "not probed yet"; `null` means "probed and learned nothing", which
   // must not be probed a second time by a later path.
   let defaultBranch
+  // #251 review:这一跳用**同一个 token** 探仓库本身,所以它是「凭据到底能不能读
+  // 这个仓库」的唯一直接证据。ok=读得到,denied=读不到(私有仓/过期 token/无权限),
+  // unknown=根本没问到(离线、超时)。把它丢掉就等于把「鉴权失败」与「没发布」混为一谈。
+  let repoAccess = 'unknown'
   const learnDefaultBranch = async () => {
     if (defaultBranch !== undefined) return defaultBranch
     defaultBranch = null
@@ -200,6 +204,7 @@ export async function fetchManifestText(parsed, options = {}) {
         fetchImpl(hostProfile(parsed?.host).repoApiUrl(parsed.owner, parsed.repo), { headers, signal }),
         promise,
       ])
+      repoAccess = response.ok ? 'ok' : (response.status === 401 || response.status === 403 || response.status === 404 ? 'denied' : 'unknown')
       if (response.ok) {
         const payload = await response.json()
         if (typeof payload?.default_branch === 'string' && payload.default_branch.length > 0) {
@@ -307,10 +312,12 @@ export async function fetchManifestText(parsed, options = {}) {
     cloneVeto = cloneVetoReason(retried)
   }
 
-  // clone 从不带 token,所以「没凭据」只有在本次读取本身也没有凭据时才算证据;
-  // 带 token 时 contents API 才是权威声音,不能因为 git 读不到就否掉它的 404
-  // (否则私有仓库的新机器第一次发布会永远读不到远端)。
-  if (cloneVeto === 'auth' && authenticated === false) {
+  // clone 从不带 token,所以它的「没凭据」本身不是证据。判它是鉴权失败要有第二个
+  // 信号:本次读取没带 token,或者用同一个 token 探仓库也被拒(repoAccess=denied)。
+  // 后者正是「token 填了但过期/无权限」——GitHub 对这两种情况在 raw 与 contents API
+  // 上都回 404,只有仓库探测说得出区别(#251 review)。
+  const authUnproven = authenticated === false || repoAccess === 'denied'
+  if (cloneVeto === 'auth' && authUnproven) {
     return {
       error: `无法读取清单：鉴权失败（凭据为空或已过期），先配置一个能读该仓库的 token 再重试（${attempts.join('；')}）`,
     }
@@ -319,7 +326,14 @@ export async function fetchManifestText(parsed, options = {}) {
   // #238:每个传输都说 404 才算「没发布」;#251:即使如此也要带上每一次传输的
   // 状态码与真实报错,否则「凭据过期 / ref 写错 / path 写错」都被说成没发布。
   if (notFoundRaw === true && notFoundApi === true && cloneVeto !== 'ref') {
-    return { notFound: true, error: `清单尚未发布（文件不存在）：${attempts.join('；')}`, missing: true }
+    return {
+      notFound: true,
+      error: `清单尚未发布（文件不存在）：${attempts.join('；')}`,
+      missing: true,
+      // 发布路径要用它做「空底座确认」:只有仓库本身读得到(repoAccess=ok)时,
+      // 「双 404」才足以支持「可以按首次发布写入」。
+      repoAccess,
+    }
   }
 
   return {
@@ -423,8 +437,12 @@ function looksLikeMissingRef(text) {
  */
 function cloneVetoReason(result) {
   const message = String(result?.error ?? '')
+  // 只认 git 自己说的凭据失败。本地文件系统错误(EACCES/EPERM/ENOENT,例如临时
+  // 目录建不出来)长得也像 "permission denied",把它们判成「凭据过期」会让用户去
+  // 翻 token,还会把 404 判定压掉(#251 review)。
+  if (/\b(EACCES|EPERM|ENOENT)\b/.test(message)) return null
   if (
-    /could not read Username|terminal prompts disabled|Authentication failed|invalid username or password|Permission denied|authentication required|access denied/i.test(
+    /could not read Username|terminal prompts disabled|Authentication failed|invalid username or password|authentication required/i.test(
       message,
     )
   ) {

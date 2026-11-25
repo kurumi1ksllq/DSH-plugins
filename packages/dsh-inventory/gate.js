@@ -208,9 +208,12 @@ export function apply(ctx, rawConfig) {
               )
               if (timedOut === false) {
                 if (fiber !== undefined) mounted.get(agentId)?.push(fiber)
+                // #252 review:超时与「plugin 正常返回但没给 fiber」同形,两种都不许
+                // 写成 status=ok —— 按 mount .* status=ok 计数的巡检会把「什么都没
+                // 挂上」算成挂上了。
                 emit(
                   'info',
-                  `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root} status=ok`,
+                  `${LOG} mount agent=${agentId} cwd=${cwd} server=${serverConfig.serverName} declared=${declaredName} root=${plan.root} status=${fiber === undefined ? 'nofiber' : 'ok'}`,
                 )
               }
               // The timeout above only gave up *waiting* on the mount; the
@@ -235,7 +238,7 @@ export function apply(ctx, rawConfig) {
                   // A late mount failure is only a leak risk; nothing to do.
                 })
             } catch (error) {
-              emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName}: ${String(error)}`)
+              emit('warn', `${LOG} mount failed agent=${agentId} server=${serverConfig.serverName} status=error: ${String(error)}`)
             }
           }))
         } catch (error) {
