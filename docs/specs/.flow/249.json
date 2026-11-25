@@ -1,8 +1,8 @@
 {
   "issue": 249,
   "grade": "trivial",
-  "stage": "merge",
-  "updatedAt": "2026-11-25T06:11:41.245Z",
+  "stage": "done",
+  "updatedAt": "2026-11-25T06:25:15.278Z",
   "tickets": [
     {
       "id": 1,
@@ -21,7 +21,7 @@
     },
     {
       "id": 4,
-      "title": "TDD 用例三条 + 版本/CHANGELOG/文档",
+      "title": "TDD 用例 + 版本/CHANGELOG/文档",
       "state": "done"
     }
   ],
@@ -35,6 +35,6 @@
     "axes": 0
   },
   "merge": {
-    "authorized": false
+    "authorized": true
   }
 }
