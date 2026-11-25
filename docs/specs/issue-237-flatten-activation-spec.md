@@ -43,3 +43,14 @@
 4. **CHANGELOG 行号漏 `:3019`,「100% 失败」过绝对** → **采纳并已改**:补 `:3019`,改为「在当前宿主契约下必然失败」。次要项 `assert.equal(Array.isArray(...), true)` → `assert.ok(...)` 已改。
 
 轴1(对 spec)子代理超时未回报,收尾时仍未产出——轴1 结论由 lead 自审代替,已在上文「双轴 review 留证」记录(**无独立第二视角**)。
+
+## 轴1(对 spec)回报与裁决(收尾补充)
+
+轴1 子代理在被催收后迟到回报(其审查基线为 `4072cf1`),结论「核心目标/边界/验收达成」。逐条裁决:
+
+1. **陈旧注释 `role-tools.mjs:202` / `test:162` 仍写 `request.maxDepth`** → **采纳**:两处都已改为「spec 顶层 `maxDepth`」。
+2. **CHANGELOG 计数属边界扩张** → **已知并留证**:见上文「变更点」第 1 条;这是 `test/docs-contract.test.mjs` 的硬契约,不改则 CI 必红。
+3. **`.flow` 记录与实测绿不符** → **已修**:评审看到的是 `4072cf1` 的快照,HEAD 已提交 `ci.status:"green"` / `stage:"review"` / `review.state:"done"`。
+4. **深度闸测试对「是否摊平」不敏感** → **不采纳**:`test:186` 断言 `seen.maxDepth === 3`,嵌套形状下该值为 `undefined`,首轮 TDD 实测正是这条红(`undefined !== 3`),反向守护已存在。
+5. **留证与事实不符(轴1 未回报)** → **采纳**:本节即更正;轴1 确已回报,只是晚于 lead 自审。
+6. **nit:`types.d.ts:23` 应为 `:24`** → **不采纳**:实测第 23 行即 `export interface SubagentActivationSpec extends Omit<...>`,第 24 行是首个成员注释。

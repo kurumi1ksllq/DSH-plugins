@@ -159,7 +159,7 @@ test('the tools unregister when the plugin is disposed', () => {
 // ---------------------------------------------------------------------------
 // #194 review finding: the depth cap must be FORWARDED.
 //
-// The host gate compares `request.maxDepth`; omitting the field means no limit,
+// The host gate compares the spec's top-level `maxDepth`; omitting it means no limit,
 // not "use the default". Only the official subagent tool reads the configured
 // value, so a host-plane tool that omits it can re-delegate without bound.
 // ---------------------------------------------------------------------------
