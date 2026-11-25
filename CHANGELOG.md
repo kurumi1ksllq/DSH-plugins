@@ -20,6 +20,17 @@ test-only changes are exempt.
 
 **问题**:工具管理页的余额列只读 `remaining` / `total` / `unit`,宿主探到的失败原因 `balance.detail` 从不显示,探测超时看起来和「没有余额接口」一模一样。
 **修复**:`providerBalanceText` 在 `balance.status` 为 `error` / `timeout` 且带 `detail` 时把原因追加在「未提供余额接口」之后;`status: 'timeout'` 仍走中性状态,不会被画成搜索冷却。其余渲染行为不变。
+
+### dev-flow 0.8.2 — 面板四处静默失败改为可见(#242 #243 #244 #250)
+
+**问题 A(#242)**:`fileDiffOf` 以 `maxBuffer = maxBytes*4` 读 diff,一旦超过就由 `runCommand` 丢掉已读内容并返回 null,于是超大改动渲染成「没有改动」(实测 1.69 MB 的 diff → `diff.length=0`、`truncated=false`),未跟踪路径还会退化成一整段「新增文件」。**修复**:新增 `runCommandCapped`(读满 `maxBytes+1` 即停并返回 `{stdout, capped}`),`fileDiffOf` 据此给出 `truncated:true` 并保留真实前缀;`capped` 时不再走未跟踪文件渲染。
+
+**问题 B(#243)**:`gh pr list` / `gh issue list` 写死 `--limit 30` 且完全静默——第 31 个开放 PR/issue 整张卡不存在,列头只是显示一个更小的数字。**修复**:上限提到 200(`OPEN_LIST_LIMIT`),查询满额时快照带 `prsTruncated` / `issuesTruncated`,面板显示「列表已达单次查询上限」。
+
+**问题 C(#244)**:合并 PR 查询超时返回 null,任务板用 `Array.isArray(...) ? ... : []` 折成空数组,「问不到」与「确实没有」合流——已完成的分支被打回 dev 列,其 `.flow` 同时被判 stale。**修复**:保留 null 语义(`mergedPrsUnknown`),有分支但无开放 PR 的卡片标 `mergeEvidenceUnknown` 并在证据行说明;该查询超时从 15s 提到 30s(它是三条里最重的)。
+
+**问题 D(#250)**:`needsUser` 先截断到 3 条、再用截断结果回填 `card.action`,第 4 条之后的卡片动作为 null,条带上也没有「还有 N 条」。**修复**:截断只作用于条带,`card.action` 用完整列表回填,板子带 `needsUserTotal`,条带显示「还有 N 条未列出」。
+
 ### dsh-task-dispatcher 0.9.4 — delegate_role 启动 spec 摊平(#237)
 
 **问题**:`delegate_role` 交给宿主 `subagents.startActivation()` 的 spec 把 `prompt`/`parent`/`maxDepth` 埋在 `request` 子对象里,而宿主 `SubagentActivationSpec` 是三者的顶层字段(读取点 `dsh-subagent/lib/index.js:1479/1492/1557`(parent/prompt)与 `:3019/3024`(provider/parent.id))。宿主读 `spec.parent.id` 直接抛 `TypeError`——在当前宿主契约下 `delegate_role` 必然失败。**修复**:spec 摊平为 `{ provider, label, ...request, parent, maxDepth?, signal, delivery }`;测试断言从 `seen.request.*` 改为 `seen.*`,并新增「spec 不得带 `request` 键」「`seen.parent.id`」「`seen.prompt` 为数组」三条,改回嵌套形状即红。
@@ -779,7 +790,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 85 个条目:其中 80 条已有对应 tag;3 条待合并后打 tag(`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。80+3+2=85。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 86 个条目:其中 81 条已有对应 tag;3 条待合并后打 tag(`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。81+3+2=86。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

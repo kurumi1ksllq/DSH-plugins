@@ -157,11 +157,22 @@ export function repoArgs(slug) {
  */
 export const MERGED_PR_LIMIT = 200
 
+/**
+ * How many open PRs / issues one snapshot asks for.
+ *
+ * This was 30, and the cap was silent: `gh pr list` returns exactly the limit
+ * with exit code 0 and no total count, so the 31st card simply did not exist
+ * and the column header showed a smaller number than reality (issue #243). The
+ * limit is now high enough that a normal repository never reaches it, and the
+ * snapshot reports when it does (`prsTruncated` / `issuesTruncated`).
+ */
+export const OPEN_LIST_LIMIT = 200
+
 /** Open PRs for the current repo. */
 export async function openPullRequests(repoDir, slug) {
   const out = await runCommand(
     'gh',
-    ['pr', 'list', '--state', 'open', '--limit', '30',
+    ['pr', 'list', '--state', 'open', '--limit', String(OPEN_LIST_LIMIT),
      '--json', 'number,title,author,headRefName,baseRefName,isDraft,url,mergeable',
      ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
@@ -182,7 +193,10 @@ export async function recentlyMergedPullRequests(repoDir, slug) {
     ['pr', 'list', '--state', 'merged', '--limit', String(MERGED_PR_LIMIT),
      '--json', 'number,title,headRefName,mergedAt,url',
      ...repoArgs(slug)],
-    { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },
+    // The heaviest query of the three (200 rows of JSON). At the shared 15s it
+    // was the first to time out, and losing it is what put finished branches
+    // back in the dev column (issue #244).
+    { cwd: repoDir, allowFailure: true, timeoutMs: 30_000 },
   )
   if (typeof out !== 'string') return null
   try {
@@ -197,7 +211,7 @@ export async function recentlyMergedPullRequests(repoDir, slug) {
 export async function openIssues(repoDir, slug) {
   const out = await runCommand(
     'gh',
-    ['issue', 'list', '--state', 'open', '--limit', '30',
+    ['issue', 'list', '--state', 'open', '--limit', String(OPEN_LIST_LIMIT),
      '--json', 'number,title,author,labels,url',
      ...repoArgs(slug)],
     { cwd: repoDir, allowFailure: true, timeoutMs: 15_000 },

@@ -21,6 +21,7 @@ import {
   statusOf,
 } from './git-info.js'
 import {
+  OPEN_LIST_LIMIT,
   forgeHintFor,
   forgeRemoteOf,
   ghStatus,
@@ -192,9 +193,12 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     ])
   }
 
-  // CI state per open PR. One `gh` call each, so the pool stays small: the panel
-  // is a task board, not a CI dashboard, and `unknown` degrades quietly.
-  const checks = await checksOf(workspace.dir, prs, repoSlug)
+  // CI state per open PR the board can actually place. Restricting it to PRs
+  // whose head branch exists locally is what keeps the call count tied to the
+  // board instead of to the repository's open PR count: `OPEN_LIST_LIMIT` is 200,
+  // and one `gh pr checks` each would otherwise be 200 spawns per snapshot.
+  const branchNames = new Set(branches.map((b) => b?.name))
+  const checks = await checksOf(workspace.dir, prs, repoSlug, branchNames)
 
   // Which issues the board will draw: everything open, plus whatever the local
   // `issue-<n>-*` branches name, so a repo without forge access still gets cards.
@@ -228,6 +232,11 @@ async function buildSnapshot({ env, sessionCwd, workspace }) {
     forgeHint,
     repoSlug,
     prs,
+    // Reaching the limit is indistinguishable from "that is all there is" in
+    // `gh`'s answer, so the snapshot says so instead of letting the panel draw a
+    // short list as the whole truth (issue #243).
+    prsTruncated: Array.isArray(prs) && prs.length >= OPEN_LIST_LIMIT,
+    issuesTruncated: Array.isArray(issues) && issues.length >= OPEN_LIST_LIMIT,
     mergedPrs,
     issues,
     checks,
@@ -247,11 +256,16 @@ const CHECK_CONCURRENCY = 4
  *
  * Failures are not fatal: a PR missing from the map reads as `unknown` on the
  * board, which is the honest answer when `gh` could not be asked.
+ * @param {Set<string>} [branchNames] local branches; a PR with no local head
+ *   branch has no card, so asking for its checks would be a wasted spawn.
  * @returns {Promise<Record<number, string>>}
  */
-async function checksOf(repoDir, prs, repoSlug) {
+async function checksOf(repoDir, prs, repoSlug, branchNames) {
   if (!Array.isArray(prs) || prs.length === 0) return {}
-  const numbers = prs.map((p) => p?.number).filter((n) => Number.isInteger(n) && n > 0)
+  const relevant = branchNames === undefined
+    ? prs
+    : prs.filter((p) => typeof p?.headRefName === 'string' && branchNames.has(p.headRefName))
+  const numbers = relevant.map((p) => p?.number).filter((n) => Number.isInteger(n) && n > 0)
   const out = {}
   for (let i = 0; i < numbers.length; i += CHECK_CONCURRENCY) {
     const slice = numbers.slice(i, i + CHECK_CONCURRENCY)
