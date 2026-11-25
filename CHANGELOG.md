@@ -779,7 +779,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 85 个条目:74 条有对应 tag;缺 tag 的 9 条为 `dsh-deep-ptc-mode@1.17.0`、`dsh-websearch-failover@0.6.1`、`dsh-skill-surface@0.4.5`、`dsh-credential-vault@0.6.5`、`dsh-inventory@0.14.2`、`dsh-task-dispatcher@0.9.4`、`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`(合并后打 tag);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。74+9+2=85。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 85 个条目:其中 80 条已有对应 tag;3 条待合并后打 tag(`dsh-skill-surface@0.1.0`、`dsh-websearch-failover@0.6.2`、`dsh-inventory@0.14.3`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。80+3+2=85。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

@@ -210,7 +210,9 @@ function unknownBalance(detail, now, reset = { resetKind: 'none', resetsAt: null
 
 /**
  * Probe one provider's balance. Never throws: every failure becomes a record
- * with `status: 'error'` or `status: 'unknown'` plus a short `detail`.
+ * with `status: 'error'`, `status: 'timeout'` (its own state since #246: a slow
+ * probe is neither an upstream failure nor a search cooldown) or `status:
+ * 'unknown'`, plus a short `detail`.
  *
  * @param {object} provider provider config row
  * @param {{key?: string, now?: number, fetchImpl?: typeof fetch, timeoutMs?: number, signal?: AbortSignal}} [options]
