@@ -324,7 +324,8 @@ export async function syncPublish({ snapshot, state = readState(), options = {},
     //      (repoAccess=ok,用的是同一个 token 探的)才说明「确实还没有清单」;
     //      读不到时双 404 与「token 过期 / 无权限」同形,盲目写入会以空底座
     //      覆盖远端别人的分节。空底座确认就是这个判断。
-    if (current.empty === true && current.repoAccess !== 'ok') {
+    //      只针对「远端没有清单」这一种空(http 直连的空文档走另一条路,manifest 非 null)。
+    if (current.empty === true && current.manifest === null && current.repoAccess !== 'ok') {
       return {
         ok: false,
         error: '无法确认远端是否已有清单（本次读取的 404 与凭据/权限问题同形）,已停止写入以免覆盖其它机器的分节:'
