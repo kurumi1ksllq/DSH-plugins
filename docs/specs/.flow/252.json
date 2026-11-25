@@ -1,0 +1,25 @@
+{
+  "issue": 252,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T04:26:41.900Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "挂载超时写 status=timeout,不再写成功行",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

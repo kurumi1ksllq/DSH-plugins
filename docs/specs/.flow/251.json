@@ -1,0 +1,25 @@
+{
+  "issue": 251,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T04:26:41.891Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "404 分支保留 attempts,鉴权/ref 失败可区分",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
