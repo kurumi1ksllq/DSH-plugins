@@ -510,6 +510,17 @@ test('#244 an unavailable merged-PR query marks the card instead of moving it si
   assert.equal(card.stage, 'dev', 'without evidence the stage is unchanged, only labelled')
 })
 
+test('#244 unpushed work cannot have been merged, so it is never labelled', () => {
+  const board = buildTaskBoard(snap({
+    issues: [issue(9)],
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, branch('issue-9-x', { ahead: 2 })] },
+    prs: [],
+    mergedPrs: null,
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
+  assert.equal(card.mergeEvidenceUnknown, false, 'a branch ahead of its upstream has not been merged yet')
+})
+
 test('#244 an empty merged-PR list is an answer, not a gap', () => {
   const board = buildTaskBoard(snap({
     issues: [issue(9)],

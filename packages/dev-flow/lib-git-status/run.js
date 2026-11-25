@@ -66,8 +66,9 @@ function runCapture(file, args, opts = {}) {
       if (settled) return
       size += chunk.length
       const over = size > maxBuffer
-      // Keep at most `maxBuffer` bytes, so `capped` is always visible in the
-      // returned text: the caller can then report truncation instead of
+      // Keep at most `maxBuffer` characters (the cap is compared in bytes, so a
+      // multi-byte payload can keep slightly more), so `capped` is always visible
+      // in the returned text: the caller can then report truncation instead of
       // receiving an empty string that reads as "nothing to show".
       const room = maxBuffer - stdout.length
       if (room > 0) stdout += chunk.length <= room ? chunk : chunk.slice(0, room)

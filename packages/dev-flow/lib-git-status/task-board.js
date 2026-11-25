@@ -176,7 +176,10 @@ function cardOf({ issueNumber, issue, branch, pr, mergedPr, mergedPrsUnknown, ch
     // A branch with no open PR and no merged-PR evidence cannot be placed: the
     // merged query may simply have failed. Saying nothing drew finished work as
     // "still in development" (issue #244), so the card admits it instead.
-    mergeEvidenceUnknown: mergedPrsUnknown === true && pr === null && branch !== undefined && branch !== null,
+    // Only when nothing is unpushed: a branch ahead of its upstream cannot have
+    // been merged yet, so labelling it "may already be merged" would mislead.
+    mergeEvidenceUnknown: mergedPrsUnknown === true && pr === null
+      && branch !== undefined && branch !== null && (branch?.ahead ?? 0) === 0,
     checks: checks ?? 'unknown',
     tickets: flow?.tickets ?? [],
     ci: flow?.ci ?? null,

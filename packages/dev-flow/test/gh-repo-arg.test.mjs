@@ -39,12 +39,18 @@ const GIT = process.env.GIT_IN_PATH ?? 'git'
  * the stub answers them unconditionally — otherwise `ghStatus()` would report
  * "gh not installed" and the forge queries would never be reached at all.
  */
-function stubGh({ argvFile, issues = [], prs = [], merged = [], checks = [] } = {}) {
+function stubGh({ argvFile, checksArgvFile, issues = [], prs = [], merged = [], checks = [] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gh-repo-arg-'))
   const record = argvFile === undefined ? '' : `printf '%s\\n' "$*" >> '${argvFile}'\n`
+  // Separate log for `pr checks`, so a test can count how many CI queries one
+  // snapshot spawns without filtering every other call out of one file.
+  const checksRecord = checksArgvFile === undefined
+    ? ''
+    : `case "$1 $2" in "pr checks") printf '%s\\n' "$*" >> '${checksArgvFile}' ;; esac\n`
   const script = [
     '#!/bin/sh',
     record,
+    checksRecord,
     'if [ "$1" = "--version" ]; then echo "gh version 2.62.0"; exit 0; fi',
     'if [ "$1 $2" = "auth status" ]; then echo "Logged in to github.com"; exit 0; fi',
     'case "$*" in',
@@ -253,11 +259,11 @@ test('#243 the open PR and issue queries ask for far more than the old 30', asyn
   for (const call of openCalls) {
     const limit = /--limit (\d+)/.exec(call)
     assert.ok(limit !== null, 'the open lists must bound their window explicitly')
-    // Pin the constant, not the literal: asserting only ">= 30" let the window
-    // drift back down to exactly 30 and stay green (that was the defect).
     assert.equal(Number(limit[1]), OPEN_LIST_LIMIT)
   }
-  assert.ok(OPEN_LIST_LIMIT > 30, 'a window of 30 hid every card past the 30th')
+  // Pin the number itself. Asserting "bigger than 30" let the constant drift to
+  // 31 and stay green, which is the same silent window with a new value.
+  assert.equal(OPEN_LIST_LIMIT, 200)
 })
 
 test('#243 a list that fills the query cap is flagged in the snapshot', async () => {
@@ -276,4 +282,21 @@ test('#243 a list that fills the query cap is flagged in the snapshot', async ()
   invalidateSnapshot()
   const short = await withPath(partial, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
   assert.equal(short.issuesTruncated, false, 'a short window is simply the whole list')
+})
+
+test('#243 a full PR window is flagged too, and its checks are not fetched for unplaceable PRs', async () => {
+  const repo = initRepoWithOrigin()
+  const many = Array.from({ length: OPEN_LIST_LIMIT }, (_, i) => ({
+    number: 100 + i, title: `p${i}`, headRefName: i === 0 ? 'issue-1-first' : `feature/${i}`,
+    baseRefName: 'main', isDraft: false, mergeable: 'MERGEABLE', url: `https://github.com/me/repo/pull/${100 + i}`,
+  }))
+  const checksLog = join(mkdtempSync(join(tmpdir(), 'gh-checks-')), 'checks.txt')
+  const dir = stubGh({ prs: many, checksArgvFile: checksLog })
+  invalidateSnapshot()
+  const snapshot = await withPath(dir, () => getSnapshot({ force: true, sessionCwd: repo, env: {} }))
+  assert.equal(snapshot.prsTruncated, true, 'a full PR window must be reported as truncated')
+  // 200 open PRs must not mean 200 `gh pr checks` spawns: only the one PR whose
+  // head branch exists locally gets a card.
+  const calls = readFileSync(checksLog, 'utf8').split('\n').filter((line) => line.includes('pr checks'))
+  assert.equal(calls.length, 1, `expected one checks call, got ${calls.length}`)
 })

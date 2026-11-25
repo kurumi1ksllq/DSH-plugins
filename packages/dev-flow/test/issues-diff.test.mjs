@@ -74,7 +74,7 @@ test('#22 fileDiffOf truncates oversized diffs', async () => {
 // reports it, so the preview keeps a real prefix and says it was cut.
 test('#242 a diff past the read cap is truncated, never empty', async () => {
   const dir = initRepo('gs-diff-huge-')
-  writeFileSync(join(dir, 'a.txt'), 'y\n'.repeat(400_000)) // ~800 KB, > 4 x 10 KB cap
+  writeFileSync(join(dir, 'a.txt'), 'y\n'.repeat(400_000)) // ~800 KB ≫ the 10 KB read cap (maxBytes + 1)
   const out = await fileDiffOf(dir, 'a.txt', { maxBytes: 10_000 })
   assert.equal(out.truncated, true, 'an oversized diff must not report truncated:false')
   assert.ok(out.diff.length > 0, 'a capped read must keep what it read, not resolve empty')
