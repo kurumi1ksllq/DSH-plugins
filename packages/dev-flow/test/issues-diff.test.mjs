@@ -68,6 +68,20 @@ test('#22 fileDiffOf truncates oversized diffs', async () => {
   assert.ok(out.diff.length <= 50)
 })
 
+// #242: a diff larger than the read cap used to resolve to an empty string,
+// which the panel drew as "no change at all" — the exact confusion the cap
+// comment claimed to have fixed. The cap now stops one byte past maxBytes and
+// reports it, so the preview keeps a real prefix and says it was cut.
+test('#242 a diff past the read cap is truncated, never empty', async () => {
+  const dir = initRepo('gs-diff-huge-')
+  writeFileSync(join(dir, 'a.txt'), 'y\n'.repeat(400_000)) // ~800 KB ≫ the 10 KB read cap (maxBytes + 1)
+  const out = await fileDiffOf(dir, 'a.txt', { maxBytes: 10_000 })
+  assert.equal(out.truncated, true, 'an oversized diff must not report truncated:false')
+  assert.ok(out.diff.length > 0, 'a capped read must keep what it read, not resolve empty')
+  assert.match(out.diff, /^diff --git /, 'the kept prefix must still be a diff')
+  assert.ok(out.diff.length <= 10_000)
+})
+
 test('#22 getDiff refuses paths outside the workspace', async () => {
   const dir = initRepo('gs-diff-guard-')
   writeFileSync(join(dir, 'a.txt'), 'x\n')

@@ -1,0 +1,40 @@
+{
+  "issue": 242,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T03:21:48.384Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "#242 超长 diff 保留前缀并报截断",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "#243 开放列表上限 200 + 截断标记",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "#244 合并证据缺失改为可见标记",
+      "state": "done"
+    },
+    {
+      "id": 4,
+      "title": "#250 条带截断不吞卡片动作",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "running",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

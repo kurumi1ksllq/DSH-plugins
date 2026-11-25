@@ -6,7 +6,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 
-import { runCommand } from './run.js'
+import { runCommand, runCommandCapped } from './run.js'
 
 /** How many changed paths a snapshot carries (issue #18); the rest are counted. */
 export const MAX_CHANGES = 200
@@ -343,24 +343,31 @@ export async function fileDiffOf(repoDir, path, opts = {}) {
   const maxBytes = Number.isInteger(opts.maxBytes) && opts.maxBytes > 0 ? opts.maxBytes : 200_000
   const displayPath = typeof opts.displayPath === 'string' && opts.displayPath.length > 0 ? opts.displayPath : path
   const parts = []
+  // `capped` separates "the diff is bigger than we read" from "there is no
+  // diff": the read stops one byte past the cap so the cut is always visible in
+  // the text, and a capped read never falls through to the untracked-file
+  // rendering below (issue #242).
+  let capped = false
   for (const extra of [[], ['--cached']]) {
-    const out = await runCommand(
+    const out = await runCommandCapped(
       'git',
       ['-C', repoDir, 'diff', '--no-color', '--no-ext-diff', ...extra, '--', displayPath],
       // Bound the read itself, not just the returned string: the child is
       // killed once it would exceed this, instead of buffering a whole file.
-      { allowFailure: true, maxBuffer: maxBytes * 4 },
+      { allowFailure: true, maxBuffer: maxBytes + 1 },
     )
+    if (out === null) continue
+    if (out.capped) capped = true
     // Trimmed so the unstaged and staged halves join without a blank line
     // between them: each `git diff` output ends with a newline of its own.
-    if (typeof out === 'string' && out.trim().length > 0) parts.push(out.trimEnd())
+    if (out.stdout.trim().length > 0) parts.push(out.stdout.trimEnd())
   }
-  if (parts.length === 0 && opts.allowAddedFallback === true) {
+  if (parts.length === 0 && !capped && opts.allowAddedFallback === true) {
     const added = await addedFileHunkOf(repoDir, path, maxBytes)
     if (added !== null) parts.push(added.trimEnd())
   }
   const diff = parts.join('\n')
-  const truncated = diff.length > maxBytes
+  const truncated = capped || diff.length > maxBytes
   return { path: displayPath, diff: truncated ? diff.slice(0, maxBytes) : diff, truncated }
 }
 

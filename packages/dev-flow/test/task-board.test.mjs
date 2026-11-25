@@ -15,7 +15,9 @@ function snap(overrides = {}) {
       ...overrides.git,
     },
     prs: overrides.prs ?? [],
-    mergedPrs: overrides.mergedPrs ?? [],
+    // `null` is a real value here: it means the merged query failed (#244), so
+    // `??` must not turn it into "nothing merged".
+    mergedPrs: overrides.mergedPrs === undefined ? [] : overrides.mergedPrs,
     issues: overrides.issues ?? [],
     forgeHint: overrides.forgeHint ?? null,
     checks: overrides.checks ?? {},
@@ -474,4 +476,59 @@ test('committing straight onto main is off-flow even with a clean tree', () => {
   assert.equal(board.offFlow.length, 1)
   assert.equal(board.offFlow[0].reason, 'dirty-main')
   assert.equal(board.offFlow[0].files, 0)
+})
+
+// ---- #250: the strip cap must not erase a card's own action ----------------
+
+test('#250 capping the strip never nulls a card action, and the strip reports the rest', () => {
+  const numbers = [1, 2, 3, 4, 5]
+  const board = buildTaskBoard(snap({
+    issues: numbers.map((n) => issue(n)),
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, ...numbers.map((n) => branch(`issue-${n}-x`, { ahead: 1 }))] },
+    prs: numbers.map((n) => pr(100 + n, `issue-${n}-x`)),
+    checks: Object.fromEntries(numbers.map((n) => [100 + n, 'green'])),
+    flowStates: new Map(numbers.map((n) => [n, { stage: 'merge', review: { state: 'done' }, merge: { authorized: false } }])),
+  }))
+  assert.equal(board.needsUser.length, 3, 'the strip itself stays capped')
+  assert.equal(board.needsUserTotal, 5, 'the board must say how many items exist in total')
+  const withoutAction = board.columns.flatMap((c) => c.cards).filter((c) => c.action === null && c.prNumber !== null)
+  assert.deepEqual(withoutAction.map((c) => c.issue), [], 'pr 4 and 5 must still say what they wait for')
+})
+
+// ---- #244: "we could not ask" must not read as "nothing merged" ------------
+
+test('#244 an unavailable merged-PR query marks the card instead of moving it silently', () => {
+  const board = buildTaskBoard(snap({
+    issues: [issue(9)],
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, branch('issue-9-x', { ahead: 0 })] },
+    prs: [],
+    mergedPrs: null,
+  }))
+  assert.equal(board.mergedPrsUnknown, true)
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
+  assert.equal(card.mergeEvidenceUnknown, true, 'the card must admit the evidence is missing')
+  assert.equal(card.stage, 'dev', 'without evidence the stage is unchanged, only labelled')
+})
+
+test('#244 unpushed work cannot have been merged, so it is never labelled', () => {
+  const board = buildTaskBoard(snap({
+    issues: [issue(9)],
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, branch('issue-9-x', { ahead: 2 })] },
+    prs: [],
+    mergedPrs: null,
+  }))
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
+  assert.equal(card.mergeEvidenceUnknown, false, 'a branch ahead of its upstream has not been merged yet')
+})
+
+test('#244 an empty merged-PR list is an answer, not a gap', () => {
+  const board = buildTaskBoard(snap({
+    issues: [issue(9)],
+    git: { branches: [{ name: 'main', current: true, ahead: 0, behind: 0 }, branch('issue-9-x', { ahead: 0 })] },
+    prs: [],
+    mergedPrs: [],
+  }))
+  assert.equal(board.mergedPrsUnknown, false)
+  const card = board.columns.flatMap((c) => c.cards).find((c) => c.issue === 9)
+  assert.equal(card.mergeEvidenceUnknown, false)
 })
