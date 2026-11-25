@@ -1,0 +1,25 @@
+{
+  "issue": 240,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-25T04:24:24.253Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "裸 tool_call 块要求名字信号;围栏内容不参与判定",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

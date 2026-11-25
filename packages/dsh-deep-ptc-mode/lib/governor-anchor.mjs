@@ -517,9 +517,44 @@ const QUOTED_STOP_MASK = new Map([
 const QUOTED_STOP_UNMASK = new Map([...QUOTED_STOP_MASK].map(([plain, masked]) => [masked, plain]));
 const QUOTED_STOP_UNMASK_RE = /[\uE000-\uE005]/g;
 
+/**
+ * Is the apostrophe at `index` the elision inside a word ("doesn't", "files'").
+ *
+ * A bare `'` is both an English apostrophe and a quote mark. Treating an
+ * apostrophe as an opening quote left the stack permanently waiting for a
+ * closing one, which masked every following full stop and collapsed the whole
+ * reasoning into one sentence (#241).
+ */
+function isWordApostrophe(text, index) {
+	if (text[index] !== "'") return false;
+	return /[A-Za-z]/.test(text[index - 1] ?? "") && /[A-Za-z]/.test(text[index + 1] ?? "");
+}
+
+/**
+ * Is this the possessive plural ("the files' owner")?
+ *
+ * Same bare `'` problem as isWordApostrophe, on the other side of the word: a
+ * letter before and no letter after. Only consulted when no quote is open, so a
+ * real closing quote (`'quoted text.'`) still closes.
+ */
+function isTrailingApostrophe(text, index) {
+	if (text[index] !== "'") return false;
+	return /[A-Za-z]/.test(text[index - 1] ?? "") && !/[A-Za-z]/.test(text[index + 1] ?? "");
+}
+
 function maskQuotedSentenceStops(text) {
 	let masked = "";
 	const pendingCloseStack = [];
+	// How many of each toggle quote are still ahead: an opening quote needs a
+	// partner later in the text, otherwise it is a stray mark that must not
+	// swallow the sentence stops after it (#241).
+	const remaining = new Map();
+	// Counted with the SAME filter the loop consumes with: a contraction is not a
+	// quote, so it must not budget one (#241 review).
+	for (let i = 0; i < text.length; i++) {
+		const ch = text[i];
+		if (TOGGLE_QUOTES.has(ch) && !isWordApostrophe(text, i)) remaining.set(ch, (remaining.get(ch) ?? 0) + 1);
+	}
 	for (let i = 0; i < text.length; i++) {
 		const ch = text[i];
 		if (pendingCloseStack.length > 0 && ch === pendingCloseStack[pendingCloseStack.length - 1]) {
@@ -532,12 +567,17 @@ function maskQuotedSentenceStops(text) {
 			masked += ch;
 			continue;
 		}
-		if (TOGGLE_QUOTES.has(ch)) {
+		const apostrophe = isWordApostrophe(text, i)
+			|| (pendingCloseStack.length === 0 && isTrailingApostrophe(text, i));
+		if (TOGGLE_QUOTES.has(ch) && !apostrophe) {
+			remaining.set(ch, (remaining.get(ch) ?? 0) - 1);
 			if (pendingCloseStack.length > 0 && pendingCloseStack[pendingCloseStack.length - 1] === ch) {
 				pendingCloseStack.pop();
-			} else {
+			} else if ((remaining.get(ch) ?? 0) > 0) {
 				pendingCloseStack.push(ch);
 			}
+			// A stray quote with no partner later stays literal: it neither opens a
+			// quote nor masks the stops that follow it.
 			masked += ch;
 			continue;
 		}

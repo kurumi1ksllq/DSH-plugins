@@ -12,6 +12,13 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-deep-ptc-mode 1.17.1 — 三处误判合法文本:数字列表/示例代码/撇号(#239 #240 #241)
+
+**问题 A(#239)**:`detectNumberRunaway` 在第一个合格 run 处直接返回,从不看它是否贴着文本尾部——中段的种子数组、端口表被当成「计数失控」,`trimTo` 落回列表开头,把其后正文(含结论)一起截掉;真失控时又会从更早的合法列表处切。重复检测器 `findRepeatingTail` 一直是尾向的,只有这个检测器漏了。**修复**:要求 run 之后不再出现字母/汉字(模型一旦恢复成句就说明它停了),并取最后一个符合条件的 run。该检测器属 confirmed-repeat 桶,按既有契约不做围栏豁免(精确重复无论出现在哪都切)。
+
+**问题 B(#240)**:强模式 `/<tool_call>…<\/tool_call>/` 不要求块内出现 function/parameter 名字信号,任何成对标签都算「已完成的调用尝试」,且围栏从未参与判定——回答「怎么调用工具」时贴的示例代码被切断并归因「你的调用没被执行」。**修复**:该模式要求块内出现 `<function name=` 或 `<parameter name=`;`hasPseudoToolCall` 只看闭合围栏之外的内容(文档示例不参与判定),未闭合围栏内的内容仍参与、但只认「名字 + 参数 + 闭合」三件套——避免正文里一个孤立围栏就把其后判定永久关掉。
+
+**问题 C(#241)**:`maskQuotedSentenceStops` 把英文撇号当引号开合,一个 `doesn't` 里的撇号就让栈里永远挂着待闭合项,其后所有句号被掩成占位符,`splitSentences` 不再断句——锚点把铺垫当结论、软切闸被拒。**修复**:前后都是字母的 `'` 按撇号处理、不参与开合(词尾所有格 `files'` 在没开引号时同样按撇号处理);引号预算与消耗用同一套过滤,且只有后面确实还有同种引号可配对时才当开引号,落单的引号按字面处理。
 ### dev-flow 0.8.3 — #254 review 遗留三项:截断不再吃掉列表 / 缺失证据不再诬告 stale / 板面也报截断(#256)
 
 **问题 A**:#243 的截断提示走的是 `ghHintText`,而 `PrCard` / `IssueCard` 是「有提示就只渲染提示」——一旦命中上限,已经抓到的 200 行 PR/issue 一行都不显示,比修前更差。**修复**:截断不算失败提示,列表照常渲染,列表末尾追加一行说明(与 `StashCard` 的「已显示 / 总数」同形)。
@@ -799,7 +806,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 87 个条目:其中 84 条已有对应 tag;1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。84+1+2=87。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 88 个条目:其中 84 条已有对应 tag;2 条待打 tag(`dsh-skill-surface@0.1.0`、`dsh-deep-ptc-mode@1.17.1`);另有 2 条「仓库级」条目不带版本号,本就不该有 tag。84+2+2=88。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

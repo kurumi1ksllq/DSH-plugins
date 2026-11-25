@@ -914,6 +914,8 @@ function apply(ctx, config) {
 		//     the same attempt is also repeating, the loop's `trimTo` is reused
 		//     so the runaway copies never reach the session.
 		const looping = settings.enableRepeat ? findRepeatingTail(fullText) : null;
+		// 围栏内的块是「示例」不是本次调用:hasPseudoToolCall 内部已剔除围栏内容
+		// (#240),这里不用再判一次,重复检测器仍兜住围栏内的真循环。
 		if (settings.enablePseudoTool && hasPseudoToolCall(fullText)) {
 			emitCotAnchorEvent(ctx, EVENT_SOFTCUT_TAKEN, {
 				...evidenceBase(payload?.sessionId, payload?.turn, payload?.step),
