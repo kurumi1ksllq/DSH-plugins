@@ -312,7 +312,9 @@ async function nudgeFor(scope, { agent, messages, turn, signal }) {
   const already = injectedSkills(agent)
 
   for (const match of matches) {
-    const names = shortlist(match, text).filter((name) => available.has(name))
+    // Filter inside the shortlist, not after it: capping first is what made the
+    // fourth curated name unreachable (issue #248).
+    const names = shortlist(match, text, available)
     if (names.length === 0) continue
     // Another domain may still deserve its own line: skip, do not abort.
     if (names.some((name) => already.has(name))) continue

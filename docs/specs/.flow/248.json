@@ -1,0 +1,25 @@
+{
+  "issue": 248,
+  "grade": "trivial",
+  "stage": "merge",
+  "updatedAt": "2026-11-25T05:59:05.725Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "shortlist 先筛目录再切上限",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 1,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 0
+  },
+  "merge": {
+    "authorized": false
+  }
+}

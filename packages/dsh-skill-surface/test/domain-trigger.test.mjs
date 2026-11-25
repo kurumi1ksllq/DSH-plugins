@@ -288,3 +288,24 @@ test('E-issue-234d: a nudge split across two lines is still recognised as an ech
   const decision = await run(h, agent(), '本轮涉及 UI\n,再动手。')
   assert.equal(decision.messages.length, 0, '跨行引用仍应被整体剔除')
 })
+
+test('#248 a catalog that only has the fourth curated name still gets a nudge', async () => {
+  // 顺序曾是「先切 3 再筛目录」:ui 域 curated 第 4 个 accessibility 恒被切掉,只装了
+  // 它时这一轮连 nudge 都不出现,无日志无降级。
+  stubHost()
+  const h = harness({
+    catalog: [{ name: 'accessibility', description: 'x', provider: 'p', invocation: { modelInvocable: true } }],
+  })
+  const decision = await run(h, agent(), '改一下页面样式')
+  assert.equal(decision.messages.length, 1, 'the only installed curated skill must still be named')
+  assert.match(decision.messages[0].content[0].text, /accessibility/)
+})
+
+test('#248 the cap still applies to what is actually offered', async () => {
+  // 先筛后切不能把上限弄丢:目录全都有时仍然最多 MAX_NAMES 个名字。
+  stubHost()
+  const decision = await run(harness(), agent(), '改一下页面样式')
+  const line = decision.messages[0].content[0].text
+  const named = CATALOG.filter((skill) => line.includes(skill.name))
+  assert.ok(named.length <= 3, 'a nudge is a hint, not a reading list; got ' + named.length)
+})

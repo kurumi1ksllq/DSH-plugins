@@ -215,11 +215,17 @@ export function matchDomains(text) {
 
 /**
  * Shortlist for one domain, capped and stack-aware.
+ *
+ * `available` is applied BEFORE the cap: capping first dropped a curated name
+ * the catalog did have whenever it sat past the third slot, and a catalog that
+ * only held that one skill then produced no nudge at all — silently, with no
+ * log and no fallback (issue #248). The cap still bounds what one line offers.
  * @param match - a matchDomains() entry.
  * @param text - the user's words, used to pick a frontend family.
+ * @param available - names the catalog actually has; omitted means "all of them".
  * @returns at most MAX_NAMES names, in preference order.
  */
-export function shortlist(match, text) {
+export function shortlist(match, text, available) {
   const lowered = typeof text === 'string' ? text.toLowerCase() : ''
   let names = match.domain.skills ?? []
   if (match.domain.stacks !== undefined) {
@@ -228,7 +234,8 @@ export function shortlist(match, text) {
         : 'generic'
     names = match.domain.stacks[family] ?? match.domain.stacks.generic
   }
-  return names.slice(0, MAX_NAMES)
+  const present = available === undefined ? names : names.filter((name) => available.has(name))
+  return present.slice(0, MAX_NAMES)
 }
 
 /**
