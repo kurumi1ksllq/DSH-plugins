@@ -61,3 +61,22 @@ deep-PTC 下 `ralph` 被 600s 截断,截断后重新调用从第 1 轮重启。�
 **过程中的错误(留证,避免下次重犯)**:我头三次「默认值」测试都在外层工具参数里传了 `timeoutMs`(120000 / 400000 / 600000),测到的是我自己给的预算,于是错误地得出「默认值没生效」的结论,还据此去翻宿主源码找根因。真正省略 `timeoutMs` 之后,默认值 120 秒立刻复现。教训:`run_code` 的 `timeoutMs` 参数本身就是程序预算,测默认值时必须真的不传。
 
 **仍未验证**:30 分钟窗口下 ralph 的内存与取消语义;未跑真实的 10 分钟以上 ralph 批次(只用一个空转程序验证了预算机制,没有验证 ralph 在长预算下的行为)。
+
+## 真机 ralph 验证(2026-11-27,重载后)
+
+上表只验证了预算机制本身,这一节是**真实的 ralph 长批次**:
+
+| 尝试 | 配置 | 结果 |
+| --- | --- | --- |
+| 冒烟 | `maxRounds: 1`,每轮约 100 秒后台任务 | **通过**:125.4 秒,`roundsStarted: 1`,status `complete` |
+| 第 1 次正式 | `maxRounds: 7`,每轮 100 秒 + 轮询 `job_output` | **第 5 轮失败**(子 agent 未产出结构化报告)。前 4 轮已完成,总时长已越过 600 秒 |
+| 第 2 次正式 | `maxRounds: 5`,每轮 130 秒 + 单次 `job_output(wait: true)` | **通过**:`elapsedMs: 777987`(约 13 分钟),`roundsStarted: 5`,status `complete` |
+
+**结论**:单次 ralph 调用实测跑满 778 秒并正常返回,越过旧的 600 秒天花板 178 秒。issue #236 的核心症状(长目标被截断后从 round 1 重启)在预算层面已解决。
+
+**验证过程中观察到的两件事(都是既有行为,不是本次改动引入)**:
+
+1. **ralph 子 agent 必须被明确要求调 `structured_output`**,否则整轮判「未产出结构化报告」——issue #236 附记里写的门槛属实。第一次正式测试就是第 5 轮踩到这一点;objective 里写明「CALL structured_output, never write JSON text」后即稳定。
+2. **`job_output(wait: true)` 的单次等待上限是 `foregroundSeconds`(30 秒)**,不是整段后台任务的时长。第 2 次正式测试的 worker 自述「blocking read capped at ~30s, so further blocking reads followed」——这是 deep-ptc 的可插话设计,不是缺陷。
+
+**仍未验证**:30 分钟上限本身(只验到 778 秒);ralph 在接近 30 分钟时的内存与取消语义。
