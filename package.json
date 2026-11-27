@@ -2,7 +2,7 @@
   "name": "dsh-plugins-workspace",
   "private": true,
   "version": "0.0.0",
-  "description": "One repository, eight independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
+  "description": "One repository, seven independently installable DeepSeek Harness bundles. Each directory under packages/ carries its own package.json, cordis.patch.yml and version; a DSH profile links to the bundle directory it needs.",
   "type": "module",
   "engines": {
     "node": ">=22"

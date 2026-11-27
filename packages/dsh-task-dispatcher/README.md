@@ -20,7 +20,7 @@
 > #194 记录的是 **2026-11-12 的 57 / 27**;两次测量之间宿主组合多/少了一个工具,
 > 结论方向不变(挂 preset 即丢全部文件工具)。引用时请连日期一起引。
 
-`dsh-web-app` 在宿主平面把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true`,改由每个 preset 自带;而 `ecc-agent-presets` 的 133 个 preset 每个只声明一行 `@deepseek-ai/dsh-persona`(实测 133/133)。于是「委派给 preset X」拿到的是一个只有 bash 的空壳,干不了活,也不能再往下派。
+`dsh-web-app` 在宿主平面把 `tool-fs`/`tool-fs-search`/`tool-skill`/`tool-goal`/`tool-subagent` 等全部 `disabled: true`,改由每个 preset 自带;而只声明 persona 的 preset(如曾经收纳的 133 个 ECC preset,实测 133/133)每个只带一行 `@deepseek-ai/dsh-persona`。于是「委派给 preset X」拿到的是一个只有 bash 的空壳,干不了活,也不能再往下派。
 
 两个工具补上这条路:
 
@@ -50,7 +50,7 @@
 
 ## 配套
 
-- 角色表里的示例 id 必须真实存在于 `ecc-agent-presets` 名册(`test/role-routing.test.mjs` 读该 bundle 校验);示例刻意少于全量,并给出「不带 query 列出全部」的入口,避免被当成白名单。
+- 角色表里的示例 id 刻意少于全量,并给出「不带 query 列出全部」的入口,避免被当成白名单(#279 起 ecc 名册 bundle 已移除,示例 id 不再绑定某个具体名册,可用性由 `role_search` 对部署名册实测)。
 - `dsh-deep-ptc-mode` 不再给 `tool-subagent` 打 `allowedAgentPresets`,因此 `subagent` 的 schema 里**没有** `agent_preset` 参数(参数只在 `presets.choices` 有值时才被 spread 进去)——坏路不可达,而不只是「不推荐」。
 - 注入走 `systemPrompt.context`(与 deep-ptc governor 同一通道);恒定文本利于 KV cache。
 - locale 固定 zh(操作者工作语言);`lib/delegation-text.mjs` 的 en 字典为预留。
@@ -67,4 +67,4 @@ pnpm test   # 或包内 node --test test/*.test.mjs
 
 81 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
-`test/role-routing.test.mjs`(#207)守护注入文本本身:不得出现 `agent_preset`、必须点名 `role_search` 与 `delegate_role`、示例 id 必须都在真实名册里、示例数必须少于全量。`test/real-roster.test.mjs` 直接读 `ecc-agent-presets` 的 133 行真实名册,而不是自造 roster——初版用自造的中文 description 让 `role_search('安全')` 变绿,而线上 description 全是英文、该查询实际零命中。现在测的是现实:英文关键词命中、中文关键词经同义词表映射后同样命中、未收录词如实返回无匹配。
+`test/role-routing.test.mjs`(#207)守护注入文本本身:不得出现 `agent_preset`、必须点名 `role_search` 与 `delegate_role`、示例表保持短小、必须告诉读者如何枚举部署名册。 包内测试计数是历史快照:#279 后为 74 例全绿(2026-11-27 实测)。#279 移除 ecc 名册 bundle 后,涉及具体名册内容的测试(real-roster / synonyms-live / english-baseline)一并撤下;名册为空时 `role_search` 如实报告不可用(test/role-tools.test.mjs)。

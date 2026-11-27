@@ -1,0 +1,35 @@
+{
+  "issue": 279,
+  "grade": "standard",
+  "stage": "merge",
+  "updatedAt": "2026-11-27T08:39:55+08:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "删除包与引用(profile/scripts/README/AGENTS)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "dispatcher 测试去 ecc 依赖 + 空名册行为测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "四件套全绿(既有 dsh-inventory 2 红,main 基线复现) + 双轴 review",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 2,
+    "max": 2,
+    "status": "green"
+  },
+  "review": {
+    "state": "done",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

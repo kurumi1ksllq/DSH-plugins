@@ -133,6 +133,12 @@ export function registerRoleTools(ctx) {
     output: TEXT_OUTPUT,
     async execute(args) {
       const roles = await rolesNow()
+      if (roles.length === 0) {
+        // issue-279: with the preset-roster bundle gone a deployment can have
+        // only built-in compositions left; that is unavailability, not a bad keyword.
+        return 'No delegable role is registered in this deployment (the preset roster is empty). '
+          + 'Role delegation is unavailable here; use plain subagent delegation instead.'
+      }
       const picked = selectRoles(roles, [], args?.query, args?.limit)
       if (picked.length === 0) {
         return 'No role matched "' + String(args?.query ?? '') + '". Role ids and descriptions are English; '
@@ -179,6 +185,12 @@ export function registerRoleTools(ctx) {
       // Resolve the role before touching the subagent runtime: an unknown id
       // must fail without starting a child.
       const known = await rolesNow()
+      if (known.length === 0) {
+        // Same situation role_search already reports: with no rows behind the
+        // filter the feature is off, and pointing at role_search would contradict it.
+        throw new Error('No delegable role is registered in this deployment (the preset roster is empty). '
+          + 'Role delegation is unavailable here; use plain subagent delegation instead.')
+      }
       if (!known.some((candidate) => candidate.id === role)) {
         throw new Error('unknown role "' + role + '". Call role_search to find a valid id.')
       }

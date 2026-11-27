@@ -1,11 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+
 import { readFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import yaml from 'js-yaml'
+import { fileURLToPath } from 'node:url'
 
 import { renderDelegationText } from '../lib/delegation-text.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ROOT = join(HERE, '..', '..', '..')
 
 // ---------------------------------------------------------------------------
 // #207: the injected text must not send the model down a dead path.
@@ -21,24 +24,13 @@ import { renderDelegationText } from '../lib/delegation-text.mjs'
 // own README documented that path as broken. A model that follows the text gets
 // a child that cannot work, which is exactly the "the feature does nothing"
 // report. These tests pin the one surviving route.
+//
+// issue-279: the ecc-agent-presets roster bundle is gone, so the example ids no
+// longer have a shipped roster to be checked against. What still holds without
+// one — and what these tests pin — is the SHAPE of the routing: agent_preset is
+// never named, both tools are, the example table stays a short example set, and
+// the text tells the reader how to enumerate whatever roster the deployment has.
 // ---------------------------------------------------------------------------
-
-const HERE = dirname(fileURLToPath(import.meta.url))
-const ECC_PATCH = join(HERE, '..', '..', 'ecc-agent-presets', 'cordis.patch.yml')
-
-/**
- * Every role id the shipped ECC bundle declares.
- *
- * The five profile-resident presets (planner/architect/code-reviewer/
- * security-reviewer/build-error-resolver) are NOT in this bundle, so the text
- * advertises examples from the 133 that ship here — the roster the operator
- * actually wants reachable. Keeping the assertion repo-local means it cannot
- * silently pass by reading a host path that happens to have the id.
- */
-async function shippedRoleIds() {
-  const doc = yaml.load(await readFile(ECC_PATCH, 'utf8'))
-  return new Set(doc[0].insert.map((row) => row.config.id))
-}
 
 /** The role-example lines of the injected text: "- `<id>` → …". */
 function roleExampleIds(text) {
@@ -64,29 +56,21 @@ test('role delegation is routed through role_search and delegate_role only', () 
   }
 })
 
-test('the text names role examples that exist in the shipped roster', async () => {
-  const ids = await shippedRoleIds()
-  const examples = roleExampleIds(renderDelegationText('zh'))
-  // A lower bound alone is vacuous: listing all 133 roles would also pass.
+test('the text names a short example set, and zh and en agree on it', () => {
+  // A lower bound alone is vacuous: listing every roster role would also pass.
   // Pin the band so the table stays a short set of examples.
+  const examples = roleExampleIds(renderDelegationText('zh'))
   assert.ok(
     examples.length >= 3 && examples.length <= 12,
     'the role table must stay a short example set, got ' + examples.length,
   )
-  for (const id of examples) {
-    assert.ok(ids.has(id), id + ' is advertised in the injected text but is not in the shipped roster')
-  }
   // zh and en must advertise the same roles: one table, two renderings.
   assert.deepEqual(roleExampleIds(renderDelegationText('en')), examples)
 })
 
-test('the text says how to reach the whole roster instead of listing five presets', async () => {
-  const ids = await shippedRoleIds()
+test('the text says how to reach the whole roster instead of listing five presets', () => {
   const examples = roleExampleIds(renderDelegationText('zh'))
-  assert.ok(
-    examples.length < ids.size,
-    'the table is examples, not a whitelist: ' + examples.length + ' of ' + ids.size,
-  )
+  assert.ok(examples.length >= 3, 'an enumeration pointer needs an example table to point away from')
   // Scoped to the bullet that carries the instruction, not the whole document:
   // a document-wide regex stays green after the clause is gone, because a
   // sibling bullet often contains the same words (the lesson behind
@@ -102,4 +86,11 @@ test('the text says how to reach the whole roster instead of listing five preset
     assert.match(bullet, discovery,
       locale + ': that bullet must say how to enumerate the rest of the roster')
   }
+})
+
+test('the repo front page does not advertise the removed agent_preset path', async () => {
+  // Moved here from the deleted synonyms-live test (issue-279): it only reads
+  // the root README and pins #207 semantics, so it survives the roster removal.
+  const readme = await readFile(join(ROOT, 'README.md'), 'utf8')
+  assert.doesNotMatch(readme, /agent_preset/, 'the front page must not name the removed argument')
 })

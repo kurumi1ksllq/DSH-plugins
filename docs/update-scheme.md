@@ -5,20 +5,20 @@
 >
 > | 结论 | 今天的状态 | 复核命令 |
 > | --- | --- | --- |
-> | P0-1 profile 被两个 checkout 劈成两半 | ✅ 已统一:8 条本仓库 `link:` 全指 `/root/DSH-plugins` | `node scripts/check-profile.mjs`(在别的 worktree 里跑会把 8 条报成 `DIFFERENT checkout`,这是预期) |
+> | P0-1 profile 被两个 checkout 劈成两半 | ✅ 已统一(#279 后为 7 条):本仓库 `link:` 全指 `/root/DSH-plugins` | `node scripts/check-profile.mjs`(在别的 worktree 里跑会把它们报成 `DIFFERENT checkout`,这是预期) |
 > | P0-2 被加载代码依赖 gitignore 生成物 | ✅ 已退役:0.4.0 起 `plugin/` 平铺回包根,`lib/` 即源码本体,不再有构建副本 | `ls packages/dsh-websearch-failover` |
 > | P0-3 运行 commit 不在任何 tag/分支上 | ✅ 已收口进 `main`,tag 齐全 | `git tag` |
 > | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` + `ls .github/workflows/ci.yml` |
 > | P1-6 `pnpm-lock.yaml` importers 漂移 | ✅ 已修(2026-11-04;CI 同时加了「install 后 lockfile 不许变」的守卫) | `test/docs-contract.test.mjs` |
 > | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
-> | 本仓库 bundle 数 | **8**:dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / ecc-agent-presets / dsh-skill-surface | `ls packages` |
-> | profile 实际加载 | 8 条 link,8 个本仓库 bundle 全部在 `dsh.profile.bundles` 中加载(含 `ecc-agent-presets`,2026-11-11 由用户启用) | 读 `~/.dsh/profiles/web/package.json` |
+> | 本仓库 bundle 数 | **7**(#279 起):dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / dsh-skill-surface | `ls packages` |
+> | profile 实际加载 | 7 条 link,7 个本仓库 bundle 全部在 `dsh.profile.bundles` 中加载(#279 移除 ecc-agent-presets:#226 起不在 bundles、preset 从未注册,删除对运行时零变化) | 读 `~/.dsh/profiles/web/package.json` |
 > | 运行时 DSH | `0.2.2-rc.1` | `node -e "console.log(require('/opt/dsh-runtime/dshcli/lib/node_modules/@deepseek-ai/dsh/package.json').version)"` |
 >
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
 
 - 状态:**L1 已落地;L2 已落地(实验性,未接线);L0/D1 已于 2026-11-04 执行完成**(见文首校准块)。
-- 范围:`/root/DSH-plugins` 的 8 个 bundle(调查当天也是 8 个,但当时的集合含此后已退役的 dsh-ctx-guard;今天为 dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / ecc-agent-presets / dsh-skill-surface) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
+- 范围:`/root/DSH-plugins` 的 7 个 bundle(dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / dsh-skill-surface;调查当天是 8 个,含此后已退役的 dsh-ctx-guard 与 #279 移除的 ecc-agent-presets) + profile 里 4 个 registry 插件,即「本机已装的每一个插件」。
 - 调查日期:2026-11-02。运行时 DSH `0.2.1-rc.5`(Node v24.15.0),profile `web`(PID 817860)。
 - 硬约束:未经用户明确批准**不得重启 DSH**。本方案据此设计为「免重启优先,需要重启时停下来问」。
 
@@ -130,7 +130,7 @@ origin/main 上的 dsh-inventory 版本   0.1.0   ← 线上跑的是 0.2.0
 
 **2026-11-04 复核(逐条核对仓库实况)**:
 
-- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(主 checkout 复核:`profile ok: 8 linked bundle(s)`;别的 worktree 里会看到 8 条「DIFFERENT checkout」告警,属预期);2026-11-04 起它还会扫 `node_modules` 里**未被 manifest 声明**的符号链接:目标不存在一律 `fail`(exit 1),目标还在但没人声明给 `warn`——`dsh-ctx-guard` 这类「包删了、pnpm 还留着链接」的残留就是被这一条抓住的,见 **#43**。
+- ✅ **P1-5** `scripts/check-profile.mjs` 已恢复,并接进 `pnpm verify`(主 checkout 复核:`profile ok: 7 linked bundle(s)`(#279 起);别的 worktree 里会看到 7 条「DIFFERENT checkout」告警,属预期);2026-11-04 起它还会扫 `node_modules` 里**未被 manifest 声明**的符号链接:目标不存在一律 `fail`(exit 1),目标还在但没人声明给 `warn`——`dsh-ctx-guard` 这类「包删了、pnpm 还留着链接」的残留就是被这一条抓住的,见 **#43**。
 - ✅ **P1-8** 每个包都有 `scripts.test`(8/8),`pnpm -r --if-present` 不再静默跳过。
 - ✅ **P1-9** 8/8 都声明了 `engines.dsh`:其中 7 个为 `^0.2.0`,`dsh-deep-ptc-mode` 为 `>=0.2.2-rc.1 <0.3.0-0`。
 - ✅ **P1-10** `ls .github/workflows/ci.yml` 存在(CI 只看文件在不在,`pnpm verify` 不覆盖这条);README 的插件数与安装片段由 `test/docs-contract.test.mjs` 钉住,再漂就红。
