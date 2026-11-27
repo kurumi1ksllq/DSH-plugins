@@ -13,12 +13,14 @@
 // opening message, so "a different preset per child" is real without paying the
 // shell-child price.
 //
-// The examples below are ids the shipped ecc-agent-presets bundle really
-// declares; test/role-routing.test.mjs reads that bundle and fails if one drifts.
+// The examples below are ids from the historical ECC roster; since issue-279
+// removed that bundle there is no repo-local roster to check them against, so
+// their usability is whatever role_search finds on the deployment's roster.
 
 /**
- * Roles named as examples. Ids verified against the live roster by
- * test/synonyms-live.test.mjs.
+ * Roles named as examples. Since issue-279 removed the bundled roster, there
+ * is no repo-local roster to verify against; role_search answers from whatever
+ * the deployment actually registers.
  *
  * #210 rebalanced this set. It used to be six reviewers/architects and no
  * implementation role, which reads as "delegate so someone can critique it" --

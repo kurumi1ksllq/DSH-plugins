@@ -2,7 +2,7 @@
   "issue": 279,
   "grade": "standard",
   "stage": "review",
-  "updatedAt": "2026-11-27T08:22:18+08:00",
+  "updatedAt": "2026-11-27T08:34:50+08:00",
   "tickets": [
     {
       "id": 1,
@@ -16,7 +16,7 @@
     },
     {
       "id": 3,
-      "title": "四件套全绿 + 双轴 review",
+      "title": "四件套全绿(既有 dsh-inventory 2 红,main 基线复现) + 双轴 review",
       "state": "done"
     }
   ],
@@ -26,7 +26,7 @@
     "status": "green"
   },
   "review": {
-    "state": "running",
+    "state": "done",
     "axes": 2
   },
   "merge": {

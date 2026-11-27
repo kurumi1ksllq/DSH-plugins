@@ -14,13 +14,13 @@ test-only changes are exempt.
 
 ### dsh-task-dispatcher 0.9.5 — 移除 ecc 名册依赖,空名册明确报不可用(issue-279)
 
-**背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包(装了但未启用,删除零运行时变化)。
+**背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包。#226 起该包不在 dsh.profile.bundles、133 个 preset 从未注册,删除对运行时零变化;「依赖保留待重启用」的部署状态随本包删除一并终止。
 
 **改法**:①删包与全部引用(profile 依赖 / lockfile importer / scripts 清单 / 文档计数 8→7);②role_search 对空名册(只剩内置组合)明确报告「无委派角色,功能不可用」,替代误导性的「No role matched ... to list all 0 roles」;③撤下依赖 ecc 名册的测试(real-roster / synonyms-live / english-baseline),role-routing 保留文本契约。
 
 ### ecc-agent-presets — 包已移除(issue-279)
 
-收纳 133 个 ECC preset 的 bundle(issue-151)整体删除。它自 issue-226 起就不在 dsh.profile.bundles 里,133 个 preset 从未注册;删除对运行时零变化。历史条目保留如下。
+收纳 133 个 ECC preset 的 bundle(issue-151)整体删除。#226 起不在 dsh.profile.bundles(2026-11-11 的启用止于 #226 移出 bundles),133 个 preset 从未注册;删除对运行时零变化。历史条目保留如下。
 
 ### dsh-deep-ptc-mode 1.18.0 — 单次 run_code 时限放宽到 30 分钟 + 分批续跑约定(#236)
 
@@ -852,7 +852,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 95 个条目:其中 91 条已有对应 tag(#279 新增 dsh-task-dispatcher 0.9.5 待打);1 条待打 tag(`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。91+1+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(#279 更新,2026-11-27),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 95 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 

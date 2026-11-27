@@ -23,3 +23,10 @@
 
 ## 版本纪律
 - ecc-agent-presets 整包删除 → 不打删除包的 tag;改动的 dsh-task-dispatcher(若测试改动)按「纯测试改动免升版」口径判定,但注入文本若有变化需升版 —— 本任务不改注入文本,预期免升版;scripts/ 与根文档改动按仓库既有惯例处理。
+
+## 变更点(实现后补记)
+
+1. **范围扩大**:diff 还改了 docs/update-scheme.md、docs/update-checkout.md、根 package.json(description)。理由:test/docs-contract.test.mjs 的计数契约在删包后必红(「八个插件/8 bundles/eight independently installable」),这些行不改无法过验收;属验收项 3 的必要推论,不是新需求。
+2. **版本纪律预测订正**:spec 原预测「不改注入文本,预期免升版」错误 —— 实现给 role_search 加了空名册文案,lib/role-tools.mjs 属 shipped 文件,dsh-task-dispatcher 升版 0.9.4 → 0.9.5(符合 spec 自身规则,预测作废)。
+3. **验收项 3 口径澄清**:「全仓不再有活引用」按「依赖该包存在的引用清零」执行;代码注释与历史 spec/CHANGELOG 里的「133 ECC presets」为历史说明,保留。
+4. **review 裁决补做**(双轴 review 后):role_search 空名册测试改用真空名册(空数组 + 仅内置组合两形态);delegate_role 补对称守卫(空名册抛同语义错误,而非「unknown role」自相矛盾);docs/update-checkout.md 校准块残留旧计数三处修正;dispatcher README 测试计数补快照注记。

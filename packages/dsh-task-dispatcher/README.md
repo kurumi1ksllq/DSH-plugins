@@ -67,4 +67,4 @@ pnpm test   # 或包内 node --test test/*.test.mjs
 
 81 条测试全绿。每条新断言都做过反向验证(基线 0 红,统计口径统一为 `node --test` 的 `fail` 计数):注入 `agentPreset` → 5;删掉「工具齐全」承诺 → 3;删掉 zh 角色 lane → 2;不转发 `maxDepth` → 3;persona loader 换回 `DEFAULT_SCHEMA` → 1;删掉 zh 可数阈值 → 1;删掉 zh 逃生口 bullet → 3;单独删「读也要分出去」→ 1;单独删「唯一例外」→ 1;把「必须拆」弱化成「可以考虑拆」→ 1;**极性反转**(「→ 拆」改「→ 不拆」)→ 1;纯措辞改名(语义不变)→ 0(不误报)。
 
-`test/role-routing.test.mjs`(#207)守护注入文本本身:不得出现 `agent_preset`、必须点名 `role_search` 与 `delegate_role`、示例表保持短小、必须告诉读者如何枚举部署名册。#279 移除 ecc 名册 bundle 后,涉及具体名册内容的测试(real-roster / synonyms-live / english-baseline)一并撤下;名册为空时 `role_search` 如实报告不可用(test/role-tools.test.mjs)。
+`test/role-routing.test.mjs`(#207)守护注入文本本身:不得出现 `agent_preset`、必须点名 `role_search` 与 `delegate_role`、示例表保持短小、必须告诉读者如何枚举部署名册。 包内测试计数是历史快照:#279 后为 74 例全绿(2026-11-27 实测)。#279 移除 ecc 名册 bundle 后,涉及具体名册内容的测试(real-roster / synonyms-live / english-baseline)一并撤下;名册为空时 `role_search` 如实报告不可用(test/role-tools.test.mjs)。

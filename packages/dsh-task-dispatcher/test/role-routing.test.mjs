@@ -1,7 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { renderDelegationText } from '../lib/delegation-text.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ROOT = join(HERE, '..', '..', '..')
 
 // ---------------------------------------------------------------------------
 // #207: the injected text must not send the model down a dead path.
@@ -79,4 +86,11 @@ test('the text says how to reach the whole roster instead of listing five preset
     assert.match(bullet, discovery,
       locale + ': that bullet must say how to enumerate the rest of the roster')
   }
+})
+
+test('the repo front page does not advertise the removed agent_preset path', async () => {
+  // Moved here from the deleted synonyms-live test (issue-279): it only reads
+  // the root README and pins #207 semantics, so it survives the roster removal.
+  const readme = await readFile(join(ROOT, 'README.md'), 'utf8')
+  assert.doesNotMatch(readme, /agent_preset/, 'the front page must not name the removed argument')
 })

@@ -296,6 +296,7 @@ test('delegate_role tolerates a !!js tag in a declaration', async () => {
 // unavailable instead.
 // ---------------------------------------------------------------------------
 
+/** The five built-in compositions, with no role row left after the filter. */
 const BUILTINS_ONLY = [
   { id: 'standard', name: 'Standard', description: '' },
   { id: 'ptc', name: 'PTC', description: '' },
@@ -305,9 +306,25 @@ const BUILTINS_ONLY = [
 ]
 
 test('role_search answers an empty roster with an explicit unavailable message', async () => {
+  // A truly empty registry (no rows at all) and a registry holding only built-in
+  // compositions must both answer 'unavailable': the filter is what removes the
+  // builtins, so the guard has to sit behind it.
+  for (const roster of [[], BUILTINS_ONLY]) {
+    const ctx = fakeContext({ agentPresets: { list: async () => roster } })
+    registerRoleTools(ctx)
+    const answer = await ctx.registered.get('role_search').execute({})
+    assert.match(answer, /no delegable role/i, 'an empty roster is an availability problem, not a keyword miss')
+    assert.doesNotMatch(answer, /No role matched/, 'the keyword-miss wording must not survive an empty roster')
+  }
+})
+
+test('delegate_role agrees that an empty roster means unavailable', async () => {
+  // role_search says the feature is off; delegate_role must not then send the
+  // model hunting for a role id that cannot exist.
   const ctx = fakeContext({ agentPresets: { list: async () => BUILTINS_ONLY } })
   registerRoleTools(ctx)
-  const answer = await ctx.registered.get('role_search').execute({})
-  assert.match(answer, /no delegable role/i, 'an empty roster is an availability problem, not a keyword miss')
-  assert.doesNotMatch(answer, /No role matched/, 'the keyword-miss wording must not survive an empty roster')
+  await assert.rejects(
+    () => ctx.registered.get('delegate_role').execute({ role: 'x', prompt: 'task' }, { agent: { id: 'a' }, signal: undefined }),
+    /no delegable role/i,
+  )
 })

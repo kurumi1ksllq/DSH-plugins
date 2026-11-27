@@ -11,8 +11,8 @@
 > | P1-5 / P1-8 / P1-9 / P1-10 | ✅ 已修(见 §2 表后的复核段) | `pnpm verify` + `ls .github/workflows/ci.yml` |
 > | P1-6 `pnpm-lock.yaml` importers 漂移 | ✅ 已修(2026-11-04;CI 同时加了「install 后 lockfile 不许变」的守卫) | `test/docs-contract.test.mjs` |
 > | D1 统一权威 checkout | ✅ 已执行完成 | `docs/update-checkout.md` |
-> | 本仓库 bundle 数 | **8**:dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / ecc-agent-presets / dsh-skill-surface | `ls packages` |
-> | profile 实际加载 | 7 条 link,7 个本仓库 bundle 全部在 `dsh.profile.bundles` 中加载(#279 移除 ecc-agent-presets:此前装了但未启用,删除对运行时零变化) | 读 `~/.dsh/profiles/web/package.json` |
+> | 本仓库 bundle 数 | **7**(#279 起):dev-flow / dsh-inventory / dsh-deep-ptc-mode / dsh-credential-vault / dsh-websearch-failover / dsh-task-dispatcher / dsh-skill-surface | `ls packages` |
+> | profile 实际加载 | 7 条 link,7 个本仓库 bundle 全部在 `dsh.profile.bundles` 中加载(#279 移除 ecc-agent-presets:#226 起不在 bundles、preset 从未注册,删除对运行时零变化) | 读 `~/.dsh/profiles/web/package.json` |
 > | 运行时 DSH | `0.2.2-rc.1` | `node -e "console.log(require('/opt/dsh-runtime/dshcli/lib/node_modules/@deepseek-ai/dsh/package.json').version)"` |
 >
 > 注意:文档正文里出现的 8 个包与 A/B 双 checkout 都是**当时的记录**,不是今天的操作依据。
