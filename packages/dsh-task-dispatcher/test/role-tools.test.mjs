@@ -288,3 +288,26 @@ test('delegate_role tolerates a !!js tag in a declaration', async () => {
   assert.match(seen.prompt[0].text, /some\.expression/, 'the expression is read as text, never evaluated')
 })
 
+
+// ---------------------------------------------------------------------------
+// issue-279: the ECC preset roster bundle is gone, so a deployment can have a
+// registry with zero delegable roles. The old empty answer ('No role matched ""
+// ... to list all 0 roles') reads as a bad keyword; it must say the feature is
+// unavailable instead.
+// ---------------------------------------------------------------------------
+
+const BUILTINS_ONLY = [
+  { id: 'standard', name: 'Standard', description: '' },
+  { id: 'ptc', name: 'PTC', description: '' },
+  { id: 'minimal', name: 'Minimal', description: '' },
+  { id: 'cordis', name: 'Cordis', description: '' },
+  { id: 'deep-ptc', name: 'Deep PTC', description: '' },
+]
+
+test('role_search answers an empty roster with an explicit unavailable message', async () => {
+  const ctx = fakeContext({ agentPresets: { list: async () => BUILTINS_ONLY } })
+  registerRoleTools(ctx)
+  const answer = await ctx.registered.get('role_search').execute({})
+  assert.match(answer, /no delegable role/i, 'an empty roster is an availability problem, not a keyword miss')
+  assert.doesNotMatch(answer, /No role matched/, 'the keyword-miss wording must not survive an empty roster')
+})

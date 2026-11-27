@@ -1,6 +1,6 @@
 # DSH-plugins
 
-一个仓库，八个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
+一个仓库，七个独立插件。每个目录都是可以直接被 DeepSeek Harness profile `link:` 的 bundle，各自有自己的 `package.json`、`cordis.patch.yml`、版本号和测试。
 
 **这个仓库只放插件。** 服务器怎么配 DSH、密钥怎么管，都不在这里；这里只说 profile 接上去所需的最小接线。
 
@@ -21,7 +21,6 @@
 | [`packages/dsh-websearch-failover`](packages/dsh-websearch-failover) | `dsh-websearch-failover` | `web_search` 有序多提供方失败转移，提供方管理器在 dsh-inventory 的工具管理页 |
 | [`packages/dsh-deep-ptc-mode`](packages/dsh-deep-ptc-mode) | `dsh-deep-ptc-mode` | 深度 PTC 会话模式（preset 插件）：执行环境选择（含 Git Bash 替换）、失速治理双引擎（结论锚点/软切拦截） |
 | [`packages/dsh-task-dispatcher`](packages/dsh-task-dispatcher) | `dsh-task-dispatcher` | 委派纪律 + 角色表注入（主 agent 与 teammate 同效），用 `role_search` 找角色、`delegate_role` 派出带专才人格且工具齐全的子 agent |
-| [`packages/ecc-agent-presets`](packages/ecc-agent-presets) | `ecc-agent-presets` | 133 个 ECC agent preset 收纳 bundle（默认不进 UI 名册，启用即整体回归） |
 | [`packages/dsh-skill-surface`](packages/dsh-skill-surface) | `dsh-skill-surface` | 只把官方 skill 发现器(provider)补挂到宿主平面;加载器由本包自带且仅对没有官方 skill 的 agent 可见,并支持委派时 `skills: a,b` 点名注入 |
 
 ## 装上
@@ -37,7 +36,7 @@ cd ~/DSH-plugins && pnpm install
 
 ### 2. 在 profile 的 `package.json` 里逐个 link
 
-本仓库共 8 个 bundle,下面全部必装。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
+本仓库共 7 个 bundle,下面全部必装。包名不需要改;路径写 clone 到的绝对路径(把 `/path/to/DSH-plugins` 换成你的 `~/DSH-plugins`):
 
 ```json
 "dependencies": {
@@ -48,13 +47,12 @@ cd ~/DSH-plugins && pnpm install
   "dsh-deep-ptc-mode": "link:/path/to/DSH-plugins/packages/dsh-deep-ptc-mode",
   "dsh-task-dispatcher": "link:/path/to/DSH-plugins/packages/dsh-task-dispatcher",
   "dsh-skill-surface": "link:/path/to/DSH-plugins/packages/dsh-skill-surface",
-  "ecc-agent-presets": "link:/path/to/DSH-plugins/packages/ecc-agent-presets"
 }
 ```
 
 ### 3. 把包名写进 `dsh.profile.bundles`
 
-**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。关系是「包含」而不是「相等」：`bundles` 里通常还有 registry 插件和 `@deepseek-ai/*` 宿主行，**只要保证你 link 的每个包名都在里面**。下面只列本仓库的 8 个（不装的可选项删掉）：
+**只加 dependencies 不会加载。** 同一个 `package.json` 的 `dsh.profile.bundles` 数组里也必须出现包名，否则 `pnpm install` 一切正常、DSH 里却看不到这个插件。关系是「包含」而不是「相等」：`bundles` 里通常还有 registry 插件和 `@deepseek-ai/*` 宿主行，**只要保证你 link 的每个包名都在里面**。下面只列本仓库的 7 个（不装的可选项删掉）：
 
 ```json
 "dsh": {
@@ -67,7 +65,6 @@ cd ~/DSH-plugins && pnpm install
       "dsh-deep-ptc-mode",
       "dsh-task-dispatcher",
       "dsh-skill-surface",
-      "ecc-agent-presets"
     ]
   }
 }
@@ -92,7 +89,7 @@ N 等于你实际留下的 link 条数（本仓库 8 条必装 + profile 里原�
 
 ```bash
 pnpm install          # 一次装齐 workspace 依赖
-pnpm test             # 八个包全部测试
+pnpm test             # 七个包全部测试
 pnpm verify           # 校验每个包仍是合法 bundle
 ```
 
@@ -110,7 +107,7 @@ pnpm verify           # 校验每个包仍是合法 bundle
 ## 边界
 
 - `dsh-lsp-actions` 不在本仓库。它是 PerryLink 上游的 fork，有自己的 workspace、lockfile 和发布流水线，跟着上游走。
-- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第九个 bundle。
+- 根 `package.json` 不声明 `dsh.bundle`，否则它会变成第八个 bundle。
 - 各包的包名、行 id、`cordis.patch.yml` 里的 `- id:` 一律不动，DSH 靠这些识别插件。
 - `scripts/verify-packages.mjs` 只校验 `packages/` 内部，不检查任何 profile。宿主怎么接线是宿主的事。
 

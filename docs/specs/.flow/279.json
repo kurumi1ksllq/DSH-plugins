@@ -1,0 +1,35 @@
+{
+  "issue": 279,
+  "grade": "standard",
+  "stage": "dev",
+  "updatedAt": "2026-11-27T00:02:05.996Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "删除包与引用(profile/scripts/README/AGENTS)",
+      "state": "todo"
+    },
+    {
+      "id": 2,
+      "title": "dispatcher 测试去 ecc 依赖 + 空名册行为测试",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "四件套全绿 + 双轴 review",
+      "state": "todo"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "none"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -37,12 +37,6 @@ importers:
 
   packages/dsh-websearch-failover: {}
 
-  packages/ecc-agent-presets:
-    dependencies:
-      js-yaml:
-        specifier: 4.3.2
-        version: 4.3.2
-
 packages:
 
   argparse@2.0.1:
