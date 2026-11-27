@@ -1,13 +1,13 @@
 {
   "issue": 279,
   "grade": "standard",
-  "stage": "dev",
-  "updatedAt": "2026-11-27T00:02:05.996Z",
+  "stage": "pr",
+  "updatedAt": "2026-11-27T08:19:37+08:00",
   "tickets": [
     {
       "id": 1,
       "title": "删除包与引用(profile/scripts/README/AGENTS)",
-      "state": "todo"
+      "state": "done"
     },
     {
       "id": 2,
@@ -17,7 +17,7 @@
     {
       "id": 3,
       "title": "四件套全绿 + 双轴 review",
-      "state": "todo"
+      "state": "done"
     }
   ],
   "ci": {
