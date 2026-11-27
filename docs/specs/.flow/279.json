@@ -2,7 +2,7 @@
   "issue": 279,
   "grade": "standard",
   "stage": "merge",
-  "updatedAt": "2026-11-27T08:37:05+08:00",
+  "updatedAt": "2026-11-27T08:39:55+08:00",
   "tickets": [
     {
       "id": 1,
@@ -21,7 +21,7 @@
     }
   ],
   "ci": {
-    "run": 0,
+    "run": 2,
     "max": 2,
     "status": "green"
   },
