@@ -38,5 +38,9 @@ repo 丢了就不知道往哪儿同步。用户看到的现象是「同步配置
 
 ## 变更点
 
+- **`.flow/288.json` 枚举按仓库契约取值**:任务书模板写的 `ci.status: "pending"` 与 `review.state: "pending"`
+  不在 `test/flow-state.test.mjs` 钉住的枚举里(`ci.status`: green|red|none|unknown;`review.state`:
+  not-started|running|pending-decision|done),照抄会让该契约测试变红、面板也当没有记录。故取最近的
+  合法值:`ci.status: "unknown"`(未查到)、`review.state: "not-started"`。
 - 只做读侧。#290 的原子写(写侧临时文件 + rename)不在本次范围,未实现。
 - `corrupt` 只作为返回值标记,不写进状态文件本身(写进文件会让下一次读自己也带标记)。
