@@ -3,7 +3,7 @@
 // plaintext, and only the tool path calls it.
 
 import { randomBytes, randomUUID } from 'node:crypto'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync, fchmodSync, closeSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   KINDS,
@@ -505,6 +505,9 @@ export function createVaultStore(dir) {
       for (const [name, value] of Object.entries(vault.entries)) {
         if (typeof value.secret === 'string') vault.entries[name].secret = sealSecret(fresh, openSecret(key, value.secret))
       }
+      // #289:残留的 .new 属于上一次中断的轮换。store 创建时已给过它一次被采纳的机会
+      // (D4 recovery),到这里还没被采纳就说明它换不上,留着只会让独占写抛 EEXIST。
+      rmSync(`${vaultFilePath(dir)}.new`, { force: true })
       writePrivateFileSync(`${vaultFilePath(dir)}.new`, JSON.stringify(vault, null, 2) + '\n')
       copyFileSync(masterKeyPath(dir), `${masterKeyPath(dir)}.bak`)
       writePrivateFileSync(`${masterKeyPath(dir)}.new`, fresh)

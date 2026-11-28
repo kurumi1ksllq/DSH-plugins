@@ -1,0 +1,35 @@
+{
+  "issue": 289,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-28T18:02:54.734Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "envelope 畸形 iv/tag 折叠成单一错误",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "rotateKey 处理残留 vault.json.new",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "包全量测试 + spec/.flow",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
