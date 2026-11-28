@@ -11,7 +11,7 @@
  * appended after it instead.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { atomicWrite } from './atomic-write.js'
 
