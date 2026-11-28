@@ -1,10 +1,10 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { applyItems, findPackageDir, resolveSpec, writePluginDependencies } from '../lib/sync-apply.js'
+import { applyItems, bootstrapRepoClone, findPackageDir, resolveSpec, writePluginDependencies } from '../lib/sync-apply.js'
 
 // #145: every scratch directory this file makes is registered and removed at the
 // end of the run. Leaving them behind accumulated hundreds of dsh-* trees in the
@@ -181,4 +181,94 @@ test('applyItems refuses traversal / absolute / nested skill names with no files
   assert.deepEqual(readdirSync(workdir), [])
   // package.json untouched too (skills never touch it, but guard anyway).
   assert.deepEqual(JSON.parse(readFileSync(join(profileDir, 'package.json'), 'utf8')).dependencies, {})
+})
+
+// ---- bootstrapRepoClone(issue #287)----
+
+/** 一个假 git:把 clone 落成「建目录 + 空 package.json」,不碰网络。 */
+function makeFakeGit() {
+  const bin = join(scratch(), 'fake-git')
+  writeFileSync(
+    bin,
+    [
+      '#!/bin/sh',
+      'dest=""',
+      'prev=""',
+      'for a in "$@"; do',
+      '  if [ "$prev" = "--depth" ]; then prev=""; continue; fi',
+      '  case "$a" in --*) prev="$a";; *) dest="$a";; esac',
+      'done',
+      'mkdir -p "$dest" && : > "$dest/package.json"',
+      '',
+    ].join('\n'),
+  )
+  chmodSync(bin, 0o755)
+  return bin
+}
+
+/** 一个必然失败的假 git:模仿远端不可达的 clone 报错。 */
+function makeFailingGit() {
+  const bin = join(scratch(), 'failing-git')
+  writeFileSync(
+    bin,
+    [
+      '#!/bin/sh',
+      'echo "fatal: could not read from remote repository" >&2',
+      'echo "Please make sure you have the correct access rights" >&2',
+      'exit 128',
+      '',
+    ].join('\n'),
+  )
+  chmodSync(bin, 0o755)
+  return bin
+}
+
+test('bootstrapRepoClone clones into a fresh (nested) repo root', async () => {
+  const bin = makeFakeGit()
+  const repoRoot = join(scratch(), 'deep', 'plugin-repo')
+  const result = await bootstrapRepoClone({ repoUrl: 'https://example.invalid/r.git', repoRoot, gitBin: bin })
+  assert.equal(result.ok, true)
+  assert.equal(result.cloned, true)
+  assert.equal(existsSync(join(repoRoot, 'package.json')), true)
+})
+
+test('bootstrapRepoClone keeps an existing clone untouched', async () => {
+  const repoRoot = scratch()
+  mkdirSync(join(repoRoot, 'keep'), { recursive: true })
+  const result = await bootstrapRepoClone({
+    repoUrl: 'https://example.invalid/r.git',
+    repoRoot,
+    gitBin: 'dsh-no-such-git-287',
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.cloned, false)
+  assert.equal(existsSync(join(repoRoot, 'keep')), true)
+})
+
+test('bootstrapRepoClone reports a missing git binary in Chinese, not a ReferenceError', async () => {
+  const repoRoot = join(scratch(), 'nope')
+  const result = await bootstrapRepoClone({
+    repoUrl: 'https://example.invalid/r.git',
+    repoRoot,
+    gitBin: 'dsh-no-such-git-287',
+  })
+  assert.equal(result.ok, false)
+  assert.match(result.error, /克隆插件仓库失败/)
+  assert.match(result.error, /找不到 git/)
+  assert.doesNotMatch(result.error, /ReferenceError|not defined/)
+})
+
+test('bootstrapRepoClone surfaces clone stderr and cleans the slate for retry', async () => {
+  const repoRoot = join(scratch(), 'retry')
+  const result = await bootstrapRepoClone({
+    repoUrl: 'https://example.invalid/r.git',
+    repoRoot,
+    gitBin: makeFailingGit(),
+  })
+  assert.equal(result.ok, false)
+  assert.match(result.error, /克隆插件仓库失败/)
+  assert.match(result.error, /退出码 128/)
+  assert.match(result.error, /could not read from remote repository/)
+  // 失败后目录被清掉,下次重试从「没有副本」开始。
+  assert.equal(existsSync(repoRoot), false)
 })

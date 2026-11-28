@@ -1,0 +1,25 @@
+{
+  "issue": 287,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-28T18:18:31.163Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "bootstrapRepoClone 补 mkdir/explainError 实现 + 红→绿测试",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "pending"
+  },
+  "review": {
+    "state": "pending",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

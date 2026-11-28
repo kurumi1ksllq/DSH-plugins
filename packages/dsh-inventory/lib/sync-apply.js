@@ -309,12 +309,19 @@ export async function runPnpmInstall(profileDir, options = {}) {
 
 /**
  * Explain a failed `git clone` in terms the user can act on.
+ *
+ * A missing git binary, a timeout and an auth failure each need a different
+ * fix (install git / retry / check the token or repo URL), so they must not
+ * collapse into one opaque message.
  */
 function describeCloneFailure(error) {
   const code = error?.code
-  if (code === 'ENOENT') return '找不到 git 可执行文件'
-  if (error?.killed === true || code === 'ETIMEDOUT') return '克隆超时'
+  if (code === 'ENOENT') return '找不到 git 可执行文件，请先安装 Git 或配置 options.gitBin'
+  if (error?.killed === true || code === 'ETIMEDOUT') return '克隆超时，请稍后重试或加大 timeoutMs'
   const message = String(error?.stderr ?? error?.message ?? error).split('\n').filter(Boolean).slice(-3).join(' ')
+  if (/could not read Username|Authentication failed|Permission.*denied/i.test(message)) {
+    return `鉴权失败，请检查 token 或仓库地址：${message}`
+  }
   return typeof code === 'number' ? `退出码 ${code}：${message}` : message
 }
 
@@ -346,7 +353,7 @@ export async function bootstrapRepoClone(options = {}) {
   if (existsSync(repoRoot)) return { ok: true, cloned: false }
   const gitBin = typeof options.gitBin === 'string' && options.gitBin.length > 0 ? options.gitBin : 'git'
   try {
-    await mkdir(repoRoot, { recursive: true })
+    mkdirSync(repoRoot, { recursive: true })
     await run(gitBin, ['clone', '--depth', '1', '--quiet', repoUrl, repoRoot], {
       timeout: options.timeoutMs ?? 120000,
       windowsHide: true,
@@ -359,7 +366,7 @@ export async function bootstrapRepoClone(options = {}) {
     } catch {
       // best effort
     }
-    return { ok: false, error: `克隆插件仓库失败：${explainError(error)}` }
+    return { ok: false, error: `克隆插件仓库失败：${describeCloneFailure(error)}` }
   }
 }
 
