@@ -13,6 +13,8 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
+import { atomicWrite } from './atomic-write.js'
+
 const PLAIN_ID = /^[A-Za-z0-9_./@-]+$/
 const ID_LINE = /^-\s*id:\s*(.+)$/
 const FIELD_LINE = /^\s+([A-Za-z0-9_-]+):\s*(.*)$/
@@ -118,7 +120,8 @@ export function writePatchEnabled(file, { id, enabled }) {
   const next = setPatchEnabled(text, { id, enabled })
   if (!next.changed) return { path: file, changed: false }
   const eol = next.text.includes('\r\n') ? '\r\n' : '\n'
-  writeFileSync(file, next.text.endsWith('\n') ? next.text : next.text + eol, 'utf8')
+  // #270:这个文件决定宿主能不能起来,中断时被截断就等于「宿主起不来」。
+  atomicWrite(file, next.text.endsWith('\n') ? next.text : next.text + eol)
   return { path: file, changed: true }
 }
 
