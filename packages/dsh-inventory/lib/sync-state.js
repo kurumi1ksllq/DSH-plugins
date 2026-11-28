@@ -10,7 +10,7 @@
  * waiting to happen the first time someone zips a profile.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { hostname } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -76,13 +76,35 @@ export function statePath(env = process.env) {
 export function readState(env = process.env) {
   const path = statePath(env)
   if (path === null || !existsSync(path)) return withMachineId({ ...STATE_DEFAULTS }, env)
+  let raw
   try {
-    const raw = JSON.parse(readFileSync(path, 'utf8'))
-    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return withMachineId({ ...STATE_DEFAULTS }, env)
-    return withMachineId(mergeState(raw), env)
+    raw = JSON.parse(readFileSync(path, 'utf8'))
   } catch {
-    return withMachineId({ ...STATE_DEFAULTS }, env)
+    return quarantineState(path, env)
   }
+  // 合法 JSON 但不是对象:同样是坏文件,按解析失败处理。
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return quarantineState(path, env)
+  return withMachineId(mergeState(raw), env)
+}
+
+/**
+ * 坏状态文件的处理:改名留证,返回默认值 + `corrupt` 标记。
+ *
+ * 绝不写回原文件 —— 这里唯一丢不起的是 repo 与 token,默认值一覆盖就永久没了;
+ * 改名保住原文,调用方拿到标记后可以提示用户去修或手工恢复。
+ * 改名本身失败(权限、占用)也不许崩:原文件留在原处,标记照旧返回。
+ * 机器 id 只在内存里铸,不落盘,否则又会盖掉原文件。
+ */
+function quarantineState(path, env = process.env) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  try {
+    renameSync(path, `${path}.corrupt-${stamp}`)
+  } catch {
+    // 改不动名就原地保留;原文还在,只是没有备份副本。
+  }
+  // shortcut: 隔离后原路径空出来,下一次写会落一份新默认文件;repo/token 只留在
+  // .corrupt-* 备份里等人工恢复。等 #290 的原子写落地后再谈自动回填。
+  return { ...STATE_DEFAULTS, machineId: generateMachineId(env), corrupt: true }
 }
 
 /**

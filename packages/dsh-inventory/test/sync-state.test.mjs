@@ -1,11 +1,12 @@
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, statSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
   STATE_DEFAULTS,
+  STATE_FILE,
   dshHome,
   publicState,
   readState,
@@ -36,6 +37,11 @@ function track(dir) {
 
 function scratchHome() {
   return track(mkdtempSync(join(tmpdir(), 'dsh-state-')))
+}
+
+/** 家目录里该状态文件的损坏备份:只按名字前缀找,不假设时间戳格式。 */
+function corruptBackups(home) {
+  return readdirSync(home).filter((name) => name.startsWith(`${STATE_FILE}.corrupt-`))
 }
 
 /** `STATE_DEFAULTS` minus the fields a read is allowed to fill in for us. */
@@ -73,10 +79,82 @@ test('readState mints a machineId when the file is garbage', () => {
   const env = { DSH_HOME: home }
   writeFileSync(statePath(env), 'not json')
   const state = readState(env)
-  const { machineId, ...rest } = state
+  const { machineId, corrupt, ...rest } = state
+  // #288: 坏文件不再无声回退,必须报「状态文件损坏」。
+  assert.equal(corrupt, true)
   assert.deepEqual(rest, withoutMachineId({ ...STATE_DEFAULTS }))
   assert.equal(typeof machineId, 'string')
   assert.equal(machineId.length > 0, true)
+})
+
+// ---- #288:坏状态文件不许被默认值覆盖 ----------------------------------------
+
+test('#288 截断的 JSON 改名为 .corrupt-<时间戳> 备份,repo/token 不被清零', () => {
+  const home = scratchHome()
+  const env = { DSH_HOME: home }
+  const original = '{"repo":"o/r","token":"secret-token",'
+  writeFileSync(statePath(env), original)
+  const state = readState(env)
+  // 返回值是默认值 + 损坏标记(调用方据此提示用户去修)。
+  assert.equal(state.corrupt, true)
+  assert.equal(state.repo, '')
+  const backups = corruptBackups(home)
+  assert.equal(backups.length, 1, '损坏文件必须改名保留一份备份')
+  // 备份里一个字节都不能少:repo/token 是这里唯一无法重新获取的东西。
+  assert.equal(readFileSync(join(home, backups[0]), 'utf8'), original)
+  assert.equal(state.machineId.length > 0, true)
+})
+
+test('#288 合法 JSON 但不是对象同样按损坏处理', () => {
+  const home = scratchHome()
+  const env = { DSH_HOME: home }
+  const original = '[1,2,3]'
+  writeFileSync(statePath(env), original)
+  const state = readState(env)
+  assert.equal(state.corrupt, true)
+  const backups = corruptBackups(home)
+  assert.equal(backups.length, 1)
+  assert.equal(readFileSync(join(home, backups[0]), 'utf8'), original)
+})
+
+test('#288 只有个别字段类型错时不清零可救的 repo/token,也不留备份', () => {
+  const home = scratchHome()
+  const env = { DSH_HOME: home }
+  const original = JSON.stringify({ repo: 'o/r', token: 'secret-token', machineId: 'box-a', lastPullAt: 'yesterday' })
+  writeFileSync(statePath(env), original)
+  const state = readState(env)
+  assert.equal(state.repo, 'o/r')
+  assert.equal(state.token, 'secret-token')
+  assert.equal(state.lastPullAt, 0)
+  // 可救的文件不算损坏:备份它反而会把还能用的 repo/token 挪走。
+  assert.notEqual(state.corrupt, true)
+  assert.equal(corruptBackups(home).length, 0)
+  assert.equal(readFileSync(statePath(env), 'utf8'), original)
+})
+
+test('#288 备份改名失败时不抛错,也不拿默认值覆盖原文件', () => {
+  const home = scratchHome()
+  const env = { DSH_HOME: home }
+  const original = '{"repo":"o/r","token":"secret-token",'
+  writeFileSync(statePath(env), original)
+  // 用固定时钟 + 预先占住备份名(同名目录)逼 rename 失败:chmod 那招在 root 下无效。
+  // 这里刻意钉住时间戳格式 —— 它正是验收里写明的「<原文件名>.corrupt-<时间戳>」。
+  const stamp = '2026-01-01T00-00-00-000Z'
+  mkdirSync(join(home, `${STATE_FILE}.corrupt-${stamp}`))
+  const RealDate = globalThis.Date
+  globalThis.Date = class extends RealDate {
+    constructor(...args) {
+      super(...(args.length === 0 ? ['2026-01-01T00:00:00.000Z'] : args))
+    }
+  }
+  try {
+    const state = readState(env)
+    assert.equal(state.corrupt, true)
+    assert.equal(state.machineId.length > 0, true)
+    assert.equal(readFileSync(statePath(env), 'utf8'), original, '原文件必须原样留着')
+  } finally {
+    globalThis.Date = RealDate
+  }
 })
 
 test('readState keeps an existing machineId across reads', () => {

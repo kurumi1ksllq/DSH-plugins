@@ -12,6 +12,14 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.5 — plugin-sync.json 损坏时不再清零 repo/token(#288)
+
+**问题**:`lib/sync-state.js` 的 `readState` 读到坏状态文件(截断/非法 JSON/顶层不是对象)时返回默认值,默认值随后又被 `withMachineId` 写回同一个文件,于是 `repo` 与 `token` 永久清零 —— token 只存在这个文件里,repo 丢了也不知道往哪同步。
+
+**修复**:读失败改走 `quarantineState`:先把原文件 rename 成 `<原文件名>.corrupt-<时间戳>` 备份,再返回默认值 + `corrupt: true`;该路径不写回原文件,机器 id 只在内存里铸。rename 失败只吞错,原文件留原处、标记照旧。只有个别字段类型错的文件不算损坏(逐字段兜底后 repo/token 仍在),不动文件。`corrupt` 只作返回标记,不进状态文件。
+
+**测试**:新增 4 条(截断 JSON 备份逐字节相同、顶层非对象同样处理、单字段类型错不清零不留备份、rename 失败不崩且原文件不变),并把既有「garbage 文件」用例改为断言 `corrupt === true`。反向验证:改回「默认值覆盖」→ 3 条变红。只做读侧,原子写属 #290。
+
 ### dsh-task-dispatcher 0.9.5 — 移除 ecc 名册依赖,空名册明确报不可用(issue-279)
 
 **背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包。#226 起该包不在 dsh.profile.bundles、133 个 preset 从未注册,删除对运行时零变化;「依赖保留待重启用」的部署状态随本包删除一并终止。
@@ -852,7 +860,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 95 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 96 个条目:其中 90 条已有对应 tag;3 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`、`dsh-inventory@0.14.5`(#288));另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+3+3=96。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27;#288 按同口径 +1,2026-11-29),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
