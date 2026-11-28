@@ -15,6 +15,7 @@
  * untouched.
  */
 
+import { randomBytes } from 'node:crypto'
 import { closeSync, fchmodSync, openSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 
 const REAL_FS = { closeSync, fchmodSync, openSync, renameSync, rmSync, writeFileSync }
@@ -30,7 +31,8 @@ const REAL_FS = { closeSync, fchmodSync, openSync, renameSync, rmSync, writeFile
 export function atomicWrite(path, data, options = {}) {
   const io = options.fs ?? REAL_FS
   const mode = options.mode ?? 0o600
-  const temp = `${path}.tmp-${process.pid}-${Date.now()}`
+  // 同一毫秒内的两次写(面板连点)不能撞同一个临时文件名。
+  const temp = `${path}.tmp-${process.pid}-${Date.now()}-${randomBytes(4).toString('hex')}`
   try {
     const fd = io.openSync(temp, 'w', mode)
     try {
