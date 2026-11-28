@@ -17,9 +17,9 @@
  */
 
 import { execFile } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -291,6 +291,8 @@ export async function fetchManifestText(parsed, options = {}) {
   const cloned = await fetchViaClone(parsed, { ref, path, timeoutMs, gitBin: options.gitBin, clone: options.clone })
   if (cloned.text !== undefined) return { text: cloned.text, via: 'git' }
   attempts.push(`git: ${cloned.error}`)
+  // #286:path 越界是配置错误 —— 既不重试别的 ref,也不许被后面的判定说成「没发布」。
+  if (cloned.unsafePath === true) return { error: `无法读取清单：${cloned.error}` }
   // #251:git 是唯一说得出「凭据错」「ref 错」的传输,它的失败性质决定
   // 「没发布」这个结论还站不站得住。
   let cloneVeto = cloneVetoReason(cloned)
@@ -378,6 +380,30 @@ async function readContents(ref, { parsed, path, token, timeoutMs, fetchImpl }) 
 }
 
 /**
+ * 把清单 path 解析成克隆根内的真实文件路径,越界即抛错。
+ *
+ * path 来自用户配置(同步设置 / 仓库地址后缀),所以 `../../etc/passwd` 或绝对路径
+ * 会读到仓库外的文件;克隆内容里的符号链接同理。判定用 realpath:软链自己看起来
+ * 是相对路径,只有解析后才看得出它指向根外。
+ */
+function clonePath(dir, rel) {
+  const root = realpathSync(dir)
+  const inside = (target) => target === root || target.startsWith(root.endsWith(sep) ? root : root + sep)
+  const abs = resolve(root, rel)
+  if (!inside(abs)) throw unsafePathError(rel, '越出克隆根')
+  // 文件不存在仍交给 readFileSync 报 ENOENT:那是「清单没发布」,不是路径问题。
+  const real = realpathSync(abs)
+  if (!inside(real)) throw unsafePathError(rel, '经符号链接指向克隆根之外')
+  return real
+}
+
+function unsafePathError(rel, reason) {
+  const error = new Error(`清单路径不安全：${rel} ${reason}（只允许读克隆目录内的文件）`)
+  error.unsafePath = true
+  return error
+}
+
+/**
  * `git clone --depth 1` into a temp dir, read one file, always clean up.
  *
  * `clone` is an injectable seam: it receives the argument list plus options and
@@ -399,10 +425,15 @@ async function fetchViaClone(parsed, { ref, path, timeoutMs, gitBin, clone }) {
       timeout: timeoutMs,
       windowsHide: true,
     })
-    return { text: readFileSync(join(dir, path), 'utf8') }
+    return { text: readFileSync(clonePath(dir, path), 'utf8') }
   } catch (error) {
     const message = String(error?.message ?? error).split('\n')[0]
-    return { error: message, branchMissing: looksLikeMissingRef(`${message}\n${error?.stderr ?? ''}`) }
+    return {
+      error: message,
+      branchMissing: looksLikeMissingRef(`${message}\n${error?.stderr ?? ''}`),
+      // #286:越界是配置错误,上层不能据此说「清单没发布」。
+      unsafePath: error?.unsafePath === true,
+    }
   } finally {
     if (dir !== null) {
       try {

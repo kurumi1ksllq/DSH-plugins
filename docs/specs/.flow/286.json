@@ -1,0 +1,25 @@
+{
+  "issue": 286,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-28T18:02:38.637+00:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "clone 传输的清单路径约束在克隆根内(含符号链接),越界直接报错",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "pending"
+  },
+  "review": {
+    "state": "pending",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
