@@ -1,0 +1,35 @@
+{
+  "issue": 290,
+  "grade": "standard",
+  "stage": "pr",
+  "updatedAt": "2026-11-28T18:17:23.775Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "新增 atomicWrite 助手(temp + fchmod + rename,fs 可注入)",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "writeState 与 writePatchEnabled 改走原子写",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "反向验证 + 目标测试全绿 + spec/.flow",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}

@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path'
 
 import { LEGACY_ID, normalizeMachineId } from './fleet.js'
 
+import { atomicWrite } from './atomic-write.js'
 import { dshHome } from './dsh-home.js'
 
 export const STATE_FILE = 'plugin-sync.json'
@@ -167,7 +168,8 @@ export function writeState(patch, env = process.env) {
     const next = mergeState({ ...current, ...patch })
     if (path === null) return next
     mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+    // #270:非原子写会在中断时把状态文件截断,而读侧看到损坏会当成「没有配置」。
+    atomicWrite(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
     return next
   })
   // Keep the queue alive even when a write rejects, but keep it last so the

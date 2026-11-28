@@ -12,6 +12,14 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.6 — 关键配置原子写,cordis.patch.yml 与 plugin-sync.json 不再被截断(issue-290 / #270)
+
+**背景**:#270 发现两处关键配置直接覆盖写。`cordis.patch.yml` 决定宿主能不能起来,中断时被截断就是「宿主起不来」;`plugin-sync.json` 存仓库地址与 token,非原子写本身制造损坏,而且 `{ mode: 0o600 }` 只在创建时生效,已存在文件的权限不会被收紧。
+
+**改法**:新增 `lib/atomic-write.js` 的 `atomicWrite(path, data, { mode, fs })` —— 同目录临时文件 → `fchmod` → `rename` 覆盖,失败时删临时文件再抛原错。`writeState` 与 `writePatchEnabled` 改走它。
+
+**验证**:新增 `test/issue-290-atomic-write.test.mjs`(注入只让写失败的 fs,断言目标文件保持原内容且不留临时文件;已存在 0644 文件写入后权限纠正为 0600);换回 `writeFileSync` 时对应断言变红。
+
 ### dsh-task-dispatcher 0.9.5 — 移除 ecc 名册依赖,空名册明确报不可用(issue-279)
 
 **背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包。#226 起该包不在 dsh.profile.bundles、133 个 preset 从未注册,删除对运行时零变化;「依赖保留待重启用」的部署状态随本包删除一并终止。
@@ -852,7 +860,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 95 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 96 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+4=96。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
