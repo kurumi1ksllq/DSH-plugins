@@ -131,19 +131,21 @@ export function openEnvelope(passphrase, envelope) {
     throw new EnvelopeError('unknown cipher')
   }
 
-  const key = deriveKey(normalized, envelope.kdf.salt)
-  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.cipher.iv, 'base64'))
-  decipher.setAAD(Buffer.from(headerOf(envelope), 'utf8'))
-  decipher.setAuthTag(Buffer.from(envelope.cipher.tag, 'base64'))
   let plaintext
   try {
+    const key = deriveKey(normalized, envelope.kdf.salt)
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.cipher.iv, 'base64'))
+    decipher.setAAD(Buffer.from(headerOf(envelope), 'utf8'))
+    decipher.setAuthTag(Buffer.from(envelope.cipher.tag, 'base64'))
     plaintext = Buffer.concat([
       decipher.update(Buffer.from(envelope.payload, 'base64')),
       decipher.final(),
     ]).toString('utf8')
-  } catch {
-    // Wrong passphrase, tampered payload, tampered header or forged KDF params
-    // all land here. One error, no oracle.
+  } catch (error) {
+    // Wrong passphrase, tampered payload, tampered header, forged KDF params
+    // and malformed iv/tag all land here (#289: a raw TypeError from a bad tag
+    // would tell an attacker which field broke). One error, no oracle.
+    if (error instanceof EnvelopeError) throw error
     throw new EnvelopeError('decryption failed')
   }
   return JSON.parse(plaintext)

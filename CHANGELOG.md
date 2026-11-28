@@ -12,6 +12,14 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-credential-vault 0.6.6 — 错误面加固:畸形 iv/tag 不再泄露字段、残留暂存文件不再卡死轮换(issue-289 / #268)
+
+**背景**:#268 审查发现两处错误面问题。①`openEnvelope` 对畸形 iv/tag 抛原始 `TypeError`(`ERR_CRYPTO_INVALID_AUTH_TAG` 等),而本包的设计是「单一错误、无 oracle」——TypeError 泄露了「哪个字段先坏了」,可用于区分「密码错」与「密文损坏」。②`rotateKey` 用独占写 `vault.json.new`,上一次轮换中途退出留下的暂存文件让之后每次 rotate 都 `EEXIST` 崩溃,且不说明原因。
+
+**改法**:①把 key 派生、iv 解析、AAD、tag 解析、解密收进同一个 try,任何非 `EnvelopeError` 的异常折叠成与解密失败完全相同的 `EnvelopeError('decryption failed')`。②rotate 在独占写暂存文件前先清掉残留——store 创建时的 D4 恢复已给过它一次被采纳的机会,走到 rotate 还没被采纳说明它换不上,删除不丢有效状态。
+
+**验证**:新增 `test/issue-289-envelope-oracle.test.mjs`(错密码/畸形 iv/畸形 tag 同一种错误)与 `test/issue-289-rotate-leftover.test.mjs`(残留文件下 rotate 不 EEXIST 且凭据不丢);包全量 243/243 通过,两处实现还原时对应测试分别变红。
+
 ### dsh-task-dispatcher 0.9.5 — 移除 ecc 名册依赖,空名册明确报不可用(issue-279)
 
 **背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包。#226 起该包不在 dsh.profile.bundles、133 个 preset 从未注册,删除对运行时零变化;「依赖保留待重启用」的部署状态随本包删除一并终止。
