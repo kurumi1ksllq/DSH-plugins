@@ -46,6 +46,14 @@ test-only changes are exempt.
 **问题 B**:`hasPseudoToolCall` 对未闭合围栏内的内容要求「名字 + 参数 + 闭合」三件套,比围栏外更严——正文里出现一个孤立 ```` ``` ```` 之后,只带 `<function name=` 的真调用不再命中。**修复**:未闭合围栏内复用同一套判定;闭合围栏的内容仍不参与(文档示例)。
 
 **问题 C**:数字失控的尾向判据用 `[A-Za-z\u4e00-\u9fff]`,假名/谚文/西里尔等语言的说明文字不算「正文」,合法列表后接一句日文仍被当失控截断。**修复**:改用 `\p{L}`。
+### dsh-inventory 0.14.5 — clone 传输的清单路径必须落在克隆根内(#286)
+
+**问题**(原始 #265):`lib/sync-remote.js` 的 `fetchViaClone` 用 `readFileSync(join(dir, path))` 读清单,而 `path` 来自用户配置。写 `../../etc/passwd` 或绝对路径 `/etc/passwd` 就能读到克隆目录之外的文件;克隆内容里指向外部的符号链接同样能读出去。
+
+**修复**:新增 `clonePath(dir, rel)`,先按 `resolve` 判字面是否越界,再用 `realpath` 判软链解析后的真实路径是否仍在克隆根内(两种情况分别给出「越出克隆根」「经符号链接指向克隆根之外」)。越界时 `fetchViaClone` 返回 `unsafePath: true`,`fetchManifestText` 立即报错返回 —— 不重试别的 ref、不降级到别的传输,也不让这个错误被说成「清单尚未发布」。文件不存在仍走原来的 ENOENT 路径,行为不变。
+
+回归测试(`test/sync-issue-286.test.mjs`,全部走公开入口 `fetchManifestText` + 注入的 clone seam):`../x`、`../../etc/passwd`、`/etc/passwd`、指向克隆根外的符号链接四种都被拒绝且错误信息说清原因;`dsh-manifest.json` 与子目录路径照旧可读。
+
 ### dsh-inventory 0.14.4 — 远端「没发布」按每个传输各判 + 挂载超时只记 timeout(#238 #251 #252)
 
 **问题 A(#238)**:`lib/sync-remote.js` 只有一个共享的 `missingFile`,每个传输都给它赋值:raw 报 500 之后,紧接着 contents API 的 404 又把它翻成 true。注释写着「每个传输都 404 才算没发布」,实现是「最后一个说话的赢」。**修复**:raw / contents API 各记各的 `notFoundRaw` / `notFoundApi`,两者都是 404 才判没发布(默认分支重试也按各自传输记);5xx、403、传输崩溃都只是「没读到」。
@@ -852,7 +860,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 95 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 96 个条目:其中 90 条已有对应 tag;3 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`、`dsh-inventory@0.14.5`(#286));另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+3+3=96。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,#286 追加一条,2026-11-29),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
