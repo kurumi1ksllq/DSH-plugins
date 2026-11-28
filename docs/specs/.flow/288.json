@@ -1,0 +1,35 @@
+{
+  "issue": 288,
+  "grade": "standard",
+  "stage": "review",
+  "updatedAt": "2026-11-28T18:15:42+00:00",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "红:损坏文件不许被默认值覆盖的测试",
+      "state": "done"
+    },
+    {
+      "id": 2,
+      "title": "绿:readState 隔离坏文件 + corrupt 标记",
+      "state": "done"
+    },
+    {
+      "id": 3,
+      "title": "包全量测试 + spec + 版本号",
+      "state": "done"
+    }
+  ],
+  "ci": {
+    "run": 0,
+    "max": 2,
+    "status": "unknown"
+  },
+  "review": {
+    "state": "not-started",
+    "axes": 2
+  },
+  "merge": {
+    "authorized": false
+  }
+}
