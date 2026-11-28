@@ -12,6 +12,10 @@ test-only changes are exempt.
 
 ## Unreleased
 
+### dsh-inventory 0.14.5 — bootstrapRepoClone 引用未定义的 mkdir/explainError,首次克隆必抛 ReferenceError(#287)
+
+**问题**:`lib/sync-apply.js` 的 `bootstrapRepoClone`(无底座时的一次性 `git clone --depth 1`)引用了两个不存在的标识符:克隆前 `await mkdir(...)`(本文件导入的是 `mkdirSync`),失败分支 `explainError(error)`(全文件从未定义)。首次安装没有插件仓库副本时克隆从未真正执行,一旦走到失败分支,`applyItems` 透出的是 `ReferenceError` 而不是给用户看的错误文案(#266 的必抛由此而来)。**修复**:改用已有的 `mkdirSync(..., { recursive: true })`;失败文案走同文件已有定义但从未被调用的 `describeCloneFailure`,并充实为可操作提示(缺 git → 安装/配置 options.gitBin;超时 → 重试或加大 timeoutMs;stderr 命中鉴权特征 → 检查 token 或仓库地址;其余带退出码与 stderr 尾行)。失败路径一律返回可读中文文本。回归测试(`test/sync-apply.test.mjs`,gitBin 注入假 git 脚本):克隆成功落盘、已有底座不动、缺 git 报中文而非 ReferenceError、远端不可达报「退出码 128 + stderr」且清场可重试;把实现改回 `await mkdir` + `explainError` 时新测试变红(反向验证)。
+
 ### dsh-task-dispatcher 0.9.5 — 移除 ecc 名册依赖,空名册明确报不可用(issue-279)
 
 **背景**:对比 MichengAI/dsh-agency-agents 后,用户选择「只清理」:删除本仓库 ecc-agent-presets 包。#226 起该包不在 dsh.profile.bundles、133 个 preset 从未注册,删除对运行时零变化;「依赖保留待重启用」的部署状态随本包删除一并终止。
@@ -852,7 +856,7 @@ none of the git remotes configured for this repository point to a known GitHub h
 - **en 接线源码护栏**:copy.test 钉死 governor-apply 15 处 settings.copyLocale 实参(删任一即红)。
 - **en.softStopTail** 补「用中文总结」约定(en 与 zh 语义对齐)。
 
-> > > 本段现有 95 个条目:其中 90 条已有对应 tag;2 条待打 tag(`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+2+3=95。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27),不手算。待下一次统一归档至 History 段。
+> > > 本段现有 96 个条目:其中 90 条已有对应 tag;3 条待打 tag(`dsh-inventory@0.14.5`(#287)、`dsh-task-dispatcher@0.9.5`(#279)、`dsh-skill-surface@0.1.0`);另有 3 条「仓库级」条目不带版本号,本就不该有 tag(含 #279 的「ecc-agent-presets 包已移除」)。90+3+3=96。计数由脚本对 Unreleased 段逐条 `### ` 标题与 `git tag -l` 比对得出(2026-11-25 建立,#279 按同口径人工复核更新,2026-11-27;#287 追加),不手算。待下一次统一归档至 History 段。
 
 ### dsh-deep-ptc-mode 1.11.0 — governor locale 化:设置双字典/模型文案抽字典/copyLocale(#132,T4.ptc)
 
