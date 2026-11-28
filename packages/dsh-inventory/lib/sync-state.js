@@ -102,6 +102,8 @@ function quarantineState(path, env = process.env) {
   } catch {
     // 改不动名就原地保留;原文还在,只是没有备份副本。
   }
+  // shortcut: 隔离后原路径空出来,下一次写会落一份新默认文件;repo/token 只留在
+  // .corrupt-* 备份里等人工恢复。等 #290 的原子写落地后再谈自动回填。
   return { ...STATE_DEFAULTS, machineId: generateMachineId(env), corrupt: true }
 }
 
