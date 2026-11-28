@@ -13,10 +13,10 @@
   "ci": {
     "run": 0,
     "max": 2,
-    "status": "pending"
+    "status": "unknown"
   },
   "review": {
-    "state": "pending",
+    "state": "not-started",
     "axes": 2
   },
   "merge": {
